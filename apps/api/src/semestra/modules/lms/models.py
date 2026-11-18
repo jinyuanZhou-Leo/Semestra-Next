@@ -117,6 +117,34 @@ class LmsImportedRef(Base, OwnedMixin):
     dismissed_at: Mapped[datetime | None] = mapped_column(default=None)
 
 
+class LmsFeedback(Base, OwnedMixin):
+    """The teacher's feedback on an imported assessment's assignment, as the sync last read it
+    (`sync_feedback.py`): kept here so the gradebook shows it without asking the platform, after
+    the course closes there, and in backups. One row per imported assessment once the sync read
+    its submission, empty or not; it goes with its ref (unbinding or unlinking drops it, the
+    grade stays in the gradebook)."""
+
+    __tablename__ = "lms_feedback"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    ref_id: Mapped[str] = mapped_column(
+        String, ForeignKey("lms_imported_refs.id", ondelete="CASCADE"), unique=True
+    )
+    # The assignment's address on the platform and its points (the score is shown against them).
+    web_url: Mapped[str | None] = mapped_column(String, default=None)
+    points: Mapped[float | None] = mapped_column(default=None)
+    score: Mapped[float | None] = mapped_column(default=None)
+    grade: Mapped[str | None] = mapped_column(String, default=None)
+    attempt: Mapped[int | None] = mapped_column(default=None)
+    graded_at: Mapped[datetime | None] = mapped_column(default=None)
+    # `SubmissionComment`s, oldest first.
+    comments: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    # The assignment's rubric (`RubricCriterion`s, with their ratings), so the rubric shows in
+    # full without the platform, and the teacher's `RubricScore` per criterion.
+    rubric: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    rubric_scores: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+
+
 class LmsMaterial(Base, OwnedMixin):
     """A file, page or link of a linked course that the sync keeps in the course's files
     (`sync_files.py`), one row per platform item. With `item_id`: the course's files have it.

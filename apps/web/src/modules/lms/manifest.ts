@@ -11,13 +11,12 @@ import {
 import { lmsSyncRequest } from '@semestra/api-client'
 import { defineModule, preloadable } from '@/app/extensions'
 import type {
-  CourseLinkState,
+  FeedbackList,
   LmsProgramBindingGetResponse,
   LmsProviderListResponse,
 } from '@semestra/api-client'
 import {
   lmsAnnouncementListOptions,
-  lmsCourseLinkGetOptions,
   lmsProgramBindingGetOptions,
   lmsProviderListOptions,
   lmsTermAnnouncementListOptions,
@@ -46,7 +45,8 @@ import {
 import { bindAction, unbindAction } from './binding/actions'
 import { OpenInPlatform, PlatformMark } from './components/PlatformMark'
 import { CourseInfoLms } from './components/CourseInfoLms'
-import { AssessmentFeedbackCell } from './components/AssessmentFeedback'
+import { AssessmentFeedbackCell, AssessmentFeedbackDialog } from './components/AssessmentFeedback'
+import { feedbackListOptions } from './feedback'
 import { CourseLinks } from './components/CourseLinks'
 import { prefetchCourseLink, prefetchCourseTools } from './course-info'
 import TaskSubmission from './components/TaskSubmission'
@@ -299,18 +299,19 @@ export default defineModule({
     [TERM_WIZARD_IMPORT_SOURCES]: [wizardCourseSource],
     [ASSESSMENT_IMPORT_SOURCES]: [assignmentSource],
     [ASSESSMENT_ACTIONS]: [bindAction, unbindAction],
-    // Only in the gradebook of a linked course where some assessments follow an LMS assignment
-    // (an unlinked course's imported ones keep their origin but have no platform to read).
+    // Only in a gradebook where the teacher left feedback on some assessment (kept by the sync, so
+    // it goes when the assessment stops following its assignment or the course is unlinked).
     [ASSESSMENT_COLUMNS]: [
       {
         id: 'lms.feedback',
         header: m.lms_feedback_column,
         Cell: AssessmentFeedbackCell,
-        query: ({ courseId }) => lmsCourseLinkGetOptions({ path: { course_id: courseId } }),
-        shownFor: (assessments, state) =>
-          Boolean(state?.link) && assessments.some((a) => a.source_kind === 'lms'),
+        Dialog: AssessmentFeedbackDialog,
+        query: ({ courseId }) => feedbackListOptions(courseId),
+        shownFor: (assessments, list) =>
+          assessments.some((a) => list?.items.some((f) => f.assessment_id === a.id)),
       },
-    ] satisfies AssessmentColumn<CourseLinkState>[],
+    ] satisfies AssessmentColumn<FeedbackList>[],
     [FIELD_ORIGINS]: [{ id: 'lms.sync', Button: FollowButton }] satisfies FieldOrigin[],
     [COURSE_INFO_ROWS]: [
       { id: 'lms.link', order: 100, component: CourseInfoLms, prefetch: prefetchCourseLink },
@@ -365,6 +366,10 @@ export default defineModule({
         { _id: 'lmsCourseLinkGet', path: { course_id: data.course_id } },
         { _id: 'lmsAssignmentList', path: { course_id: data.course_id } },
       ],
+    ],
+    // The sync kept new or changed feedback for a course's assessments.
+    'lms.feedback.updated': [
+      (data) => [{ _id: 'lmsFeedbackList', path: { course_id: data.course_id } }],
     ],
     // An import committed: what the course reports as new, and its assignments' "imported as".
     'lms.course.imports_recorded': [

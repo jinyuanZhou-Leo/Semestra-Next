@@ -12983,6 +12983,59 @@
         }
       }
     },
+    "/courses/{course_id}/lms/feedback": {
+      "get": {
+        "tags": [
+          "lms"
+        ],
+        "summary": "The teacher's feedback kept for a course's imported assessments.",
+        "description": "Comments and rubric scores the background sync keeps (read from the database,\nso it works while the LMS cannot be reached). The gradebook's feedback column.",
+        "operationId": "lmsFeedbackList",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Course id",
+              "title": "Course Id"
+            },
+            "description": "Course id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedbackList"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/courses/{course_id}/lms/files/{file_id}": {
       "get": {
         "tags": [
@@ -27018,6 +27071,136 @@
         ],
         "title": "FeedUpdateInputBody"
       },
+      "FeedbackList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/FeedbackOut"
+            },
+            "type": "array",
+            "title": "Items",
+            "description": "Assessments of the course with comments or rubric scores"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "FeedbackList"
+      },
+      "FeedbackOut": {
+        "properties": {
+          "assessment_id": {
+            "type": "string",
+            "title": "Assessment Id"
+          },
+          "assignment_id": {
+            "type": "string",
+            "title": "Assignment Id",
+            "description": "The assignment's external id"
+          },
+          "web_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Web Url"
+          },
+          "points": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Points",
+            "description": "The assignment's points"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          },
+          "grade": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grade"
+          },
+          "attempt": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attempt"
+          },
+          "graded_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Graded At"
+          },
+          "comments": {
+            "items": {
+              "$ref": "#/components/schemas/SubmissionComment"
+            },
+            "type": "array",
+            "title": "Comments",
+            "default": []
+          },
+          "rubric": {
+            "items": {
+              "$ref": "#/components/schemas/RubricCriterion"
+            },
+            "type": "array",
+            "title": "Rubric",
+            "description": "The assignment's rubric; `rubric_scores` name its criteria",
+            "default": []
+          },
+          "rubric_scores": {
+            "items": {
+              "$ref": "#/components/schemas/RubricScore"
+            },
+            "type": "array",
+            "title": "Rubric Scores",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "assessment_id",
+          "assignment_id"
+        ],
+        "title": "FeedbackOut",
+        "description": "The teacher's feedback on an imported assessment, as the last sync kept it (M09 §4.7)."
+      },
       "FileList": {
         "properties": {
           "items": {
@@ -37507,6 +37690,17 @@
       },
       "SubmissionComment": {
         "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
           "author": {
             "anyOf": [
               {
@@ -37816,6 +38010,18 @@
           "new": {
             "title": "New"
           },
+          "target_kind": {
+            "type": "string",
+            "enum": [
+              "assessment",
+              "task"
+            ],
+            "title": "Target Kind"
+          },
+          "target_id": {
+            "type": "string",
+            "title": "Target Id"
+          },
           "at": {
             "type": "string",
             "format": "date-time",
@@ -37840,12 +38046,14 @@
           "field",
           "old",
           "new",
+          "target_kind",
+          "target_id",
           "at",
           "reverted",
           "toggleable"
         ],
         "title": "SyncChange",
-        "description": "A field the sync changed on an imported item."
+        "description": "A field the sync changed on an imported item, or new feedback on it (`field` feedback:\n`new` is `{comments: <how many new>, rubric: <assessed for the first time>}`)."
       },
       "SyncConflict": {
         "properties": {

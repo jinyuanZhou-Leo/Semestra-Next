@@ -179,8 +179,11 @@ async def status(ctx: Ctx, program_id: str) -> SyncStatus:
             at=change.at,
             reverted=change.reverted_at is not None,
             toggleable=change.id in can_toggle,
+            target_kind="assessment" if ref.target_kind == "assessment" else "task",
+            target_id=str(ref.target_id),
         )
         for change, ref in rows
+        if ref.target_id is not None
     ]
     errors = [
         SyncCourseError(course_id=li.course_id, course=label(li.course_id), stage=stage, code=code)

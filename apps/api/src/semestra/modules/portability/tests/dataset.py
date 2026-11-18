@@ -53,6 +53,7 @@ from semestra.modules.lms.models import (
     LmsCache,
     LmsConnection,
     LmsCourseLink,
+    LmsFeedback,
     LmsImportedRef,
     LmsMaterial,
     LmsProgramBinding,
@@ -397,6 +398,17 @@ async def populate(
     await db.flush()
     db.add(
         LmsSyncChange(**u, ref_id=lms_ref.id, field="title", old="Midterm", new="Midterm 1", at=NOW)
+    )
+    db.add(
+        LmsFeedback(
+            **u,
+            ref_id=lms_ref.id,
+            points=100,
+            score=88,
+            comments=[{"id": "1", "author": "Prof", "comment": "Good", "created_at": None}],
+            rubric=[{"id": "c1", "description": "Clarity", "points": 10, "ratings": []}],
+            rubric_scores=[{"criterion_id": "c1", "points": 9}],
+        )
     )
     db.add_all(
         [

@@ -156,6 +156,8 @@ test('a change the sync made is undone from the panel, and so is undoing it', as
     at: new Date().toISOString(),
     reverted: false,
     toggleable: true,
+    target_kind: 'assessment' as const,
+    target_id: 'as1',
   }
   const calls = vi.fn<(url: string) => void>()
   server.use(
@@ -252,4 +254,29 @@ test('editing an assessment puts the platform value of a field that differs into
       expect.objectContaining({ due_date: '2026-11-06', due_time: '23:59' }),
     ),
   )
+})
+
+test('new feedback opens the assessment in the gradebook', async () => {
+  const change = {
+    id: 'ch2',
+    course_id: 'c1',
+    course: 'CSC148',
+    title: 'A3',
+    field: 'feedback',
+    old: null,
+    new: { comments: 2, rubric: false },
+    at: new Date().toISOString(),
+    reverted: false,
+    toggleable: false,
+    target_kind: 'assessment' as const,
+    target_id: 'as1',
+  }
+  server.use(...handlers(status({ recent: [change] })))
+  const { router } = renderWithRouter(<InPopover />, undefined, IN_PROGRAM)
+  // Nothing to put back: the row opens the feedback.
+  const row = await screen.findByRole('button', { name: /A3 feedback\s*New comments/ })
+  expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull()
+  await userEvent.click(row)
+  await waitFor(() => expect(router.state.location.pathname).toBe('/p/p1/c/c1/grades'))
+  expect(router.state.location.search).toEqual({ feedback: 'as1' })
 })

@@ -4542,6 +4542,76 @@ export type FeedUpdateInputBody = {
 };
 
 /**
+ * FeedbackList
+ */
+export type FeedbackList = {
+    /**
+     * Items
+     *
+     * Assessments of the course with comments or rubric scores
+     */
+    items: Array<FeedbackOut>;
+};
+
+/**
+ * FeedbackOut
+ *
+ * The teacher's feedback on an imported assessment, as the last sync kept it (M09 §4.7).
+ */
+export type FeedbackOut = {
+    /**
+     * Assessment Id
+     */
+    assessment_id: string;
+    /**
+     * Assignment Id
+     *
+     * The assignment's external id
+     */
+    assignment_id: string;
+    /**
+     * Web Url
+     */
+    web_url?: string | null;
+    /**
+     * Points
+     *
+     * The assignment's points
+     */
+    points?: number | null;
+    /**
+     * Score
+     */
+    score?: number | null;
+    /**
+     * Grade
+     */
+    grade?: string | null;
+    /**
+     * Attempt
+     */
+    attempt?: number | null;
+    /**
+     * Graded At
+     */
+    graded_at?: string | null;
+    /**
+     * Comments
+     */
+    comments?: Array<SubmissionComment>;
+    /**
+     * Rubric
+     *
+     * The assignment's rubric; `rubric_scores` name its criteria
+     */
+    rubric?: Array<RubricCriterion>;
+    /**
+     * Rubric Scores
+     */
+    rubric_scores?: Array<RubricScore>;
+};
+
+/**
  * FileList
  */
 export type FileList = {
@@ -10551,6 +10621,10 @@ export type Submission = {
  */
 export type SubmissionComment = {
     /**
+     * Id
+     */
+    id?: string | null;
+    /**
      * Author
      */
     author?: string | null;
@@ -10704,7 +10778,8 @@ export type SuggestionList = {
 /**
  * SyncChange
  *
- * A field the sync changed on an imported item.
+ * A field the sync changed on an imported item, or new feedback on it (`field` feedback:
+ * `new` is `{comments: <how many new>, rubric: <assessed for the first time>}`).
  */
 export type SyncChange = {
     /**
@@ -10735,6 +10810,14 @@ export type SyncChange = {
      * New
      */
     new: unknown;
+    /**
+     * Target Kind
+     */
+    target_kind: 'assessment' | 'task';
+    /**
+     * Target Id
+     */
+    target_id: string;
     /**
      * At
      */
@@ -20043,6 +20126,38 @@ export type LmsCourseRefreshResponses = {
 };
 
 export type LmsCourseRefreshResponse = LmsCourseRefreshResponses[keyof LmsCourseRefreshResponses];
+
+export type LmsFeedbackListData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/lms/feedback';
+};
+
+export type LmsFeedbackListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsFeedbackListError = LmsFeedbackListErrors[keyof LmsFeedbackListErrors];
+
+export type LmsFeedbackListResponses = {
+    /**
+     * Successful Response
+     */
+    200: FeedbackList;
+};
+
+export type LmsFeedbackListResponse = LmsFeedbackListResponses[keyof LmsFeedbackListResponses];
 
 export type LmsFileGetData = {
     body?: never;

@@ -83,6 +83,9 @@ async def check_provider(
         if listed:
             detail = await provider.submission(io, cfg, creds, course_id, listed[0].external_id)
             assert detail.assignment_id == listed[0].external_id
+        found = await provider.submissions(io, cfg, creds, course_id)
+        assert all(isinstance(s, dto.SubmissionDetail) and s.assignment_id for s in found)
+        reads.append(("submissions", found))
     if "discussions" in f:
         topics = await provider.discussions(io, cfg, creds, course_id)
         reads.append(("discussions", topics))

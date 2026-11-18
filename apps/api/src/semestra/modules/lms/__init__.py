@@ -25,6 +25,7 @@ from semestra.modules.lms import (  # noqa: F401  (registers on import)
     subscribers,
     sync,
     sync_assignments,
+    sync_feedback,
     sync_files,
     sync_stages,
 )

@@ -16,16 +16,23 @@ import { m } from '@/paraglide/messages'
 import { Item, ItemContent, ItemDescription, ItemGroup, ItemTitle } from '@/ui/item'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 
+/** What the feedback shows of a submission: as read from the platform, or as the sync kept it. */
+type Feedback = Pick<
+  SubmissionDetail,
+  'score' | 'grade' | 'attempt' | 'graded_at' | 'comments' | 'rubric_scores'
+>
+
 /**
  * The teacher's feedback on the user's submission of an assignment (M09 §6): the score, the
  * rubric with the rating picked per criterion, and the comments. Shown in the Canvas tab's
- * assignment detail (M16) and the gradebook's feedback sheet (M03); both load the submission.
+ * assignment detail (M16, read from the platform) and the gradebook's feedback dialog (M03, as
+ * the sync kept it).
  */
 export function SubmissionFeedback({
   submission: s,
   assignment: a,
 }: {
-  submission: SubmissionDetail
+  submission: Feedback
   assignment: Pick<AssignmentOut, 'points' | 'rubric'>
 }) {
   const score =
@@ -123,13 +130,7 @@ const rubricColumns = rubricColumn.columns([
 ])
 
 /** The rubric with the rating the teacher picked per criterion, when it was assessed. */
-function Rubric({
-  criteria,
-  submission,
-}: {
-  criteria: RubricCriterion[]
-  submission: SubmissionDetail
-}) {
+function Rubric({ criteria, submission }: { criteria: RubricCriterion[]; submission: Feedback }) {
   const scores = new Map((submission.rubric_scores ?? []).map((r) => [r.criterion_id, r]))
   const data = criteria.map((criterion) => ({ criterion, score: scores.get(criterion.id) }))
   const table = useTable({

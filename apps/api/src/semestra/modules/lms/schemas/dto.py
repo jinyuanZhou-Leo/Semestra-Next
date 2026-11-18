@@ -199,6 +199,8 @@ class Assignment(Dto):
 
 
 class SubmissionComment(BaseModel):
+    # The platform's id of the comment, when it has one: how the sync tells a new comment.
+    id: str | None = None
     author: str | None = None
     comment: str = ""
     created_at: datetime | None = None

@@ -67,6 +67,18 @@ export type AssessmentColumn<TData = any> = {
    * the course is linked to the LMS and some assessments follow an assignment there.
    */
   shownFor?: (assessments: readonly Assessment[], data: TData | undefined) => boolean
+  /**
+   * One dialog for the whole column, mounted by the gradebook while the column is shown (M09's
+   * feedback, which its cells open), so rows do not each carry one.
+   */
+  Dialog?: ComponentType<AssessmentColumnDialogProps>
+}
+
+export type AssessmentColumnDialogProps = {
+  programId: string
+  courseId: string
+  /** The course's assessments. */
+  assessments: readonly Assessment[]
 }
 
 export const ASSESSMENT_COLUMNS = 'grading.assessmentColumns'

@@ -97,6 +97,8 @@ class FakeProvider:
                            due_at=datetime.fromisoformat("2026-03-01T10:00:00-05:00")),
             ]
         }  # fmt: skip
+        # The user's submissions with feedback (`submissions`), by course.
+        self.course_submissions: dict[str, list[SubmissionDetail]] = {}
         self.events: list[LmsCalendarEvent] = []
         self.nav = [NavTab(external_id="home", kind="home", label="Home")]
         # The instructor hid the pages: their list is refused, each page still opens.
@@ -302,6 +304,13 @@ class FakeProvider:
             comments=[SubmissionComment(author="Prof", comment="Good work")],
             rubric_scores=[RubricScore(criterion_id="c1", points=8)],
         )  # fmt: skip
+
+    async def submissions(
+        self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
+    ) -> list[SubmissionDetail]:
+        self.calls.append(("submissions", course_id))
+        io.truncated |= self.truncated
+        return [s.model_copy(deep=True) for s in self.course_submissions.get(course_id, [])]
 
     async def folder(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, folder_id: str | None
@@ -532,6 +541,14 @@ def canvas_api(router: respx.MockRouter) -> None:
     router.get("https://cdn.inscloudgate.net/f/77").mock(
         return_value=Response(200, content=b"%PDF")
     )
+    router.get(f"{api}/courses/101/students/submissions").mock(
+        return_value=ok([
+            {"id": 70, "assignment_id": 11, "score": 9, "workflow_state": "graded",
+             "submission_comments": [{"id": 5, "author_name": "Prof", "comment": "Nice",
+                                      "created_at": "2026-02-10T12:00:00Z"}],
+             "rubric_assessment": {"c1": {"points": 9, "rating_id": "r1"}}},
+        ])
+    )  # fmt: skip
     router.get(f"{api}/courses/101/assignments/11/submissions/self").mock(
         return_value=ok({"id": 70, "score": 9, "workflow_state": "graded"})
     )

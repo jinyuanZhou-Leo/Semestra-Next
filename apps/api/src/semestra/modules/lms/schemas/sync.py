@@ -55,7 +55,8 @@ class SyncItem(BaseModel):
 
 
 class SyncChange(BaseModel):
-    """A field the sync changed on an imported item."""
+    """A field the sync changed on an imported item, or new feedback on it (`field` feedback:
+    `new` is `{comments: <how many new>, rubric: <assessed for the first time>}`)."""
 
     id: str
     course_id: str
@@ -64,6 +65,8 @@ class SyncChange(BaseModel):
     field: str
     old: Any
     new: Any
+    target_kind: Literal["assessment", "task"]
+    target_id: str
     at: datetime
     reverted: bool
     toggleable: bool = Field(

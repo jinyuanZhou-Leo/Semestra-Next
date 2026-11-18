@@ -153,6 +153,14 @@ class LmsProvider(Protocol):
         """The user's own submission with comments and rubric scores (feature `submissions`)."""
         ...
 
+    async def submissions(
+        self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
+    ) -> list[SubmissionDetail]:
+        """The user's own submissions of every assignment of the course, with comments and
+        rubric scores, in one read (feature `submissions`): the sync keeps the teacher's
+        feedback of the imported assignments from it."""
+        ...
+
     async def folder(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, folder_id: str | None
     ) -> FolderListing:

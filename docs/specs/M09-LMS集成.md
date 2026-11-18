@@ -113,7 +113,12 @@ lms_materials                        # 课程资料（文件、页面、链接�
   imported_at?, deleted_at?          # deleted_at = 用户删了这一项，不再带回
   UNIQUE(link_id, kind, external_id)
 
-lms_sync_changes                     # 同步写过的字段，面板里可撤销，保留 14 天
+lms_feedback                         # 已导入考核的老师反馈（§4.3），每个考核一行
+  id, user_id, ref_id → lms_imported_refs (CASCADE, unique),
+  web_url?, points?, score?, grade?, attempt?, graded_at?,
+  comments [SubmissionComment], rubric [RubricCriterion], rubric_scores [RubricScore]
+
+lms_sync_changes                     # 同步写过的字段（面板里可撤销）与新反馈（field = feedback），保留 14 天
   id, user_id, ref_id → lms_imported_refs (CASCADE), field, old?, new?, at, reverted_at?
 
 lms_cache  key, user_id, connection_id, scope, payload, expires_at
@@ -132,7 +137,7 @@ lms_cache  key, user_id, connection_id, scope, payload, expires_at
 - `sync_enabled=false`（课程设置的“同步这门课”）：该课程不出现在日历叠加中，也不做后台同步和提交后完成待办；读取接口和 Canvas Tab 仍然可用。
 
 ### 4.1 后台同步（2026-11-12，迁移 0046）
-- **任务**：每门课一个任务 `lms.course.sync`（去重键 `lms.course.sync:<course_id>`，`listed=False`：不进状态栏的任务列表，同步有自己的状态行）。按顺序跑注册的阶段（`sync.register_sync_stage(name, run, order, enabled)`）：`course`（0，刷新关联的外部元数据）、`assignments`（20）、`announcements`（40）、`files`（60，课程资料，§4.2）。每个阶段先读平台、再在自己的事务里写；出错的阶段把错误码记进 `lms_course_links.sync_errors`，其余阶段照跑；只有第一个阶段失败（读不到课程本身，多半是连接坏了）才结束这次同步。全部跑完后推进 `synced_at`，发 `lms.course.synced`（`{course_id, program_id, manual, applied[{change_id, name, field}], notices[{kind, external_id, title}], pending, errors}`）与 `lms.sync.updated {program_id}`。连接错误照常由 `service.attempt` 记到连接上（替代原来每 6 小时的 `lms.refresh_status`）。
+- **任务**：每门课一个任务 `lms.course.sync`（去重键 `lms.course.sync:<course_id>`，`listed=False`：不进状态栏的任务列表，同步有自己的状态行）。按顺序跑注册的阶段（`sync.register_sync_stage(name, run, order, enabled)`）：`course`（0，刷新关联的外部元数据）、`assignments`（20）、`feedback`（30，§4.3）、`announcements`（40）、`files`（60，课程资料，§4.2）。每个阶段先读平台、再在自己的事务里写；出错的阶段把错误码记进 `lms_course_links.sync_errors`，其余阶段照跑；只有第一个阶段失败（读不到课程本身，多半是连接坏了）才结束这次同步。全部跑完后推进 `synced_at`，发 `lms.course.synced`（`{course_id, program_id, manual, applied[{change_id, name, field}], notices[{kind, external_id, title}], pending, errors}`）与 `lms.sync.updated {program_id}`。连接错误照常由 `service.attempt` 记到连接上（替代原来每 6 小时的 `lms.refresh_status`）。
 - **什么时候同步**：① 定时任务 `lms.sync_due`（每 5 分钟一轮，每轮最多排 20 门课，最久没同步的先排）排上次同步早于账户设置 `lms.sync_every` 的课程；只看 14 天内用过应用的账户（离开更久但开着学习平台通知、有推送设备的账户照常同步，否则通知收不到），`sync_enabled`、连接有凭证、学期在进行/未开始/结束不到 30 天的课程。② 打开 Program 时前端请求一次（`lms.sync.request`，不带 `force`）：只排 30 分钟与服务器下限（`SEMESTRA_LMS_SYNC_MIN_INTERVAL`）中较长者之内没同步过的。③ 用户手动（状态行面板“立即同步”、命令面板“同步学习平台”、课程设置的“立即同步”，`force=true`）：排上 1 分钟内没同步过的（`COOLDOWN`），上次同步失败的课程不受这个限制。定时任务先用一条 SQL 只挑出有课程超过服务器下限没同步的用户。同步任务跑在 `background` 任务道（M00 §3.7），由专属 worker 执行，不和用户在等的任务抢 worker；同步读平台的结果只进内存缓存（`service.memory_cache()`），不写 `lms_cache`（2026-11-13 后端评审）。
 - **频率**：`lms.sync_every` ∈ 15m / 30m / 1h / 6h（默认）/ 1d。环境变量 `SEMESTRA_LMS_SYNC_MIN_INTERVAL`（默认 `15m`）是下限：设置表单经 `register_settings(adapt=…)` 只列出不短于下限的选项，已存的更短值按下限执行。托管版设为 `1h`。
 - **作业怎样跟随**（`sync_assignments.py`）：字段为标题、截止、权重（按作业组推算的实际权重）和成绩（只对考核）。对每个字段比较平台值 p、快照 s 与本地值 mine，决定由纯函数 `rules.merge(字段, s, mine, p, 自动更新开关) → Action` 给出（相等一律用 `rules.same`：权重与成绩差 0.005 以内、成绩按百分比，截止按分钟），同步阶段、`different` 列表（`rules.diverged`：结果是 KEEP 或 CONFLICT 且 p 不为空）和 `lms.sync.field.resolve` 都只调用它，`tests/test_sync_rules.py` 按表覆盖全部组合；平台把权重或成绩清空 → CLEAR；p = mine → 推进快照；p = s → 平台没改，保留用户的值；mine = s（或权重从没设过）→ 写入 p（经 `grading.assessment.update` / `tasks.item.update`），记一条 `lms_sync_changes`，推进快照；但用户在账户设置里关掉了这个字段的直接更新（`lms.follow_title` / `follow_due_at` / `follow_weight` / `follow_score`，默认都开，owner 2026-11-12）时，改为记进 `conflicts`（`edited: false`）先问；否则两边都改过 → 记进 `conflicts`（`edited: true`）等用户决定。p = s 时同时清掉这个字段旧的冲突：用户已经把值改成别的或平台改回去了，就不再询问。平台上不见了的已导入项记 `removed_at`（作业列表被截断时不判断）。还没导入、截止在未来的作业建一条没有 target 的记录，作为“新作业”提醒；过了截止、或在平台上消失的未忽略记录直接删掉。`lms.assignment.bind` 绑定手动添加的考核时快照用 `bound_snapshot`（截止、权重、成绩记为未见），所以下一次同步补上考核缺的值、两边都有且不同的作为冲突询问。
@@ -141,6 +146,15 @@ lms_cache  key, user_id, connection_id, scope, payload, expires_at
 - **与平台不同的字段**（2026-11-12，owner 选甲）：已导入、没有待回答冲突的字段里，本地值和快照（上次看到的平台值）不同的就是 `different`（`SyncDifference`：item、字段、本地值、平台值、`target_kind`/`target_id`）；平台值为空的字段（没有截止、还没成绩、没有权重）不算，那是用户自己补的（owner 2026-11-12 确认不列：不分权重的课、先在别处拿到的成绩都很常见，改回会清掉用户的值）。它们不算待处理，状态行不提醒。`lms.sync.field.resolve`（`choice: platform`）把这个字段写回快照里的平台值；选 `mine` 保留的冲突字段之后就列在这里，随时可以改回（之后平台再改它时照常按 `lms.follow_*` 处理），并像同步写入一样记一条 `lms_sync_changes`，所以能在“最近更新”里还原。被还原、仍可撤销还原的字段只在“最近更新”里出现，不再列进 `different`。截止时间按分钟比较（Canvas 默认 23:59:59，Semestra 不存秒）。待办的截止是本地日期与时间（考核是时刻），快照记下这次读平台截止所用的时区（`zone`，导入与每次推进截止时写入）；Program 换时区后，按旧时区读快照判断“用户有没有改过”，所以不算“不同”，下次同步按新时区跟随。同步阶段读完平台后先用 `sync.hold` 拿写锁再读要比较的本地值，用户的回答（解决、忽略、还原、改回）也先 `hold` 再重读，二者不会基于对方提交前的状态互相覆盖（pysqlite 到第一条写才开事务）。平台把权重或成绩清空时快照也推进为空并清掉该字段的冲突。用户改了已导入对象的这些字段或删除它时（`grading.assessment.updated/deleting`、`tasks.item.updated/deleted` 的订阅，`subscribers.py`），发 `lms.sync.updated`（可合并），面板与编辑处的按钮随之刷新。
 - **通知**（M18）：`notifications/watch.py` 订阅 `lms.course.synced`：新成绩与变更用 `hidden_only`，新公告只在 `notifications.lms = all` 时发。只改了权重的不单独通知。免打扰时段内的留到时段结束再发（M18 §4.4）。公告“新”看 `watched_at` 之后发布的；`watched_at` 为空或早于 2 天前时这次只记下现状、不报。
 - **偏离计划**：同步写入不经过 M08 导入会话（原计划生成更新 session 再审核）。自动跟随的字段直接写，留下可撤销的变更记录；需要用户决定的在状态行面板里逐项回答，不打开导入审核。M08 的 `assessment_patch`/`task_patch` 随之删除。
+
+### 4.3 评语与评分细则（2026-11-18，迁移 0057）
+- **保存**：同步阶段 `feedback`（`sync_feedback.py`，order 30，provider 有 `assignments` 与 `submissions` 时）把每个已导入或已绑定的考核在平台上的老师反馈存进 `lms_feedback`：评语、评分细则本身（作业的 `rubric`，含各项名称、分值与等级，离线也能完整显示）和每项得分，以及平台上的得分、提交次数、评分时间、作业地址与分值。评语是平台给的纯文本，按文本显示，不渲染 HTML；附件不保存。待办（没有分值的作业）在成绩册里没有行，不保存。
+- **省请求**：每次同步对整门课只读一次提交（provider 契约 `submissions(course_id)`，Canvas 是 `GET /courses/:id/students/submissions?include[]=submission_comments&include[]=rubric_assessment`，不带 `student_ids` 就是本人的），不按作业逐个读。评分细则取自同一次同步里 `assignments` 阶段读过的作业列表（进程内缓存）。提交列表被截断时，没出现的作业保留原来的反馈。
+- **跟随**：每次同步都用平台的当前内容覆盖，平台上改了或删了评语，本地也跟着改或删。
+- **最近更新**：有新评语（按评语 id 判断；平台没有 id 时按时间与内容），或评分细则第一次有得分时，记一条 `lms_sync_changes`（`field = feedback`，`new = {comments: 新评语条数, rubric: 是否第一次按评分细则评分}`），出现在状态行面板的“最近更新”里，点开跳到成绩册并打开这项考核的反馈（`?feedback=<考核 id>`）。它不能撤销（`toggleable` 恒为假），也不进 `lms.course.synced` 的 `applied`，所以不发通知（是否通知以后再定）。第一次读到某个考核时（新导入、新绑定、迁移后的第一次同步）已有的反馈不报。
+- **读取**：成绩册读 `lms.feedback.list`（`GET /courses/{course_id}/lms/feedback`，只读库，只开放 HTTP），只返回有评语或评分细则得分的考核；平台连不上、课程在平台上关闭后照常显示。`lms.submission.get` 仍实时读平台，只给 Canvas Tab 的作业详情用（那里的作业不一定已导入）。数据变化时发 `lms.feedback.updated {course_id}`（可合并）。
+- **解绑与取消关联**：反馈随作业的对应关系（`lms_imported_refs`）一起删除（外键级联）：解绑或取消关联后考核和成绩保留，评语不留；重新导入或绑定后下次同步再读回来。
+- **导出**：每条导入记录带上它的反馈（`RefRow.feedback`，可省略），备份格式版本不变；没有这一项的备份导入后，下次同步再读回来。
 
 ### 4.2 课程资料进入文件（2026-11-16，迁移 0053）
 - **范围**：同步阶段 `files`（`sync_files.py`，order 60）把平台上课程的文件（`course_files`，feature `folders`）、页面（`pages`）和单元里的文件、页面、外部链接与外部工具（`modules`）带进 M07 的课程文件。只看 provider 的 `features`，不写平台名。按课程开关 `lms_course_links.files_sync`（默认开，课程设置“同步课程资料”；`sync_enabled=false` 时整个同步不跑）。打开开关时把 `synced_at` 清空，下一轮就同步。
@@ -262,7 +276,7 @@ Agent 与 MCP 只看到 11 个按任务设计的工具，而不是每个平台�
 `lms.provider_unknown`、`lms.invalid_config`、`lms.invalid_credentials`、`lms.forbidden`、`lms.not_found`（平台上没有该条目；provider 不再抛 `common.not_found`，那表示本应用的 id 错了）、`lms.area_hidden`（params: area；读整个栏目的列表被平台拒绝，即老师隐藏了该栏目）、`lms.invalid_ref`（params: ref）、`lms.unreachable`、`lms.rate_limited`（params: retry_after）、`lms.blocked_address`、`lms.feature_unsupported`（params: feature）、`lms.program_not_configured`、`lms.program_has_links`（params: count）、`lms.connection_in_use`（params: programs）、`lms.course_not_linked`、`lms.course_already_linked`（params: course_id）。
 
 ## 10. 导出
-注册 M13 适配器：导出连接（不含凭证，导入后状态为"需要重新填写凭证"）、Program 绑定、课程关联和导入记录。缓存不导出。
+注册 M13 适配器：导出连接（不含凭证，导入后状态为"需要重新填写凭证"）、Program 绑定、课程关联和导入记录（带上保存的老师反馈，§4.3）。缓存不导出。
 
 ## 11. 测试
 - Provider 契约测试套件 `tests/lms/provider_contract.py`：每个 provider 都必须通过（以后新增 provider 时直接复用）。用一个假 provider 测试模块本身的逻辑，与 Canvas 无关。
@@ -333,5 +347,5 @@ Agent 与 MCP 只看到 11 个按任务设计的工具，而不是每个平台�
 - 课程作业打通第 3 步（2026-11-07，PR #255，迁移 0035）：① 导入记录一对一：唯一键改为 `(link_id, external_kind, external_id)`（迁移删掉同一作业多余的非考核记录）；提交钩子在作业已导入为待办、这次成为考核时把记录改指向考核，已是考核而这次是待办（并发）时以 `lms.assignment_already_imported` 回滚。② `lms.assignment.import` 不再有 `as_kind`，按分值决定；`ImportStarted` 增加 `committed`、`failed`。③ 新增 `lms.assignment.add_to_gradebook`、`lms.term.new_assignments`，`lms.assignment.list` 增加 `new_ids`。④ 日历源 `lms.events` 在前端贡献 `Mark`（平台 logo）与 `OpenLabel`（"在 Canvas 中打开"）。
 - Onboarding 步骤 `lms.connect`（2026-11-09，扩展点 `academics.onboardingSteps`，order 200，在学期向导之前）：服务器提供至少一个平台时出现；列出已有连接（“使用”）和可连接的平台（“连接”，打开设置里同一个 `AddConnectionDialog`），选好后绑定到新 Program，可跳过。`provides` 在 Program 绑定了连接时为 `lms`，学期向导的“从 Canvas 导入课程”声明 `requires: 'lms'`。
 - 绑定手动添加的考核（2026-11-10）：① 导入作业时，同名考核（`import.duplicate_assessment` 带 `assessment_id`，即那一项不是从 LMS 导入的）默认绑定：item 的 `existing_assessment_id` 指向它，仍是 accept，issue 换成 `import.binds_assessment`（让审核打开，前端不当问题显示），不计入权重合计；审核"导入到"一列是下拉（绑定到"X" / 作为新考核加入）。M08 提交时只用 `grading.set_source` 给它设 `source_kind/source_ref`，不写别的字段；提交钩子建 `LmsImportedRef`。② 成绩簿行菜单经扩展点 `grading.assessmentActions` 贡献"绑定 {平台} 作业…"（对话框列出未导入的作业）和"解除与 {平台} 的绑定"（确认），capability `lms.assignment.bind`（`PUT /assessments/{id}/lms-assignment`）与 `lms.assignment.unbind`（`DELETE`，导入的考核也能解除；课程已解除关联时只清来源）。③ 绑定时的快照用考核自己的截止时间与权重、成绩记为未见（`imports.bound_snapshot`），所以第一次检查更新会把 Canvas 不同的截止时间、权重、成绩列为变化供审核，绑定本身不覆盖任何值；标题保留平台的，不提议改名。一个考核只能对应一个同类来源（`grading.source_conflict`）。这些差异同时记进 `reported`（`imports.bound_reported`），M18 的后台检查不会把它们当成平台上的变化推送通知。同一次导入里只有一项能绑定到某个考核（校验时第一个绑定它的 item 之外，其他同名项只给不带 `assessment_id` 的 `import.duplicate_assessment`）。
-- 成绩册里的反馈（2026-11-17）：M09 经 `grading.assessmentColumns` 贡献“反馈”列（列的 `query` 是 `lms.course_link.get`，`shownFor`：课程已关联且有 `source_kind = 'lms'` 的考核时才出现；取消关联后导入的考核仍是 `lms` 来源，但没有平台可读，列不出现，也不去读作业列表），单元格读 `lms.assignment.list` 的 `imported_as` 找到考核对应的作业，已提交或已评分（`submission.state` 不是 `unsubmitted`，或有 `submitted_at`/`graded_at`/得分）时给“查看反馈”按钮（作业列表不带评语，所以没交也没评分的作业上的评语只能在平台或 Canvas Tab 里看）；点按钮先 `ensureQueryData` 取 `lms.submission.get` 再打开对话框，对话框不会在内容到达后变高，只读，底部“在 {平台} 中打开”。评语与评分标准的渲染在 `modules/lms/components/SubmissionFeedback.tsx`，Canvas Tab 的作业详情也用它（文案键 `lms_feedback*`、`lms_rubric_*`）。
+- 成绩册里的反馈（2026-11-17，2026-11-18 改为读保存的反馈，§4.3）：M09 经 `grading.assessmentColumns` 贡献“反馈”列，列的 `query` 是 `lms.feedback.list`，`shownFor`：有考核带反馈时才出现。单元格只在这项考核有评语或评分细则得分时给“查看反馈”按钮；对话框由列的 `Dialog`（M03 扩展点的新字段，成绩册整张表只挂一个）给出，打开与否跟着地址里的 `?feedback=<考核 id>`（打开和关闭都替换当前历史记录），数据已在查询缓存里，所以点开即显示；只读，底部“在 {平台} 中打开”。评语与评分标准的渲染在 `modules/lms/components/SubmissionFeedback.tsx`，Canvas Tab 的作业详情也用它（文案键 `lms_feedback*`、`lms_rubric_*`）。
 - 资料跟踪独立成表（2026-11-18，迁移 0056，备份格式 lms v3）：课程资料从 `lms_imported_refs` 搬到 `lms_materials`（各状态一列，项是 `item_id`），`lms_imported_refs` 只放作业、去掉 `external_kind`，读它的地方不再按种类过滤。同步与「整理」的类型文件夹规则合到 M07 的 `sorting.folder_for`；本模块只经 M07 的 `sources.py` 与 `sorting.py` 使用文件模块。行为与接口不变。

@@ -206,6 +206,37 @@ def _rubric(raw: Any) -> list[RubricCriterion]:
     return out
 
 
+# What a submission read includes: the teacher's comments and the rubric assessment.
+FEEDBACK = [("include[]", "submission_comments"), ("include[]", "rubric_assessment")]
+
+
+def _submission_detail(r: dict[str, Any], assignment_id: str) -> SubmissionDetail:
+    return SubmissionDetail(
+        external_id=str(r.get("id") or assignment_id),
+        raw_kind="submission",
+        assignment_id=assignment_id,
+        **_submission(r).model_dump(),
+        comments=[
+            SubmissionComment(
+                id=_text(_dict(c).get("id")),
+                author=_text(_dict(c).get("author_name")),
+                comment=_text(_dict(c).get("comment")) or "",
+                created_at=_dict(c).get("created_at"),
+            )
+            for c in cast(list[Any], r.get("submission_comments") or [])
+        ],
+        rubric_scores=[
+            RubricScore(
+                criterion_id=str(cid),
+                points=_num(_dict(v).get("points")),
+                rating_id=_text(_dict(v).get("rating_id")),
+                comments=_text(_dict(v).get("comments")),
+            )
+            for cid, v in _dict(r.get("rubric_assessment")).items()
+        ],
+    )
+
+
 DEFAULT_PORTS = {"https": 443, "http": 80}
 
 
@@ -951,39 +982,25 @@ class CanvasProvider:
     async def submission(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, assignment_id: str
     ) -> SubmissionDetail:
-        r = _dict(
-            await self._get(
-                io,
-                cfg,
-                creds,
-                f"/courses/{quote(course_id)}/assignments/{quote(assignment_id)}/submissions/self",
-                [("include[]", "submission_comments"), ("include[]", "rubric_assessment")],
-            )
+        r = await self._get(
+            io,
+            cfg,
+            creds,
+            f"/courses/{quote(course_id)}/assignments/{quote(assignment_id)}/submissions/self",
+            FEEDBACK,
         )
-        s = _submission(r)
-        return SubmissionDetail(
-            external_id=str(r.get("id") or assignment_id),
-            raw_kind="submission",
-            assignment_id=assignment_id,
-            **s.model_dump(),
-            comments=[
-                SubmissionComment(
-                    author=_text(_dict(c).get("author_name")),
-                    comment=_text(_dict(c).get("comment")) or "",
-                    created_at=_dict(c).get("created_at"),
-                )
-                for c in cast(list[Any], r.get("submission_comments") or [])
-            ],
-            rubric_scores=[
-                RubricScore(
-                    criterion_id=str(cid),
-                    points=_num(_dict(v).get("points")),
-                    rating_id=_text(_dict(v).get("rating_id")),
-                    comments=_text(_dict(v).get("comments")),
-                )
-                for cid, v in _dict(r.get("rubric_assessment")).items()
-            ],
+        return _submission_detail(_dict(r), assignment_id)
+
+    async def submissions(
+        self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
+    ) -> list[SubmissionDetail]:
+        # Without `student_ids` Canvas lists the caller's own submissions.
+        rows = await self._list(
+            io, cfg, creds, f"/courses/{quote(course_id)}/students/submissions", FEEDBACK
         )
+        return [
+            _submission_detail(r, str(r["assignment_id"])) for r in rows if r.get("assignment_id")
+        ]
 
     async def mark_announcement_read(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, announcement_id: str

@@ -22,6 +22,8 @@ export const LMS_STATE_QUERIES = [
   'lmsCourseLinkList',
   'lmsCourseOverview',
   'lmsSyncStatus',
+  // Kept by the sync, bound to imported assessments: goes with unbinding and unlinking.
+  'lmsFeedbackList',
 ]
 
 /** What linked courses hold on the platform: refetched for one course, not on every change. */

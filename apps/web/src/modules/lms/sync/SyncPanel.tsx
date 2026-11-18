@@ -14,6 +14,7 @@ import {
 } from '@semestra/api-client'
 import { lmsSyncRequestMutation, lmsSyncStatusQueryKey } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from '@tanstack/react-router'
 import {
   ArrowRight,
   ChevronRight,
@@ -42,6 +43,7 @@ import { Spinner } from '@/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { importAssignments } from '../import/assignments'
 import { ERROR_LABEL } from '../settings/ConnectionsSection'
+import { feedbackPath } from '../feedback'
 import { byCourse, fieldLabel, formatValue, pendingCount } from './labels'
 import { syncedAgo, useProgramId, useSync } from './status'
 
@@ -83,6 +85,7 @@ function Panel({
 }) {
   const queryClient = useQueryClient()
   const settings = useSettingsDialog()
+  const navigate = useNavigate()
   const now = useNow()
   const deleting = useDialogTarget<SyncItem>()
   // Rows being answered: they fold away while the answer is sent.
@@ -319,15 +322,29 @@ function Panel({
                 course={group.course}
                 {...groupProps(group.courseId)}
               >
-                {group.items.map((change) => (
-                  <ChangeRow
-                    key={change.id}
-                    change={change}
-                    now={now}
-                    busy={busy}
-                    onToggle={() => void toggle(change)}
-                  />
-                ))}
+                {group.items.map((change) =>
+                  change.field === 'feedback' ? (
+                    <FeedbackRow
+                      key={change.id}
+                      change={change}
+                      now={now}
+                      onOpen={() => {
+                        onClose()
+                        void navigate({
+                          href: feedbackPath(programId, change.course_id, change.target_id),
+                        })
+                      }}
+                    />
+                  ) : (
+                    <ChangeRow
+                      key={change.id}
+                      change={change}
+                      now={now}
+                      busy={busy}
+                      onToggle={() => void toggle(change)}
+                    />
+                  ),
+                )}
               </CourseGroup>
             ))
           ) : (
@@ -648,6 +665,46 @@ function ChangeRow({
           </Tooltip>
         </ItemActions>
       ) : null}
+    </Item>
+  )
+}
+
+/**
+ * New feedback on an assessment ("Lab 1 feedback · New comments · 5 min ago"): opens it in the
+ * gradebook. Nothing to put back.
+ */
+function FeedbackRow({
+  change,
+  now,
+  onOpen,
+}: {
+  change: SyncChange
+  now: number
+  onOpen: () => void
+}) {
+  const news = change.new as { comments?: number; rubric?: boolean } | null
+  return (
+    <Item
+      size="xs"
+      className="w-full px-0 py-1.5 text-left hover:bg-transparent"
+      // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- labelled by the row's text
+      render={<button type="button" onClick={onOpen} />}
+    >
+      <ItemContent className="min-w-0">
+        <ItemTitle className="w-full">
+          <span className="truncate">
+            {m.lms_sync_change({ title: change.title, field: fieldLabel(change.field) })}
+          </span>
+        </ItemTitle>
+        <ItemDescription className="flex flex-wrap items-center gap-x-1 text-xs">
+          {news?.comments ? <span>{m.lms_sync_feedback_comments()}</span> : null}
+          {news?.comments && news.rubric ? <span aria-hidden>·</span> : null}
+          {news?.rubric ? <span>{m.lms_sync_feedback_rubric()}</span> : null}
+          <span aria-hidden>·</span>
+          <span>{formatTimeAgo(change.at, now)}</span>
+        </ItemDescription>
+      </ItemContent>
+      <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground" />
     </Item>
   )
 }

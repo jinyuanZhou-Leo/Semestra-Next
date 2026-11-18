@@ -46,6 +46,7 @@ beforeEach(() => {
     http.get(`${API}/courses/c1/lms-link`, () =>
       HttpResponse.json({ course_id: 'c1', link: null, program_connection_id: null }),
     ),
+    http.get(`${API}/courses/c1/lms/feedback`, () => HttpResponse.json({ items: [] })),
     http.get(`${API}/programs/p1/lms-binding`, () =>
       HttpResponse.json({ program_id: 'p1', connection_id: null, connection: null, link_count: 0 }),
     ),
@@ -485,38 +486,27 @@ test("an assessment from the LMS opens the teacher's comments and rubric", async
         ],
       }),
     ),
-    http.get(`${API}/courses/c1/lms/assignments`, () =>
+    // Kept by the sync: read from Semestra, never from the platform.
+    http.get(`${API}/courses/c1/lms/feedback`, () =>
       HttpResponse.json({
         items: [
           {
-            external_id: '91',
+            assessment_id: 'a1',
+            assignment_id: '91',
             web_url: 'https://lms.example/a/91',
-            name: 'Lab 1',
             points: 10,
+            score: 9,
+            comments: [{ author: 'TA', comment: 'Check the edge cases.' }],
             rubric: [criterion],
-            submission: { state: 'graded', score: 9 },
-            imported_as: { kind: 'assessment', id: 'a1' },
+            rubric_scores: [{ criterion_id: 'c1', points: 8, rating_id: 'r1' }],
           },
         ],
-        new_ids: [],
-        totals: [],
-        truncated: false,
-      }),
-    ),
-    http.get(`${API}/courses/c1/lms/assignments/91/submission`, () =>
-      HttpResponse.json({
-        external_id: 's91',
-        assignment_id: '91',
-        state: 'graded',
-        score: 9,
-        comments: [{ author: 'TA', comment: 'Check the edge cases.' }],
-        rubric_scores: [{ criterion_id: 'c1', points: 8, rating_id: 'r1' }],
       }),
     ),
   )
   mount()
   await userEvent.click(await screen.findByRole('button', { name: 'View feedback: Lab 1' }))
-  // Only graded assessments that follow an LMS assignment have feedback to open.
+  // Only assessments the teacher left feedback on have a button.
   expect(screen.queryByRole('button', { name: 'View feedback: Final exam' })).toBeNull()
   const dialog = await screen.findByRole('dialog', { name: 'Lab 1' })
   expect(await within(dialog).findByText('Check the edge cases.')).toBeInTheDocument()
@@ -530,9 +520,9 @@ test("an assessment from the LMS opens the teacher's comments and rubric", async
   )
 })
 
-test('a course no longer linked to the LMS has no feedback column', async () => {
-  // Imported assessments keep their origin after the course is unlinked; there is no platform
-  // to read (the assignment list is never asked for: an unhandled request fails the test).
+test('a gradebook without feedback has no feedback column', async () => {
+  // An imported assessment the teacher left nothing on (or whose course was unlinked since, which
+  // drops the kept feedback): no column.
   book = gradebook({
     assessments: [
       assessment({ id: 'a1', title: 'Lab 1', weight: 40, source_kind: 'lms', source_ref: '91' }),

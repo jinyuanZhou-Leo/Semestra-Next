@@ -7961,6 +7961,138 @@ export const FeedUpdateInputBodySchema = {
     title: 'FeedUpdateInputBody'
 } as const;
 
+export const FeedbackListSchema = {
+    properties: {
+        items: {
+            items: {
+                $ref: '#/components/schemas/FeedbackOut'
+            },
+            type: 'array',
+            title: 'Items',
+            description: 'Assessments of the course with comments or rubric scores'
+        }
+    },
+    type: 'object',
+    required: [
+        'items'
+    ],
+    title: 'FeedbackList'
+} as const;
+
+export const FeedbackOutSchema = {
+    properties: {
+        assessment_id: {
+            type: 'string',
+            title: 'Assessment Id'
+        },
+        assignment_id: {
+            type: 'string',
+            title: 'Assignment Id',
+            description: 'The assignment\'s external id'
+        },
+        web_url: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Web Url'
+        },
+        points: {
+            anyOf: [
+                {
+                    type: 'number'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Points',
+            description: 'The assignment\'s points'
+        },
+        score: {
+            anyOf: [
+                {
+                    type: 'number'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Score'
+        },
+        grade: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Grade'
+        },
+        attempt: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Attempt'
+        },
+        graded_at: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date-time'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Graded At'
+        },
+        comments: {
+            items: {
+                $ref: '#/components/schemas/SubmissionComment'
+            },
+            type: 'array',
+            title: 'Comments',
+            default: []
+        },
+        rubric: {
+            items: {
+                $ref: '#/components/schemas/RubricCriterion'
+            },
+            type: 'array',
+            title: 'Rubric',
+            description: 'The assignment\'s rubric; `rubric_scores` name its criteria',
+            default: []
+        },
+        rubric_scores: {
+            items: {
+                $ref: '#/components/schemas/RubricScore'
+            },
+            type: 'array',
+            title: 'Rubric Scores',
+            default: []
+        }
+    },
+    type: 'object',
+    required: [
+        'assessment_id',
+        'assignment_id'
+    ],
+    title: 'FeedbackOut',
+    description: 'The teacher\'s feedback on an imported assessment, as the last sync kept it (M09 §4.7).'
+} as const;
+
 export const FileListSchema = {
     properties: {
         items: {
@@ -18641,6 +18773,17 @@ export const SubmissionSchema = {
 
 export const SubmissionCommentSchema = {
     properties: {
+        id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Id'
+        },
         author: {
             anyOf: [
                 {
@@ -18956,6 +19099,18 @@ export const SyncChangeSchema = {
         new: {
             title: 'New'
         },
+        target_kind: {
+            type: 'string',
+            enum: [
+                'assessment',
+                'task'
+            ],
+            title: 'Target Kind'
+        },
+        target_id: {
+            type: 'string',
+            title: 'Target Id'
+        },
         at: {
             type: 'string',
             format: 'date-time',
@@ -18980,12 +19135,14 @@ export const SyncChangeSchema = {
         'field',
         'old',
         'new',
+        'target_kind',
+        'target_id',
         'at',
         'reverted',
         'toggleable'
     ],
     title: 'SyncChange',
-    description: 'A field the sync changed on an imported item.'
+    description: 'A field the sync changed on an imported item, or new feedback on it (`field` feedback:\n`new` is `{comments: <how many new>, rubric: <assessed for the first time>}`).'
 } as const;
 
 export const SyncConflictSchema = {
