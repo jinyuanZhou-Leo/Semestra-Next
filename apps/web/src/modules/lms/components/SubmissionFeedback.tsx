@@ -1,5 +1,6 @@
 import type {
   AssignmentOut,
+  CommentAttachment,
   RubricCriterion,
   RubricScore,
   SubmissionDetail,
@@ -70,22 +71,21 @@ export function SubmissionFeedback({
                   <ul className="flex flex-wrap gap-x-3 gap-y-0.5 text-sm">
                     {(c.attachments ?? []).map((f, j) => (
                       <li key={j} className="min-w-0">
-                        <a
-                          href={f.url ?? undefined}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex max-w-full items-center gap-1 text-primary hover:underline"
-                        >
-                          {f.media ? (
-                            <AudioLines aria-hidden className="size-3.5 shrink-0" />
-                          ) : (
-                            <Paperclip aria-hidden className="size-3.5 shrink-0" />
-                          )}
-                          <span className="truncate">
-                            {f.name ??
-                              (f.media ? m.lms_feedback_media() : m.lms_feedback_attachment())}
+                        {f.url ? (
+                          <a
+                            href={f.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex max-w-full items-center gap-1 text-primary hover:underline"
+                          >
+                            <AttachmentLabel attachment={f} />
+                          </a>
+                        ) : (
+                          // Its address was left out of a backup: named, not openable.
+                          <span className="inline-flex max-w-full items-center gap-1 text-muted-foreground">
+                            <AttachmentLabel attachment={f} />
                           </span>
-                        </a>
+                        )}
                       </li>
                     ))}
                   </ul>
@@ -98,6 +98,22 @@ export function SubmissionFeedback({
         <p className="text-sm text-muted-foreground">{m.lms_feedback_no_comments()}</p>
       )}
     </div>
+  )
+}
+
+/** A comment attachment's icon and name. */
+function AttachmentLabel({ attachment: f }: { attachment: CommentAttachment }) {
+  return (
+    <>
+      {f.media ? (
+        <AudioLines aria-hidden className="size-3.5 shrink-0" />
+      ) : (
+        <Paperclip aria-hidden className="size-3.5 shrink-0" />
+      )}
+      <span className="truncate">
+        {f.name ?? (f.media ? m.lms_feedback_media() : m.lms_feedback_attachment())}
+      </span>
+    </>
   )
 }
 
