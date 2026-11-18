@@ -2061,6 +2061,7 @@
   "files_ocr_skipped": "Scanned pages not read: {count}. Choose a model for OCR in AI settings, then process the file again.",
   "files_ocr_skipped_local": "Scanned pages not read: {count}. This server couldn't read them, usually because its OCR model couldn't be downloaded. Process the file again.",
   "files_ocr_skipped_process": "Scanned pages not read: {count}. Process the file again to read them.",
+  "files_open_in": "Open in…",
   "files_open_new_tab": "Open in new tab",
   "files_page_single": "p. {page}",
   "files_page_range": "pp. {from}–{to}",

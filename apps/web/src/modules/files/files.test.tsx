@@ -285,11 +285,20 @@ test('a file new from the LMS is marked until opened, and shows where it is kept
       source_kind: 'lms',
       source_ref: 'lms:file:301',
       source_name: 'Canvas',
+      url: 'https://q.utoronto.ca/courses/101/files/301',
       unseen: true,
       modified_at: '2026-02-01T12:00:00Z',
     }),
   ]
   server.use(
+    http.get(`${API}/programs/p1/lms-binding`, () =>
+      HttpResponse.json({
+        program_id: 'p1',
+        connection_id: 'k1',
+        connection: { id: 'k1', provider: 'canvas' },
+        link_count: 1,
+      }),
+    ),
     http.get(`${API}/courses/c1/files`, () =>
       HttpResponse.json({
         folders: [makeFolder('f1', 'Lecture slides')],
@@ -312,7 +321,10 @@ test('a file new from the LMS is marked until opened, and shows where it is kept
     }),
   )
   const user = userEvent.setup()
-  mount()
+  renderWithRouter(<CourseFilesPage scope={scope} />, undefined, {
+    path: '/p/$programId',
+    at: '/p/p1',
+  })
   // The folder holding it is marked too.
   const folder = await screen.findByRole('button', { name: /^Lecture slides/ })
   expect(within(folder).getByText('New')).toBeInTheDocument()
@@ -349,6 +361,13 @@ test('a file new from the LMS is marked until opened, and shows where it is kept
     await screen.findByText("Can't read the original from Canvas right now"),
   ).toBeInTheDocument()
   expect(await screen.findByText('Read from page one')).toBeInTheDocument()
+  // Where else it opens is one entry, not two look-alike icons.
+  expect(screen.queryByRole('link', { name: 'Open in new tab' })).not.toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: 'Open in…' }))
+  expect((await screen.findAllByRole('menuitem')).map((i) => i.textContent)).toEqual([
+    'Open in new tab',
+    'Open in Canvas',
+  ])
 })
 
 test('links ask before leaving, and can remember the site', async () => {

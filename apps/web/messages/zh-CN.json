@@ -2061,6 +2061,7 @@
   "files_ocr_skipped": "有 {count} 页扫描页没有读取。在 AI 设置中为 OCR 选择模型后，重新处理该文件。",
   "files_ocr_skipped_local": "有 {count} 页扫描页没有读取：本服务器没能识别，通常是因为 OCR 模型没能下载。请重新处理该文件。",
   "files_ocr_skipped_process": "有 {count} 页扫描页没有读取。重新处理该文件即可读取。",
+  "files_open_in": "打开方式",
   "files_open_new_tab": "在新标签页打开",
   "files_page_single": "第 {page} 页",
   "files_page_range": "第 {from}–{to} 页",
