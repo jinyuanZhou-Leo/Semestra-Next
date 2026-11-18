@@ -8730,6 +8730,9 @@ export type PreferencesUpdateInputBody = {
  * ProcessingFile
  */
 export type ProcessingFile = {
+    /**
+     * The file's latest processing job
+     */
     job: JobOut;
     /**
      * Item Id
@@ -8780,7 +8783,7 @@ export type ProcessingList = {
     /**
      * Files
      *
-     * Running files, then queued ones in the order they will run (at most 100), then files that ended in the last 7 days, newest first
+     * One row per file, with its latest job: running files, then queued ones in the order they will run (at most 100), then the files of the current round that ended, then files that failed earlier in the last 7 days
      */
     files: Array<ProcessingFile>;
     /**
@@ -8792,13 +8795,13 @@ export type ProcessingList = {
     /**
      * Done
      *
-     * Files that ended since the oldest active one was queued: with `active`, how far the current round is
+     * Files of the current round that ended: with `active`, how far it is
      */
     done: number;
     /**
      * Since
      *
-     * When the oldest active file was queued: the start of the current round
+     * When the current round started (or the last one, when nothing is left): going back from now, when the queue was last empty
      */
     since: string | null;
 };
@@ -9590,6 +9593,28 @@ export type ResolvedSettings = {
     inherited: {
         [key: string]: InheritedValue;
     };
+};
+
+/**
+ * Retried
+ */
+export type Retried = {
+    /**
+     * Retried
+     */
+    retried: number;
+};
+
+/**
+ * RetryInputBody
+ */
+export type RetryInputBody = {
+    /**
+     * Item Ids
+     *
+     * The files to process again
+     */
+    item_ids: Array<string>;
 };
 
 /**
@@ -18116,6 +18141,31 @@ export type FilesProcessingListResponses = {
 };
 
 export type FilesProcessingListResponse = FilesProcessingListResponses[keyof FilesProcessingListResponses];
+
+export type FilesProcessingRetryData = {
+    body: RetryInputBody;
+    path?: never;
+    query?: never;
+    url: '/me/files/processing:retry';
+};
+
+export type FilesProcessingRetryErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesProcessingRetryError = FilesProcessingRetryErrors[keyof FilesProcessingRetryErrors];
+
+export type FilesProcessingRetryResponses = {
+    /**
+     * Successful Response
+     */
+    200: Retried;
+};
+
+export type FilesProcessingRetryResponse = FilesProcessingRetryResponses[keyof FilesProcessingRetryResponses];
 
 export type FilesUsageBreakdownData = {
     body?: never;

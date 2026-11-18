@@ -15390,7 +15390,8 @@ export const PreferencesUpdateInputBodySchema = {
 export const ProcessingFileSchema = {
     properties: {
         job: {
-            $ref: '#/components/schemas/JobOut'
+            $ref: '#/components/schemas/JobOut',
+            description: 'The file\'s latest processing job'
         },
         item_id: {
             type: 'string',
@@ -15469,7 +15470,7 @@ export const ProcessingListSchema = {
             },
             type: 'array',
             title: 'Files',
-            description: 'Running files, then queued ones in the order they will run (at most 100), then files that ended in the last 7 days, newest first'
+            description: 'One row per file, with its latest job: running files, then queued ones in the order they will run (at most 100), then the files of the current round that ended, then files that failed earlier in the last 7 days'
         },
         active: {
             type: 'integer',
@@ -15479,7 +15480,7 @@ export const ProcessingListSchema = {
         done: {
             type: 'integer',
             title: 'Done',
-            description: 'Files that ended since the oldest active one was queued: with `active`, how far the current round is'
+            description: 'Files of the current round that ended: with `active`, how far it is'
         },
         since: {
             anyOf: [
@@ -15492,7 +15493,7 @@ export const ProcessingListSchema = {
                 }
             ],
             title: 'Since',
-            description: 'When the oldest active file was queued: the start of the current round'
+            description: 'When the current round started (or the last one, when nothing is left): going back from now, when the queue was last empty'
         }
     },
     type: 'object',
@@ -16980,6 +16981,41 @@ export const ResolvedSettingsSchema = {
         'inherited'
     ],
     title: 'ResolvedSettings'
+} as const;
+
+export const RetriedSchema = {
+    properties: {
+        retried: {
+            type: 'integer',
+            title: 'Retried'
+        }
+    },
+    type: 'object',
+    required: [
+        'retried'
+    ],
+    title: 'Retried'
+} as const;
+
+export const RetryInputBodySchema = {
+    properties: {
+        item_ids: {
+            items: {
+                type: 'string',
+                maxLength: 64,
+                minLength: 1
+            },
+            type: 'array',
+            maxItems: 500,
+            title: 'Item Ids',
+            description: 'The files to process again'
+        }
+    },
+    type: 'object',
+    required: [
+        'item_ids'
+    ],
+    title: 'RetryInputBody'
 } as const;
 
 export const RevokedSchema = {

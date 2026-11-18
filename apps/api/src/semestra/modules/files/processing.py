@@ -6,25 +6,34 @@ again with `files.item.reprocess`; `cancel_all` stops all of them at once."""
 from datetime import datetime, timedelta
 
 from pydantic import BaseModel, Field
-from sqlalchemy import case, func, select
+from sqlalchemy import case, false, func, not_, or_, select
 
 from semestra.core.context import Ctx
+from semestra.core.errors import AppError
 from semestra.core.jobs import CoreJob, JobOut, JobRef, job_cancel
 from semestra.modules.academics import service as academics
 from semestra.modules.academics.models import AcademicsCourse
 from semestra.modules.files.models import FilesItem
+from semestra.modules.files.schemas import Id
 from semestra.modules.files.service import PROCESS_KINDS
 
 ACTIVE = ("pending", "running")
+ENDED = ("succeeded", "failed", "cancelled")
 # Queued files listed; the rest are counted (one sync can queue hundreds).
 QUEUED_SHOWN = 100
-# Ended jobs listed: what the panel may still show (a success briefly, a failure until seen).
-ENDED_SHOWN = 50
+# Files of the current round that ended, listed: all that failed or were stopped (so none is
+# pushed out by a sync's successes), then the latest successes.
+ROUND_FAILED_SHOWN = 300
+ROUND_DONE_SHOWN = 100
+# Failures of earlier rounds, listed until the user has seen them.
+EARLIER_FAILED_SHOWN = 50
 ENDED_WITHIN = timedelta(days=7)
+# The most item ids one "process again" takes.
+RETRY_MAX = 500
 
 
 class ProcessingFile(BaseModel):
-    job: JobOut
+    job: JobOut = Field(description="The file's latest processing job")
     item_id: str
     name: str
     mime_type: str | None
@@ -38,16 +47,17 @@ class ProcessingFile(BaseModel):
 
 class ProcessingList(BaseModel):
     files: list[ProcessingFile] = Field(
-        description="Running files, then queued ones in the order they will run (at most 100), "
-        "then files that ended in the last 7 days, newest first"
+        description="One row per file, with its latest job: running files, then queued ones in "
+        "the order they will run (at most 100), then the files of the current round that ended, "
+        "then files that failed earlier in the last 7 days"
     )
     active: int = Field(description="Files running or queued, all of them")
     done: int = Field(
-        description="Files that ended since the oldest active one was queued: with `active`, "
-        "how far the current round is"
+        description="Files of the current round that ended: with `active`, how far it is"
     )
     since: datetime | None = Field(
-        description="When the oldest active file was queued: the start of the current round"
+        description="When the current round started (or the last one, when nothing is left): "
+        "going back from now, when the queue was last empty"
     )
 
 
@@ -55,56 +65,101 @@ class CancelledAll(BaseModel):
     cancelled: int
 
 
-async def list_processing(ctx: Ctx) -> ProcessingList:
-    mine = select(CoreJob).where(CoreJob.user_id == ctx.user_id, CoreJob.kind.in_(PROCESS_KINDS))
-    running = (
-        await ctx.db.scalars(mine.where(CoreJob.status == "running").order_by(CoreJob.started_at))
-    ).all()
-    # The order the runner takes them in: the user's own files before synced ones.
-    queued = (
-        await ctx.db.scalars(
-            mine.where(CoreJob.status == "pending")
-            .order_by(case((CoreJob.kind == PROCESS_KINDS[0], 0), else_=1), CoreJob.run_after)
-            .limit(QUEUED_SHOWN)
-        )
-    ).all()
-    ended = (
-        await ctx.db.scalars(
-            mine.where(
-                CoreJob.status.in_(("succeeded", "failed", "cancelled")),
-                CoreJob.finished_at >= ctx.now - ENDED_WITHIN,
-            )
-            .order_by(CoreJob.finished_at.desc())
-            .limit(ENDED_SHOWN)
-        )
-    ).all()
-    counts = (
-        await ctx.db.execute(
-            select(func.count(), func.min(CoreJob.created_at)).where(
-                CoreJob.user_id == ctx.user_id,
-                CoreJob.kind.in_(PROCESS_KINDS),
-                CoreJob.status.in_(ACTIVE),
-            )
-        )
-    ).one()
-    active, since = int(counts[0]), counts[1]
-    done = 0
-    if active and since is not None:
-        done = int(
-            await ctx.db.scalar(
-                select(func.count()).where(
-                    CoreJob.user_id == ctx.user_id,
-                    CoreJob.kind.in_(PROCESS_KINDS),
-                    CoreJob.status.in_(("succeeded", "failed", "cancelled")),
-                    CoreJob.created_at >= since,
-                )
-            )
-            or 0
-        )
-    jobs = [*running, *queued, *ended]
-    return ProcessingList(
-        files=await _files(ctx, jobs), active=active, done=done, since=since if active else None
+class RetryInput(BaseModel):
+    item_ids: list[Id] = Field(max_length=RETRY_MAX, description="The files to process again")
+
+
+class Retried(BaseModel):
+    retried: int
+
+
+def _mine(ctx: Ctx):
+    return (CoreJob.user_id == ctx.user_id, CoreJob.kind.in_(PROCESS_KINDS))
+
+
+async def _round_start(ctx: Ctx) -> datetime | None:
+    """Going back from now, when the processing queue was last empty: jobs whose times overlap
+    are one round (a job queued while another ran joins its round)."""
+    recent = or_(CoreJob.status.in_(ACTIVE), CoreJob.finished_at >= ctx.now - ENDED_WITHIN)
+    active_start = await ctx.db.scalar(
+        select(func.min(CoreJob.created_at)).where(*_mine(ctx), CoreJob.status.in_(ACTIVE))
     )
+    ended = (
+        await ctx.db.execute(
+            select(CoreJob.created_at, CoreJob.finished_at)
+            .where(*_mine(ctx), recent, CoreJob.status.in_(ENDED))
+            .order_by(CoreJob.finished_at.desc())
+        )
+    ).all()
+    start = active_start
+    for created_at, finished_at in ended:
+        if start is None:
+            start = created_at  # nothing left to do: the last round
+        elif finished_at is not None and finished_at >= start:
+            start = min(start, created_at)
+        else:
+            break  # the queue was empty between this job and the round
+    return start
+
+
+def _latest():
+    """Each file's latest processing job (a file read again has several)."""
+    item = CoreJob.payload["item_id"].as_string()
+    rank = (
+        func.row_number()
+        .over(partition_by=item, order_by=(CoreJob.created_at.desc(), CoreJob.id.desc()))
+        .label("rank")
+    )
+    return select(CoreJob.id, rank)
+
+
+async def list_processing(ctx: Ctx) -> ProcessingList:
+    since = await _round_start(ctx)
+    ranked = (
+        _latest()
+        .where(
+            *_mine(ctx),
+            or_(CoreJob.status.in_(ACTIVE), CoreJob.finished_at >= ctx.now - ENDED_WITHIN),
+        )
+        .subquery()
+    )
+    latest = select(CoreJob).join(ranked, ranked.c.id == CoreJob.id).where(ranked.c.rank == 1)
+
+    async def rows(query) -> list[CoreJob]:
+        return list((await ctx.db.scalars(query)).all())
+
+    running = await rows(latest.where(CoreJob.status == "running").order_by(CoreJob.started_at))
+    # The order the runner takes them in: the user's own files before synced ones.
+    queued = await rows(
+        latest.where(CoreJob.status == "pending")
+        .order_by(case((CoreJob.kind == PROCESS_KINDS[0], 0), else_=1), CoreJob.run_after)
+        .limit(QUEUED_SHOWN)
+    )
+    newest = CoreJob.finished_at.desc()
+    in_round = CoreJob.created_at >= since if since is not None else false()
+    round_failed = await rows(
+        latest.where(CoreJob.status.in_(("failed", "cancelled")), in_round)
+        .order_by(newest)
+        .limit(ROUND_FAILED_SHOWN)
+    )
+    round_done = await rows(
+        latest.where(CoreJob.status == "succeeded", in_round)
+        .order_by(newest)
+        .limit(ROUND_DONE_SHOWN)
+    )
+    earlier_failed = await rows(
+        latest.where(CoreJob.status == "failed", not_(in_round))
+        .order_by(newest)
+        .limit(EARLIER_FAILED_SHOWN)
+    )
+    pending = latest.where(CoreJob.status.in_(ACTIVE)).subquery()
+    active = int(await ctx.db.scalar(select(func.count()).select_from(pending)) or 0)
+    done = 0
+    if since is not None:
+        ended = latest.where(CoreJob.status.in_(ENDED), CoreJob.created_at >= since).subquery()
+        done = int(await ctx.db.scalar(select(func.count()).select_from(ended)) or 0)
+    jobs = [*running, *queued, *round_failed, *round_done, *earlier_failed]
+    return ProcessingList(files=await _files(ctx, jobs), active=active, done=done, since=since)
 
 
 async def _files(ctx: Ctx, jobs: list[CoreJob]) -> list[ProcessingFile]:
@@ -166,3 +221,18 @@ async def cancel_all(ctx: Ctx) -> CancelledAll:
     for job_id in ids:
         await job_cancel(ctx, JobRef(job_id=job_id))
     return CancelledAll(cancelled=len(ids))
+
+
+async def retry(ctx: Ctx, inp: RetryInput) -> Retried:
+    """Each listed file is read again (as `files.item.reprocess`); files that were deleted
+    meanwhile or can't be read are skipped."""
+    from semestra.modules.files import items
+
+    retried = 0
+    for item_id in dict.fromkeys(inp.item_ids):
+        try:
+            await items.reprocess(ctx, item_id)
+        except AppError:
+            continue
+        retried += 1
+    return Retried(retried=retried)

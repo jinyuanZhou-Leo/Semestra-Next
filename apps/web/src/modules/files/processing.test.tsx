@@ -159,3 +159,31 @@ test('the panel names each file; one can be stopped, a failed one read again, an
   await userEvent.click(within(dialog).getByRole('button', { name: 'Stop all' }))
   await waitFor(() => expect(stoppedAll).toHaveBeenCalled())
 })
+
+test('files stopped together stay on the line and can be processed again together', async () => {
+  const retried = vi.fn<(ids: unknown) => void>()
+  const stopped = {
+    active: 0,
+    done: 2,
+    since: SINCE,
+    files: [file('a', 'Lecture 12.pdf', 'cancelled'), file('b', 'Lab 5.pdf', 'cancelled')],
+  }
+  const line = lineOf(stopped)
+  await waitFor(() => expect(line.current?.meta).toBe('2 stopped'))
+
+  server.use(
+    http.post(`${API}/me/files/processing\\:retry`, async ({ request }) => {
+      retried(((await request.json()) as { item_ids: string[] }).item_ids)
+      return HttpResponse.json({ retried: 2 })
+    }),
+  )
+  renderWithRouter(
+    <Popover open>
+      <PopoverContent>
+        <ProcessingPanel onClose={() => undefined} />
+      </PopoverContent>
+    </Popover>,
+  )
+  await userEvent.click(await screen.findByRole('button', { name: 'Process all again' }))
+  await waitFor(() => expect(retried).toHaveBeenCalledWith(['a', 'b']))
+})

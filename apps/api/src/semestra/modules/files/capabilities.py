@@ -544,3 +544,17 @@ async def processing_list(ctx: Ctx, inp: NoInput) -> processing.ProcessingList:
 )
 async def processing_cancel_all(ctx: Ctx, inp: NoInput) -> processing.CancelledAll:
     return await processing.cancel_all(ctx)
+
+
+@capability(
+    name="files.processing.retry",
+    summary="Read the given files again.",
+    description="""For the files that failed or were stopped; each is read again as with
+files.item.reprocess.""",
+    effect="write",
+    http=Http("POST", "/me/files/processing:retry"),
+    expose=("http",),
+    tags=TAGS,
+)
+async def processing_retry(ctx: Ctx, inp: processing.RetryInput) -> processing.Retried:
+    return await processing.retry(ctx, inp)
