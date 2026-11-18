@@ -11,6 +11,7 @@ const FIELDS: Record<string, () => string> = {
   due_at: () => m.lms_sync_field_due_at(),
   weight: () => m.lms_sync_field_weight(),
   score: () => m.lms_sync_field_score(),
+  feedback: () => m.lms_sync_field_feedback(),
 }
 
 export function fieldLabel(field: string): string {

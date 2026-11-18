@@ -1,5 +1,6 @@
 import type {
   AssignmentOut,
+  CommentAttachment,
   RubricCriterion,
   RubricScore,
   SubmissionDetail,
@@ -10,22 +11,30 @@ import {
   tableFeatures,
   useTable,
 } from '@tanstack/react-table'
+import { AudioLines, Paperclip } from 'lucide-react'
 import { formatDateTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Item, ItemContent, ItemDescription, ItemGroup, ItemTitle } from '@/ui/item'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 
+/** What the feedback shows of a submission: as read from the platform, or as the sync kept it. */
+type Feedback = Pick<
+  SubmissionDetail,
+  'score' | 'grade' | 'attempt' | 'graded_at' | 'comments' | 'rubric_scores'
+>
+
 /**
  * The teacher's feedback on the user's submission of an assignment (M09 §6): the score, the
  * rubric with the rating picked per criterion, and the comments. Shown in the Canvas tab's
- * assignment detail (M16) and the gradebook's feedback sheet (M03); both load the submission.
+ * assignment detail (M16, read from the platform) and the gradebook's feedback dialog (M03, as
+ * the sync kept it).
  */
 export function SubmissionFeedback({
   submission: s,
   assignment: a,
 }: {
-  submission: SubmissionDetail
+  submission: Feedback
   assignment: Pick<AssignmentOut, 'points' | 'rubric'>
 }) {
   const score =
@@ -53,9 +62,34 @@ export function SubmissionFeedback({
                     .filter(Boolean)
                     .join(' · ')}
                 </ItemDescription>
-                <ItemTitle className="font-normal break-words whitespace-pre-wrap">
-                  {c.comment}
-                </ItemTitle>
+                {c.comment ? (
+                  <ItemTitle className="font-normal break-words whitespace-pre-wrap">
+                    {c.comment}
+                  </ItemTitle>
+                ) : null}
+                {(c.attachments ?? []).length > 0 ? (
+                  <ul className="flex flex-wrap gap-x-3 gap-y-0.5 text-sm">
+                    {(c.attachments ?? []).map((f, j) => (
+                      <li key={j} className="min-w-0">
+                        {f.url ? (
+                          <a
+                            href={f.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex max-w-full items-center gap-1 text-primary hover:underline"
+                          >
+                            <AttachmentLabel attachment={f} />
+                          </a>
+                        ) : (
+                          // Its address was left out of a backup: named, not openable.
+                          <span className="inline-flex max-w-full items-center gap-1 text-muted-foreground">
+                            <AttachmentLabel attachment={f} />
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
               </ItemContent>
             </Item>
           ))}
@@ -64,6 +98,22 @@ export function SubmissionFeedback({
         <p className="text-sm text-muted-foreground">{m.lms_feedback_no_comments()}</p>
       )}
     </div>
+  )
+}
+
+/** A comment attachment's icon and name. */
+function AttachmentLabel({ attachment: f }: { attachment: CommentAttachment }) {
+  return (
+    <>
+      {f.media ? (
+        <AudioLines aria-hidden className="size-3.5 shrink-0" />
+      ) : (
+        <Paperclip aria-hidden className="size-3.5 shrink-0" />
+      )}
+      <span className="truncate">
+        {f.name ?? (f.media ? m.lms_feedback_media() : m.lms_feedback_attachment())}
+      </span>
+    </>
   )
 }
 
@@ -123,13 +173,7 @@ const rubricColumns = rubricColumn.columns([
 ])
 
 /** The rubric with the rating the teacher picked per criterion, when it was assessed. */
-function Rubric({
-  criteria,
-  submission,
-}: {
-  criteria: RubricCriterion[]
-  submission: SubmissionDetail
-}) {
+function Rubric({ criteria, submission }: { criteria: RubricCriterion[]; submission: Feedback }) {
   const scores = new Map((submission.rubric_scores ?? []).map((r) => [r.criterion_id, r]))
   const data = criteria.map((criterion) => ({ criterion, score: scores.get(criterion.id) }))
   const table = useTable({

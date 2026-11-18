@@ -381,6 +381,16 @@ export function AssessmentTable({
           assessment={editing.target ?? undefined}
           {...editing.props}
         />
+        {contributed.map((ext) =>
+          ext.Dialog ? (
+            <ext.Dialog
+              key={ext.id}
+              programId={programId}
+              courseId={courseId}
+              assessments={assessments}
+            />
+          ) : null,
+        )}
         {actions.map((action) => {
           const mine = acting.target?.action === action.id
           return (

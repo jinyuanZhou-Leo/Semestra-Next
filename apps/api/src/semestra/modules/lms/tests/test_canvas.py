@@ -433,10 +433,17 @@ async def test_student_details_are_mapped(settings: Settings, io: Io, mock: resp
                           "assignment_id": 12}])
     )  # fmt: skip
     route = mock.get(f"{API}/courses/101/assignments/11/submissions/self").mock(
-        return_value=ok({"id": 70, "score": 8, "grade": "8", "attempt": 2,
+        return_value=ok({"id": 70, "user_id": 3, "score": 8, "grade": "8", "attempt": 2,
                          "workflow_state": "graded",
-                         "submission_comments": [{"author_name": "Prof", "comment": "Nice",
-                                                  "created_at": "2026-02-10T12:00:00Z"}],
+                         "submission_comments": [
+                             {"author_id": 9, "author_name": "Prof", "comment": "Nice",
+                              "created_at": "2026-02-10T12:00:00Z",
+                              "attachments": [{"display_name": "marked.pdf",
+                                               "url": "https://canvas.test/files/1/download"}]},
+                             {"author_id": 9, "author_name": "Prof", "comment": "",
+                              "media_comment": {"media_type": "audio",
+                                                "url": "https://canvas.test/media/m1"}},
+                             {"author_id": 3, "author_name": "Me", "comment": "Thanks!"}],
                          "rubric_assessment": {"_1": {"points": 8, "rating_id": None,
                                                       "comments": "Tidy"}}})
     )  # fmt: skip
@@ -464,7 +471,16 @@ async def test_student_details_are_mapped(settings: Settings, io: Io, mock: resp
 
     detail = await p.submission(io, cfg, creds, "101", "11")
     assert (detail.score, detail.attempt, detail.assignment_id) == (8, 2, "11")
-    assert [(c.author, c.comment) for c in detail.comments] == [("Prof", "Nice")]
+    assert [(c.author, c.comment, c.own) for c in detail.comments] == [
+        ("Prof", "Nice", False), ("Prof", "", False), ("Me", "Thanks!", True)
+    ]  # fmt: skip
+    assert [
+        [(f.name, f.url, f.media) for f in c.attachments] for c in detail.comments
+    ] == [
+        [("marked.pdf", "https://canvas.test/files/1/download", False)],
+        [(None, "https://canvas.test/media/m1", True)],
+        [],
+    ]  # fmt: skip
     assert [(r.criterion_id, r.points, r.comments) for r in detail.rubric_scores] == [
         ("_1", 8, "Tidy")
     ]

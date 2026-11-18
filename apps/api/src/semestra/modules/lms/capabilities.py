@@ -11,6 +11,7 @@ from semestra.modules.lms import (
     service,
     sync,
     sync_assignments,
+    sync_feedback,
     sync_files,
     sync_status,
 )
@@ -50,6 +51,7 @@ from semestra.modules.lms.schemas.io import (
     CoursesImportInput,
     ExternalCourseList,
     ExternalCourseListInput,
+    FeedbackList,
     FileInput,
     FileList,
     FilePreview,
@@ -496,6 +498,20 @@ async def assignments_list(ctx: Ctx, inp: AssignmentsInput) -> AssignmentList:
 )
 async def submission_get(ctx: Ctx, inp: SubmissionInput) -> SubmissionDetail:
     return await reads.submission(ctx, inp.course_id, inp.assignment_id, inp.refresh)
+
+
+@capability(
+    name="lms.feedback.list",
+    summary="The teacher's feedback kept for a course's imported assessments.",
+    description="""Comments and rubric scores the background sync keeps (read from the database,
+so it works while the LMS cannot be reached). The gradebook's feedback column.""",
+    effect="read",
+    http=Http("GET", "/courses/{course_id}/lms/feedback"),
+    expose=HTTP_ONLY,
+    tags=TAGS,
+)
+async def feedback_list(ctx: Ctx, inp: CourseRef) -> FeedbackList:
+    return await sync_feedback.feedback_list(ctx, inp.course_id)
 
 
 @capability(

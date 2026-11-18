@@ -10,7 +10,7 @@ from sqlalchemy import delete, func, select, update
 from semestra.core.context import Ctx
 from semestra.modules.academics import service as academics
 from semestra.modules.files import sources
-from semestra.modules.lms import service, sync
+from semestra.modules.lms import service, sync, sync_feedback
 from semestra.modules.lms.models import LmsCourseLink, LmsImportedRef, LmsMaterial, LmsSyncChange
 from semestra.modules.lms.schemas.sync import (
     SyncChange,
@@ -178,6 +178,7 @@ async def status(ctx: Ctx, program_id: str) -> SyncStatus:
     recent = [
         SyncChange(
             id=change.id,
+            kind="feedback" if change.field == sync_feedback.FIELD else "field",
             course_id=by_link[ref.link_id].course_id,
             course=label(by_link[ref.link_id].course_id),
             title=str(ref.snapshot.get("title") or ""),
@@ -187,8 +188,11 @@ async def status(ctx: Ctx, program_id: str) -> SyncStatus:
             at=change.at,
             reverted=change.reverted_at is not None,
             toggleable=change.id in can_toggle,
+            target_kind="assessment" if ref.target_kind == "assessment" else "task",
+            target_id=str(ref.target_id),
         )
         for change, ref in rows
+        if ref.target_id is not None
     ]
     materials, removed, removed_count = await _materials(
         ctx, [li for li in by_link.values() if li.id not in paused], label

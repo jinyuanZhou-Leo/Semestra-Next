@@ -3916,6 +3916,41 @@ export const ClearedSchema = {
     title: 'Cleared'
 } as const;
 
+export const CommentAttachmentSchema = {
+    properties: {
+        name: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Name'
+        },
+        url: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Url'
+        },
+        media: {
+            type: 'boolean',
+            title: 'Media',
+            default: false
+        }
+    },
+    type: 'object',
+    title: 'CommentAttachment',
+    description: 'A file attached to a comment, or a recorded audio/video comment (`media`); opened on the\nplatform.'
+} as const;
+
 export const CommitInputBodySchema = {
     properties: {
         wizard_courses: {
@@ -8072,6 +8107,144 @@ export const FeedUpdateInputBodySchema = {
         'sources'
     ],
     title: 'FeedUpdateInputBody'
+} as const;
+
+export const FeedbackListSchema = {
+    properties: {
+        items: {
+            items: {
+                $ref: '#/components/schemas/FeedbackOut'
+            },
+            type: 'array',
+            title: 'Items',
+            description: 'Assessments of the course with comments or rubric scores'
+        }
+    },
+    type: 'object',
+    required: [
+        'items'
+    ],
+    title: 'FeedbackList'
+} as const;
+
+export const FeedbackOutSchema = {
+    properties: {
+        assessment_id: {
+            type: 'string',
+            title: 'Assessment Id'
+        },
+        provider: {
+            type: 'string',
+            title: 'Provider',
+            description: 'The provider it was read from'
+        },
+        assignment_id: {
+            type: 'string',
+            title: 'Assignment Id',
+            description: 'The assignment\'s external id'
+        },
+        web_url: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Web Url'
+        },
+        points: {
+            anyOf: [
+                {
+                    type: 'number'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Points',
+            description: 'The assignment\'s points'
+        },
+        score: {
+            anyOf: [
+                {
+                    type: 'number'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Score'
+        },
+        grade: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Grade'
+        },
+        attempt: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Attempt'
+        },
+        graded_at: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date-time'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Graded At'
+        },
+        comments: {
+            items: {
+                $ref: '#/components/schemas/SubmissionComment'
+            },
+            type: 'array',
+            title: 'Comments',
+            default: []
+        },
+        rubric: {
+            items: {
+                $ref: '#/components/schemas/RubricCriterion'
+            },
+            type: 'array',
+            title: 'Rubric',
+            description: 'The assignment\'s rubric; `rubric_scores` name its criteria',
+            default: []
+        },
+        rubric_scores: {
+            items: {
+                $ref: '#/components/schemas/RubricScore'
+            },
+            type: 'array',
+            title: 'Rubric Scores',
+            default: []
+        }
+    },
+    type: 'object',
+    required: [
+        'assessment_id',
+        'provider',
+        'assignment_id'
+    ],
+    title: 'FeedbackOut',
+    description: 'The teacher\'s feedback on an assessment, as the last sync kept it (M09 §4.4).'
 } as const;
 
 export const FileListSchema = {
@@ -18802,6 +18975,17 @@ export const SubmissionSchema = {
 
 export const SubmissionCommentSchema = {
     properties: {
+        id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Id'
+        },
         author: {
             anyOf: [
                 {
@@ -18812,6 +18996,11 @@ export const SubmissionCommentSchema = {
                 }
             ],
             title: 'Author'
+        },
+        own: {
+            type: 'boolean',
+            title: 'Own',
+            default: false
         },
         comment: {
             type: 'string',
@@ -18829,6 +19018,14 @@ export const SubmissionCommentSchema = {
                 }
             ],
             title: 'Created At'
+        },
+        attachments: {
+            items: {
+                $ref: '#/components/schemas/CommentAttachment'
+            },
+            type: 'array',
+            title: 'Attachments',
+            default: []
         }
     },
     type: 'object',
@@ -19095,6 +19292,14 @@ export const SyncChangeSchema = {
             type: 'string',
             title: 'Id'
         },
+        kind: {
+            type: 'string',
+            enum: [
+                'field',
+                'feedback'
+            ],
+            title: 'Kind'
+        },
         course_id: {
             type: 'string',
             title: 'Course Id'
@@ -19117,6 +19322,18 @@ export const SyncChangeSchema = {
         new: {
             title: 'New'
         },
+        target_kind: {
+            type: 'string',
+            enum: [
+                'assessment',
+                'task'
+            ],
+            title: 'Target Kind'
+        },
+        target_id: {
+            type: 'string',
+            title: 'Target Id'
+        },
         at: {
             type: 'string',
             format: 'date-time',
@@ -19135,18 +19352,21 @@ export const SyncChangeSchema = {
     type: 'object',
     required: [
         'id',
+        'kind',
         'course_id',
         'course',
         'title',
         'field',
         'old',
         'new',
+        'target_kind',
+        'target_id',
         'at',
         'reverted',
         'toggleable'
     ],
     title: 'SyncChange',
-    description: 'A field the sync changed on an imported item.'
+    description: 'A recent update of an imported item: a field the sync changed (`kind` field: `old` and\n`new` are its values) or new feedback on it (`kind` feedback: `new` is\n`{comments: <how many new>, rubric: <assessed for the first time>}`, never put back).'
 } as const;
 
 export const SyncConflictSchema = {

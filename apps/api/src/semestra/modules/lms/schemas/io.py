@@ -21,6 +21,9 @@ from semestra.modules.lms.schemas.dto import (
     NavTab,
     PageSummary,
     Quiz,
+    RubricCriterion,
+    RubricScore,
+    SubmissionComment,
     WebUrl,
 )
 
@@ -523,6 +526,31 @@ class FileInput(CourseReadInput):
 class SubmissionInput(CourseReadInput):
     assignment_id: AssignmentId = Field(
         description="External assignment id (`external_id` of lms.assignment.list)"
+    )
+
+
+class FeedbackOut(BaseModel):
+    """The teacher's feedback on an assessment, as the last sync kept it (M09 §4.4)."""
+
+    assessment_id: str
+    provider: str = Field(description="The provider it was read from")
+    assignment_id: str = Field(description="The assignment's external id")
+    web_url: str | None = None
+    points: float | None = Field(default=None, description="The assignment's points")
+    score: float | None = None
+    grade: str | None = None
+    attempt: int | None = None
+    graded_at: datetime | None = None
+    comments: list[SubmissionComment] = []
+    rubric: list[RubricCriterion] = Field(
+        default=[], description="The assignment's rubric; `rubric_scores` name its criteria"
+    )
+    rubric_scores: list[RubricScore] = []
+
+
+class FeedbackList(BaseModel):
+    items: list[FeedbackOut] = Field(
+        description="Assessments of the course with comments or rubric scores"
     )
 
 

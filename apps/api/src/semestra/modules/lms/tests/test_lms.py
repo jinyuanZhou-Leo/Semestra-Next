@@ -507,7 +507,7 @@ async def test_portability_round_trip(api: Api, app: FastAPI):
     assert "good-token-1" not in str(writer.payload)
     assert await portability.preview(writer.payload) == {
         "connections": 1, "bindings": 1, "links": 1, "refs": 0, "materials": 0,
-        "announcements": 0,
+        "announcements": 0, "feedback": 0,
     }  # fmt: skip
     identity = {program_id: program_id, course: course}
     async with system_ctx(app.state, user_id) as ctx:
@@ -515,7 +515,7 @@ async def test_portability_round_trip(api: Api, app: FastAPI):
         await ctx.db.commit()
     assert report.imported == {
         "connections": 1, "bindings": 1, "links": 1, "refs": 0, "materials": 0,
-        "announcements": 0,
+        "announcements": 0, "feedback": 0,
     }  # fmt: skip
     listed = (await api.call("GET", "/lms/connections"))["items"]
     assert len(listed) == 1

@@ -2,9 +2,9 @@
 
 Connections are exported without credentials: after an import they need the token entered
 again (`has_credentials` false, status `error` with `lms.credentials_missing`). Bindings, links,
-imported assignments (refs), materials and announcements (with whether each was read) follow the
-id map of Programs, courses, assessments, tasks and course files (the items the sync brought
-in). The cache is not exported, nor is what
+imported assignments (refs), materials, announcements (with whether each was read) and the
+teacher's feedback kept for assessments follow the id map of Programs, courses, assessments,
+tasks and course files (the items the sync brought in). The cache is not exported, nor is what
 the background sync keeps for itself (its change log, its conflicts, the new items it offers,
 the pages that only list others): the first sync after an import finds them again; only the new
 assignments the user ignored and the materials they deleted are kept. Registered at the bottom
@@ -35,11 +35,13 @@ from semestra.modules.lms.models import (
     LmsCache,
     LmsConnection,
     LmsCourseLink,
+    LmsFeedback,
     LmsImportedRef,
     LmsMaterial,
     LmsProgramBinding,
     LmsSyncChange,
 )
+from semestra.modules.lms.schemas.dto import RubricCriterion, RubricScore, SubmissionComment
 from semestra.modules.portability import register_portability
 from semestra.modules.portability.registry import OlderArchive
 
@@ -134,6 +136,28 @@ class LinkRow(BaseModel):
     sync_enabled: bool = True
 
 
+class FeedbackRow(BaseModel):
+    """The teacher's feedback kept for an assessment (`LmsFeedback`)."""
+
+    assessment_id: str
+    course_id: str
+    provider: str
+    assignment_id: str
+    web_url: str | None = None
+    points: float | None = None
+    score: float | None = None
+    grade: str | None = None
+    attempt: int | None = None
+    graded_at: datetime | None = None
+    comments: list[SubmissionComment] = []
+    rubric: list[RubricCriterion] = []
+    rubric_scores: list[RubricScore] = []
+
+
+# The JSON columns of `LmsFeedback`, kept as JSON (the others keep their Python types).
+FEEDBACK_JSON = {"comments", "rubric", "rubric_scores"}
+
+
 class RefRow(BaseModel):
     link_id: str
     external_id: str
@@ -169,6 +193,11 @@ def _without_url(attachment: dict[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in attachment.items() if k != "download_url"}
 
 
+def _comment_without_urls(comment: dict[str, Any]) -> dict[str, Any]:
+    files = comment.get("attachments") or []
+    return comment | {"attachments": [{k: v for k, v in f.items() if k != "url"} for f in files]}
+
+
 class AnnouncementRow(BaseModel):
     link_id: str
     external_id: str
@@ -190,6 +219,8 @@ class LmsPayload(BaseModel):
     refs: list[RefRow] = []
     materials: list[MaterialRow] = []
     announcements: list[AnnouncementRow] = []
+    # Left out of backups made before feedback was kept: the next sync reads it again.
+    feedback: list[FeedbackRow] = []
 
 
 @dataclass
@@ -209,6 +240,7 @@ async def export(ctx: Ctx, writer: Writer) -> None:
             LmsImportedRef.target_id.is_not(None) | LmsImportedRef.dismissed_at.is_not(None),
         )
     )
+    feedback = await ctx.db.scalars(select(LmsFeedback).where(LmsFeedback.user_id == uid))
     materials = await ctx.db.scalars(
         select(LmsMaterial).where(
             LmsMaterial.user_id == uid,
@@ -251,6 +283,15 @@ async def export(ctx: Ctx, writer: Writer) -> None:
                 )
                 for r in posts
             ],
+            feedback=[
+                FeedbackRow.model_validate(
+                    {k: getattr(f, k) for k in FeedbackRow.model_fields}
+                    # Nor are the addresses of comment attachments (they too open without
+                    # signing in); the next sync brings them back.
+                    | {"comments": [_comment_without_urls(c) for c in f.comments]}
+                )
+                for f in feedback
+            ],
         ).model_dump(mode="json")
     )
 
@@ -270,6 +311,7 @@ async def import_(
             "refs": 0,
             "materials": 0,
             "announcements": 0,
+            "feedback": 0,
         },
         {},
     )
@@ -358,20 +400,34 @@ async def import_(
         if (got := mapped("refs", r.link_id, r.target_id)) is None:
             continue
         link_id, target_id = got
+        ref = LmsImportedRef(
+            user_id=ctx.user_id,
+            link_id=link_id,
+            external_id=r.external_id,
+            target_kind=r.target_kind,
+            target_id=target_id,
+            snapshot=r.snapshot,
+            imported_at=r.imported_at,
+            submitted_at=r.submitted_at,
+            dismissed_at=r.dismissed_at,
+        )
+        ctx.db.add(ref)
+        report.imported["refs"] += 1
+    for f in data.feedback:
+        assessment_id, course_id = id_map.get(f.assessment_id), id_map.get(f.course_id)
+        if assessment_id is None or course_id is None:
+            skip("feedback", f.assessment_id, f.course_id)
+            continue
         ctx.db.add(
-            LmsImportedRef(
+            LmsFeedback(
+                **f.model_dump(exclude={"assessment_id", "course_id", *FEEDBACK_JSON}),
+                **f.model_dump(mode="json", include=FEEDBACK_JSON),
                 user_id=ctx.user_id,
-                link_id=link_id,
-                external_id=r.external_id,
-                target_kind=r.target_kind,
-                target_id=target_id,
-                snapshot=r.snapshot,
-                imported_at=r.imported_at,
-                submitted_at=r.submitted_at,
-                dismissed_at=r.dismissed_at,
+                assessment_id=assessment_id,
+                course_id=course_id,
             )
         )
-        report.imported["refs"] += 1
+        report.imported["feedback"] += 1
     for r in data.materials:
         if (got := mapped("materials", r.link_id, r.item_id)) is None:
             continue
@@ -407,6 +463,7 @@ async def preview(payload: dict[str, Any]) -> dict[str, int]:
         "refs": len(data.refs),
         "materials": len(data.materials),
         "announcements": len(data.announcements),
+        "feedback": len(data.feedback),
     }
 
 
@@ -414,6 +471,7 @@ async def purge(ctx: Ctx) -> None:
     uid = ctx.user_id
     for model in (
         LmsSyncChange,
+        LmsFeedback,
         LmsImportedRef,
         LmsMaterial,
         LmsAnnouncement,
@@ -439,6 +497,7 @@ register_portability(
         LmsProgramBinding.__tablename__,
         LmsCourseLink.__tablename__,
         LmsImportedRef.__tablename__,
+        LmsFeedback.__tablename__,
         LmsMaterial.__tablename__,
         LmsAnnouncement.__tablename__,
         LmsSyncChange.__tablename__,
