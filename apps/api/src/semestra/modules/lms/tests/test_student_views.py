@@ -20,35 +20,6 @@ async def linked_course(api: Api) -> str:
     return course
 
 
-async def test_mark_read_needs_the_setting(api: Api, fake: FakeProvider):
-    course = await linked_course(api)
-    url = f"/courses/{course}/lms/announcements/n1:read"
-    err = await api.call("POST", url, 409, json={})
-    assert err["error"]["code"] == "lms.writes_disabled"
-    assert ("mark_read", "n1") not in fake.calls
-
-    original = fake.announcements
-
-    async def unread(*args: Any, **kwargs: Any) -> Any:
-        return [a.model_copy(update={"unread": True}) for a in await original(*args, **kwargs)]
-
-    with pytest.MonkeyPatch.context() as mp:
-        mp.setattr(fake, "announcements", unread)
-        listed = await api.call("GET", f"/courses/{course}/lms/announcements")
-    assert listed["items"][0]["unread"] is True
-
-    await api.call("PATCH", "/me/settings/lms", json={"values": {"allow_writes": True}})
-    out = await api.call("POST", url, json={})
-    assert out == {"announcement_id": "n1", "unread": False}
-    assert ("mark_read", "n1") in fake.calls
-    # The cached list is dropped (keeping it would extend its freshness): the next read asks
-    # the platform, which now says read.
-    calls = len(fake.calls)
-    listed = await api.call("GET", f"/courses/{course}/lms/announcements")
-    assert listed["items"][0]["unread"] is False
-    assert len(fake.calls) == calls + 1
-
-
 async def test_submission_folders_search_and_preview(api: Api, fake: FakeProvider):
     course = await linked_course(api)
     sub = await api.call("GET", f"/courses/{course}/lms/assignments/a1/submission")

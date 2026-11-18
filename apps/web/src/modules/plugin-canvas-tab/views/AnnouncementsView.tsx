@@ -4,13 +4,13 @@ import { Megaphone } from 'lucide-react'
 import { formatDateTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { plainText } from '@/modules/lms/announcements'
-import { useMarkRead, useWritesAllowed } from '@/modules/lms/read-state'
+import { useMarkRead } from '@/modules/lms/read-state'
 import { m } from '@/paraglide/messages'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { Item, ItemContent, ItemDescription, ItemGroup, ItemTitle } from '@/ui/item'
 import { CanvasBoundary } from '../CanvasBoundary'
 import { useCanvasPage } from '../context'
-import { CanvasHtml, DetailHeader, ViewHeader } from './common'
+import { DetailHeader, LmsHtml, ViewHeader } from '@/modules/lms/content/LmsContent'
 
 /** Announcements, newest first; one opens in place with its cleaned HTML (M16 §4). */
 export function AnnouncementsView({ selected }: { selected?: string }) {
@@ -21,7 +21,6 @@ export function AnnouncementsView({ selected }: { selected?: string }) {
   })
   const opened = selected ? list.data?.items.find((a) => a.external_id === selected) : undefined
   useMarkRead(courseId, opened?.external_id, opened?.unread ?? false)
-  const unreadShown = useWritesAllowed()
   return (
     <div className="flex flex-1 flex-col gap-4">
       {selected ? null : <ViewHeader title={title} />}
@@ -34,7 +33,9 @@ export function AnnouncementsView({ selected }: { selected?: string }) {
               <EmptyMedia variant="icon">
                 <Megaphone aria-hidden />
               </EmptyMedia>
-              <EmptyTitle>{m.lms_announcements_empty()}</EmptyTitle>
+              <EmptyTitle>
+                {list.data?.not_read ? m.lms_announcements_not_read() : m.lms_announcements_empty()}
+              </EmptyTitle>
             </EmptyHeader>
           </Empty>
         }
@@ -54,7 +55,7 @@ export function AnnouncementsView({ selected }: { selected?: string }) {
                   withDisplay={Boolean(open.html)}
                   onBack={() => go({ tab: 'announcements' })}
                 />
-                {open.html ? <CanvasHtml html={open.html} /> : null}
+                {open.html ? <LmsHtml html={open.html} /> : null}
               </article>
             )
           }
@@ -74,16 +75,14 @@ export function AnnouncementsView({ selected }: { selected?: string }) {
                   }
                 >
                   <span className="flex h-5 w-2 shrink-0 items-center self-start">
-                    {unreadShown && a.unread ? (
+                    {a.unread ? (
                       <span className="size-2 rounded-full bg-primary">
                         <span className="sr-only">{m.lms_announcements_unread()}</span>
                       </span>
                     ) : null}
                   </span>
                   <ItemContent className="min-w-0">
-                    <ItemTitle
-                      className={cn('line-clamp-1', unreadShown && a.unread && 'font-semibold')}
-                    >
+                    <ItemTitle className={cn('line-clamp-1', a.unread && 'font-semibold')}>
                       {a.title}
                     </ItemTitle>
                     {a.html ? (

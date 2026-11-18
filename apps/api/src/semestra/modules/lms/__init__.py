@@ -15,6 +15,7 @@ from semestra.core.jobs import periodic
 from semestra.modules.academics.service import register_course_source
 from semestra.modules.lms import (  # noqa: F401  (registers on import)
     agent_tools,
+    announcements,
     calendar,
     capabilities,
     imports,

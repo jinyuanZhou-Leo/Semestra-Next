@@ -27,7 +27,6 @@ from semestra.modules.lms.schemas.dto import (
     SubmissionDetail,
 )
 from semestra.modules.lms.schemas.io import (
-    AnnouncementList,
     AssignmentList,
     AssignmentsInput,
     CourseOverview,
@@ -37,8 +36,6 @@ from semestra.modules.lms.schemas.io import (
     ModuleList,
     PageList,
     QuizList,
-    TermAnnouncement,
-    TermAnnouncementList,
 )
 from semestra.modules.lms.service import Bound
 
@@ -172,98 +169,6 @@ async def overview(ctx: Ctx, course_id: str, refresh: bool) -> CourseOverview:
             "fetched_at": data.get("fetched_at"),
             "truncated": truncated,
         }
-    )
-
-
-def _announcement_params(since: datetime | None) -> dict[str, Any]:
-    return {"since": since.isoformat() if since else None}
-
-
-async def announcements(
-    ctx: Ctx, course_id: str, since: datetime | None, refresh: bool
-) -> AnnouncementList:
-    async def fetch(b: Bound, i: Any, ext: str) -> Any:
-        items = await b.provider.announcements(i, b.cfg, b.creds, [ext], since=since)
-        return _cleaned(b, items, ext)
-
-    data, truncated, *_ = await _read(
-        ctx,
-        course_id,
-        "announcements",
-        "announcements",
-        _announcement_params(since),
-        fetch,
-        refresh=refresh,
-        area="announcements",
-    )
-    return AnnouncementList.model_validate({"items": data, "truncated": truncated})
-
-
-async def term_announcements(ctx: Ctx, term_id: str, refresh: bool) -> TermAnnouncementList:
-    """Every linked course of a term at once (the term board's card): one platform request per
-    connection for the courses the cache can't answer, stored per course, so each course's own
-    list and "mark read" stay in step with it."""
-    links = await service.term_links(ctx, term_id)
-    params = _announcement_params(None)
-    items: list[TermAnnouncement] = []
-    truncated = False
-    failed: AppError | None = None
-    by_connection: dict[str, list[LmsCourseLink]] = {}
-    for link in links:
-        by_connection.setdefault(link.connection_id, []).append(link)
-    for connection_id, group in by_connection.items():
-        try:
-            b = await service.bound(ctx, await service.get_connection_row(ctx, connection_id))
-            service.require_feature(b, "announcements")
-        except AppError:
-            continue  # credentials gone, platform without announcements: its courses are left out
-        found: dict[str, list[Any]] = {}
-        missing: list[LmsCourseLink] = []
-        for link in group:
-            ext = link.external_course_id
-            key = cache.cache_key(ctx.user_id, b.row.id, "announcements", {"course": ext, **params})
-            hit = None if refresh else await cache.get(ctx, key)
-            if hit is None:
-                missing.append(link)
-            else:
-                found[link.course_id] = hit["data"]
-                truncated |= bool(hit["truncated"])
-        if missing:
-            exts = [li.external_course_id for li in missing]
-            try:
-                fetched, cut = await service.call(
-                    ctx,
-                    b,
-                    lambda i, b=b, exts=exts: b.provider.announcements(i, b.cfg, b.creds, exts),
-                )
-            except AppError as exc:
-                # One connection down must not hide the others' announcements.
-                failed = exc
-                missing = []
-                fetched, cut = [], False
-            truncated |= cut
-            dumped = [a.model_dump(mode="json") for a in _cleaned(b, fetched, None)]
-            for link in missing:
-                ext = link.external_course_id
-                mine = [a for a in dumped if a["external_course_id"] == ext]
-                key = cache.cache_key(
-                    ctx.user_id, b.row.id, "announcements", {"course": ext, **params}
-                )
-                await cache.put(
-                    ctx,
-                    key,
-                    b.row.id,
-                    {"data": mine, "truncated": cut},
-                    scope=cache.course_scope(ext),
-                )
-                found[link.course_id] = mine
-        for course_id, data in found.items():
-            items += [TermAnnouncement.model_validate({**a, "course_id": course_id}) for a in data]
-    if failed is not None and not items:
-        raise failed  # nothing to show: the card shows the error, not "no announcements"
-    items.sort(key=lambda a: a.posted_at.timestamp() if a.posted_at else 0, reverse=True)
-    return TermAnnouncementList(
-        items=items, linked_course_ids=sorted(li.course_id for li in links), truncated=truncated
     )
 
 
@@ -825,22 +730,6 @@ async def search_files(ctx: Ctx, course_id: str, term: str, refresh: bool) -> Fi
 
 
 # --- writes ---------------------------------------------------------------------------------
-
-
-async def mark_announcement_read(ctx: Ctx, course_id: str, announcement_id: str) -> None:
-    """Marks it read on the platform when the user allows writes (M09 设置 `lms.allow_writes`).
-    The cached list is dropped (not rewritten, which would extend its 5 minutes); the app updates
-    its own copy."""
-    link, b = await service.require_link(ctx, course_id)
-    await service.require_write(ctx, b, "mark_read")
-    ext = link.external_course_id
-    await service.call(
-        ctx,
-        b,
-        lambda i: b.provider.mark_announcement_read(i, b.cfg, b.creds, ext, announcement_id),
-    )
-    params = {"course": ext, **_announcement_params(None)}
-    await cache.drop(ctx, cache.cache_key(ctx.user_id, b.row.id, "announcements", params))
 
 
 async def refresh_course(ctx: Ctx, course_id: str) -> None:

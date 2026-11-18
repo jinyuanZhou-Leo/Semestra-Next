@@ -29,6 +29,7 @@ from semestra.modules.academics import service as academics
 from semestra.modules.lms import cache, html
 from semestra.modules.lms.errors import BROKEN_ON_READ, CONNECTION_ERRORS, lms_error
 from semestra.modules.lms.models import (
+    LmsAnnouncement,
     LmsConnection,
     LmsCourseLink,
     LmsImportedRef,
@@ -1025,8 +1026,8 @@ async def refresh_link(ctx: Ctx, link: LmsCourseLink, b: Bound) -> None:
 
 
 async def _forget_tracked(ctx: Ctx, link: LmsCourseLink) -> None:
-    """The assignments and materials the sync kept track of for the link."""
-    for model in (LmsImportedRef, LmsMaterial):
+    """The assignments, materials and announcements the sync kept for the link."""
+    for model in (LmsImportedRef, LmsMaterial, LmsAnnouncement):
         await ctx.db.execute(delete(model).where(model.link_id == link.id))
 
 

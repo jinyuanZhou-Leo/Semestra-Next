@@ -8,11 +8,12 @@ from pydantic import BaseModel, BeforeValidator, Field, SecretStr
 from semestra.core.capability import HTTP_ONLY
 from semestra.modules.academics.schemas import Id
 from semestra.modules.lms.schemas.dto import (
-    Announcement,
     Assignment,
+    Attachment,
     ConnectionSummary,
     FileMeta,
     GradeItem,
+    Html,
     LmsCourse,
     LmsFeature,
     Module,
@@ -20,6 +21,7 @@ from semestra.modules.lms.schemas.dto import (
     NavTab,
     PageSummary,
     Quiz,
+    WebUrl,
 )
 
 ExternalId = Annotated[str, Field(min_length=1, max_length=200)]
@@ -303,39 +305,95 @@ _FIELDS = "Agent/MCP only: return just these fields of each item (and its extern
 _BODY = "`markdown` (or `html`) is the body, as Markdown"
 
 AnnouncementField = Literal[
-    "web_url", "title", "html", "markdown", "author", "posted_at", "updated_at", "unread"
-]
+    "web_url", "title", "html", "markdown", "author", "posted_at", "updated_at", "unread",
+    "attachments",
+]  # fmt: skip
 
 
-class AnnouncementsInput(CourseReadInput):
+class AnnouncementsInput(BaseModel):
+    course_id: Id = Field(description="Course id (must be linked)")
     since: datetime | None = Field(default=None, description="Only posted after this time")
     fields: list[AnnouncementField] | None = Field(
         default=None, description=f"{_FIELDS}; default title, author, posted_at, unread. {_BODY}"
     )
 
 
+class AppTarget(BaseModel):
+    """What a platform item is in the app: a course file (a synced file or page), or what an
+    imported assignment became."""
+
+    kind: Literal["file", "assessment", "task"]
+    id: str
+    course_id: str
+    folder_id: str | None = Field(default=None, description="The file's folder (kind file)")
+
+
+class LinkTarget(BaseModel):
+    """A link in the HTML (`data-lms-kind` / `data-lms-ref`) to something the app has."""
+
+    kind: str
+    ref: str
+    target: AppTarget
+
+
+class AnnouncementAttachment(Attachment):
+    file: AppTarget | None = Field(
+        default=None, description="The course file it is, when the course's files have it"
+    )
+
+
+class CourseAnnouncement(BaseModel):
+    external_id: str
+    course_id: str = Field(description="The app's course it was posted in")
+    web_url: WebUrl = Field(default=None, description="Opens it on the platform")
+    title: str
+    html: Html = None
+    author: str | None = None
+    posted_at: datetime | None = None
+    updated_at: datetime | None = None
+    unread: bool = Field(description="Not opened in the app yet")
+    attachments: list[AnnouncementAttachment] = []
+    targets: list[LinkTarget] = Field(
+        default=[], description="Where the platform links in `html` open in the app"
+    )
+
+
+# waiting: the next sync reads it; ended: its term ended, only a manual sync reads it;
+# paused: the course's sync is off. In this order when the courses differ.
+NotRead = Literal["waiting", "ended", "paused"]
+
+
 class AnnouncementList(BaseModel):
-    items: list[Announcement]
-    truncated: bool
+    items: list[CourseAnnouncement] = Field(description="Newest first")
+    not_read: NotRead | None = Field(
+        description="Why the sync has not read the course's announcements yet; null: it has"
+    )
 
 
 class TermAnnouncementsInput(BaseModel):
     term_id: Id = Field(description="Term id")
-    refresh: bool = Field(
-        default=False,
-        description="Skip the 5-minute cache and ask again",
-        json_schema_extra=HTTP_ONLY,
-    )
-
-
-class TermAnnouncement(Announcement):
-    course_id: str = Field(description="The app's course it was posted in")
 
 
 class TermAnnouncementList(BaseModel):
-    items: list[TermAnnouncement] = Field(description="Newest first")
+    items: list[CourseAnnouncement] = Field(description="Newest first")
     linked_course_ids: list[str] = Field(description="The term's courses linked to an LMS")
-    truncated: bool
+    not_read: NotRead | None = Field(
+        description="Why the sync has not read some of their announcements yet; null: it has"
+    )
+
+
+class UnreadInput(BaseModel):
+    program_id: Id = Field(description="Program id")
+    term_id: Id | None = Field(default=None, description="Only the courses of this term")
+
+
+class CourseUnread(BaseModel):
+    course_id: str
+    unread: int
+
+
+class UnreadCounts(BaseModel):
+    items: list[CourseUnread] = Field(description="Courses with unread announcements")
 
 
 class ImportTarget(BaseModel):
@@ -496,11 +554,6 @@ class FilePreview(BaseModel):
 class AnnouncementReadInput(BaseModel):
     course_id: Id = Field(description="Course id (must be linked)")
     announcement_id: ExternalId = Field(description="External announcement id")
-
-
-class AnnouncementRead(BaseModel):
-    announcement_id: str
-    unread: bool
 
 
 class FileSaveInput(BaseModel):

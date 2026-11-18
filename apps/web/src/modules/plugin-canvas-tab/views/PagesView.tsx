@@ -8,7 +8,7 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle } from '@/ui/item'
 import { CanvasBoundary } from '../CanvasBoundary'
 import { useCanvasPage } from '../context'
-import { CanvasHtml, DetailHeader, ViewHeader } from './common'
+import { DetailHeader, LmsHtml, ViewHeader } from '@/modules/lms/content/LmsContent'
 
 /** The course's pages; `selected` (a page ref) opens one in place (M16 §4). */
 export function PagesView({ selected }: { selected?: string }) {
@@ -119,7 +119,7 @@ export function PageView({ pageRef, withBack }: { pageRef: string; withBack?: bo
               </EmptyHeader>
             </Empty>
           ) : p.html ? (
-            <CanvasHtml html={p.html} />
+            <LmsHtml html={p.html} />
           ) : (
             <p className="text-sm text-muted-foreground">{m.canvas_tab_page_blank()}</p>
           )}

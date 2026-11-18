@@ -83,10 +83,13 @@ def _course_like_mat291(fake: FakeProvider) -> None:
     }
 
 
-async def _linked(api: Api) -> tuple[str, str]:
+async def _linked(api: Api, *, synced: bool = False) -> tuple[str, str]:
+    """A linked course; `synced`: its announcements are stored."""
     program_id, term_id, _ = await setup_program(api)
     course = await api.course(program_id, term_id)
     await api.link(course, "101")
+    if synced:
+        await api.sync(program_id)
     return course, term_id
 
 
@@ -121,7 +124,7 @@ async def test_search_finds_text_in_pages_the_instructor_hid(api: Api, fake: Fak
 async def test_search_covers_announcements_assignments_and_links(api: Api, fake: FakeProvider):
     _course_like_mat291(fake)
     fake.nav.append(NavTab(external_id="discussions", kind="discussions", label="Discussions"))
-    course, _ = await _linked(api)
+    course, _ = await _linked(api, synced=True)
 
     async def first(query: str, **params: Any) -> dict[str, Any]:
         out = await api.call(

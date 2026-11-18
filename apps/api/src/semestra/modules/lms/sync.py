@@ -253,8 +253,11 @@ def _dedupe(course_id: str) -> str:
     return f"{JOB}:{course_id}"
 
 
-async def syncable_links(ctx: Ctx, program_id: str | None = None) -> list[LmsCourseLink]:
-    """The ctx user's links a sync looks at: synced, with credentials, of an active course."""
+async def syncable_links(
+    ctx: Ctx, program_id: str | None = None, *, active_only: bool = True
+) -> list[LmsCourseLink]:
+    """The ctx user's links a sync looks at: synced, with credentials, of an active course
+    (`active_only`; a manual sync of one course reads it after its term too)."""
     query = (
         select(LmsCourseLink)
         .join(LmsConnection, LmsConnection.id == LmsCourseLink.connection_id)
@@ -267,8 +270,16 @@ async def syncable_links(ctx: Ctx, program_id: str | None = None) -> list[LmsCou
     )
     if program_id is not None:
         query = query.where(LmsCourseLink.program_id == program_id)
-    active = await academics.course_ids_active_since(ctx, (ctx.now - RECENT).date())
-    return [li for li in await ctx.db.scalars(query) if li.course_id in active]
+    links = list(await ctx.db.scalars(query))
+    if not active_only:
+        return links
+    active = await active_course_ids(ctx)
+    return [li for li in links if li.course_id in active]
+
+
+async def active_course_ids(ctx: Ctx) -> set[str]:
+    """Courses the sync keeps up on its own: of a term not ended more than `RECENT` ago."""
+    return set(await academics.course_ids_active_since(ctx, (ctx.now - RECENT).date()))
 
 
 async def queue(ctx: Ctx, links: Sequence[LmsCourseLink], *, manual: bool = False) -> int:
@@ -289,7 +300,8 @@ async def request_sync(
     `ON_OPEN` or the server's shortest interval (opening the app), or in the last `COOLDOWN`
     (`force`: the user asked)."""
     await academics.get_program_row(ctx, program_id)  # owned, or not found
-    links = await syncable_links(ctx, program_id)
+    # The user asking for one course: its term may have ended, it is read all the same.
+    links = await syncable_links(ctx, program_id, active_only=not (force and course_id))
     if course_id is not None:
         links = [li for li in links if li.course_id == course_id]
     since = ctx.now - (COOLDOWN if force else max(ON_OPEN, floor(ctx)))

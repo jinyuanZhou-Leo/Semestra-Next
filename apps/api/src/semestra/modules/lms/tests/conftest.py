@@ -140,6 +140,8 @@ class FakeProvider:
             return InternalRef(kind="file", ref=ref, course=course)
         if "/modules/" in url:
             return InternalRef(kind="module", ref=url.rsplit("/", 1)[-1], course=course)
+        if "/assignments/" in url:
+            return InternalRef(kind="assignment", ref=url.rsplit("/", 1)[-1], course=course)
         return None
 
     def _auth(self, creds: BaseModel) -> None:

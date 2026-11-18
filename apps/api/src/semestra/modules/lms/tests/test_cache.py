@@ -2,11 +2,10 @@
 
 import pytest
 from fastapi import FastAPI
-from sqlalchemy import delete, func, select
+from sqlalchemy import func, select
 
 from semestra.core.context import system_ctx
 from semestra.modules.lms.cache import LRU_BYTES, LmsRuntime
-from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.models import LmsCache
 from semestra.modules.lms.tests.conftest import Api, FakeProvider
 from semestra.modules.lms.tests.test_lms import setup_program
@@ -37,7 +36,7 @@ async def test_second_level_is_written_after_the_request(api: Api, app: FastAPI)
     assert again["items"]
 
 
-async def test_refresh_drops_one_course(api: Api, fake: FakeProvider):
+async def test_refresh_drops_one_course_and_syncs_it(api: Api, fake: FakeProvider):
     program_id, term_id, _ = await setup_program(api)
     first = await api.course(program_id, term_id)
     second = await api.course(program_id, term_id, code="MAT186H1", title="Calculus")
@@ -51,6 +50,14 @@ async def test_refresh_drops_one_course(api: Api, fake: FakeProvider):
     for course in (first, second):
         await api.call("GET", f"/courses/{course}/lms/assignments")
     assert fake.calls == [("assignments", "101")]  # the other course stays cached
+    # What the app keeps of the course (announcements) is read again too.
+    await api.run_jobs()
+    links = {
+        li["course_id"]: li
+        for li in (await api.call("GET", f"/programs/{program_id}/lms-links"))["items"]
+    }
+    assert links[first]["synced_at"] is not None
+    assert links[second]["synced_at"] is None
 
 
 async def test_sync_keeps_the_course_content_cached(api: Api, fake: FakeProvider):
@@ -97,26 +104,6 @@ async def test_file_metadata_is_asked_once(api: Api, fake: FakeProvider):
     assert _count(fake, "file") == 1  # the download used the cached metadata
 
 
-async def test_term_announcements_in_one_request(api: Api, fake: FakeProvider):
-    program_id, term_id, _ = await setup_program(api)
-    first = await api.course(program_id, term_id)
-    second = await api.course(program_id, term_id, code="MAT186H1", title="Calculus")
-    unlinked = await api.course(program_id, term_id, code="ESC101H1", title="Praxis")
-    await api.link(first, "101")
-    await api.link(second, "102")
-    await api.call("GET", f"/courses/{first}/lms/announcements")  # cached already
-    fake.calls.clear()
-    out = await api.call("GET", f"/terms/{term_id}/lms/announcements")
-    assert fake.calls == [("announcements", ["102"])]
-    assert sorted(a["course_id"] for a in out["items"]) == sorted([first, second])
-    assert sorted(out["linked_course_ids"]) == sorted([first, second])
-    assert unlinked not in out["linked_course_ids"]
-    # Stored per course: the course's own list is answered from it.
-    fake.calls.clear()
-    await api.call("GET", f"/courses/{second}/lms/announcements")
-    assert fake.calls == []
-
-
 def test_memory_level_is_bounded_by_size():
     from datetime import UTC, datetime, timedelta
 
@@ -129,33 +116,6 @@ def test_memory_level_is_bounded_by_size():
     rt.drop("c", "course:1")
     assert rt.get("a", datetime.now(UTC)) is None
     assert rt.get("b", datetime.now(UTC)) == "b"
-
-
-async def test_term_announcements_keep_what_the_cache_has_when_the_platform_fails(
-    api: Api, app: FastAPI, fake: FakeProvider, monkeypatch: pytest.MonkeyPatch
-):
-    program_id, term_id, _ = await setup_program(api)
-    first = await api.course(program_id, term_id)
-    second = await api.course(program_id, term_id, code="MAT186H1", title="Calculus")
-    await api.link(first, "101")
-    await api.link(second, "102")
-    await api.call("GET", f"/courses/{first}/lms/announcements")
-
-    async def down(*_args: object, **_kwargs: object) -> list[object]:
-        raise lms_error("lms.forbidden")
-
-    monkeypatch.setattr(fake, "announcements", down)
-    out = await api.call("GET", f"/terms/{term_id}/lms/announcements")
-    assert [a["course_id"] for a in out["items"]] == [first]
-    assert sorted(out["linked_course_ids"]) == sorted([first, second])
-    # Nothing at all to show: the error, so the card does not say "no announcements".
-    app.state.lms = LmsRuntime()
-    async with system_ctx(app.state) as ctx:
-        await ctx.db.execute(delete(LmsCache))
-        await ctx.db.commit()
-    r = await api.client.get(f"/terms/{term_id}/lms/announcements")
-    assert r.status_code >= 400
-    assert r.json()["error"]["code"] == "lms.forbidden"
 
 
 async def test_module_items_come_from_the_cached_modules(api: Api, fake: FakeProvider):

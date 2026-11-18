@@ -16,7 +16,7 @@ import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { Spinner } from '@/ui/spinner'
 import { CanvasBoundary } from '../CanvasBoundary'
 import { useCanvasPage } from '../context'
-import { CanvasHtml, ViewHeader } from './common'
+import { LmsHtml, ViewHeader } from '@/modules/lms/content/LmsContent'
 
 /**
  * "Smart import" of the Canvas syllabus (M09 `lms.syllabus.import`): the grading scheme and dates
@@ -97,7 +97,7 @@ export function SyllabusView() {
             primary={data.html ? <SyllabusImportButton /> : null}
           />
           {data.html ? (
-            <CanvasHtml html={data.html} />
+            <LmsHtml html={data.html} />
           ) : (
             <Empty>
               <EmptyHeader>
