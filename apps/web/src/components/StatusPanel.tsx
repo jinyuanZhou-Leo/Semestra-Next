@@ -67,7 +67,7 @@ export function PanelIconAction({
 }
 
 /**
- * One row of the panel: an icon, the title, the course (color dot + code) and a detail, and on the
+ * One row of the panel: an icon, the title, the course (color dot + code, if any) and a detail, and on the
  * right either the time or the row's actions. A row with `href`/`onOpen` opens on click.
  */
 export function PanelRow({
@@ -89,8 +89,9 @@ export function PanelRow({
   spin?: boolean
   tone?: 'error' | 'success'
   title: string
-  course: string
-  color: string | undefined
+  /** The course it belongs to; a row about no course leaves it out. */
+  course?: string
+  color?: string
   detail?: ReactNode
   time?: string
   muted?: boolean
@@ -131,18 +132,18 @@ export function PanelRow({
           )}
         </ItemTitle>
         <ItemDescription className="flex min-w-0 items-center gap-1.5 text-xs">
-          <span
-            aria-hidden
-            className="size-1.5 shrink-0 rounded-full bg-muted-foreground"
-            style={color ? { backgroundColor: color } : undefined}
-          />
-          <span className="shrink-0">{course}</span>
-          {detail ? (
+          {course ? (
             <>
-              <span aria-hidden>·</span>
-              <span className="min-w-0 truncate">{detail}</span>
+              <span
+                aria-hidden
+                className="size-1.5 shrink-0 rounded-full bg-muted-foreground"
+                style={color ? { backgroundColor: color } : undefined}
+              />
+              <span className="shrink-0">{course}</span>
             </>
           ) : null}
+          {course && detail ? <span aria-hidden>·</span> : null}
+          {detail ? <span className="min-w-0 truncate">{detail}</span> : null}
         </ItemDescription>
       </ItemContent>
       {children || time ? (
