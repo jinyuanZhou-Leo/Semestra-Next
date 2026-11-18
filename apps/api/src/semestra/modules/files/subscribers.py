@@ -29,32 +29,37 @@ async def on_embedding_changed(ctx: Ctx, event: Event) -> None:
 
 @events.subscribe("settings.values.updated")
 async def on_synced_scans_changed(ctx: Ctx, event: Event) -> None:
-    """`synced_scans` turned on for a Program or course: the synced files there whose scanned
-    pages were skipped are read again, now by the provider (the user just asked for it)."""
+    """`synced_scans` turned on for the account, a Program or a course: the synced files there
+    whose scanned pages were skipped are read again, now by the provider (the user just asked
+    for it)."""
     data = event.data
     scope = data.get("scope")
     if (
         data.get("namespace") != "files"
         or "synced_scans" not in (data.get("changed") or [])
         or not isinstance(scope, dict)
-        or not isinstance(scope_id := scope.get("id"), str)
     ):
         return
-    courses = (
-        [scope_id]
-        if scope.get("type") == "course"
-        else await service.program_course_ids(ctx, scope_id)
-    )
-    rows = await ctx.db.scalars(
+    query = (
         select(FilesItem)
         .join(FilesDocument, FilesDocument.id == FilesItem.active_document_id)
         .where(
             FilesItem.user_id == ctx.user_id,
-            FilesItem.course_id.in_(courses),
             FilesItem.doc_status == "ready",
             FilesDocument.ocr_skipped_pages > 0,
         )
     )
+    scope_id = scope.get("id")
+    if scope.get("type") != "account":
+        if not isinstance(scope_id, str):
+            return
+        courses = (
+            [scope_id]
+            if scope.get("type") == "course"
+            else await service.program_course_ids(ctx, scope_id)
+        )
+        query = query.where(FilesItem.course_id.in_(courses))
+    rows = await ctx.db.scalars(query)
     reading: dict[str, bool] = {}
     for row in rows:
         if not content.follows_source(row):

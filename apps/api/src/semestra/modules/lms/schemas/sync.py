@@ -127,6 +127,13 @@ class SyncCourseError(BaseModel):
     code: str
 
 
+class SyncRound(BaseModel):
+    """The courses of a sync the user asked for ("Sync now"), while it runs."""
+
+    done: int = Field(description="Courses synced so far")
+    total: int = Field(description="Courses in this sync")
+
+
 class SyncStatus(BaseModel):
     program_id: str
     provider: str | None = Field(description="The bound connection's provider, if any")
@@ -136,6 +143,9 @@ class SyncStatus(BaseModel):
     courses: int = Field(description="How many courses sync")
     synced_at: datetime | None = Field(description="When the least recently synced one synced")
     syncing: bool
+    round: SyncRound | None = Field(
+        default=None, description="Progress of a sync the user asked for, while it runs"
+    )
     pending: list[SyncItem] = Field(description="What waits for the user, newest first")
     ignored: list[SyncItem]
     recent: list[SyncChange] = Field(description="What the sync changed lately, newest first")

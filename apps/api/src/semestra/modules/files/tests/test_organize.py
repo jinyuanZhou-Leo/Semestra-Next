@@ -79,9 +79,7 @@ async def test_organizing_the_loose_files(fx: Fx, monkeypatch: pytest.MonkeyPatc
         assert pending == {"items": [{"course_id": fx.course_id, "job": None, "count": 4}]}
 
         # The user files the notes themselves before reviewing: they are no longer in the plan.
-        notes = next(
-            m for m in state["plan"]["moves"] if m["name"] == "Lecture 3 notes.txt"
-        )
+        notes = next(m for m in state["plan"]["moves"] if m["name"] == "Lecture 3 notes.txt")
         await fx.call("PATCH", f"/files/{notes['item_id']}", json={"folder_id": lab3["id"]})
         plan = (await fx.call("GET", f"/courses/{fx.course_id}/files:organize"))["plan"]
         assert sorted(

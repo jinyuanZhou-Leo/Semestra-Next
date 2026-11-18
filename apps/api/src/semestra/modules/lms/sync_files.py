@@ -796,23 +796,22 @@ async def restore(ctx: Ctx, material_id: str) -> str:
 
 @events.subscribe("settings.values.updated")
 async def on_settings_changed(ctx: Ctx, event: Event) -> None:
-    """The materials settings of a Program or course changed: turned on, its courses sync now
-    and quietly, as at first (what came meanwhile is not told as new); a new way of keeping
-    them applies at once (local copies let go, or stored)."""
+    """The materials settings of the account or a course changed: turned on, the courses sync
+    now and quietly, as at first (what came meanwhile is not told as new); a new way of keeping
+    them applies at once (local copies let go, or stored). A course with its own value is left
+    alone by a change to the account's (`material_settings` reads what applies)."""
     data = event.data
     scope = data.get("scope")
     changed = set(data.get("changed") or [])
-    if (
-        data.get("namespace") != "lms.materials"
-        or not isinstance(scope, dict)
-        or not isinstance(scope_id := scope.get("id"), str)
-    ):
+    if data.get("namespace") != "lms.materials" or not isinstance(scope, dict):
         return
-    if scope.get("type") == "course":
+    if scope.get("type") == "account":
+        links = await service.user_links(ctx)
+    elif scope.get("type") == "course" and isinstance(scope_id := scope.get("id"), str):
         link = await service.link_row(ctx, scope_id)
         links = [link] if link is not None else []
     else:
-        links = await service.program_links(ctx, scope_id)
+        return
     turned_on: list[LmsCourseLink] = []
     for link in links:
         if not link.sync_enabled:

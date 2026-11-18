@@ -744,9 +744,9 @@ async def test_organize_moves_back_what_moved_on_the_platform(
     assert _where(folders, items["Lecture 1.pdf"]) == "Lectures"
 
     plan = await _organize(api, course)
-    assert [
-        (m["name"], m["folder_name"], m["new_folder"], m["back"]) for m in plan["moves"]
-    ] == [("Lecture 1.pdf", "Slides / Week 1", True, "Fake LMS")]
+    assert [(m["name"], m["folder_name"], m["new_folder"], m["back"]) for m in plan["moves"]] == [
+        ("Lecture 1.pdf", "Slides / Week 1", True, "Fake LMS")
+    ]
     assert plan["left"] == 0
     lecture = items["Lecture 1.pdf"]["id"]
     applied = await api.call(
@@ -815,7 +815,7 @@ async def test_scanned_pages_of_synced_files_wait_for_the_user_or_the_setting(
     await api.call(
         "PATCH",
         "/me/settings/files",
-        json={"scope_type": "program", "scope_id": program_id, "values": {"synced_scans": True}},
+        json={"scope_type": "account", "values": {"synced_scans": True}},
     )
     await api.run_jobs()
     assert (await api.call("GET", f"/files/{second}"))["ocr_skipped_pages"] == 0

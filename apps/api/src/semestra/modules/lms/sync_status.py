@@ -21,6 +21,7 @@ from semestra.modules.lms.schemas.sync import (
     SyncItemKind,
     SyncMaterialChange,
     SyncRemovedMaterial,
+    SyncRound,
     SyncStatus,
 )
 from semestra.modules.lms.settings import account
@@ -204,6 +205,7 @@ async def status(ctx: Ctx, program_id: str) -> SyncStatus:
     ]
     synced = [li.synced_at for li in links]
     busy = await sync.syncing_courses(ctx, [li.course_id for li in links])
+    round_ = await sync.sync_round(ctx, [li.course_id for li in links])
     return empty.model_copy(
         update={
             "provider": connection.provider,
@@ -212,6 +214,7 @@ async def status(ctx: Ctx, program_id: str) -> SyncStatus:
             "courses": len(links),
             "synced_at": None if not synced or None in synced else min(s for s in synced if s),
             "syncing": bool(busy),
+            "round": SyncRound(done=round_[0], total=round_[1]) if round_ else None,
             "pending": pending,
             "ignored": ignored,
             "recent": recent,

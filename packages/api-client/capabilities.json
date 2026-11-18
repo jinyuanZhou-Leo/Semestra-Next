@@ -317,7 +317,7 @@
       "capability": "files.organization.apply",
       "module": "files",
       "effect": "write",
-      "summary": "Move a course's files into their type folders, as its plan says.",
+      "summary": "Move a course's files into their folders, as its plan says.",
       "plugin_id": null
     },
     {
@@ -333,7 +333,7 @@
       "capability": "files.organization.start",
       "module": "files",
       "effect": "write",
-      "summary": "Work out how to sort a course's unsorted files into type folders.",
+      "summary": "Work out where a course's loose files belong.",
       "plugin_id": null
     },
     {

@@ -46,7 +46,7 @@ register_settings(
     agent_writable=False,
     adapt=offered,
 )
-register_settings(namespace="lms.materials", schema=MaterialSettings, levels=("program", "course"))
+register_settings(namespace="lms.materials", schema=MaterialSettings, levels=("account", "course"))
 
 
 @periodic("lms.cleanup", every=timedelta(hours=6))

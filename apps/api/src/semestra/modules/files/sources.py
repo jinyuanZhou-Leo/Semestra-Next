@@ -492,9 +492,7 @@ def register_homes(source_kind: str, finder: HomeFinder, moved_back: MovedBack) 
 
 
 async def homes(ctx: Ctx, course_id: str) -> list[Home]:
-    return [
-        home for finder, _ in _home_finders.values() for home in await finder(ctx, course_id)
-    ]
+    return [home for finder, _ in _home_finders.values() for home in await finder(ctx, course_id)]
 
 
 async def moved_back(ctx: Ctx, source_kind: str, placed: Mapping[str, str | None]) -> None:

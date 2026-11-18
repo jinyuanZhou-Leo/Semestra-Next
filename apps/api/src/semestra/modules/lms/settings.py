@@ -88,8 +88,8 @@ MaterialStore = Literal["online", "local"]
 
 
 class MaterialSettings(BaseModel):
-    """How a course's materials come in (M11 namespace `lms.materials`, Program and course):
-    the Program's choice holds for its courses unless a course sets its own."""
+    """How a course's materials come in (M11 namespace `lms.materials`, account and course):
+    the account's choice holds for every course unless a course sets its own."""
 
     sync: bool = Field(
         default=True,

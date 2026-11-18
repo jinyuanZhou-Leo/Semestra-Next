@@ -21,7 +21,9 @@ class FilesSettings(BaseModel):
     )
 
 
-register_settings(namespace="files", schema=FilesSettings, levels=("program", "course"))
+# `synced_scans` is set with the LMS materials settings (the account's and each course's);
+# `auto_index` at the Program and course.
+register_settings(namespace="files", schema=FilesSettings, levels=("account", "program", "course"))
 
 
 async def auto_index(ctx: Ctx, course_id: str) -> bool:
