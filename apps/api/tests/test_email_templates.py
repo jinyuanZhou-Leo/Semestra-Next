@@ -50,6 +50,8 @@ def test_only_url_placeholders_become_links() -> None:
     assert "&lt;b&gt;" in email.html
     # Text right after a link (the full stop, a line break) stays outside it.
     assert "account/account</a> 修改密码" in email.html
+    english = render_email("new_sign_in", "en", PARAMS, web_origin="https://example.com")
+    assert "account/account</a>." in english.html
 
 
 def test_logo_only_over_https() -> None:
