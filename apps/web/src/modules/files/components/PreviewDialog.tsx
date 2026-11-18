@@ -6,7 +6,16 @@ import {
 } from '@semestra/api-client/react-query'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
-import { CloudOff, Download, FileX, RotateCw, Search, SquareArrowOutUpRight, X } from 'lucide-react'
+import {
+  AppWindow,
+  CloudOff,
+  Download,
+  FileX,
+  RotateCw,
+  Search,
+  SquareArrowOutUpRight,
+  X,
+} from 'lucide-react'
 import { Suspense, useEffect, useRef, useState } from 'react'
 import { formatHotkey, useHotkey } from '@/app/hotkeys'
 import { useUiPref } from '@/app/ui-pref'
@@ -18,6 +27,12 @@ import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/ui/alert'
 import { Button } from '@/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/ui/dropdown-menu'
 import {
   Empty,
   EmptyContent,
@@ -35,6 +50,7 @@ import { searchTerms } from '../highlight'
 import { fileKindName, opensInBrowser, previewKind } from '../kinds'
 import { type PageTarget, pageTarget } from '../page-target'
 import { contentUrl, useFileItem } from '../queries'
+import type { FileItemAction } from '../types'
 import { DocumentText } from './DocumentText'
 import { FileIcon } from './FileIcon'
 import { ItemActionButton, useItemActions } from './ItemActions'
@@ -350,37 +366,12 @@ export function PreviewDialog({
       actions={
         data && data.kind === 'file' ? (
           <>
-            {programId
-              ? actions.map((action) => (
-                  <ItemActionButton
-                    key={action.id}
-                    action={action}
-                    item={data}
-                    programId={programId}
-                  />
-                ))
-              : null}
-            {opensInBrowser(kind) ? (
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      nativeButton={false}
-                      aria-label={m.files_open_new_tab()}
-                      render={
-                        // oxlint-disable-next-line jsx-a11y/control-has-associated-label, jsx-a11y/anchor-has-content -- labelled by aria-label
-                        <a href={contentUrl(data.id)} target="_blank" rel="noopener noreferrer" />
-                      }
-                    />
-                  }
-                >
-                  <SquareArrowOutUpRight aria-hidden />
-                </TooltipTrigger>
-                <TooltipContent>{m.files_open_new_tab()}</TooltipContent>
-              </Tooltip>
-            ) : null}
+            <OpenElsewhere
+              item={data}
+              actions={programId ? actions : []}
+              programId={programId ?? ''}
+              inBrowser={opensInBrowser(kind)}
+            />
             <Button
               size="sm"
               nativeButton={false}
@@ -454,5 +445,121 @@ export function PreviewDialog({
         </AsyncBoundary>
       ) : null}
     </PreviewShell>
+  )
+}
+
+/**
+ * Where else the previewed file opens: a new tab (what the browser can show) and what other
+ * modules add (`files.itemActions`, e.g. the file on its platform). Always one icon button in the
+ * same place: one entry opens directly (named in its tooltip), more are its menu, so two
+ * look-alike "open" icons never sit side by side.
+ */
+function OpenElsewhere({
+  item,
+  actions,
+  programId,
+  inBrowser,
+}: {
+  item: ItemOut
+  actions: readonly FileItemAction[]
+  programId: string
+  inBrowser: boolean
+}) {
+  const [only] = actions
+  if ((inBrowser ? 1 : 0) + actions.length > 1) {
+    return <OpenMenu item={item} actions={actions} programId={programId} inBrowser={inBrowser} />
+  }
+  if (only) {
+    return (
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => void only.run({ programId, item })}
+            />
+          }
+        >
+          <only.icon aria-hidden />
+          <span className="sr-only">
+            <only.Label programId={programId} item={item} />
+          </span>
+        </TooltipTrigger>
+        <TooltipContent>
+          <only.Label programId={programId} item={item} />
+        </TooltipContent>
+      </Tooltip>
+    )
+  }
+  if (!inBrowser) return null
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            nativeButton={false}
+            aria-label={m.files_open_new_tab()}
+            render={
+              // oxlint-disable-next-line jsx-a11y/control-has-associated-label, jsx-a11y/anchor-has-content -- labelled by aria-label
+              <a href={contentUrl(item.id)} target="_blank" rel="noopener noreferrer" />
+            }
+          />
+        }
+      >
+        <SquareArrowOutUpRight aria-hidden />
+      </TooltipTrigger>
+      <TooltipContent>{m.files_open_new_tab()}</TooltipContent>
+    </Tooltip>
+  )
+}
+
+function OpenMenu({
+  item,
+  actions,
+  programId,
+  inBrowser,
+}: {
+  item: ItemOut
+  actions: readonly FileItemAction[]
+  programId: string
+  inBrowser: boolean
+}) {
+  return (
+    <DropdownMenu>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <DropdownMenuTrigger
+              render={<Button variant="ghost" size="icon-sm" aria-label={m.files_open_in()} />}
+            />
+          }
+        >
+          <SquareArrowOutUpRight aria-hidden />
+        </TooltipTrigger>
+        <TooltipContent>{m.files_open_in()}</TooltipContent>
+      </Tooltip>
+      <DropdownMenuContent align="end">
+        {inBrowser ? (
+          <DropdownMenuItem
+            render={(props) => (
+              // oxlint-disable-next-line jsx-a11y/anchor-has-content -- the content arrives through `props`
+              <a {...props} href={contentUrl(item.id)} target="_blank" rel="noopener noreferrer" />
+            )}
+          >
+            <AppWindow aria-hidden />
+            {m.files_open_new_tab()}
+          </DropdownMenuItem>
+        ) : null}
+        {actions.map((action) => (
+          <DropdownMenuItem key={action.id} onClick={() => void action.run({ programId, item })}>
+            <action.icon aria-hidden />
+            <action.Label programId={programId} item={item} />
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

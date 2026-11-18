@@ -638,6 +638,7 @@ test("course links list the course's web tools on other sites, not its own pages
     hidden,
   })
   server.use(
+    http.post(`${API}/me/ui-state\\:get`, () => HttpResponse.json({ items: {} })),
     http.get(`${API}/courses/c1/lms-link`, () => HttpResponse.json({ link: link() })),
     http.get(`${API}/courses/c1/lms`, () =>
       HttpResponse.json({
@@ -670,6 +671,11 @@ test("course links list the course's web tools on other sites, not its own pages
   expect(piazza).toHaveAttribute('href', 'https://q.utoronto.ca/courses/101/tool_1')
   expect(piazza).toHaveAttribute('target', '_blank')
   expect(screen.getAllByRole('link').map((a) => a.textContent)).toEqual(['Piazza', 'Gradescope'])
+  // Opened after the same question as any other link to a site.
+  await userEvent.click(piazza)
+  expect(
+    await screen.findByRole('alertdialog', { name: 'Open an external site?' }),
+  ).toHaveTextContent('https://q.utoronto.ca/courses/101/tool_1')
 })
 
 test('an unlinked course has no course links row and asks nothing of the platform', async () => {
@@ -693,6 +699,7 @@ test('an unlinked course has no course links row and asks nothing of the platfor
 
 test('the course info card shows its facts and the LMS rows together', async () => {
   server.use(
+    http.post(`${API}/me/ui-state\\:get`, () => HttpResponse.json({ items: {} })),
     http.get(`${API}/courses/c1`, () =>
       HttpResponse.json(academicsCourse({ id: 'c1', term_ids: [], title: 'Programming' })),
     ),

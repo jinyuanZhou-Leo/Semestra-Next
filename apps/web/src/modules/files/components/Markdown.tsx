@@ -2,7 +2,7 @@ import { type ComponentProps, createContext, use } from 'react'
 import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { cn } from '@/lib/utils'
-import { useExternalLink } from './ExternalLink'
+import { useExternalLink } from '@/components/ExternalLink'
 
 const REMARK_PLUGINS = [remarkGfm]
 

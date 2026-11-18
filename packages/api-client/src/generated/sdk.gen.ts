@@ -257,8 +257,11 @@ export const filesContent = <ThrowOnError extends boolean = false>(options: Opti
  * Download several files and folders of a course as one zip archive.
  *
  * Links are left out. The archive is written while it is sent: each file is opened (read
- * from its source, if it is kept there) when its turn comes, and one that cannot be read then
- * (gone from its source, the source unreachable) is left out.
+ * from its source, if it is kept there) when its turn comes. One that cannot be read then (gone
+ * from its source, the source unreachable) is left out and named in a list at the end of the
+ * archive, in the user's language; when none can be read the answer is
+ * `files.download_unavailable` instead of an archive without them. A file that fails halfway
+ * breaks the download off, so no archive that looks whole is left behind.
  */
 export const filesDownloadMany = <ThrowOnError extends boolean = false>(options: Options<FilesDownloadManyData, ThrowOnError>): RequestResult<FilesDownloadManyResponses, FilesDownloadManyErrors, ThrowOnError> => (options.client ?? client).get<FilesDownloadManyResponses, FilesDownloadManyErrors, ThrowOnError>({
     security: [{
