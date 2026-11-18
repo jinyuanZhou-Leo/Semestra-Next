@@ -2619,6 +2619,8 @@
   "lms_announcements_not_read": "Announcements haven't synced yet",
   "lms_announcements_not_read_ended": "This course's term has ended, so it no longer syncs on its own.",
   "lms_announcements_not_read_paused": "Sync is paused for this course.",
+  "lms_announcements_not_read_ended_term": "This term has ended, so its courses no longer sync on their own.",
+  "lms_announcements_not_read_paused_term": "Sync is paused for some of this term's courses.",
   "lms_announcements_sync_now": "Sync now",
   "lms_calendar_source": "LMS calendar",
   "error_lms_provider_unknown": "This platform isn't supported",

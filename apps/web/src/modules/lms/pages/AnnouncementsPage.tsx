@@ -95,9 +95,17 @@ export default function AnnouncementsPage({ scope }: PageProps) {
             {posts.notRead ? m.lms_announcements_not_read() : m.lms_announcements_empty()}
           </EmptyTitle>
           {posts.notRead === 'ended' ? (
-            <EmptyDescription>{m.lms_announcements_not_read_ended()}</EmptyDescription>
+            <EmptyDescription>
+              {term
+                ? m.lms_announcements_not_read_ended_term()
+                : m.lms_announcements_not_read_ended()}
+            </EmptyDescription>
           ) : posts.notRead === 'paused' ? (
-            <EmptyDescription>{m.lms_announcements_not_read_paused()}</EmptyDescription>
+            <EmptyDescription>
+              {term
+                ? m.lms_announcements_not_read_paused_term()
+                : m.lms_announcements_not_read_paused()}
+            </EmptyDescription>
           ) : null}
         </EmptyHeader>
         {posts.notRead === 'ended' && scope.kind === 'course' ? (
@@ -446,8 +454,10 @@ function SyncCourseButton({ programId, courseId }: { programId: string; courseId
     onError: toastError,
   })
   return (
-    <Button size="sm" disabled={sync.isPending || sync.isSuccess} onClick={() => sync.mutate()}>
-      {sync.isPending || sync.isSuccess ? <Spinner aria-hidden /> : null}
+    // Queued is all it waits for: the sync's status line shows the rest, and the list replaces
+    // this once the course is read.
+    <Button size="sm" disabled={sync.isPending} onClick={() => sync.mutate()}>
+      {sync.isPending ? <Spinner aria-hidden /> : null}
       {m.lms_announcements_sync_now()}
     </Button>
   )
