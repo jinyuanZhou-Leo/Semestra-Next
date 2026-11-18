@@ -205,7 +205,8 @@ function LineFace({ icon: Icon, label, tone, spin, meta, badge }: StatusItem) {
       )}
       <span className={cn(enter, 'truncate')}>{label}</span>
       <span
-        key={`end:${badge ?? ''}:${meta ?? ''}`}
+        // A new kind of end (a badge, a state, nothing) fades in; new text in the same kind does not.
+        key={`end:${badge ? 'badge' : meta ? 'meta' : ''}`}
         className={cn(
           enter,
           'ml-auto shrink-0 text-xs tabular-nums group-data-[collapsible=icon]:hidden',

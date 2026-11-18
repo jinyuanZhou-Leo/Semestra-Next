@@ -3474,7 +3474,7 @@
   "files_delete_many_synced_description": "Files deleted: {count}. They won't sync from {provider} again; you can restore them under Removed materials in the sync status.",
   "files_delete_mixed_description": "Files deleted: {count}. The ones from {provider} ({synced}) can be restored under Removed materials in the sync status; the rest can't be undone.",
   "lms_sync_meta_reconnect": "Reconnect",
-  "lms_sync_hint_reconnect": "Your {provider} sign-in expired. Click to reconnect.",
+  "lms_sync_hint_reconnect": "{provider} needs to be reconnected.",
   "lms_sync_hint_failed": "{courses} didn't sync last time. Click for details.",
   "lms_sync_meta_waiting": "Not synced yet",
   "lms_sync_list_separator": ", ",

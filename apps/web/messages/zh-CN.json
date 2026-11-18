@@ -3474,7 +3474,7 @@
   "files_delete_many_synced_description": "将删除 {count} 个文件。之后不会再从 {provider} 同步，可以在同步状态的“已移除的资料”里恢复。",
   "files_delete_mixed_description": "将删除 {count} 个文件。其中来自 {provider} 的 {synced} 个可以在同步状态的“已移除的资料”里恢复，其余的无法撤销。",
   "lms_sync_meta_reconnect": "需要重新连接",
-  "lms_sync_hint_reconnect": "{provider} 的登录已失效，点击重新连接",
+  "lms_sync_hint_reconnect": "{provider} 需要重新连接",
   "lms_sync_hint_failed": "{courses} 上次没有同步成功，点击查看",
   "lms_sync_meta_waiting": "尚未同步",
   "lms_sync_list_separator": "、",

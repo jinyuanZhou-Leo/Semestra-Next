@@ -339,8 +339,7 @@ function Panel({
                       </Button>
                       <Button
                         size="xs"
-                        variant="outline"
-                        className="text-destructive"
+                        variant="destructive"
                         disabled={busy}
                         onClick={() => deleting.show(item)}
                       >
