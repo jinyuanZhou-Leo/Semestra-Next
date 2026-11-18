@@ -910,6 +910,15 @@ async def retry_synced(ctx: Ctx, row: FilesItem) -> None:
     await events.publish(ctx, "files.item.updated", {"item_id": row.id, "course_id": row.course_id})
 
 
+async def read_again_synced(ctx: Ctx, row: FilesItem) -> None:
+    """Reads a synced file again in the background (its source's settings changed); the version
+    read so far stays searchable until then."""
+    row.doc_status, row.doc_error_code, row.updated_at = "pending", None, ctx.now
+    await ctx.db.flush()
+    await enqueue_processing(ctx, row, synced=True)
+    await events.publish(ctx, "files.item.updated", {"item_id": row.id, "course_id": row.course_id})
+
+
 async def rename_synced(ctx: Ctx, row: FilesItem, name: str) -> None:
     """The source renamed its file (the bytes are the same)."""
     row.display_name = row.original_name = _safe_name(name)

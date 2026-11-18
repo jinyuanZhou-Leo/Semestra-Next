@@ -2399,7 +2399,7 @@
   "settings_files_auto_index_label": "自动为新文件建立索引",
   "settings_files_auto_index_description": "添加文件后立即建立索引，供搜索和 Sem 使用。",
   "settings_files_synced_scans_label": "识别同步资料中的扫描页",
-  "settings_files_synced_scans_description": "用 AI 服务商识别从 LMS 同步来的资料中的扫描页。关闭时，可在文件上重新处理以识别。",
+  "settings_files_synced_scans_description": "用 AI 服务商识别从 LMS 同步来的资料中的扫描页，已同步的资料也会随即识别。关闭时，可在文件上重新处理以识别。",
   "settings_tasks_default_priority_label": "默认优先级",
   "settings_tasks_default_priority_description": "添加待办时没写优先级就用它，已有待办不受影响。",
   "settings_tasks_default_priority_option_none": "无",

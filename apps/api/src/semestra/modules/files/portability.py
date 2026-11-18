@@ -103,7 +103,8 @@ class FilesAdapter(TableAdapter):
             row.storage_key = key
             if row.doc_status != "unsupported":
                 row.doc_status = "pending"
-                await service.enqueue_processing(ctx, row)
+                # A copy stored for its source is read as its source's sync reads it.
+                await service.enqueue_processing(ctx, row, synced=content.follows_source(row))
         await ctx.db.flush()
         return report
 

@@ -31,11 +31,17 @@ CASES: list[tuple[Clues, MaterialType]] = [
     (Clues("Set 1.pdf", listed_by=["Problem sets"]), "problems"),
     # Only an item's own title makes it the syllabus.
     (Clues("Grading.pdf", module="Course information"), "general"),
-    # A title that names two types, or only says "final", is left to the model, whatever the
-    # module or folder around it says.
-    (Clues("week5_notes_final_v2.pdf"), "general"),
-    (Clues("Tutorial 10 - Problems.pdf"), "general"),
-    (Clues("Final review.pdf", module="Exams"), "general"),
+    # "Final" alone names nothing: the next clue decides.
+    (Clues("week5_notes_final_v2.pdf"), "lectures"),
+    (Clues("Final review.pdf", module="Exams"), "exams"),
+    (Clues("Final review.pdf"), "general"),
+    # A title that names two types leaves the choice between them to the next clue that names
+    # one of them, else to the model.
+    (Clues("Tutorial 3 solutions.pdf", module="Tutorials"), "tutorials"),
+    (Clues("Lecture 5 readings.pdf", module="Lecture notes"), "lectures"),
+    (Clues("Lecture 5 readings.pdf", module="Week 5", folder_path="Readings"), "readings"),
+    (Clues("Tutorial 3 solutions.pdf", module="Lectures"), "general"),
+    (Clues("Tutorial 3 solutions.pdf"), "general"),
 ]
 
 

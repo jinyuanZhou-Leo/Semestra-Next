@@ -2399,7 +2399,7 @@
   "settings_files_auto_index_label": "Index new files automatically",
   "settings_files_auto_index_description": "Index files as soon as they're added, so search and Sem can use them.",
   "settings_files_synced_scans_label": "Read scanned pages in synced materials",
-  "settings_files_synced_scans_description": "Use your AI provider to read scanned pages in materials synced from the LMS. When off, process a file again to read them.",
+  "settings_files_synced_scans_description": "Use your AI provider to read scanned pages in materials synced from the LMS, including ones already here. When off, process a file again to read it.",
   "settings_tasks_default_priority_label": "Default priority",
   "settings_tasks_default_priority_description": "Used for tasks you add without a priority. Existing tasks keep theirs.",
   "settings_tasks_default_priority_option_none": "None",

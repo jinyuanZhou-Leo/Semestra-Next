@@ -10,6 +10,7 @@ import respx
 from fastapi import FastAPI
 from sqlalchemy import func, select
 
+from semestra.core import jobs
 from semestra.core.config import Settings
 from semestra.core.jobs import BACKGROUND, CoreJob
 from semestra.modules.files.models import FilesItem
@@ -418,6 +419,44 @@ async def test_a_backup_without_files(api: Api, fake: FakeProvider, app: FastAPI
     assert (midterm_row.kept_offline, midterm_row.doc_error_code) == (False, "files.source_unread")
 
 
+async def test_a_restored_copy_stored_for_the_sync_is_read_as_the_sync_reads_it(
+    api: Api, fake: FakeProvider, app: FastAPI
+):
+    """With its bytes in the backup, it is read again in the background, like a synced file
+    (so its scanned pages follow the course's setting), not as a file the user is waiting on."""
+    _materials(fake)
+    program_id, course = await _course(api)
+    await api.call("PATCH", f"/courses/{course}/lms-link", json={"files_offline": True})
+    await api.sync(program_id)
+    await api.run_jobs()
+
+    started = await api.call("POST", "/me/exports", json={"include_files": True})
+    await api.run_jobs()
+    archive = (await api.client.get(f"/me/exports/{started['id']}/download")).content
+    uploaded = await api.client.post(
+        "/me/imports", files={"file": ("backup.zip", archive, "application/zip")}
+    )
+    body = {"mode": "replace", "confirmation": "Replace my data"}
+    await api.call("POST", f"/me/imports/{uploaded.json()['id']}:start", json=body)
+    while await app.state.jobs.run_one(jobs.FOREGROUND):
+        pass  # the restore, but not what it queued in the background
+
+    async with app.state.session_factory() as db:
+        lecture = await db.scalar(
+            select(FilesItem).where(FilesItem.display_name == "Lecture 1.pdf")
+        )
+        assert lecture is not None
+        assert lecture.storage_key is not None
+        kinds = set(
+            await db.scalars(
+                select(CoreJob.kind).where(
+                    CoreJob.status == "pending", CoreJob.dedupe_key.startswith(lecture.id)
+                )
+            )
+        )
+    assert kinds == {"files.process_synced"}
+
+
 # --- what the rules leave in "general" ------------------------------------------------------
 
 
@@ -506,32 +545,37 @@ async def test_scanned_pages_of_synced_files_wait_for_the_user_or_the_setting(
     it again) or the course's setting says so; hundreds come at once, and nobody asked."""
     fake_ai.enabled.add("ocr")
     pdf = "application/pdf"
-    fake.course_file_list = [_file("201", "Scan 1.pdf", "Lectures", mime_type=pdf)]
-    fake.file_bytes["201"] = make_pdf(["scan"], scanned={0})
+    fake.course_file_list = [
+        _file(n, f"Scan {n}.pdf", "Lectures", mime_type=pdf) for n in ("201", "202")
+    ]
+    for n in ("201", "202", "203"):
+        fake.file_bytes[n] = make_pdf(["scan"], scanned={0})
     program_id, course = await _course(api)
     await api.sync(program_id)
-    scan = (await _files(api, course))[1]["Scan 1.pdf"]
-    assert (scan["doc_status"], scan["ocr_skipped_pages"]) == ("ready", 1)
+    items = (await _files(api, course))[1]
+    assert {(i["doc_status"], i["ocr_skipped_pages"]) for i in items.values()} == {("ready", 1)}
     assert fake_ai.ocr_calls == 0
 
-    await api.call("POST", f"/files/{scan['id']}:reprocess")
+    first, second = items["Scan 201.pdf"]["id"], items["Scan 202.pdf"]["id"]
+    await api.call("POST", f"/files/{first}:reprocess")
     await api.run_jobs()
-    assert (await api.call("GET", f"/files/{scan['id']}"))["ocr_skipped_pages"] == 0
+    assert (await api.call("GET", f"/files/{first}"))["ocr_skipped_pages"] == 0
     assert fake_ai.ocr_calls == 1
 
+    # Turned on: what was skipped is read now, and what comes next as it comes.
     await api.call(
         "PATCH",
         "/me/settings/files",
-        json={"scope_type": "course", "scope_id": course, "values": {"synced_scans": True}},
+        json={"scope_type": "program", "scope_id": program_id, "values": {"synced_scans": True}},
     )
-    fake.course_file_list.append(
-        _file("202", "Scan 2.pdf", "Lectures", mime_type="application/pdf")
-    )
-    fake.file_bytes["202"] = make_pdf(["scan"], scanned={0})
+    await api.run_jobs()
+    assert (await api.call("GET", f"/files/{second}"))["ocr_skipped_pages"] == 0
+    assert fake_ai.ocr_calls == 2
+    fake.course_file_list.append(_file("203", "Scan 203.pdf", "Lectures", mime_type=pdf))
     clock.advance(minutes=1)
     await api.sync(program_id)
-    assert (await _files(api, course))[1]["Scan 2.pdf"]["ocr_skipped_pages"] == 0
-    assert fake_ai.ocr_calls == 2
+    assert (await _files(api, course))[1]["Scan 203.pdf"]["ocr_skipped_pages"] == 0
+    assert fake_ai.ocr_calls == 3
 
 
 async def _pending(app: FastAPI, kind: str) -> int:

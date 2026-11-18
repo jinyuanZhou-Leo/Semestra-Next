@@ -5,10 +5,11 @@ Every file, page and link of a course has a type, and a type is a folder at the 
 course's files ("Lectures", "Past exams"...). The type comes from what the item says about itself
 first (its title, its kind of file, the address of a link), then from where it was put: the
 subheader above it in a module, the module's name, its folder on the platform, the pages that
-list it. The first of these that names a type decides, but only when it names one clearly: one
-that names two types ("week5_notes_final_v2", "Tutorial 3 problems") or only a word that may mean
-something else ("final") decides nothing. Nothing clear: the general "Course materials". A
-syllabus stays at the top level.
+list it. The first of these that names one type decides. One that names two ("Tutorial 3
+solutions") leaves the choice between them to the next clue that names one of them (a module
+"Tutorials"), and to the model when none does. "Final" alone names nothing: the final exam, or the
+final version of the notes. Nothing found: the general "Course materials". A syllabus stays at the
+top level.
 
 What the rules leave in "general", the model reads the same clues for (plus the start of the
 text, when the file has been read) and picks one of the type folders, never a folder of its own.
@@ -117,12 +118,6 @@ PATTERNS: tuple[tuple[MaterialType, re.Pattern[str]], ...] = (
     ),
 )
 
-# Words that point to a type but often mean something else ("final" is the final exam, or the
-# final version of the notes): on their own they decide nothing.
-VAGUE: tuple[tuple[MaterialType, re.Pattern[str]], ...] = (
-    ("exams", _words(r"finals?(?!\s*(?:project|report|presentation|paper))", "(?!)")),
-)
-
 # Hosts of lecture recordings and video sites.
 VIDEO_HOSTS = (
     "youtube.com", "youtu.be", "vimeo.com", "panopto.com", "panopto.eu", "kaltura.com",
@@ -147,35 +142,23 @@ class Clues:
     excerpt: str | None = None
 
 
-def match(text: str | None) -> MaterialType | Literal["unclear"] | None:
-    """The type `text` names; "unclear" when it names several, or only by a vague word."""
+def match(text: str | None) -> frozenset[MaterialType]:
+    """The types `text` names: none, one, or several (then it is unclear which)."""
     if not text:
-        return None
+        return frozenset()
     # File names separate words with dots, dashes and underscores ("Lec_03-intro.pdf").
     spaced = re.sub(r"[._\-]+", " ", text)
-    rules: tuple[tuple[MaterialType, re.Pattern[str], bool], ...] = (
-        *((kind, pattern, False) for kind, pattern in PATTERNS),
-        *((kind, pattern, True) for kind, pattern in VAGUE),
-    )
-    found: list[tuple[MaterialType, tuple[int, int], bool]] = [
-        (kind, hit.span(), vague)
-        for kind, pattern, vague in rules
-        for hit in pattern.finditer(spaced)
+    found: list[tuple[MaterialType, tuple[int, int]]] = [
+        (kind, hit.span()) for kind, pattern in PATTERNS for hit in pattern.finditer(spaced)
     ]
-    named: list[tuple[MaterialType, bool]] = [
-        (kind, vague)
-        for kind, (start, end), vague in found
+    return frozenset(
+        kind
+        for kind, (start, end) in found
         if not any(
             other != kind and s <= start and end <= e and e - s > end - start
-            for other, (s, e), _ in found
+            for other, (s, e) in found
         )
-    ]
-    kinds: set[MaterialType] = {kind for kind, _ in named}
-    if not kinds:
-        return None
-    if len(kinds) > 1 or all(vague for _, vague in named):
-        return "unclear"
-    return kinds.pop()
+    )
 
 
 def _is_video(clues: Clues) -> bool:
@@ -193,14 +176,21 @@ def classify(clues: Clues) -> MaterialType:
     if _is_video(clues):
         return "recordings"
     folders = [p for p in reversed((clues.folder_path or "").split("/")) if p]  # deepest first
+    # The first clue that names one type decides. One that names several narrows the choice to
+    # them, for the next clue that names one of them; failing that, the model decides.
+    choices: frozenset[MaterialType] | None = None
     for text in (clues.title, clues.subheader, clues.module, *folders, *clues.listed_by):
-        kind = match(text)
+        named = match(text)
         # Only the item's own title says it is the syllabus; a module called "Course
         # information" holds more than that.
-        if kind is None or (kind == "info" and text != clues.title):
-            continue
-        # The first clue that names a type decides; one that is unclear leaves it to the model.
-        return "general" if kind == "unclear" else kind
+        if text != clues.title:
+            named -= {"info"}
+        if choices is not None:
+            named &= choices
+        if len(named) == 1:
+            return next(iter(named))
+        if named:
+            choices = named
     return "general"
 
 
