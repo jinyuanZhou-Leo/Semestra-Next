@@ -23,6 +23,8 @@ from collections.abc import AsyncIterator, Awaitable, Callable, Mapping, Sequenc
 from dataclasses import dataclass
 from datetime import datetime
 
+from sqlalchemy import select
+
 from semestra.core.context import Ctx, run_as_system
 from semestra.core.db import new_id
 from semestra.core.errors import AppError
@@ -39,7 +41,7 @@ from semestra.core.storage import usage as core_usage
 from semestra.modules.files import content, items, service
 from semestra.modules.files.folders import folder_names
 from semestra.modules.files.items import create_link, save_bytes_as_file
-from semestra.modules.files.models import FilesItem
+from semestra.modules.files.models import FilesDocument, FilesItem
 from semestra.modules.files.parse.detect import DOCX, PPTX, XLSX
 from semestra.modules.files.schemas import SourceKind
 from semestra.modules.files.service import find_items, get_folder, purge_items
@@ -498,3 +500,38 @@ async def homes(ctx: Ctx, course_id: str) -> list[Home]:
 async def moved_back(ctx: Ctx, source_kind: str, placed: Mapping[str, str | None]) -> None:
     if (known := _home_finders.get(source_kind)) is not None:
         await known[1](ctx, placed)
+
+
+# --- reading scanned pages of synced files --------------------------------------------------
+
+ScansSetting = Callable[[Ctx, str], Awaitable[bool]]
+_scans: list[ScansSetting] = []
+
+
+def register_synced_scans(setting: ScansSetting) -> None:
+    """`setting(ctx, course_id)`: whether the user's AI provider reads the scanned pages of the
+    files the source syncs into that course (its own setting: hundreds come at once, and nobody
+    asked). Without it they are read when the user processes a file again."""
+    _scans.append(setting)
+
+
+async def synced_scans(ctx: Ctx, course_id: str) -> bool:
+    return any([await setting(ctx, course_id) for setting in _scans])
+
+
+async def read_skipped_scans(ctx: Ctx, course_ids: Sequence[str]) -> None:
+    """The source's setting turned on for these courses: their synced files whose scanned pages
+    were skipped are read again, now by the provider (the user just asked for it)."""
+    rows = await ctx.db.scalars(
+        select(FilesItem)
+        .join(FilesDocument, FilesDocument.id == FilesItem.active_document_id)
+        .where(
+            FilesItem.user_id == ctx.user_id,
+            FilesItem.course_id.in_(list(course_ids)),
+            FilesItem.doc_status == "ready",
+            FilesDocument.ocr_skipped_pages > 0,
+        )
+    )
+    for row in rows:
+        if content.follows_source(row):
+            await read_again_synced(ctx, row)

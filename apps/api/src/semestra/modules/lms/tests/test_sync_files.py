@@ -814,8 +814,8 @@ async def test_scanned_pages_of_synced_files_wait_for_the_user_or_the_setting(
     # Turned on: what was skipped is read now, and what comes next as it comes.
     await api.call(
         "PATCH",
-        "/me/settings/files",
-        json={"scope_type": "account", "values": {"synced_scans": True}},
+        "/me/settings/lms.materials",
+        json={"scope_type": "account", "values": {"scans": True}},
     )
     await api.run_jobs()
     assert (await api.call("GET", f"/files/{second}"))["ocr_skipped_pages"] == 0

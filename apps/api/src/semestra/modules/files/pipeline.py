@@ -22,7 +22,7 @@ from semestra.core.events import Event, events
 from semestra.core.jobs import CoreJob, JobCancelled, JobCtx, enqueue
 from semestra.core.storage import Storage
 from semestra.modules import ai
-from semestra.modules.files import chunking, content, indexing, service
+from semestra.modules.files import chunking, content, indexing, service, sources
 from semestra.modules.files.embeddings import BATCH_SIZE, embed_texts, embedding_text
 from semestra.modules.files.models import (
     FilesChunk,
@@ -41,7 +41,6 @@ from semestra.modules.files.parse.isolated import (
 )
 from semestra.modules.files.parse.readers import MAX_PAGES, PARSER_VERSION, guess_language
 from semestra.modules.files.parse.render import PageImage
-from semestra.modules.files.settings import synced_scans
 from semestra.modules.files.vectors import VectorRow, VectorStore, fingerprint, get_vector_store
 
 log = structlog.get_logger()
@@ -350,9 +349,9 @@ async def _ocr(
     (no OCR engine or model, or it failed on that page: the rest of the file is still read).
     A self-hosted install with local OCR reads them on this machine; otherwise the user's model
     for the `ocr` purpose does (also when the local model it would use on Auto fails to
-    download). A file its source's sync queued is read by that model only when the course's
-    `files.synced_scans` setting says so: hundreds of them come at once, and nobody asked; the
-    user processing it again reads them."""
+    download). A file its source's sync queued is read by that model only when the source's
+    setting for the course says so (`sources.synced_scans`): hundreds of them come at once, and
+    nobody asked; the user processing it again reads them."""
     needed = [i for i, p in enumerate(parsed.pages) if p.needs_ocr]
     if not needed or kind not in ("pdf", "image"):
         await _skip_ocr(ctx)
@@ -360,7 +359,7 @@ async def _ocr(
     local = await ai.local_ocr.choice(ctx)
 
     async def provider_reads() -> bool:
-        if work.synced and not await synced_scans(ctx, work.course_id):
+        if work.synced and not await sources.synced_scans(ctx, work.course_id):
             return False
         return await ai.available(ctx, "ocr")
 

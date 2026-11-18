@@ -7,9 +7,10 @@
   and the folder the sync put its item in (`placed_folder_id`), so "Organize" can offer to move
   untouched items back to their platform folders. Items filed under a type folder get that
   folder here, from the type folders being dropped.
-- The materials settings (`lms.materials`) and `files.synced_scans` move from the Program to the
-  account and the course: a Program's choice is copied to each of its courses that has none of
-  its own, then the Program rows go.
+- Whether the scanned pages of synced files are read becomes a materials setting
+  (`files.synced_scans` → `lms.materials.scans`), and the materials settings move from the
+  Program to the account and the course: a Program's choice is copied to each of its courses
+  that has none of its own, then the Program rows go.
 
 Revision ID: 0060
 Revises: 0059
@@ -43,44 +44,15 @@ def _move_program_settings(conn: sa.Connection, namespace: str, keys: set[str] |
         {"ns": namespace},
     ).all()
     for row_id, user_id, program_id, raw in rows:
-        data = json.loads(raw) if isinstance(raw, str) else dict(raw or {})
+        data = _load(raw)
         moved = {k: v for k, v in data.items() if keys is None or k in keys}
         if moved:
             courses = conn.execute(
                 sa.text("SELECT id FROM academics_courses WHERE user_id = :u AND program_id = :p"),
                 {"u": user_id, "p": program_id},
             ).scalars()
-            for course_id in courses:
-                own = conn.execute(
-                    sa.text(
-                        "SELECT id, data FROM settings_values WHERE user_id = :u AND "
-                        "namespace = :ns AND scope_type = 'course' AND scope_id = :c"
-                    ),
-                    {"u": user_id, "ns": namespace, "c": course_id},
-                ).first()
-                if own is None:
-                    conn.execute(
-                        sa.text(
-                            "INSERT INTO settings_values (id, user_id, namespace, scope_type, "
-                            "scope_id, data, created_at, updated_at) VALUES (:id, :u, :ns, "
-                            "'course', :c, :d, :now, :now)"
-                        ),
-                        {
-                            "id": new_id(),
-                            "now": datetime.now(UTC),
-                            "u": user_id,
-                            "ns": namespace,
-                            "c": course_id,
-                            "d": json.dumps(moved),
-                        },
-                    )
-                else:
-                    current = json.loads(own[1]) if isinstance(own[1], str) else dict(own[1] or {})
-                    merged = {**moved, **current}
-                    conn.execute(
-                        sa.text("UPDATE settings_values SET data = :d WHERE id = :id"),
-                        {"d": json.dumps(merged), "id": own[0]},
-                    )
+            for course_id in list(courses):
+                _merge(conn, user_id, namespace, "course", course_id, moved)
         left = {k: v for k, v in data.items() if k not in moved}
         if left:
             conn.execute(
@@ -89,6 +61,72 @@ def _move_program_settings(conn: sa.Connection, namespace: str, keys: set[str] |
             )
         else:
             conn.execute(sa.text("DELETE FROM settings_values WHERE id = :id"), {"id": row_id})
+
+
+def _load(raw: object) -> dict[str, object]:
+    return json.loads(raw) if isinstance(raw, str) else dict(raw or {})  # type: ignore[arg-type]
+
+
+def _scans_to_materials(conn: sa.Connection) -> None:
+    """`files.synced_scans` of every scope becomes `lms.materials.scans` of that scope."""
+    rows = conn.execute(
+        sa.text(
+            "SELECT id, user_id, scope_type, scope_id, data FROM settings_values "
+            "WHERE namespace = 'files'"
+        )
+    ).all()
+    for row_id, user_id, scope_type, scope_id, raw in rows:
+        data = _load(raw)
+        if "synced_scans" not in data:
+            continue
+        scans = data.pop("synced_scans")
+        if data:
+            conn.execute(
+                sa.text("UPDATE settings_values SET data = :d WHERE id = :id"),
+                {"d": json.dumps(data), "id": row_id},
+            )
+        else:
+            conn.execute(sa.text("DELETE FROM settings_values WHERE id = :id"), {"id": row_id})
+        _merge(conn, user_id, "lms.materials", scope_type, scope_id, {"scans": scans})
+
+
+def _merge(
+    conn: sa.Connection,
+    user_id: str,
+    namespace: str,
+    scope_type: str,
+    scope_id: str,
+    values: dict[str, object],
+) -> None:
+    """Sets `values` on the scope's row where it does not set them itself (made if missing)."""
+    own = conn.execute(
+        sa.text(
+            "SELECT id, data FROM settings_values WHERE user_id = :u AND namespace = :ns "
+            "AND scope_type = :t AND scope_id = :s"
+        ),
+        {"u": user_id, "ns": namespace, "t": scope_type, "s": scope_id},
+    ).first()
+    if own is None:
+        conn.execute(
+            sa.text(
+                "INSERT INTO settings_values (id, user_id, namespace, scope_type, scope_id, "
+                "data, created_at, updated_at) VALUES (:id, :u, :ns, :t, :s, :d, :now, :now)"
+            ),
+            {
+                "id": new_id(),
+                "now": datetime.now(UTC),
+                "u": user_id,
+                "ns": namespace,
+                "t": scope_type,
+                "s": scope_id,
+                "d": json.dumps(values),
+            },
+        )
+    else:
+        conn.execute(
+            sa.text("UPDATE settings_values SET data = :d WHERE id = :id"),
+            {"d": json.dumps({**values, **_load(own[1])}), "id": own[0]},
+        )
 
 
 def upgrade() -> None:
@@ -144,8 +182,8 @@ def upgrade() -> None:
         batch_op.drop_index(batch_op.f("ix_files_type_folders_user_id"))
     op.drop_table("files_type_folders")
 
+    _scans_to_materials(conn)
     _move_program_settings(conn, "lms.materials", None)
-    _move_program_settings(conn, "files", {"synced_scans"})
 
 
 def downgrade() -> None:

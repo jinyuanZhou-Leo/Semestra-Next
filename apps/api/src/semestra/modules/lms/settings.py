@@ -101,6 +101,11 @@ class MaterialSettings(BaseModel):
         "copy is kept, still updated by the platform, and saved as the user's own file when the "
         "platform deletes it or the course is unlinked",
     )
+    scans: bool = Field(
+        default=False,
+        description="The user's AI provider reads the scanned pages of the synced files as they "
+        "come (off: when the user processes a file again)",
+    )
 
 
 async def materials(ctx: Ctx, course_id: str) -> MaterialSettings:
