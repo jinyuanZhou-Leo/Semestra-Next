@@ -5,7 +5,15 @@ import { apiUrl } from '@/lib/api-extras'
 
 /** One value a write changes (M12 §3.5); `count`: how many there are in all when `after` (or
  * `before`) lists only the first ones. */
-export type Change = { field: string; before?: unknown; after?: unknown; count?: number }
+/** One row of a write's before → after. `label` names a row by its data (a folder's name),
+ * shown as is; otherwise `field` names it. */
+export type Change = {
+  field: string
+  label?: string
+  before?: unknown
+  after?: unknown
+  count?: number
+}
 
 /** What the server tells the chat about one tool call: names behind its ids, and counts. */
 export type StepDisplay = {

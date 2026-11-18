@@ -313,6 +313,30 @@
       "plugin_id": null
     },
     {
+      "name": "files__organization__apply",
+      "capability": "files.organization.apply",
+      "module": "files",
+      "effect": "write",
+      "summary": "Move a course's files into their type folders, as its plan says.",
+      "plugin_id": null
+    },
+    {
+      "name": "files__organization__get",
+      "capability": "files.organization.get",
+      "module": "files",
+      "effect": "read",
+      "summary": "Where a course's organizing stands, with its plan once worked out.",
+      "plugin_id": null
+    },
+    {
+      "name": "files__organization__start",
+      "capability": "files.organization.start",
+      "module": "files",
+      "effect": "write",
+      "summary": "Work out how to sort a course's unsorted files into type folders.",
+      "plugin_id": null
+    },
+    {
       "name": "grading__assessment__create_many",
       "capability": "grading.assessment.create_many",
       "module": "grading",
@@ -653,7 +677,7 @@
       "capability": "lms.content.search",
       "module": "lms",
       "effect": "read",
-      "summary": "Search everything in a course on its LMS (Canvas): pages, announcements, assignments, quizzes, discussions, the syllabus, files and links, titles and full text.",
+      "summary": "Search everything in a course on its LMS (Canvas): pages, announcements, assignments and feedback, quizzes, discussions, the syllabus, files and links, titles and full text.",
       "plugin_id": null
     },
     {
@@ -693,7 +717,7 @@
       "capability": "lms.file.save_to_course",
       "module": "lms",
       "effect": "write",
-      "summary": "Save a file of a linked course on the LMS into the course's files.",
+      "summary": "Keep a local copy of a file of a linked course on the LMS (Canvas) in the course's files.",
       "plugin_id": null
     },
     {
@@ -1238,7 +1262,7 @@
         "en": "Use the LMS",
         "zh-CN": "使用 LMS"
       },
-      "description": "Use when the user asks about anything on their LMS (Canvas) courses, such as announcements, assignments, grades, feedback, pages, modules, files, links or discussions there, or wants to link a course or bring LMS assignments or a syllabus into the app.",
+      "description": "Use when the user asks about anything on their LMS (Canvas) courses, such as announcements, assignments, grades, feedback, modules, links or discussions there, or wants to link a course or bring LMS assignments or a syllabus into the app. What the course's files and pages say is answered from the course files (answer-from-course-files).",
       "tools": [
         "lms__content__search",
         "lms__content__read",
@@ -1248,6 +1272,8 @@
         "lms__course__list",
         "lms__course__link__set",
         "lms__file__save_to_course",
+        "files__document__search",
+        "files__document__read",
         "lms__course__import",
         "lms__assignment__import",
         "lms__syllabus__import",

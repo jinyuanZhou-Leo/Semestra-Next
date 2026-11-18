@@ -409,8 +409,19 @@ TypeName = Literal[
 ]  # fmt: skip
 
 
+MAX_ORGANIZE_WAIT_SECONDS = 25
+
+
 class OrganizeInput(BaseModel):
     course_id: str = Field(description="The course whose files to organize.")
+
+
+class OrganizeGetInput(OrganizeInput):
+    wait_seconds: Annotated[int, Field(ge=0, le=MAX_ORGANIZE_WAIT_SECONDS)] = Field(
+        default=0,
+        description="While the plan is still being worked out, wait up to this long for it "
+        "before answering",
+    )
 
 
 class OrganizeDone(BaseModel):
@@ -422,6 +433,7 @@ class OrganizeDone(BaseModel):
 
 class PlannedMove(BaseModel):
     item_id: str
+    name: str
     type: TypeName
     # The folder it goes in; None: made when the move is applied.
     folder_id: str | None

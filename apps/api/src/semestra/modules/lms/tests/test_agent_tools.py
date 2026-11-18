@@ -114,7 +114,7 @@ async def test_search_finds_text_in_pages_the_instructor_hid(api: Api, fake: Fak
     assert "Lecture Recordings are available" in top["snippet"]
     # The hidden pages list is not asked for; each page still is.
     assert ("pages", "101") not in fake.calls
-    assert {"source": "pages", "reason": "hidden"} in found["skipped"]
+    assert {"source": "pages", "reason": "hidden", "hint": None} in found["skipped"]
     # A second search reads the pages from the cache.
     fake.calls.clear()
     await api.call("GET", f"/courses/{course}/lms/search", params={"query": "flux"})
@@ -138,7 +138,8 @@ async def test_search_covers_announcements_assignments_and_links(api: Api, fake:
     assert (link["kind"], link["ref"], link["url"]) == ("link", None, "https://book.example")
     assert (await first("study group"))["ref"] == "discussion:d1"
     files = await api.call("GET", f"/courses/{course}/lms/search", params={"query": "notes"})
-    assert {"source": "files", "reason": "hidden"} in files["skipped"]  # not in the menu
+    # Not in the menu.
+    assert {"source": "files", "reason": "hidden", "hint": None} in files["skipped"]
     only = await api.call(
         "GET", f"/courses/{course}/lms/search", params={"query": "lab", "kinds": ["page"]}
     )

@@ -3049,20 +3049,28 @@ export const filesLinkCreate = <ThrowOnError extends boolean = false>(options: O
 /**
  * Move a course's files into their type folders, as its plan says.
  *
- * Applies the course's plan to the files the user kept: each goes in its type's
- * folder, made when the course has none. Files moved or deleted since the plan stay as they are.
- * The plan is done with afterwards.
+ * Applies the course's plan to the files the user kept (`item_ids`, from
+ * files.organization.get): each goes in its type's folder, made when the course has none. Files
+ * moved or deleted since the plan stay as they are. The plan is done with afterwards.
  */
 export const filesOrganizationApply = <ThrowOnError extends boolean = false>(options: Options<FilesOrganizationApplyData, ThrowOnError>): RequestResult<FilesOrganizationApplyResponses, FilesOrganizationApplyErrors, ThrowOnError> => (options.client ?? client).post<FilesOrganizationApplyResponses, FilesOrganizationApplyErrors, ThrowOnError>({
-    security: [{
+    security: [
+        {
             in: 'cookie',
             name: 'semestra_session',
             type: 'apiKey'
-        }, {
+        },
+        {
             key: 'accessToken',
             scheme: 'bearer',
             type: 'http'
-        }],
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/courses/{course_id}/files:organize-apply',
     ...options,
     headers: {
@@ -3091,21 +3099,31 @@ export const filesOrganizationDiscard = <ThrowOnError extends boolean = false>(o
 });
 
 /**
- * Where a course's organizing stands.
+ * Where a course's organizing stands, with its plan once worked out.
  *
- * The course's organizing: its job while it reads (or when it failed), and the
- * plan once read, with the files the user has moved or deleted since left out.
+ * While the job reads (`job` set, no `plan`), pass wait_seconds to wait for the
+ * plan. The plan lists each file with the folder it would go in, the files the user has moved or
+ * deleted since left out; `left` files stay where they are. Show the user the plan before applying
+ * it.
  */
 export const filesOrganizationGet = <ThrowOnError extends boolean = false>(options: Options<FilesOrganizationGetData, ThrowOnError>): RequestResult<FilesOrganizationGetResponses, FilesOrganizationGetErrors, ThrowOnError> => (options.client ?? client).get<FilesOrganizationGetResponses, FilesOrganizationGetErrors, ThrowOnError>({
-    security: [{
+    security: [
+        {
             in: 'cookie',
             name: 'semestra_session',
             type: 'apiKey'
-        }, {
+        },
+        {
             key: 'accessToken',
             scheme: 'bearer',
             type: 'http'
-        }],
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/courses/{course_id}/files:organize',
     ...options
 });
@@ -3115,19 +3133,29 @@ export const filesOrganizationGet = <ThrowOnError extends boolean = false>(optio
  *
  * Starts a job that gives each file at the top level or in "Course materials" a
  * type (lectures, past exams...) and the folder it would go in, and keeps that as the course's plan
- * (replacing one not yet applied). Nothing is moved: the user reviews the plan
- * (`files.organization.get`) and applies it (`files.organization.apply`).
+ * (replacing one not yet applied). Nothing is moved: the plan waits for the user's review, in the
+ * course's files or with you (`files.organization.get`, then `files.organization.apply`). Call
+ * files.organization.get first: when a plan already waits for review, go through that one instead
+ * of starting again, unless the user asks to.
  */
 export const filesOrganizationStart = <ThrowOnError extends boolean = false>(options: Options<FilesOrganizationStartData, ThrowOnError>): RequestResult<FilesOrganizationStartResponses, FilesOrganizationStartErrors, ThrowOnError> => (options.client ?? client).post<FilesOrganizationStartResponses, FilesOrganizationStartErrors, ThrowOnError>({
-    security: [{
+    security: [
+        {
             in: 'cookie',
             name: 'semestra_session',
             type: 'apiKey'
-        }, {
+        },
+        {
             key: 'accessToken',
             scheme: 'bearer',
             type: 'http'
-        }],
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/courses/{course_id}/files:organize',
     ...options
 });
@@ -4825,8 +4853,11 @@ export const lmsConnectionValidate = <ThrowOnError extends boolean = false>(opti
  *
  * Takes a `ref` from any lms tool (a page, announcement with its replies,
  * assignment with the user's score, rubric and the teacher's comments, quiz, discussion, file's
- * text, `syllabus`) or the item's address on the LMS as `url`. A long text comes in parts: call
- * again with `next_offset`. Links in the text written `lms:<ref>` open with this tool.
+ * text, `syllabus`) or the item's address on the LMS as `url`. A page or file the course files
+ * have is read from there, with `item_id` and a citation per page (go on with
+ * files.document.read); `note` says when one was read from the LMS instead. A long text comes
+ * in parts: call again with `next_offset`. Links in the text written `lms:<ref>` open with this
+ * tool.
  */
 export const lmsContentRead = <ThrowOnError extends boolean = false>(options: Options<LmsContentReadData, ThrowOnError>): RequestResult<LmsContentReadResponses, LmsContentReadErrors, ThrowOnError> => (options.client ?? client).get<LmsContentReadResponses, LmsContentReadErrors, ThrowOnError>({
     security: [
@@ -4851,13 +4882,16 @@ export const lmsContentRead = <ThrowOnError extends boolean = false>(options: Op
 });
 
 /**
- * Search everything in a course on its LMS (Canvas): pages, announcements, assignments, quizzes, discussions, the syllabus, files and links, titles and full text.
+ * Search everything in a course on its LMS (Canvas): pages, announcements, assignments and feedback, quizzes, discussions, the syllabus, files and links, titles and full text.
  *
- * Use first when looking for something in the course's LMS (a link, a date, a
- * policy, where the slides are). Words are matched, not meanings: search in the course's
+ * Use for what is not a course file (the course's posts, assignments and
+ * feedback, quizzes, discussions, syllabus and links) and to find where something is in the
+ * course. Pages and files the course files have are searched there and come back as they would from
+ * files.document.search, with `item_id` and `citation_id` (cite them as [[cite:<citation_id>]]);
+ * the rest are read from the LMS. Words are matched, not meanings: search in the course's
  * language and try other words before concluding it is not there. Each hit has a `ref` for
  * lms.content.read and a snippet; `skipped` says what could not be searched (an area the
- * instructor hid, a limit).
+ * instructor hid, a limit, the LMS not reachable: what the app keeps is still found).
  */
 export const lmsContentSearch = <ThrowOnError extends boolean = false>(options: Options<LmsContentSearchData, ThrowOnError>): RequestResult<LmsContentSearchResponses, LmsContentSearchErrors, ThrowOnError> => (options.client ?? client).get<LmsContentSearchResponses, LmsContentSearchErrors, ThrowOnError>({
     security: [
@@ -5069,10 +5103,11 @@ export const lmsCourseList = <ThrowOnError extends boolean = false>(options: Opt
  * A course on its LMS (Canvas) at a glance: its modules with every item, in order.
  *
  * Each item has a `ref` to read it with lms.content.read (external links and
- * tools have a `url` instead), and says whether it is locked and why. `open_areas` lists the areas
- * of the course open to the user; the instructor may hide some (pages, files...), and their items
- * are then reachable only through the modules. Pages in no module are in `other_pages`. Use it to
- * see what a course has; to find something specific, lms.content.search is faster.
+ * tools have a `url` instead), and says whether it is locked and why; a file or page the course
+ * files have also has its `item_id` there. `open_areas` lists the areas of the course open to the
+ * user; the instructor may hide some (pages, files...), and their items are then reachable only
+ * through the modules. Pages in no module are in `other_pages`. Use it to see what a course has;
+ * to find something specific, lms.content.search is faster.
  */
 export const lmsCourseOutline = <ThrowOnError extends boolean = false>(options: Options<LmsCourseOutlineData, ThrowOnError>): RequestResult<LmsCourseOutlineResponses, LmsCourseOutlineErrors, ThrowOnError> => (options.client ?? client).get<LmsCourseOutlineResponses, LmsCourseOutlineErrors, ThrowOnError>({
     security: [
@@ -5159,8 +5194,7 @@ export const lmsFeedbackList = <ThrowOnError extends boolean = false>(options: O
 /**
  * Details of a file of a linked course.
  *
- * Read its text with lms.file.preview; to search or cite it, save it with
- * lms.file.save_to_course.
+ * Read its text with lms.file.preview.
  */
 export const lmsFileGet = <ThrowOnError extends boolean = false>(options: Options<LmsFileGetData, ThrowOnError>): RequestResult<LmsFileGetResponses, LmsFileGetErrors, ThrowOnError> => (options.client ?? client).get<LmsFileGetResponses, LmsFileGetErrors, ThrowOnError>({
     security: [{
@@ -5179,8 +5213,7 @@ export const lmsFileGet = <ThrowOnError extends boolean = false>(options: Option
 /**
  * The text of a file of a linked course, page by page (PDF, Word, PowerPoint, Excel).
  *
- * Reads it without saving it. To search it or cite it, save it with
- * lms.file.save_to_course instead.
+ * Reads it without saving it.
  */
 export const lmsFilePreview = <ThrowOnError extends boolean = false>(options: Options<LmsFilePreviewData, ThrowOnError>): RequestResult<LmsFilePreviewResponses, LmsFilePreviewErrors, ThrowOnError> => (options.client ?? client).get<LmsFilePreviewResponses, LmsFilePreviewErrors, ThrowOnError>({
     security: [{
@@ -5197,12 +5230,12 @@ export const lmsFilePreview = <ThrowOnError extends boolean = false>(options: Op
 });
 
 /**
- * Save a file of a linked course on the LMS into the course's files.
+ * Keep a local copy of a file of a linked course on the LMS (Canvas) in the course's files.
  *
- * Takes its ref (`file:<id>`) from lms.content.search or lms.course.outline. It
- * is then processed like an upload and can be searched (files.document.search), cited and
- * extracted. A file the sync already brought into the course's files (its course materials) is
- * stored in place as an offline copy, not added again.
+ * Takes its ref (`file:<id>`) from lms.content.search or lms.course.outline.
+ * Only when the user asks to keep a copy, so it opens after the course closes on the LMS: the
+ * course files usually have the file already, and reading it does not need a copy. A file the
+ * course files have keeps its copy in place; one they don't have is added with a copy.
  */
 export const lmsFileSaveToCourse = <ThrowOnError extends boolean = false>(options: Options<LmsFileSaveToCourseData, ThrowOnError>): RequestResult<LmsFileSaveToCourseResponses, LmsFileSaveToCourseErrors, ThrowOnError> => (options.client ?? client).post<LmsFileSaveToCourseResponses, LmsFileSaveToCourseErrors, ThrowOnError>({
     security: [
@@ -5235,7 +5268,7 @@ export const lmsFileSaveToCourse = <ThrowOnError extends boolean = false>(option
  *
  * Matches part of the file name, not its contents. Each result says its type, size,
  * last change and whether it is locked. Browse by folder with lms.folder.get, open one with
- * lms.file.preview, or copy it into the course's files with lms.file.save_to_course.
+ * lms.file.preview.
  */
 export const lmsFileSearch = <ThrowOnError extends boolean = false>(options: Options<LmsFileSearchData, ThrowOnError>): RequestResult<LmsFileSearchResponses, LmsFileSearchErrors, ThrowOnError> => (options.client ?? client).get<LmsFileSearchResponses, LmsFileSearchErrors, ThrowOnError>({
     security: [{

@@ -11325,6 +11325,26 @@ export const LmsContentDetailSchema = {
             title: 'Next Offset',
             description: 'The text goes on: call again with this offset'
         },
+        item_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Item Id',
+            description: 'Set when the course\'s files have it (the sync keeps the course\'s files and pages there): read and search it with files.document.read / files.document.search'
+        },
+        citations: {
+            items: {
+                $ref: '#/components/schemas/Citation'
+            },
+            type: 'array',
+            title: 'Citations',
+            description: 'From the course files: one per page of `text`, cite a page by its id'
+        },
         note: {
             anyOf: [
                 {
@@ -11582,6 +11602,18 @@ export const LmsOutlineItemSchema = {
             title: 'Ref',
             description: 'Read it with lms.content.read'
         },
+        item_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Item Id',
+            description: 'Set when the course\'s files have it (the sync keeps the course\'s files and pages there): read and search it with files.document.read / files.document.search'
+        },
         url: {
             anyOf: [
                 {
@@ -11711,6 +11743,18 @@ export const LmsOutlinePageSchema = {
             type: 'string',
             title: 'Ref'
         },
+        item_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Item Id',
+            description: 'Set when the course\'s files have it (the sync keeps the course\'s files and pages there): read and search it with files.document.read / files.document.search'
+        },
         title: {
             type: 'string',
             title: 'Title'
@@ -11798,6 +11842,30 @@ export const LmsSearchHitSchema = {
             type: 'string',
             title: 'Title'
         },
+        item_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Item Id',
+            description: 'Set when the course\'s files have it (the sync keeps the course\'s files and pages there): read and search it with files.document.read / files.document.search'
+        },
+        citation_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Citation Id',
+            description: 'Where the snippet is in the course files: cite it as [[cite:<citation_id>]]'
+        },
         where: {
             anyOf: [
                 {
@@ -11868,6 +11936,14 @@ export const LmsSearchResultsSchema = {
             type: 'array',
             title: 'Skipped',
             description: 'What could not be searched, and why'
+        },
+        citations: {
+            items: {
+                $ref: '#/components/schemas/Citation'
+            },
+            type: 'array',
+            title: 'Citations',
+            description: 'One per hit with a citation_id'
         }
     },
     type: 'object',
@@ -11886,7 +11962,19 @@ export const LmsSkippedSchema = {
         reason: {
             type: 'string',
             title: 'Reason',
-            description: 'hidden (the instructor hid it), failed, or limit'
+            description: 'hidden (the instructor hid it), failed, limit, or why the LMS could not be reached (an error code)'
+        },
+        hint: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Hint',
+            description: 'What to tell the user, when anything'
         }
     },
     type: 'object',
@@ -14681,6 +14769,10 @@ export const PlannedMoveSchema = {
             type: 'string',
             title: 'Item Id'
         },
+        name: {
+            type: 'string',
+            title: 'Name'
+        },
         type: {
             type: 'string',
             enum: [
@@ -14724,6 +14816,7 @@ export const PlannedMoveSchema = {
     type: 'object',
     required: [
         'item_id',
+        'name',
         'type',
         'folder_id',
         'folder_name',

@@ -86,6 +86,7 @@ export const assistantFieldMessages = {
   assistant_field_order: m.assistant_field_order,
   assistant_field_original_date: m.assistant_field_original_date,
   assistant_field_pass_fail_result: m.assistant_field_pass_fail_result,
+  assistant_field_pending_plan: m.assistant_field_pending_plan,
   assistant_field_pinned: m.assistant_field_pinned,
   assistant_field_points_earned: m.assistant_field_points_earned,
   assistant_field_points_possible: m.assistant_field_points_possible,
