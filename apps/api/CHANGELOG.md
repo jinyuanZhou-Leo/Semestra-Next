@@ -1,5 +1,39 @@
 # @semestra/api
 
+## 2.1.0
+
+### Minor Changes
+
+- 26cc2db: <!-- area: account -->
+  <!-- en -->
+  Redesigned account emails, with verification codes that are easier to read and copy, including in dark mode.
+  <!-- zh -->
+  账户邮件焕新设计，验证码更醒目、更易复制，深色模式下同样清晰。
+- 32a2587: <!-- area: grades -->
+  <!-- improved -->
+  <!-- en -->
+  Instructor feedback from your LMS is saved in Semestra, so it stays readable after a course closes, and you're notified of new comments.
+  <!-- zh -->
+  LMS 上的老师评语保存在 Semestra 里，课程关闭后仍可查看；有新评语时会通知你。
+- 45413cc: <!-- area: files -->
+  <!-- en -->
+  Course materials from your LMS can be read online or kept as a local copy. New and changed materials show up in the sync status, and new ones are marked until you open them.
+  <!-- zh -->
+  来自 LMS 的课程资料可以在线读取或保留本地副本；新增和更新的资料会出现在同步状态里，新资料在打开前会有标记。
+
+### Patch Changes
+
+- a297ad5: <!-- area: files -->
+  <!-- en -->
+  Downloading several files now says when none of them could be read, and the zip lists any files it had to leave out.
+  <!-- zh -->
+  批量下载在所有文件都无法读取时会给出提示；部分文件读取不到时，压缩包里会附一份未下载文件的清单。
+- 73853e5: <!-- area: account -->
+  <!-- en -->
+  Resetting a password now checks the code first, so a password that doesn't meet the requirements can be changed without a new code.
+  <!-- zh -->
+  重置密码改为先验证验证码再设置新密码，新密码不符合要求时可直接修改，无需重新获取验证码。
+
 ## 2.0.0
 
 ### Major Changes

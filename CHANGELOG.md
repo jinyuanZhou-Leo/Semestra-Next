@@ -3,6 +3,44 @@
 Generated from `release-notes/*.json` by `scripts/release.mjs`; do not edit by hand.
 The same notes in Chinese are in the JSON files and on the docs site.
 
+## 2.1.0 (2026-11-18)
+
+### New
+
+- **Sem:** Ask Sem to organize a course's files: it shows where each file would go and moves them after you approve.
+- **Sem:** With a model that can see images, Sem can look at the pages of PDFs and images, for scans, charts, slides and handwriting that text alone misses.
+- **Grades:** Read your instructor's comments and rubric scores for LMS assessments right in the gradebook.
+- **Tasks:** Self-hosted: sync your tasks with Apple Reminders on iPhone, iPad and Mac.
+- **Files:** Organize a course's loose files into folders such as Lectures and Past exams, and review every move before it happens.
+- **Files:** Course materials from your LMS can be read online or kept as a local copy. New and changed materials show up in the sync status, and new ones are marked until you open them.
+- **Files:** Scanned pages in synced course materials are no longer read by AI automatically; turn it on in Files settings when you want it.
+- **Canvas:** Courses and terms have an Announcements page for reading LMS announcements, with a course filter on terms and search from the command palette.
+- **Canvas:** The course info card lists the course's tools on other sites, such as Piazza and Gradescope.
+- **Canvas:** Course materials from Canvas, including files, pages and recordings, now appear in the course's files, sorted into folders by type. They are read from Canvas when opened, or can be kept as offline copies.
+- **Canvas:** Canvas materials whose type isn't clear from their name or place are now sorted into the right folder by your AI provider.
+- **Plugins:** Sticky notes are redesigned: write and format right on the note, and add tables.
+- **Account:** Redesigned account emails, with verification codes that are easier to read and copy, including in dark mode.
+
+### Improved
+
+- **Sem:** Sem reads LMS files and pages from your course files and cites them, and can still read saved announcements and feedback when the LMS can't be reached.
+- **Sem:** Sem keeps the current term's breaks and holidays in mind when answering about dates and making plans.
+- **Grades:** Instructor feedback from your LMS is saved in Semestra, so it stays readable after a course closes, and you're notified of new comments.
+- **Files:** Download several files at once as a zip.
+- **Files:** The files page remembers the open folder and file: back, forward and reload return there, and the address can be bookmarked.
+- **Canvas:** Announcements are kept in Semestra with their own unread marks and stay readable when Canvas can't be reached; links and attachments in them open in Semestra.
+
+### Fixed
+
+- **General:** Links to other sites in PDFs, announcements and course info now ask before opening, like links in course files, and a trusted site is remembered everywhere.
+- **Sem:** Sem reads long screenshots and images with transparent backgrounds more clearly, and large photos no longer make a reply fail.
+- **Files:** Downloading several files now says when none of them could be read, and the zip lists any files it had to leave out.
+- **Files:** The organize status line opens the review again when clicked.
+- **Files:** The file preview has one place to open a file elsewhere: in a new tab or on the course's LMS.
+- **Files:** Materials whose names fit more than one category are no longer filed into the wrong folder.
+- **Canvas:** Course syncs and Sync now no longer wait for newly synced materials to be read.
+- **Account:** Resetting a password now checks the code first, so a password that doesn't meet the requirements can be changed without a new code.
+
 ## 2.0.0 (2026-11-15)
 
 ### New

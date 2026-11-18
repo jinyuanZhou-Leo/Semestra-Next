@@ -1,0 +1,169 @@
+{
+  "version": "2.1.0",
+  "date": "2026-11-18",
+  "level": "minor",
+  "items": [
+    {
+      "kind": "new",
+      "area": "sem",
+      "en": "Ask Sem to organize a course's files: it shows where each file would go and moves them after you approve.",
+      "zh": "可以让 Sem 整理课程文件：先列出每个文件要去的文件夹，你批准后才移动。"
+    },
+    {
+      "kind": "new",
+      "area": "sem",
+      "en": "With a model that can see images, Sem can look at the pages of PDFs and images, for scans, charts, slides and handwriting that text alone misses.",
+      "zh": "使用能看图的模型时，Sem 可以直接查看 PDF 和图片的页面，读懂扫描件、图表、幻灯片和手写内容。"
+    },
+    {
+      "kind": "new",
+      "area": "grades",
+      "en": "Read your instructor's comments and rubric scores for LMS assessments right in the gradebook.",
+      "zh": "在成绩册里直接查看 LMS 考核的老师评语和评分标准得分。"
+    },
+    {
+      "kind": "new",
+      "area": "tasks",
+      "en": "Self-hosted: sync your tasks with Apple Reminders on iPhone, iPad and Mac.",
+      "zh": "自部署版可以把待办同步到 iPhone、iPad 和 Mac 上的“提醒事项”。"
+    },
+    {
+      "kind": "new",
+      "area": "files",
+      "en": "Organize a course's loose files into folders such as Lectures and Past exams, and review every move before it happens.",
+      "zh": "新增「整理」：把课程里零散的文件分进讲义、往年考试等文件夹，移动前可以逐个确认。"
+    },
+    {
+      "kind": "new",
+      "area": "files",
+      "en": "Course materials from your LMS can be read online or kept as a local copy. New and changed materials show up in the sync status, and new ones are marked until you open them.",
+      "zh": "来自 LMS 的课程资料可以在线读取或保留本地副本；新增和更新的资料会出现在同步状态里，新资料在打开前会有标记。"
+    },
+    {
+      "kind": "new",
+      "area": "files",
+      "en": "Scanned pages in synced course materials are no longer read by AI automatically; turn it on in Files settings when you want it.",
+      "zh": "同步来的课程资料中的扫描页不再自动交给 AI 识别，需要时可在文件设置中开启。"
+    },
+    {
+      "kind": "new",
+      "area": "canvas",
+      "en": "Courses and terms have an Announcements page for reading LMS announcements, with a course filter on terms and search from the command palette.",
+      "zh": "课程和学期新增“公告”页，可阅读学习平台的公告；学期页可按课程筛选，也可在命令面板中搜索。"
+    },
+    {
+      "kind": "new",
+      "area": "canvas",
+      "en": "The course info card lists the course's tools on other sites, such as Piazza and Gradescope.",
+      "zh": "课程信息卡片会列出课程在其他网站上使用的工具，例如 Piazza 和 Gradescope。"
+    },
+    {
+      "kind": "new",
+      "area": "canvas",
+      "en": "Course materials from Canvas, including files, pages and recordings, now appear in the course's files, sorted into folders by type. They are read from Canvas when opened, or can be kept as offline copies.",
+      "zh": "Canvas 上的课程资料（文件、页面和录播）现在会出现在课程文件中，按类型放进文件夹，可以打开时从 Canvas 读取，也可以保存离线副本。"
+    },
+    {
+      "kind": "new",
+      "area": "canvas",
+      "en": "Canvas materials whose type isn't clear from their name or place are now sorted into the right folder by your AI provider.",
+      "zh": "从名称和位置看不出类型的 Canvas 资料，现在会由你设置的 AI 放进合适的文件夹。"
+    },
+    {
+      "kind": "new",
+      "area": "plugins",
+      "en": "Sticky notes are redesigned: write and format right on the note, and add tables.",
+      "zh": "便签全新设计：直接在便签上书写和排版，并支持表格。"
+    },
+    {
+      "kind": "new",
+      "area": "account",
+      "en": "Redesigned account emails, with verification codes that are easier to read and copy, including in dark mode.",
+      "zh": "账户邮件焕新设计，验证码更醒目、更易复制，深色模式下同样清晰。"
+    },
+    {
+      "kind": "improved",
+      "area": "sem",
+      "en": "Sem reads LMS files and pages from your course files and cites them, and can still read saved announcements and feedback when the LMS can't be reached.",
+      "zh": "Sem 从课程文件读取 LMS 上的文件和页面并标出出处，LMS 连不上时也能读到已保存的公告和反馈。"
+    },
+    {
+      "kind": "improved",
+      "area": "sem",
+      "en": "Sem keeps the current term's breaks and holidays in mind when answering about dates and making plans.",
+      "zh": "Sem 在回答日期相关的问题和制定计划时会考虑当前学期的假期。"
+    },
+    {
+      "kind": "improved",
+      "area": "grades",
+      "en": "Instructor feedback from your LMS is saved in Semestra, so it stays readable after a course closes, and you're notified of new comments.",
+      "zh": "LMS 上的老师评语保存在 Semestra 里，课程关闭后仍可查看；有新评语时会通知你。"
+    },
+    {
+      "kind": "improved",
+      "area": "files",
+      "en": "Download several files at once as a zip.",
+      "zh": "可以一次下载多个文件，打包成 zip。"
+    },
+    {
+      "kind": "improved",
+      "area": "files",
+      "en": "The files page remembers the open folder and file: back, forward and reload return there, and the address can be bookmarked.",
+      "zh": "文件页会记住打开的文件夹和文件：后退、前进或刷新都回到原处，也可以收藏这个地址。"
+    },
+    {
+      "kind": "improved",
+      "area": "canvas",
+      "en": "Announcements are kept in Semestra with their own unread marks and stay readable when Canvas can't be reached; links and attachments in them open in Semestra.",
+      "zh": "公告保存在 Semestra 里，并单独标记未读，Canvas 连不上时也能阅读；公告中的链接和附件直接在 Semestra 里打开。"
+    },
+    {
+      "kind": "fixed",
+      "area": "general",
+      "en": "Links to other sites in PDFs, announcements and course info now ask before opening, like links in course files, and a trusted site is remembered everywhere.",
+      "zh": "PDF、公告和课程信息里通往其它网站的链接也会先确认再打开，与课程文件里的链接一致；信任的网站在各处通用。"
+    },
+    {
+      "kind": "fixed",
+      "area": "sem",
+      "en": "Sem reads long screenshots and images with transparent backgrounds more clearly, and large photos no longer make a reply fail.",
+      "zh": "Sem 能更清楚地看懂长截图和透明背景的图片，附上较大的照片也不会再导致回复失败。"
+    },
+    {
+      "kind": "fixed",
+      "area": "files",
+      "en": "Downloading several files now says when none of them could be read, and the zip lists any files it had to leave out.",
+      "zh": "批量下载在所有文件都无法读取时会给出提示；部分文件读取不到时，压缩包里会附一份未下载文件的清单。"
+    },
+    {
+      "kind": "fixed",
+      "area": "files",
+      "en": "The organize status line opens the review again when clicked.",
+      "zh": "点击侧边栏的「整理文件」状态行会重新打开核对窗口。"
+    },
+    {
+      "kind": "fixed",
+      "area": "files",
+      "en": "The file preview has one place to open a file elsewhere: in a new tab or on the course's LMS.",
+      "zh": "文件预览把「在新标签页打开」和「在 LMS 中打开」合成一个入口。"
+    },
+    {
+      "kind": "fixed",
+      "area": "files",
+      "en": "Materials whose names fit more than one category are no longer filed into the wrong folder.",
+      "zh": "名称可归入多个类别的资料不再被放进错误的文件夹。"
+    },
+    {
+      "kind": "fixed",
+      "area": "canvas",
+      "en": "Course syncs and Sync now no longer wait for newly synced materials to be read.",
+      "zh": "课程同步与「立即同步」不再等待新同步资料读取完成。"
+    },
+    {
+      "kind": "fixed",
+      "area": "account",
+      "en": "Resetting a password now checks the code first, so a password that doesn't meet the requirements can be changed without a new code.",
+      "zh": "重置密码改为先验证验证码再设置新密码，新密码不符合要求时可直接修改，无需重新获取验证码。"
+    }
+  ]
+}
