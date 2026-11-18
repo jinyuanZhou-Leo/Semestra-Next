@@ -42,7 +42,7 @@ export function useAnnouncements(scope: Scope) {
       rows: course ? (own.data?.items ?? []).map((item) => ({ item, course })) : [],
       courses: course ? [course] : [],
       linked,
-      checked: own.data ? own.data.checked_at !== null : true,
+      notRead: own.data?.not_read ?? null,
       loading: link.isPending || (linked && own.isPending) || !course,
       failed: own.isError,
     }
@@ -60,7 +60,7 @@ export function useAnnouncements(scope: Scope) {
     rows,
     courses: linkedCourses,
     linked: linkedCourses.length > 0,
-    checked: termList.data?.checked ?? true,
+    notRead: termList.data?.not_read ?? null,
     loading: termList.isPending || !courses,
     failed: termList.isError,
   }

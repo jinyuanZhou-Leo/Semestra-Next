@@ -358,10 +358,15 @@ class CourseAnnouncement(BaseModel):
     )
 
 
+# waiting: the next sync reads it; ended: its term ended, only a manual sync reads it;
+# paused: the course's sync is off. In this order when the courses differ.
+NotRead = Literal["waiting", "ended", "paused"]
+
+
 class AnnouncementList(BaseModel):
     items: list[CourseAnnouncement] = Field(description="Newest first")
-    checked_at: datetime | None = Field(
-        description="When the sync last read the course's announcements; null: not yet"
+    not_read: NotRead | None = Field(
+        description="Why the sync has not read the course's announcements yet; null: it has"
     )
 
 
@@ -372,7 +377,9 @@ class TermAnnouncementsInput(BaseModel):
 class TermAnnouncementList(BaseModel):
     items: list[CourseAnnouncement] = Field(description="Newest first")
     linked_course_ids: list[str] = Field(description="The term's courses linked to an LMS")
-    checked: bool = Field(description="The sync has read the announcements of all of them")
+    not_read: NotRead | None = Field(
+        description="Why the sync has not read some of their announcements yet; null: it has"
+    )
 
 
 class UnreadInput(BaseModel):

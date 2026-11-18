@@ -22,13 +22,14 @@ import html as htmllib
 import re
 from collections.abc import Iterable, Sequence
 from datetime import datetime, timedelta
+from typing import get_args
 
 import structlog
 from sqlalchemy import func, select
 
-from semestra.core.context import Ctx
+from semestra.core.context import Ctx, run_as_system
 from semestra.core.errors import AppError
-from semestra.core.events import events
+from semestra.core.events import events, spawn
 from semestra.modules.files import sources as files
 from semestra.modules.lms import service
 from semestra.modules.lms.errors import lms_error
@@ -38,6 +39,7 @@ from semestra.modules.lms.models import (
     LmsImportedRef,
     LmsMaterial,
 )
+from semestra.modules.lms.schemas.dto import FileMeta
 from semestra.modules.lms.schemas.io import (
     AnnouncementAttachment,
     AnnouncementList,
@@ -45,12 +47,19 @@ from semestra.modules.lms.schemas.io import (
     CourseAnnouncement,
     CourseUnread,
     LinkTarget,
+    NotRead,
     TermAnnouncementList,
     UnreadCounts,
 )
 from semestra.modules.lms.service import Bound
 from semestra.modules.lms.settings import writes_allowed
-from semestra.modules.lms.sync import Notice, StageResult, hold, register_sync_stage
+from semestra.modules.lms.sync import (
+    Notice,
+    StageResult,
+    active_course_ids,
+    hold,
+    register_sync_stage,
+)
 
 log = structlog.get_logger()
 
@@ -100,7 +109,9 @@ async def stage(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
             "web_url": a.web_url,
             "posted_at": a.posted_at,
             "updated_at": a.updated_at,
-            "attachments": [x.model_dump(mode="json") for x in a.attachments],
+            "attachments": [
+                x.model_dump(mode="json") | {"download_url": x.download_url} for x in a.attachments
+            ],
         }
         row = rows.get(a.external_id)
         if row is None:
@@ -131,7 +142,8 @@ async def stage(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
                 await ctx.db.delete(row)
                 changed = True
     link.watched_at = now
-    if changed:
+    # The first read also changes what the lists say (no longer "not read yet").
+    if changed or first:
         await _updated(ctx, link)
     return result
 
@@ -159,7 +171,9 @@ async def course_list(ctx: Ctx, course_id: str, since: datetime | None = None) -
     if since is not None:
         query = query.where(LmsAnnouncement.posted_at > since)
     rows = list(await ctx.db.scalars(query))
-    return AnnouncementList(items=await _out(ctx, rows, [link]), checked_at=link.watched_at)
+    return AnnouncementList(
+        items=await _out(ctx, rows, [link]), not_read=await _not_read(ctx, [link])
+    )
 
 
 async def term_list(ctx: Ctx, term_id: str) -> TermAnnouncementList:
@@ -172,8 +186,53 @@ async def term_list(ctx: Ctx, term_id: str) -> TermAnnouncementList:
     return TermAnnouncementList(
         items=await _out(ctx, rows, links),
         linked_course_ids=sorted(li.course_id for li in links),
-        checked=all(li.watched_at is not None for li in links),
+        not_read=await _not_read(ctx, links),
     )
+
+
+async def _not_read(ctx: Ctx, links: Sequence[LmsCourseLink]) -> NotRead | None:
+    """Why the announcements of these courses are not here yet: a course the sync has never read
+    that it will read (`waiting`), or won't on its own because its term ended (`ended`, a manual
+    sync still reads it) or its sync is off (`paused`). None: every course was read (or its
+    platform has no announcements)."""
+    unread = [
+        li
+        for li in links
+        if li.watched_at is None
+        and "announcements"
+        in service.provider_features(
+            (await service.get_connection_row(ctx, li.connection_id)).provider
+        )
+    ]
+    if not unread:
+        return None
+    active = await active_course_ids(ctx)
+    reasons = {
+        "paused" if not li.sync_enabled else "waiting" if li.course_id in active else "ended"
+        for li in unread
+    }
+    return next(r for r in get_args(NotRead) if r in reasons)
+
+
+async def attachment_meta(ctx: Ctx, course_id: str, file_id: str) -> FileMeta | None:
+    """An attachment of one of the course's stored announcements, as the file proxy opens it:
+    from the address the announcement gave (no file lookup, which a course with its files
+    hidden refuses). None: not an attachment kept here."""
+    link = await service.link_row(ctx, course_id)
+    if link is None:
+        return None
+    rows = await ctx.db.scalars(select(LmsAnnouncement).where(LmsAnnouncement.link_id == link.id))
+    for row in rows:
+        for x in row.attachments:
+            if str(x.get("external_id")) == file_id and x.get("download_url"):
+                return FileMeta(
+                    external_id=file_id,
+                    name=str(x.get("name") or file_id),
+                    mime_type=x.get("mime_type"),
+                    size_bytes=x.get("size_bytes"),
+                    download_url=x["download_url"],
+                )
+    return None
 
 
 async def find(ctx: Ctx, course_id: str, external_id: str) -> CourseAnnouncement:
@@ -311,8 +370,10 @@ async def _targets(
 
 
 async def mark_read(ctx: Ctx, course_id: str, external_id: str) -> CourseAnnouncement:
-    """Marks it read here, and on the platform when the user allows writes (best effort: it is
-    read here either way)."""
+    """Marks it read here, and on the platform when the user allows writes: after the commit,
+    in the background (best effort: it is read here either way), so the platform's answer never
+    holds the database's write lock."""
+    write_back = await writes_allowed(ctx)  # read before the first write
     link = await service.link_row(ctx, course_id)
     row = await _row(ctx, link, external_id) if link is not None else None
     if link is None or row is None:
@@ -320,12 +381,24 @@ async def mark_read(ctx: Ctx, course_id: str, external_id: str) -> CourseAnnounc
     if row.read_at is None:
         row.read_at = ctx.now
         await _updated(ctx, link)
-        await _mark_on_platform(ctx, link, external_id)
+        if write_back:
+            state, user_id = ctx.state, ctx.user_id
+
+            async def after() -> None:
+                spawn(
+                    state,
+                    run_as_system(
+                        state, user_id, lambda sys: _mark_on_platform(sys, course_id, external_id)
+                    ),
+                )
+
+            ctx.after_commit.append(after)
     return (await _out(ctx, [row], [link]))[0]
 
 
-async def _mark_on_platform(ctx: Ctx, link: LmsCourseLink, external_id: str) -> None:
-    if not await writes_allowed(ctx):
+async def _mark_on_platform(ctx: Ctx, course_id: str, external_id: str) -> None:
+    link = await service.link_row(ctx, course_id)
+    if link is None:
         return
     try:
         b = await service.bound(ctx, await service.get_connection_row(ctx, link.connection_id))

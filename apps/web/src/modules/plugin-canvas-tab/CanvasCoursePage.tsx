@@ -1,5 +1,5 @@
 import { type CourseOverview, lmsCourseRefresh } from '@semestra/api-client'
-import { lmsCourseOverviewOptions, settingsValueGetOptions } from '@semestra/api-client/react-query'
+import { lmsCourseOverviewOptions } from '@semestra/api-client/react-query'
 import { keepPreviousData, useIsFetching, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowUpRight,
@@ -20,7 +20,8 @@ import { toastError } from '@/lib/errors'
 import { formatTimeAgo } from '@/lib/format'
 import { useNow } from '@/hooks/use-now'
 import { cn } from '@/lib/utils'
-import { type LmsContent, LmsContentContext, type LmsDisplay } from '@/modules/lms/content/context'
+import { type LmsContent, LmsContentContext } from '@/modules/lms/content/context'
+import { useLmsDisplay } from '@/modules/lms/content/display'
 import { IconAction, OpenOnPlatformIcon } from '@/modules/lms/content/LmsContent'
 import { useProviderName } from '@/modules/lms/providers'
 import { invalidateLms, isCourseContent } from '@/modules/lms/queries'
@@ -80,11 +81,7 @@ function CanvasCourse({ programId, courseId }: { programId: string; courseId: st
   })
   const fetching =
     useIsFetching({ predicate: isCourseContent(courseId) }) > 0 || overview.isFetching
-  const config = useQuery(settingsValueGetOptions({ path: { namespace: 'plugin.canvas-tab' } }))
-  // The account setting until the user picks another here; the pick lasts while the page is open.
-  const [picked, setDisplay] = useState<LmsDisplay | null>(null)
-  const display: LmsDisplay =
-    picked ?? (config.data?.values.display === 'original' ? 'original' : 'simplified')
+  const { display, setDisplay } = useLmsDisplay()
   const provider = useProviderName('canvas') ?? 'Canvas'
 
   // "Refresh" drops this course's cached reads once on the server, then refetches them; later

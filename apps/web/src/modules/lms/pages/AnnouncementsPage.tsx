@@ -1,12 +1,12 @@
-import type { AnnouncementAttachment, Course } from '@semestra/api-client'
+import { type AnnouncementAttachment, type Course, lmsSyncRequest } from '@semestra/api-client'
 import { lmsCourseLinkGetOptions } from '@semestra/api-client/react-query'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { Link, useCanGoBack, useNavigate, useRouter, useSearch } from '@tanstack/react-router'
 import { ArrowLeft, CircleAlert, Megaphone, SearchX } from 'lucide-react'
-import { useState } from 'react'
 import type { PageProps } from '@/app/extensions'
 import type { InternalLink } from '@/components/SafeHtml'
 import { formatBytes, formatDate, formatDateTime } from '@/lib/format'
+import { toastError } from '@/lib/errors'
 import { cn } from '@/lib/utils'
 import { courseColor, courseLabel } from '@/modules/academics/color'
 import { coursePath } from '@/modules/academics/paths'
@@ -34,8 +34,10 @@ import {
   SelectValue,
 } from '@/ui/select'
 import { Skeleton } from '@/ui/skeleton'
+import { Spinner } from '@/ui/spinner'
 import { plainText, postKey } from '../announcements'
 import { type LmsContent, LmsContentContext, type LmsDisplay } from '../content/context'
+import { useLmsDisplay } from '../content/display'
 import { fileContentUrl } from '../content/file-url'
 import { LmsHtml, ViewHeader } from '../content/LmsContent'
 import { type Post, useAnnouncements } from '../posts'
@@ -70,6 +72,8 @@ export default function AnnouncementsPage({ scope }: PageProps) {
   const canGoBack = useCanGoBack()
   const back = () => (canGoBack ? router.history.back() : go({ post: undefined }, true))
   useMarkRead(open?.course.id, open?.item.external_id, open?.item.unread ?? false)
+  // Kept here, not in the reading view: a display picked stays for the next announcement.
+  const { display, setDisplay } = useLmsDisplay()
 
   if (posts.failed && posts.rows.length === 0) {
     return (
@@ -88,9 +92,19 @@ export default function AnnouncementsPage({ scope }: PageProps) {
             <Megaphone aria-hidden />
           </EmptyMedia>
           <EmptyTitle>
-            {posts.checked ? m.lms_announcements_empty() : m.lms_announcements_not_read()}
+            {posts.notRead ? m.lms_announcements_not_read() : m.lms_announcements_empty()}
           </EmptyTitle>
+          {posts.notRead === 'ended' ? (
+            <EmptyDescription>{m.lms_announcements_not_read_ended()}</EmptyDescription>
+          ) : posts.notRead === 'paused' ? (
+            <EmptyDescription>{m.lms_announcements_not_read_paused()}</EmptyDescription>
+          ) : null}
         </EmptyHeader>
+        {posts.notRead === 'ended' && scope.kind === 'course' ? (
+          <EmptyContent>
+            <SyncCourseButton programId={scope.programId} courseId={scope.courseId} />
+          </EmptyContent>
+        ) : null}
       </Empty>
     )
   }
@@ -140,6 +154,8 @@ export default function AnnouncementsPage({ scope }: PageProps) {
           withCourse={term}
           onBack={back}
           onOpenPost={(key) => go({ post: key })}
+          display={display}
+          setDisplay={setDisplay}
         />
       ) : (
         <Empty className="hidden rounded-2xl border border-solid border-border @page-lg/main:flex">
@@ -273,28 +289,36 @@ function Reading({
   withCourse,
   onBack,
   onOpenPost,
+  display,
+  setDisplay,
 }: {
   post: Post
   withCourse: boolean
   onBack: () => void
   onOpenPost: (key: string) => void
+  display: LmsDisplay
+  setDisplay: (display: LmsDisplay) => void
 }) {
   const link = useQuery(lmsCourseLinkGetOptions({ path: { course_id: course.id } })).data?.link
   const provider = useProviderName(link?.provider) ?? link?.provider ?? ''
   const navigate = useNavigate()
-  const [display, setDisplay] = useState<LmsDisplay>('simplified')
   const meta = [a.author, a.posted_at ? formatDateTime(a.posted_at) : null]
     .filter(Boolean)
     .join(' · ')
-  // Platform links open what Semestra has (M09 §4.3): a course file in its preview, an
-  // assignment in the gradebook or the course's to-dos, another announcement here. The rest of
-  // them go to the platform in a new tab.
+  // Platform links open what Semestra has (M09 §4.3): a course file in its preview (another file
+  // through the file proxy, in a new tab), an assignment in the gradebook or the course's to-dos,
+  // another announcement here. The rest of them go to the platform in a new tab.
   const openLink = (target: InternalLink) => {
     if (target.kind === 'announcement') {
       onOpenPost(postKey(course.id, target.ref))
       return true
     }
     const found = a.targets?.find((t) => t.kind === target.kind && t.ref === target.ref)?.target
+    if (!found && target.kind === 'file') {
+      // Not in the course's files: from the platform through Semestra, like an attachment.
+      window.open(fileContentUrl(course.id, target.ref), '_blank', 'noopener,noreferrer')
+      return true
+    }
     if (!found) return false
     const to =
       found.kind === 'file'
@@ -407,5 +431,24 @@ function ListSkeleton() {
         ))}
       </div>
     </div>
+  )
+}
+
+/** Reads an ended term's course now: the sync no longer does on its own (M09 §4.3). */
+function SyncCourseButton({ programId, courseId }: { programId: string; courseId: string }) {
+  const sync = useMutation({
+    mutationFn: () =>
+      lmsSyncRequest({
+        path: { program_id: programId },
+        body: { course_id: courseId, force: true },
+        throwOnError: true,
+      }),
+    onError: toastError,
+  })
+  return (
+    <Button size="sm" disabled={sync.isPending || sync.isSuccess} onClick={() => sync.mutate()}>
+      {sync.isPending || sync.isSuccess ? <Spinner aria-hidden /> : null}
+      {m.lms_announcements_sync_now()}
+    </Button>
   )
 }

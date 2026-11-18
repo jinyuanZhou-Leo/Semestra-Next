@@ -4415,7 +4415,7 @@ export const lmsActivityList = <ThrowOnError extends boolean = false>(options?: 
 /**
  * Announcements of a linked course on its LMS (Canvas), newest first.
  *
- * As the background sync last read them; `checked_at` null: not read yet.
+ * As the background sync last read them; `pending`: not read yet, but it will.
  */
 export const lmsAnnouncementList = <ThrowOnError extends boolean = false>(options: Options<LmsAnnouncementListData, ThrowOnError>): RequestResult<LmsAnnouncementListResponses, LmsAnnouncementListErrors, ThrowOnError> => (options.client ?? client).get<LmsAnnouncementListResponses, LmsAnnouncementListErrors, ThrowOnError>({
     security: [{

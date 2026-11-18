@@ -165,6 +165,10 @@ class MaterialRow(BaseModel):
     imported_at: datetime | None = None
 
 
+def _without_url(attachment: dict[str, Any]) -> dict[str, Any]:
+    return {k: v for k, v in attachment.items() if k != "download_url"}
+
+
 class AnnouncementRow(BaseModel):
     link_id: str
     external_id: str
@@ -241,6 +245,9 @@ async def export(ctx: Ctx, writer: Writer) -> None:
             announcements=[
                 AnnouncementRow.model_validate(
                     {k: getattr(r, k) for k in AnnouncementRow.model_fields}
+                    # A download address opens the file without signing in: not in a backup
+                    # (the next sync brings it back).
+                    | {"attachments": [_without_url(x) for x in r.attachments]}
                 )
                 for r in posts
             ],

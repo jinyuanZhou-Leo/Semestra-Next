@@ -2,8 +2,7 @@
 
 The announcements stage now stores what it reads. Each link's `watched_at` (when the stage last
 read the course) is cleared, so the first read after the upgrade stores what is there as read and
-reports nothing, as on a newly linked course. `synced_at` is cleared too, so opening the app
-syncs every course at once and the announcements are there without waiting for the schedule.
+reports nothing, as on a newly linked course.
 
 Revision ID: 0057
 Revises: 0056
@@ -55,7 +54,7 @@ def upgrade() -> None:
         )
 
     # ### end Alembic commands ###
-    op.execute(sa.text("UPDATE lms_course_links SET watched_at = NULL, synced_at = NULL"))
+    op.execute(sa.text("UPDATE lms_course_links SET watched_at = NULL"))
 
 
 def downgrade() -> None:

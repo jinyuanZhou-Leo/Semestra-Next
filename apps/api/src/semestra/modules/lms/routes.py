@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import Response, StreamingResponse
 
 from semestra.core.context import Ctx, get_ctx, run_after_commit
-from semestra.modules.lms import reads
+from semestra.modules.lms import announcements, reads
 
 router = APIRouter(tags=["lms"])
 
@@ -29,7 +29,9 @@ async def file_content(
         bool, Query(description="Only check that the file opens (204, or the same errors)")
     ] = False,
 ) -> Response:
-    meta, chunks = await reads.open_file(ctx, course_id, file_id)
+    # An announcement's attachment opens from the address the announcement gave.
+    known = await announcements.attachment_meta(ctx, course_id, file_id)
+    meta, chunks = await reads.open_file(ctx, course_id, file_id, meta=known)
     if check:
         # The first chunk is already read; closing the stream stops the transfer from the LMS.
         await anext(chunks, None)

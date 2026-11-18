@@ -37,6 +37,10 @@ class LmsSettings(BaseModel):
         default=False,
         description="Let Semestra change things on the platform (marking announcements read)",
     )
+    display: Literal["simplified", "original"] = Field(
+        default="simplified",
+        description="How platform HTML (announcements, pages, assignment descriptions) is shown",
+    )
 
 
 def offered(settings: Settings, schema: dict[str, Any]) -> dict[str, Any]:

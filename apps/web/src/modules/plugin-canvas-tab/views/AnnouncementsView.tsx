@@ -33,7 +33,9 @@ export function AnnouncementsView({ selected }: { selected?: string }) {
               <EmptyMedia variant="icon">
                 <Megaphone aria-hidden />
               </EmptyMedia>
-              <EmptyTitle>{m.lms_announcements_empty()}</EmptyTitle>
+              <EmptyTitle>
+                {list.data?.not_read ? m.lms_announcements_not_read() : m.lms_announcements_empty()}
+              </EmptyTitle>
             </EmptyHeader>
           </Empty>
         }

@@ -68,9 +68,12 @@ async def test_kept_and_following_the_platform(
         [synced] = [m["data"] for m in messages if m["type"] == sync.SYNCED]
         return [n["title"] for n in synced["notices"]]
 
-    # Not read from the platform yet.
+    # Not read from the platform yet: the next sync will, unless the course's sync is off.
     out = await api.call("GET", f"/courses/{course}/lms/announcements")
-    assert out == {"items": [], "checked_at": None}
+    assert out == {"items": [], "not_read": "waiting"}
+    await api.call("PATCH", f"/courses/{course}/lms-link", json={"sync_enabled": False})
+    assert (await api.call("GET", f"/terms/{term_id}/lms/announcements"))["not_read"] == "paused"
+    await api.call("PATCH", f"/courses/{course}/lms-link", json={"sync_enabled": True})
     # The first read keeps what is there as read, quietly.
     assert await told() == []
     listed = await _listed(api, course)
@@ -91,7 +94,7 @@ async def test_kept_and_following_the_platform(
     assert listed["n1"]["title"] == "Syllabus (updated)"
     term = await api.call("GET", f"/terms/{term_id}/lms/announcements")
     assert [a["course_id"] for a in term["items"]] == [course] * 4
-    assert term["checked"] is True
+    assert term["not_read"] is None
 
     # Deleted on the platform: gone here too. What was posted before the platform was asked
     # about stays.
@@ -175,7 +178,10 @@ async def test_links_and_attachments_open_what_the_app_has(
         '<a href="https://fake/courses/101/pages/missing">page</a></p>',
         attachments=[
             Attachment(external_id="77", name="Notes.pdf", size_bytes=10),
-            Attachment(external_id="88", name="Rubric.pdf", size_bytes=20),
+            Attachment(
+                external_id="88", name="Rubric.pdf", size_bytes=20,
+                download_url="https://fake/files/88/download?verifier=v",
+            ),  # fmt: skip
         ],
     )
     await api.sync(program_id)
@@ -205,3 +211,28 @@ async def test_links_and_attachments_open_what_the_app_has(
         ("Notes.pdf", file_target),
         ("Rubric.pdf", None),
     ]
+    assert "download_url" not in post["attachments"][1]
+    # One not in the course's files opens from the address the announcement gave, without the
+    # file lookup a course with its files hidden refuses.
+    fake.calls.clear()
+    r = await api.client.get(f"/courses/{course}/lms/files/88/content")
+    assert (r.status_code, r.content) == (200, b"hello")
+    assert ("file", "88") not in fake.calls
+
+
+async def test_an_ended_term_is_read_when_the_user_asks(api: Api, fake: FakeProvider, clock: Clock):
+    board = Board(fake)
+    program_id, _, _ = await setup_program(api)
+    term = {"name": "Fall 2025", "start_date": "2025-09-02", "end_date": "2025-12-05"}
+    term_id = (await api.call("POST", f"/programs/{program_id}/terms", json=term))["term"]["id"]
+    course = await api.course(program_id, term_id)
+    await api.link(course, "101")
+    board.post("n1", "Final grades", clock.now)
+    # The sync no longer reads it on its own, so the list says why it is empty.
+    await api.sync(program_id)
+    assert (await api.call("GET", f"/courses/{course}/lms/announcements"))["not_read"] == "ended"
+    # Asked for this course, it reads it all the same.
+    await api.call("POST", f"/courses/{course}/lms:refresh")
+    await api.run_jobs()
+    out = await api.call("GET", f"/courses/{course}/lms/announcements")
+    assert (out["not_read"], [a["title"] for a in out["items"]]) == (None, ["Final grades"])

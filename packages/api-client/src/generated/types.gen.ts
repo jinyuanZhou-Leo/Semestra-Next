@@ -531,11 +531,11 @@ export type AnnouncementList = {
      */
     items: Array<CourseAnnouncement>;
     /**
-     * Checked At
+     * Not Read
      *
-     * When the sync last read the course's announcements; null: not yet
+     * Why the sync has not read the course's announcements yet; null: it has
      */
-    checked_at: string | null;
+    not_read: 'waiting' | 'ended' | 'paused' | null;
 };
 
 /**
@@ -11990,11 +11990,11 @@ export type TermAnnouncementList = {
      */
     linked_course_ids: Array<string>;
     /**
-     * Checked
+     * Not Read
      *
-     * The sync has read the announcements of all of them
+     * Why the sync has not read some of their announcements yet; null: it has
      */
-    checked: boolean;
+    not_read: 'waiting' | 'ended' | 'paused' | null;
 };
 
 /**

@@ -4079,7 +4079,7 @@ export const lmsAnnouncementListQueryKey = (options: Options<LmsAnnouncementList
 /**
  * Announcements of a linked course on its LMS (Canvas), newest first.
  *
- * As the background sync last read them; `checked_at` null: not read yet.
+ * As the background sync last read them; `pending`: not read yet, but it will.
  */
 export const lmsAnnouncementListOptions = (options: Options<LmsAnnouncementListData>) => queryOptions<LmsAnnouncementListResponse, LmsAnnouncementListError, LmsAnnouncementListResponse, ReturnType<typeof lmsAnnouncementListQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {

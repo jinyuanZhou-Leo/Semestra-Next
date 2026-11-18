@@ -407,7 +407,7 @@ async def course_refresh(ctx: Ctx, inp: CourseRef) -> CourseLinkState:
 @capability(
     name="lms.announcement.list",
     summary="Announcements of a linked course on its {lms}, newest first.",
-    description="""As the background sync last read them; `checked_at` null: not read yet.""",
+    description="""As the background sync last read them; `pending`: not read yet, but it will.""",
     effect="read",
     http=Http("GET", "/courses/{course_id}/lms/announcements"),
     expose=HTTP_ONLY,

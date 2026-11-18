@@ -913,24 +913,28 @@ export const AnnouncementListSchema = {
             title: 'Items',
             description: 'Newest first'
         },
-        checked_at: {
+        not_read: {
             anyOf: [
                 {
                     type: 'string',
-                    format: 'date-time'
+                    enum: [
+                        'waiting',
+                        'ended',
+                        'paused'
+                    ]
                 },
                 {
                     type: 'null'
                 }
             ],
-            title: 'Checked At',
-            description: 'When the sync last read the course\'s announcements; null: not yet'
+            title: 'Not Read',
+            description: 'Why the sync has not read the course\'s announcements yet; null: it has'
         }
     },
     type: 'object',
     required: [
         'items',
-        'checked_at'
+        'not_read'
     ],
     title: 'AnnouncementList'
 } as const;
@@ -21054,17 +21058,29 @@ export const TermAnnouncementListSchema = {
             title: 'Linked Course Ids',
             description: 'The term\'s courses linked to an LMS'
         },
-        checked: {
-            type: 'boolean',
-            title: 'Checked',
-            description: 'The sync has read the announcements of all of them'
+        not_read: {
+            anyOf: [
+                {
+                    type: 'string',
+                    enum: [
+                        'waiting',
+                        'ended',
+                        'paused'
+                    ]
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Not Read',
+            description: 'Why the sync has not read some of their announcements yet; null: it has'
         }
     },
     type: 'object',
     required: [
         'items',
         'linked_course_ids',
-        'checked'
+        'not_read'
     ],
     title: 'TermAnnouncementList'
 } as const;

@@ -112,7 +112,7 @@ const ANNOUNCEMENTS = {
       targets: [],
     },
   ],
-  checked_at: '2026-10-02T00:00:00Z',
+  pending: false,
 }
 
 let saved: Record<string, unknown> = {}
@@ -123,8 +123,8 @@ function lmsSettings() {
     namespace: 'lms',
     scope_type: 'account',
     scope_id: null,
-    values: { allow_writes: false },
-    sources: { allow_writes: 'default' },
+    values: { allow_writes: false, display },
+    sources: { allow_writes: 'default', display: 'account' },
     inherited: {},
   }
 }
@@ -167,16 +167,6 @@ beforeEach(() => {
     http.get(`${API}/me/settings/lms`, () => HttpResponse.json(lmsSettings())),
     http.get(`${API}/courses/c1/lms/quizzes`, () =>
       HttpResponse.json({ items: [], truncated: false }),
-    ),
-    http.get(`${API}/me/settings/plugin.canvas-tab`, () =>
-      HttpResponse.json({
-        namespace: 'plugin.canvas-tab',
-        scope_type: 'account',
-        scope_id: null,
-        values: { display },
-        sources: { display: 'account' },
-        inherited: {},
-      }),
     ),
     http.get(`${API}/ai/status`, () =>
       HttpResponse.json({

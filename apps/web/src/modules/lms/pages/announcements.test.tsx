@@ -11,7 +11,7 @@ import {
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
-import { afterAll, afterEach, beforeAll, expect, test } from 'vitest'
+import { afterAll, afterEach, beforeAll, expect, test, vi } from 'vitest'
 import type { Scope } from '@/app/extensions'
 import { academicsHandlers, defaultWorld } from '@/modules/academics/test-data'
 import { API, newQueryClient, server } from '@/test-utils'
@@ -72,15 +72,29 @@ function link(courseId: string, features: CourseLink['features']): CourseLink {
   }
 }
 
-function mockApi({ posts = COURSE_POSTS, checked = true } = {}) {
+function mockApi({
+  posts = COURSE_POSTS,
+  notRead = null as string | null,
+  display = 'simplified',
+} = {}) {
   const marked: string[] = []
   server.use(
+    http.get(`${API}/me/settings/lms`, () =>
+      HttpResponse.json({
+        namespace: 'lms',
+        scope_type: 'account',
+        scope_id: null,
+        values: { display },
+        sources: {},
+        inherited: {},
+      }),
+    ),
     ...academicsHandlers(defaultWorld()),
     http.get(`${API}/courses/:id/lms/announcements`, () =>
-      HttpResponse.json({ items: posts, checked_at: checked ? '2026-02-11T00:00:00Z' : null }),
+      HttpResponse.json({ items: posts, not_read: notRead }),
     ),
     http.get(`${API}/terms/:id/lms/announcements`, () =>
-      HttpResponse.json({ items: TERM_POSTS, linked_course_ids: ['c1', 'c2'], checked: true }),
+      HttpResponse.json({ items: TERM_POSTS, linked_course_ids: ['c1', 'c2'], not_read: null }),
     ),
     http.post(`${API}/courses/:course/lms/announcements/:id\\:read`, ({ params }) => {
       marked.push(`${params.course}:${params.id}`)
@@ -162,7 +176,8 @@ test('links and attachments open what Semestra has, the rest go to the platform'
         html:
           '<p><a href="https://q/files/77" data-lms-kind="file" data-lms-ref="77">notes</a> ' +
           '<a href="https://q/assignments/5" data-lms-kind="assignment" data-lms-ref="5">lab</a> ' +
-          '<a href="https://q/pages/x" data-lms-kind="page" data-lms-ref="x">page</a></p>',
+          '<a href="https://q/pages/x" data-lms-kind="page" data-lms-ref="x">page</a> ' +
+          '<a href="https://q/files/99" data-lms-kind="file" data-lms-ref="99">handout</a></p>',
         targets: [
           { kind: 'file', ref: '77', target: file },
           {
@@ -201,8 +216,16 @@ test('links and attachments open what Semestra has, the rest go to the platform'
     `${API}/courses/c1/lms/files/88/content`,
   )
 
-  // Without a counterpart the link stays the platform's own.
+  // Without a counterpart the link stays the platform's own; a file still opens through Semestra.
   expect(screen.getByRole('link', { name: 'page' })).toHaveAttribute('href', 'https://q/pages/x')
+  const opened = vi.spyOn(window, 'open').mockReturnValue(null)
+  await userEvent.click(screen.getByRole('link', { name: 'handout' }))
+  expect(opened).toHaveBeenCalledWith(
+    `${API}/courses/c1/lms/files/99/content`,
+    '_blank',
+    'noopener,noreferrer',
+  )
+  opened.mockRestore()
   await userEvent.click(screen.getByRole('link', { name: 'lab' }))
   await waitFor(() => expect(router.state.location.pathname).toBe('/p/p1/c/c1/grades'))
   expect(router.state.location.search).toEqual({ assessment: 'a1' })
@@ -211,12 +234,22 @@ test('links and attachments open what Semestra has, the rest go to the platform'
   await waitFor(() => expect(router.state.location.pathname).toBe('/p/p1/c/c1/files'))
 })
 
-test('a course the sync has not read yet says when announcements come', async () => {
-  mockApi({ posts: [], checked: false })
+test("a course the sync hasn't read says why, and an ended term's course can be read now", async () => {
+  mockApi({ posts: [], notRead: 'ended' })
+  const synced: unknown[] = []
+  server.use(
+    http.post(`${API}/programs/p1/lms/sync`, async ({ request }) => {
+      synced.push(await request.json())
+      return HttpResponse.json({ queued: 1 })
+    }),
+  )
   renderPage(COURSE)
+  expect(await screen.findByText("Announcements haven't synced yet")).toBeInTheDocument()
   expect(
-    await screen.findByText('Announcements will appear after the next sync'),
+    screen.getByText("This course's term has ended, so it no longer syncs on its own."),
   ).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: 'Sync now' }))
+  await waitFor(() => expect(synced).toEqual([{ course_id: 'c1', force: true }]))
 })
 
 test("a term shows every linked course's announcements and filters by course", async () => {
@@ -278,4 +311,25 @@ test('the command palette finds announcements by their text and opens them on th
   expect(termHits.map((h) => h.to)).toEqual(['/p/p1/t/t2/announcements?post=c2%3A7'])
   expect(await search('welcome', { kind: 'program', programId: 'p1' })).toEqual([])
   server.events.removeAllListeners()
+})
+
+test('the display follows the account setting and a pick stays for the next announcement', async () => {
+  mockApi({
+    display: 'original',
+    posts: [
+      post('1', { title: 'First', html: '<p style="color: rgb(0, 42, 92)">One</p>' }),
+      post('2', { title: 'Second', html: '<p style="color: rgb(0, 42, 92)">Two</p>' }),
+    ],
+  })
+  renderPage(COURSE, '/?post=c1:1')
+  await screen.findByRole('heading', { name: 'First' })
+  const article = () => screen.getByRole('article')
+  await waitFor(() =>
+    expect(within(article()).getByText('One')).toHaveAttribute('style', 'color: rgb(0, 42, 92)'),
+  )
+  await userEvent.click(screen.getByRole('button', { name: 'Display: Canvas style' }))
+  await userEvent.click(await screen.findByRole('menuitemradio', { name: 'Simplified' }))
+  await waitFor(() => expect(within(article()).getByText('One')).not.toHaveAttribute('style'))
+  await userEvent.click(screen.getByRole('button', { name: /Second/ }))
+  expect(await within(article()).findByText('Two')).not.toHaveAttribute('style')
 })

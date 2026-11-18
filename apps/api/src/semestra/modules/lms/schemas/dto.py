@@ -145,6 +145,9 @@ class Attachment(BaseModel):
     name: str
     mime_type: str | None = None
     size_bytes: int | None = None
+    # Provider-internal download location (Canvas's carries the file's verifier, so it opens
+    # where the course's files are hidden); never sent to clients.
+    download_url: str | None = Field(default=None, exclude=True)
 
 
 class Announcement(Dto):
