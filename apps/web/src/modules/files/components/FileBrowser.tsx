@@ -1,4 +1,4 @@
-import type { FolderOut, ItemOut } from '@semestra/api-client'
+import type { FilesItemList, FolderOut, ItemOut } from '@semestra/api-client'
 import {
   filesItemUpdateMutation,
   filesItemKeepOfflineMutation,
@@ -32,7 +32,7 @@ import {
   Pin,
   Trash2,
 } from 'lucide-react'
-import { createContext, use, useRef, useState } from 'react'
+import { createContext, memo, use, useRef, useState } from 'react'
 import { useUiPref } from '@/app/ui-pref'
 import { formatBytes, formatDateTime } from '@/lib/format'
 import { toastError } from '@/lib/errors'
@@ -40,7 +40,7 @@ import { SEGMENT, SEGMENTED } from '@/lib/segmented'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
-import { Checkbox } from '@/ui/checkbox'
+import { RowSelectionContext, SelectAllCheckbox, SelectCheckbox } from '@/components/row-selection'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -58,7 +58,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { DROP_TARGET, type DropTargets, dropTargetProps } from '../hooks'
 import { previewKind, typeLabel } from '../kinds'
 import { contentUrl, invalidateFiles, pageImageUrl } from '../queries'
-import { type Target, compareNames } from '../folders'
+import { type Target, compareNames, targetKey } from '../folders'
 import { useDragSource, useDropFolder } from './FileDrag'
 import type { ItemAction } from './ItemDialogs'
 import { StatusCell } from './StatusCell'
@@ -77,22 +77,19 @@ export type BrowserHandlers = {
   act: (action: ItemAction) => void
   /** The course's Program, for the menu entries other modules add (`files.itemActions`). */
   programId?: string
-  /** Files dragged onto a folder go into it. */
-  drop?: DropTargets
-  selection: Selection
+  /**
+   * Files dragged onto a folder go into it. Which folder they are over is not here but given to
+   * the folder rows, so that dragging across the list renders those rows again, not every cell.
+   */
+  drop?: Omit<DropTargets, 'over'>
 }
 
-/** The entries picked with their checkboxes, for moving or deleting together. */
-export type Selection = {
-  has: (target: Target) => boolean
-  toggle: (target: Target) => void
-  /** Every entry shown is selected (`'some'`: only part of them). */
-  all: boolean | 'some'
-  toggleAll: () => void
-  /** Something is selected: the grid shows every checkbox, not only on hover. */
-  active: boolean
-}
-
+/**
+ * What the cells do, read from this context: cells live at module level, or `FlexRender` would
+ * remount them on every render. The checkboxes read `RowSelectionContext` instead, and each row
+ * is a memoized component given whether it is selected, so checking one renders that row again
+ * and the checkboxes, not every cell of every row.
+ */
 const BrowserContext = createContext<BrowserHandlers | null>(null)
 
 function useHandlers(): BrowserHandlers {
@@ -126,13 +123,11 @@ function NameCell({ row }: CellProps) {
 }
 
 function SelectBox({ target, className }: { target: Target; className?: string }) {
-  const { selection } = useHandlers()
   const name = target.type === 'item' ? target.item.display_name : target.folder.name
   return (
-    <Checkbox
-      aria-label={m.files_select({ name })}
-      checked={selection.has(target)}
-      onCheckedChange={() => selection.toggle(target)}
+    <SelectCheckbox
+      ids={[targetKey(target)]}
+      label={m.files_select({ name })}
       className={className}
     />
   )
@@ -143,15 +138,7 @@ function SelectCell({ row }: CellProps) {
 }
 
 function SelectAllHeader() {
-  const { selection } = useHandlers()
-  return (
-    <Checkbox
-      aria-label={m.files_select_all()}
-      checked={selection.all === true}
-      indeterminate={selection.all === 'some'}
-      onCheckedChange={selection.toggleAll}
-    />
-  )
+  return <SelectAllCheckbox label={m.files_select_all()} />
 }
 
 function SizeCell({ row }: CellProps) {
@@ -518,30 +505,40 @@ export function ViewToggle() {
 }
 
 /** Drag-and-drop for a folder: it can be picked up, and takes files (uploads) and entries. */
-function useFolderDnd(folder: FolderOut) {
+function useFolderDnd(folder: FolderOut, dropOver: boolean) {
   const { drop } = useHandlers()
   const target: Target = { type: 'folder', folder }
   const source = useDragSource(target)
   const into = useDropFolder(folder.id, folder.name, 'row')
   return {
     props: {
-      ...dropTargetProps(folder.id, drop),
+      ...dropTargetProps(folder.id, drop && { ...drop, over: dropOver ? folder.id : null }),
       ...source.listeners,
       ref: (node: HTMLElement | null) => {
         source.attach(node)
         into.attach(node)
       },
-      'data-drop-target': drop?.over === folder.id || into.over ? '' : undefined,
+      'data-drop-target': dropOver || into.over ? '' : undefined,
     },
     moving: source.moving,
   }
 }
 
-function FolderTile({ folder }: { folder: FolderOut }) {
-  const { openFolder, selection } = useHandlers()
-  const dnd = useFolderDnd(folder)
+type TileProps = {
+  selected: boolean
+  /** Something is selected: every checkbox shows, not only on hover. */
+  selecting: boolean
+}
+
+const FolderTile = memo(function FolderTile({
+  folder,
+  selected,
+  selecting,
+  dropOver,
+}: TileProps & { folder: FolderOut; dropOver: boolean }) {
+  const { openFolder } = useHandlers()
+  const dnd = useFolderDnd(folder, dropOver)
   const target: Target = { type: 'folder', folder }
-  const selected = selection.has(target)
   return (
     <div
       {...dnd.props}
@@ -559,7 +556,7 @@ function FolderTile({ folder }: { folder: FolderOut }) {
           aria-hidden
           className={cn(
             'size-4 text-muted-foreground transition-opacity',
-            (selection.active || selected) && 'opacity-0',
+            (selecting || selected) && 'opacity-0',
             'group-focus-within:opacity-0 group-hover:opacity-0',
           )}
         />
@@ -567,7 +564,7 @@ function FolderTile({ folder }: { folder: FolderOut }) {
           target={target}
           className={cn(
             'absolute inset-0 transition-opacity',
-            !(selection.active || selected) &&
+            !(selecting || selected) &&
               'opacity-0 group-focus-within:opacity-100 group-hover:opacity-100',
           )}
         />
@@ -584,13 +581,16 @@ function FolderTile({ folder }: { folder: FolderOut }) {
       </div>
     </div>
   )
-}
+})
 
-function ItemTile({ item }: { item: ItemOut }) {
-  const { open, selection } = useHandlers()
+const ItemTile = memo(function ItemTile({
+  item,
+  selected,
+  selecting,
+}: TileProps & { item: ItemOut }) {
+  const { open } = useHandlers()
   const target: Target = { type: 'item', item }
   const { attach, listeners, moving } = useDragSource(target)
-  const selected = selection.has(target)
   const [broken, setBroken] = useState(false)
   // Page images are only made for PDFs and images; anything else gets its icon.
   const kind = previewKind(item)
@@ -613,7 +613,7 @@ function ItemTile({ item }: { item: ItemOut }) {
         target={target}
         className={cn(
           'absolute top-2.5 left-2.5 z-10 bg-background shadow-sm transition-opacity',
-          !(selection.active || selected) &&
+          !(selecting || selected) &&
             'opacity-0 group-focus-within:opacity-100 group-hover:opacity-100',
         )}
       />
@@ -652,18 +652,19 @@ function ItemTile({ item }: { item: ItemOut }) {
       </div>
     </div>
   )
-}
+})
 
-function FileRow({
+const FileRow = memo(function FileRow({
   row,
+  selected,
   measure,
   index,
 }: {
   row: Row<typeof features, ItemOut>
+  selected: boolean
   measure?: (node: Element | null) => void
   index?: number
 }) {
-  const { selection } = useHandlers()
   const target: Target = { type: 'item', item: row.original }
   const source = useDragSource(target)
   return (
@@ -674,7 +675,7 @@ function FileRow({
       }}
       {...source.listeners}
       data-index={index}
-      data-state={selection.has(target) ? 'selected' : undefined}
+      data-state={selected ? 'selected' : undefined}
       className={cn('transition-[background-color,opacity]', source.moving && 'opacity-50')}
     >
       {row.getAllCells().map((cell) => (
@@ -684,16 +685,24 @@ function FileRow({
       ))}
     </TableRow>
   )
-}
+})
 
-function FolderRow({ folder }: { folder: FolderOut }) {
-  const { openFolder, selection } = useHandlers()
-  const dnd = useFolderDnd(folder)
+const FolderRow = memo(function FolderRow({
+  folder,
+  selected,
+  dropOver,
+}: {
+  folder: FolderOut
+  selected: boolean
+  dropOver: boolean
+}) {
+  const { openFolder } = useHandlers()
+  const dnd = useFolderDnd(folder, dropOver)
   const target: Target = { type: 'folder', folder }
   return (
     <TableRow
       {...dnd.props}
-      data-state={selection.has(target) ? 'selected' : undefined}
+      data-state={selected ? 'selected' : undefined}
       className={cn(
         'transition-[background-color,opacity]',
         dnd.moving && 'opacity-50',
@@ -718,26 +727,63 @@ function FolderRow({ folder }: { folder: FolderOut }) {
       </TableCell>
     </TableRow>
   )
-}
+})
 
 /** Lists this long render only the rows near the screen (LMS syncs bring hundreds of files). */
 const VIRTUAL_FROM = 100
 
 /**
- * Folders, then files, as a sortable table or a grid of tiles (M07 §6.1). Folders always come
- * first, by name; the chosen sort applies to files.
+ * The folders and files in one folder of a course (`folderId` null: its top level), as a sortable
+ * table or a grid of tiles (M07 §6.1). Folders always come first, by name; the chosen sort applies
+ * to files.
+ *
+ * It picks the folder's entries from the course's whole list itself: they then stay the same
+ * arrays from one render to the next, and so do the table's rows, which lets a row skip
+ * rendering when only another row's checkbox or drop state changed. Filtered by the page, they
+ * would be new each time (the page hands them on to its selection hook, so the compiler cannot
+ * keep them).
  */
 export function FileBrowser({
-  folders,
-  items,
+  list,
+  folderId,
   view,
   handlers,
+  dropOver,
+}: {
+  list: FilesItemList
+  folderId: string | null
+  view: 'list' | 'grid'
+  handlers: BrowserHandlers
+  /** The folder files are dragged over. */
+  dropOver?: string | null
+}) {
+  const folders = list.folders
+    .filter((f) => f.parent_id === folderId)
+    .toSorted((a, b) => compareNames(a.name, b.name))
+  const items = list.items.filter((i) => i.folder_id === folderId)
+  return (
+    <BrowserContext value={handlers}>
+      <Entries folders={folders} items={items} view={view} dropOver={dropOver ?? null} />
+    </BrowserContext>
+  )
+}
+
+function Entries({
+  folders: sortedFolders,
+  items,
+  view,
+  dropOver,
 }: {
   folders: readonly FolderOut[]
   items: readonly ItemOut[]
   view: 'list' | 'grid'
-  handlers: BrowserHandlers
+  dropOver: string | null
 }) {
+  // The page provides the selection: its toolbar acts on it too.
+  const selection = use(RowSelectionContext)
+  if (!selection) throw new Error('FileBrowser renders inside RowSelectionContext')
+  const selected = (target: Target) => selection.has(targetKey(target))
+  const selecting = selection.ids.length > 0
   const [sorting, setSorting] = useFileSort()
   const wrapper = useRef<HTMLDivElement>(null)
   const table = useTable({
@@ -749,7 +795,6 @@ export function FileBrowser({
     onSortingChange: (updater) =>
       setSorting(typeof updater === 'function' ? updater(sorting) : updater),
   })
-  const sortedFolders = folders.toSorted((a, b) => compareNames(a.name, b.name))
   // Pinned files stay on top whatever the sort.
   const rows = table
     .getRowModel()
@@ -757,27 +802,36 @@ export function FileBrowser({
 
   if (view === 'grid') {
     return (
-      <BrowserContext value={handlers}>
-        <div className="space-y-3">
-          {sortedFolders.length > 0 ? (
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(12rem,1fr))] gap-3">
-              {sortedFolders.map((folder) => (
-                <FolderTile key={folder.id} folder={folder} />
-              ))}
-            </div>
-          ) : null}
+      <div className="space-y-3">
+        {sortedFolders.length > 0 ? (
           <div className="grid grid-cols-[repeat(auto-fill,minmax(12rem,1fr))] gap-3">
-            {rows.map((row) => (
-              <ItemTile key={row.id} item={row.original} />
+            {sortedFolders.map((folder) => (
+              <FolderTile
+                key={folder.id}
+                folder={folder}
+                selected={selected({ type: 'folder', folder })}
+                selecting={selecting}
+                dropOver={dropOver === folder.id}
+              />
             ))}
           </div>
+        ) : null}
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(12rem,1fr))] gap-3">
+          {rows.map((row) => (
+            <ItemTile
+              key={row.id}
+              item={row.original}
+              selected={selected({ type: 'item', item: row.original })}
+              selecting={selecting}
+            />
+          ))}
         </div>
-      </BrowserContext>
+      </div>
     )
   }
 
   return (
-    <BrowserContext value={handlers}>
+    <>
       {/* The table scrolls sideways inside `Table`'s own container; this only draws the frame. */}
       <div ref={wrapper} className="overflow-hidden rounded-2xl border">
         <Table className="min-w-2xl table-fixed">
@@ -823,10 +877,21 @@ export function FileBrowser({
           </TableHeader>
           <TableBody>
             {sortedFolders.map((folder) => (
-              <FolderRow key={folder.id} folder={folder} />
+              <FolderRow
+                key={folder.id}
+                folder={folder}
+                selected={selected({ type: 'folder', folder })}
+                dropOver={dropOver === folder.id}
+              />
             ))}
             {rows.length < VIRTUAL_FROM
-              ? rows.map((row) => <FileRow key={row.id} row={row} />)
+              ? rows.map((row) => (
+                  <FileRow
+                    key={row.id}
+                    row={row}
+                    selected={selected({ type: 'item', item: row.original })}
+                  />
+                ))
               : null}
           </TableBody>
           {rows.length >= VIRTUAL_FROM ? (
@@ -836,13 +901,19 @@ export function FileBrowser({
               renderRow={(index, measure) => {
                 const row = rows[index]
                 return row ? (
-                  <FileRow key={row.id} row={row} measure={measure} index={index} />
+                  <FileRow
+                    key={row.id}
+                    row={row}
+                    selected={selected({ type: 'item', item: row.original })}
+                    measure={measure}
+                    index={index}
+                  />
                 ) : null
               }}
             />
           ) : null}
         </Table>
       </div>
-    </BrowserContext>
+    </>
   )
 }

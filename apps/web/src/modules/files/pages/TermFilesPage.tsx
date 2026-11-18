@@ -8,12 +8,11 @@ import {
   useTable,
 } from '@tanstack/react-table'
 import { BookOpen, Folder, Search, Upload } from 'lucide-react'
-import { createContext, use, useState } from 'react'
+import { createContext, use, useEffect, useState } from 'react'
 import type { PageProps } from '@/app/extensions'
 import { useUiPref } from '@/app/ui-pref'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { FileDropOverlay } from '@/components/FileDropOverlay'
-import { useDialogTarget } from '@/lib/dialog-target'
 import { courseColor, courseLabel } from '@/modules/academics/color'
 import { coursesOfTerm, useCourses } from '@/modules/academics/queries'
 import { formatDateTime } from '@/lib/format'
@@ -28,13 +27,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { useExternalLink } from '../components/ExternalLink'
 import { ViewToggle } from '../components/FileBrowser'
-import { PreviewDialog, type PreviewTarget } from '../components/PreviewDialog'
+import { PreviewDialog } from '../components/PreviewDialog'
 import { SearchResults, useContentSearch } from '../components/SearchResults'
 import { type Uploads, useUploads } from '../components/Uploads'
 import { UsageBar } from '../components/UsageBar'
 import { searchTerms } from '../highlight'
 import { useDebounced } from '@/hooks/use-debounced'
 import { DROP_TARGET, type DropTargets, dropTargetProps, useFileDrop } from '../hooks'
+import { type FilesLocation, useFilesLocation, usePreviewLocation } from '../location'
 import { courseFilesOptions, useCourseFiles } from '../queries'
 import { CourseFiles } from './CourseFilesPage'
 
@@ -70,12 +70,16 @@ function TermFiles({
   termId: string
   courses: Course[]
 }) {
-  const [openId, setOpenId] = useState<string | null>(null)
+  const location = useFilesLocation()
   // One upload queue for the whole page: its panel and duplicate question stay up when the
   // student opens a course or goes back to the courses mid-upload.
   const uploads = useUploads()
-  // The course may have left the term (here or in another tab).
-  const course = courses.find((c) => c.id === openId)
+  // The course may have left the term (here or in another tab): back to the courses.
+  const course = courses.find((c) => c.id === location.course)
+  const courseGone = location.course !== null && !course
+  useEffect(() => {
+    if (courseGone) location.go({ course: null, folder: null, file: null }, { replace: true })
+  }, [courseGone, location])
 
   if (courses.length === 0) {
     return (
@@ -98,7 +102,7 @@ function TermFiles({
           course={course}
           programId={programId}
           uploads={uploads}
-          back={() => setOpenId(null)}
+          back={() => location.go({ course: null, folder: null, file: null })}
         />
       ) : (
         <CourseFolders
@@ -106,7 +110,7 @@ function TermFiles({
           programId={programId}
           termId={termId}
           uploads={uploads}
-          openCourse={setOpenId}
+          location={location}
         />
       )}
       {uploads.panel}
@@ -295,16 +299,16 @@ function CourseFolders({
   programId,
   termId,
   uploads,
-  openCourse,
+  location,
 }: {
   courses: Course[]
   programId: string
   termId: string
   uploads: Uploads
-  openCourse: (courseId: string) => void
+  location: FilesLocation
 }) {
   const [search, setSearch] = useState('')
-  const preview = useDialogTarget<PreviewTarget>()
+  const preview = usePreviewLocation(location)
   const [over, setOver] = useState<string | null>(null)
   const [view] = useUiPref<'list' | 'grid'>('files.view', 'list')
   const link = useExternalLink()
@@ -317,6 +321,15 @@ function CourseFolders({
   const folders: Folder[] = courses.map((course, index) => ({ course, list: lists[index] }))
   const byCourse = new Map(courses.map((c) => [c.id, c]))
   const allItems = lists.flatMap((q) => q.data?.items ?? [])
+  // A search hit anywhere in the term opens here; once every course is loaded, a file that is
+  // gone closes.
+  const fileGone =
+    location.file !== null &&
+    lists.every((q) => q.data) &&
+    !allItems.some((i) => i.id === location.file)
+  useEffect(() => {
+    if (fileGone) location.go({ file: null }, { replace: true })
+  }, [fileGone, location])
   const needle = search.trim().toLowerCase()
   const searching = needle.length > 0
   const open = (item: ItemOut) => {
@@ -324,7 +337,7 @@ function CourseFolders({
     else preview.show({ itemId: item.id })
   }
   const handlers: FolderHandlers = {
-    open: openCourse,
+    open: (courseId) => location.go({ course: courseId, folder: null, file: null }),
     over,
     setOver,
     drop: (courseId, files) =>

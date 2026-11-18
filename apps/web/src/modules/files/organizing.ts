@@ -2,11 +2,12 @@ import type { JobOut, PendingOrganize } from '@semestra/api-client'
 import { filesOrganizationListOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import { m } from '@/paraglide/messages'
+import { courseFilesPath } from './location'
 
 /** A course's files with the organizing dialog open (`useOrganizeOpen`). */
 export function organizeLink(result: Record<string, unknown> | null | undefined) {
   if (typeof result?.program_id !== 'string' || typeof result.course_id !== 'string') return
-  return `/p/${result.program_id}/c/${result.course_id}/files?organize=1`
+  return courseFilesPath(result.program_id, result.course_id, { organize: true })
 }
 
 export type OrganizeStage = 'failed' | 'ready' | 'reading'
