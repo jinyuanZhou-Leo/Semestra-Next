@@ -40,23 +40,30 @@ export function planUpload(files: readonly File[], usage: FilesUsageGet | undefi
 }
 
 /**
- * Files that look already uploaded to this course: the same bytes anywhere in the course, or the
- * same name in the target folder.
+ * Files that look already uploaded to this course: the same bytes anywhere in the course, the same
+ * name and size anywhere in the course (a file read from its source, such as an LMS, has no hash of
+ * its bytes here), or the same name in the target folder.
  */
 export function findDuplicates(
   files: readonly { file: File; sha256: string }[],
-  existing: readonly ItemOut[],
+  existing: readonly Pick<
+    ItemOut,
+    'kind' | 'display_name' | 'size_bytes' | 'sha256' | 'folder_id'
+  >[],
   folderId: string | null,
 ): Set<File> {
-  const hashes = new Set(existing.map((i) => i.sha256).filter(Boolean))
+  const stored = existing.filter((i) => i.kind === 'file')
+  const hashes = new Set(stored.map((i) => i.sha256).filter(Boolean))
+  const sized = new Set(stored.map((i) => `${i.display_name.toLowerCase()}:${i.size_bytes}`))
   const names = new Set(
-    existing
-      .filter((i) => i.kind === 'file' && i.folder_id === folderId)
-      .map((i) => i.display_name.toLowerCase()),
+    stored.filter((i) => i.folder_id === folderId).map((i) => i.display_name.toLowerCase()),
   )
   return new Set(
     files
-      .filter(({ file, sha256 }) => hashes.has(sha256) || names.has(file.name.toLowerCase()))
+      .filter(({ file, sha256 }) => {
+        const name = file.name.toLowerCase()
+        return hashes.has(sha256) || sized.has(`${name}:${file.size}`) || names.has(name)
+      })
       .map(({ file }) => file),
   )
 }

@@ -144,7 +144,7 @@ async def folder_names(ctx: Ctx, folder_ids: Sequence[str]) -> dict[str, str]:
 async def _check_free_name(
     ctx: Ctx, course_id: str, parent_id: str | None, name: str, *, except_id: str | None = None
 ) -> None:
-    stmt = select(FilesFolder.id).where(
+    stmt = select(FilesFolder.name).where(
         FilesFolder.user_id == ctx.user_id,
         FilesFolder.course_id == course_id,
         FilesFolder.parent_id == parent_id
@@ -154,8 +154,8 @@ async def _check_free_name(
     )
     if except_id is not None:
         stmt = stmt.where(FilesFolder.id != except_id)
-    if await ctx.db.scalar(stmt) is not None:
-        raise AppError("common.conflict", 409, field="name")
+    if (taken := await ctx.db.scalar(stmt)) is not None:
+        raise AppError("files.folder_name_taken", 409, name=taken)
 
 
 async def create_folder(ctx: Ctx, course_id: str, name: str, parent_id: str | None) -> FolderOut:

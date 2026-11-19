@@ -1,7 +1,7 @@
 import type { ItemOut, UploadResult } from '@semestra/api-client'
 import { useQueryClient } from '@tanstack/react-query'
 import { CircleAlert, CircleCheck, X } from 'lucide-react'
-import { type ReactNode, useState } from 'react'
+import { type ReactNode, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { postWithProgress } from '@/app/api'
 import { useDialogTarget } from '@/lib/dialog-target'
@@ -27,6 +27,15 @@ import { Spinner } from '@/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { invalidateFiles, useFilesUsage } from '../queries'
 import { findDuplicates, planUpload, sha256Hex } from '../upload'
+
+type Sent = {
+  courseId: string
+  kind: 'file'
+  display_name: string
+  size_bytes: number
+  sha256: string | null
+  folder_id: string | null
+}
 
 type Row = {
   key: string
@@ -60,12 +69,33 @@ export function useUploads(): Uploads {
   const queryClient = useQueryClient()
   const usage = useFilesUsage().data
   const [rows, setRows] = useState<Row[]>([])
-  const duplicates = useDialogTarget<{ all: File[]; dupes: File[]; into: UploadTarget }>()
+  const duplicates = useDialogTarget<{
+    all: File[]
+    dupes: File[]
+    into: UploadTarget
+    hashes: ReadonlyMap<File, string>
+  }>()
+  // Files sent (or about to be) that the course's list may not show yet: the duplicate check
+  // counts them too, so the same file picked again mid-upload is asked about.
+  const sending = useRef(new Map<File, Sent>())
 
   const patch = (key: string, change: Partial<Row>) =>
     setRows((current) => current.map((r) => (r.key === key ? { ...r, ...change } : r)))
 
-  const send = async (files: readonly File[], { courseId, folderId }: UploadTarget) => {
+  const send = async (
+    files: readonly File[],
+    { courseId, folderId }: UploadTarget,
+    hashes: ReadonlyMap<File, string> = new Map(),
+  ) => {
+    for (const file of files)
+      sending.current.set(file, {
+        courseId,
+        kind: 'file',
+        display_name: file.name,
+        size_bytes: file.size,
+        sha256: hashes.get(file) ?? null,
+        folder_id: folderId,
+      })
     const queued = files.map((file) => ({
       file,
       row: {
@@ -94,6 +124,7 @@ export function useUploads(): Uploads {
         )
     }
     await invalidateFiles(queryClient, courseId)
+    for (const file of files) sending.current.delete(file)
   }
 
   const start = (files: readonly File[], target: UploadTarget) => {
@@ -114,12 +145,15 @@ export function useUploads(): Uploads {
     if (plan.accepted.length === 0) return
     void Promise.all(plan.accepted.map(async (file) => ({ file, sha256: await sha256Hex(file) })))
       .then((hashed) => {
-        const dupes = findDuplicates(hashed, target.existing, target.folderId)
-        if (dupes.size === 0) return send(plan.accepted, target)
+        const inFlight = [...sending.current.values()].filter((f) => f.courseId === target.courseId)
+        const dupes = findDuplicates(hashed, [...target.existing, ...inFlight], target.folderId)
+        const hashes = new Map(hashed.map(({ file, sha256 }) => [file, sha256]))
+        if (dupes.size === 0) return send(plan.accepted, target, hashes)
         duplicates.show({
           all: plan.accepted,
           dupes: plan.accepted.filter((f) => dupes.has(f)),
           into: target,
+          hashes,
         })
       })
       .catch(() => send(plan.accepted, target))
@@ -198,7 +232,7 @@ export function useUploads(): Uploads {
     if (!duplicates.open || !asked) return
     const rest = asked.all.filter((f) => !asked.dupes.includes(f))
     duplicates.close()
-    if (rest.length) void send(rest, asked.into)
+    if (rest.length) void send(rest, asked.into, asked.hashes)
   }
   const dialog = (
     <AlertDialog
@@ -222,7 +256,7 @@ export function useUploads(): Uploads {
               const asked = duplicates.target
               if (!asked) return
               duplicates.close()
-              void send(asked.all, asked.into)
+              void send(asked.all, asked.into, asked.hashes)
             }}
           >
             {m.files_duplicate_upload_anyway()}

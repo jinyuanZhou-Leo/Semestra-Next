@@ -423,7 +423,7 @@ test('uploads that cannot fit are refused before sending', () => {
   expect(planUpload([big], { ...usage, quota_bytes: 0, max_upload_bytes: 100 }).room).toBe(true)
 })
 
-test('duplicates are the same bytes in the course or the same name in the folder', () => {
+test('duplicates are the same bytes or name and size in the course, or the same name in the folder', () => {
   const same = new File(['a'], 'other-name.pdf')
   const named = new File(['b'], 'Syllabus.PDF')
   const fresh = new File(['c'], 'fresh.pdf')
@@ -438,6 +438,15 @@ test('duplicates are the same bytes in the course or the same name in the folder
   )
   expect([...dupes]).toEqual([same, named])
   expect([...findDuplicates([{ file: named, sha256: 'bb' }], [item()], 'folder-2')]).toEqual([])
+  // A file read from the LMS has no hash of its bytes: its name and size elsewhere still count.
+  const fromLms = item({
+    folder_id: 'lectures',
+    display_name: 'Week 1.pdf',
+    size_bytes: 3,
+    sha256: 'v1',
+  })
+  const again = new File(['abc'], 'week 1.pdf')
+  expect([...findDuplicates([{ file: again, sha256: 'dd' }], [fromLms], null)]).toEqual([again])
 })
 
 test('highlighting escapes file text and marks every match', () => {

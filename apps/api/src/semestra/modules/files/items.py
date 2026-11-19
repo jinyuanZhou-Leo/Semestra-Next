@@ -8,6 +8,7 @@ from datetime import datetime
 from urllib.parse import urlsplit, urlunsplit
 
 import anyio
+from sqlalchemy import select
 
 from semestra.core.context import Ctx
 from semestra.core.db import new_id
@@ -109,6 +110,22 @@ async def add_staged_files(
             await service.enqueue_processing(ctx, row)
         await events.publish(ctx, "files.item.created", {"item_id": row.id, "course_id": course_id})
     return rows
+
+
+async def find_same_bytes(ctx: Ctx, course_id: str, sha256: str) -> FilesItem | None:
+    """A file of the course with exactly these bytes kept here. A file that follows its source
+    carries the source's version instead of a hash of its bytes, so it never matches."""
+    return await ctx.db.scalar(
+        select(FilesItem)
+        .where(
+            FilesItem.user_id == ctx.user_id,
+            FilesItem.course_id == course_id,
+            FilesItem.kind == "file",
+            FilesItem.storage_key.is_not(None),
+            FilesItem.sha256 == sha256,
+        )
+        .limit(1)
+    )
 
 
 async def store_file(

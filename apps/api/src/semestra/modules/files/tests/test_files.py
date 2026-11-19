@@ -383,7 +383,7 @@ async def test_moving_and_deleting_several_is_all_or_nothing(fx: Fx):
         json={"item_ids": [a["id"]], "folder_ids": [week1, notes], "to_folder_id": target},
         status=409,
     )
-    assert taken["error"]["code"] == "common.conflict"
+    assert taken["error"]["code"] == "files.folder_name_taken"
     listing = await fx.call("GET", f"/courses/{fx.course_id}/files", params={"recursive": True})
     assert {i["id"]: i["folder_id"] for i in listing["items"]} == {a["id"]: None, b["id"]: week1}
 

@@ -547,6 +547,8 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
     places = SourceFolders(ctx, link.course_id, "lms", b.provider.display_name)
 
     result = StageResult()
+    # The user's own files: a new file like one of them is listed, so they can keep one.
+    own = await sources.own_file_keys(ctx, link.course_id)
     added: list[FilesItem] = []
     gone: list[FilesItem] = []
     for key, m in found.materials.items():
@@ -587,8 +589,11 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
         _seen(mat, m)
         mat.name, mat.placed_folder_id = row.display_name, folder_id
         mat.change = mat.changed_at = None
-        if news:
+        if m.kind == "file" and (row.display_name.lower(), m.size) in own:
+            _note(mat, "duplicate", now)
+        elif news:
             _note(mat, "added", now)
+        if news:
             result.notices.append(Notice("material", m.external_id, m.title, item_id=row.id))
 
     handed: list[FilesItem] = []

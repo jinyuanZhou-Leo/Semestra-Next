@@ -23,6 +23,8 @@ from collections.abc import AsyncIterator, Awaitable, Callable, Mapping, Sequenc
 from dataclasses import dataclass
 from datetime import datetime
 
+from sqlalchemy import select
+
 from semestra.core.context import Ctx, run_as_system
 from semestra.core.db import new_id
 from semestra.core.errors import AppError
@@ -57,6 +59,7 @@ __all__ = [
     "get_folder",
     "keep_copy",
     "make_own",
+    "own_file_keys",
     "purge_items",
     "remote",
     "rename_synced",
@@ -68,6 +71,21 @@ __all__ = [
 ]
 
 remote = content.remote
+
+
+async def own_file_keys(ctx: Ctx, course_id: str) -> set[tuple[str, int]]:
+    """(lowercased name, size) of the course's files that follow no source: what the user put
+    there. A source's new file with the same name and size is most likely one of them."""
+    rows = await ctx.db.execute(
+        select(FilesItem.display_name, FilesItem.size_bytes).where(
+            FilesItem.user_id == ctx.user_id,
+            FilesItem.course_id == course_id,
+            FilesItem.kind == "file",
+            FilesItem.source_ref.is_(None),
+        )
+    )
+    return {(name.lower(), size) for name, size in rows.all()}
+
 
 # A file read from its source that has not been read yet (restored from a backup).
 SOURCE_UNREAD = "files.source_unread"

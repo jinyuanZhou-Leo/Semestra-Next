@@ -154,7 +154,7 @@ class LmsFeedback(Base, OwnedMixin):
 
 
 MaterialState = Literal["synced", "list", "dismissed", "restored", "gone", "handed_over"]
-MaterialChange = Literal["added", "updated", "gone", "handed_over"]
+MaterialChange = Literal["added", "duplicate", "updated", "gone", "handed_over"]
 
 
 class LmsMaterial(Base, OwnedMixin):

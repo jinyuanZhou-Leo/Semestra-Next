@@ -321,7 +321,7 @@ export function MoveDialog({
           initial=""
           submitLabel={m.files_create()}
           pending={createFolder.isPending}
-          error={createFolder.error ? errorMessage(createFolder.error) : null}
+          error={createFolder.error}
           onClose={() => {
             createFolder.reset()
             naming.close()

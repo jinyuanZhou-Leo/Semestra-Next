@@ -338,6 +338,25 @@ async def test_following_the_platform(api: Api, fake: FakeProvider, clock: Clock
     assert "data.zip" in (await _files(api, course))[1]
 
 
+async def test_a_file_the_user_had_put_there_is_pointed_out(api: Api, fake: FakeProvider):
+    _materials(fake)
+    program_id, term_id, _ = await setup_program(api)
+    course = await api.course(program_id, term_id)
+    # Uploaded by hand before the course was linked: same name, same size as the platform's.
+    upload = ("lecture 1.pdf", b"x" * 1000, "application/pdf")
+    await api.call("POST", f"/courses/{course}/files", files={"files": upload})
+    await api.link(course, "101")
+    await api.sync(program_id)
+    # Both stay (nothing of the user's is touched); the panel says which one is like theirs,
+    # even on the first sync, whose new materials are otherwise not news.
+    _, items = await _files(api, course)
+    assert {"lecture 1.pdf", "Lecture 1.pdf"} <= set(items)
+    status = await api.call("GET", f"/programs/{program_id}/lms/sync")
+    assert [(m["title"], m["change"]) for m in status["materials"]] == [
+        ("Lecture 1.pdf", "duplicate")
+    ]
+
+
 async def test_stored_here_and_read_again(api: Api, fake: FakeProvider, clock: Clock):
     _materials(fake)
     program_id, course = await _course(api)

@@ -169,7 +169,7 @@ export function ItemDialogs({
         initial={target.type === 'item' ? target.item.display_name : target.folder.name}
         submitLabel={m.common_save()}
         pending={mutation.isPending}
-        error={mutation.error ? errorMessage(mutation.error) : null}
+        error={mutation.error}
         onClose={close}
         onSubmit={(name) =>
           target.type === 'item'
@@ -195,7 +195,7 @@ export function ItemDialogs({
         initial=""
         submitLabel={m.files_create()}
         pending={createFolder.isPending}
-        error={createFolder.error ? errorMessage(createFolder.error) : null}
+        error={createFolder.error}
         onClose={close}
         onSubmit={(name) =>
           createFolder.mutate(
@@ -216,7 +216,7 @@ export function ItemDialogs({
       submitLabel={m.files_add_link()}
       extraField={{ label: m.files_link_url(), placeholder: 'https://', required: true }}
       pending={createLink.isPending}
-      error={createLink.error ? errorMessage(createLink.error) : null}
+      error={createLink.error}
       onClose={close}
       onSubmit={(name, url) =>
         createLink.mutate(

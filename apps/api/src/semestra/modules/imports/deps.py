@@ -270,6 +270,12 @@ async def read_attachment(ctx: Ctx, attachment_id: str) -> tuple[str, str, bytes
     return row.name, mime, data
 
 
+async def course_has_file(ctx: Ctx, course_id: str, sha256: str) -> bool:
+    """Whether the course's files (M07) already hold a file with exactly these bytes."""
+    items = _files("items")
+    return items is not None and await items.find_same_bytes(ctx, course_id, sha256) is not None
+
+
 async def move_to_course(
     ctx: Ctx, *, course_id: str, filename: str, chunks: AsyncIterator[bytes]
 ) -> str | None:
