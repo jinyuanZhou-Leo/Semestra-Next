@@ -27,7 +27,15 @@ from semestra.modules.files import search as file_search
 from semestra.modules.files.models import FilesItem
 from semestra.modules.files.schemas import Citation, SearchInput
 from semestra.modules.grading import service as grading
-from semestra.modules.lms import announcements, files, reads, refs, service, sync_feedback
+from semestra.modules.lms import (
+    announcements,
+    files,
+    reads,
+    refs,
+    service,
+    sync_feedback,
+    sync_status,
+)
 from semestra.modules.lms import search as ranking
 from semestra.modules.lms.errors import BROKEN_ON_READ, lms_error
 from semestra.modules.lms.markdown import to_markdown
@@ -1009,15 +1017,16 @@ async def activity(ctx: Ctx, inp: LmsActivityInput) -> LmsActivityList:
         zone = ZoneInfo((await academics.get_program_row(ctx, term.program_id)).timezone)
     since = reads.aware(inp.since, zone) or ctx.now - ACTIVITY_WINDOW
     rows = {c.id: c for c in await academics.courses_by_id(ctx, course_ids)}
-    items: list[LmsActivityItem] = []
+    labels = {c.id: c.code or c.title for c in rows.values()}
+    # Kept here by the sync: listed even when the platform can't be reached now.
+    items = await _material_activity(ctx, course_ids, labels, since)
     skipped: list[LmsSkipped] = []
     for course_id in course_ids:
-        row = rows[course_id]
-        label = row.code or row.title
+        label = labels[course_id]
         try:
             items += await _course_activity(ctx, course_id, label, since, inp.refresh)
         except AppError as exc:
-            if exc.code not in _SKIPPABLE and inp.course_id is not None:
+            if exc.code not in _SKIPPABLE and inp.course_id is not None and not items:
                 raise
             skipped.append(LmsSkipped(source=label, reason=exc.code))
     items.sort(key=lambda i: i.at.timestamp() if i.at else 0.0, reverse=True)
@@ -1027,6 +1036,34 @@ async def activity(ctx: Ctx, inp: LmsActivityInput) -> LmsActivityList:
         skipped=skipped,
         truncated=len(items) > ACTIVITY_MAX,
     )
+
+
+_MATERIAL_REFS: dict[str, refs.RefKind] = {"file": "file", "page": "page"}
+_ON_LMS = frozenset(("added", "duplicate", "updated"))  # still there to read
+
+
+async def _material_activity(
+    ctx: Ctx, course_ids: list[str], labels: dict[str, str], since: datetime
+) -> list[LmsActivityItem]:
+    """What the sync lately did to the courses' materials, as the sync panel lists it."""
+    links = [li for c in course_ids if (li := await service.link_row(ctx, c)) is not None]
+    out: list[LmsActivityItem] = []
+    for news in await sync_status.material_changes(ctx, links, since):
+        m = news.material
+        kind = _MATERIAL_REFS.get(m.kind)
+        out.append(
+            LmsActivityItem(
+                course_id=news.course_id,
+                course=labels[news.course_id],
+                kind="material",
+                ref=refs.make(kind, m.external_id) if kind and news.change in _ON_LMS else None,
+                title=m.title or m.name or "",
+                at=m.changed_at,
+                change=news.change,
+                item_id=news.item.id if news.item is not None else None,
+            )
+        )
+    return out
 
 
 async def _term_courses(ctx: Ctx, term_id: str) -> list[str]:

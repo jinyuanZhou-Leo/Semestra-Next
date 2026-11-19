@@ -19,7 +19,7 @@ from semestra.modules.academics import service as academics
 from semestra.modules.files import content, folders, service
 from semestra.modules.files.models import FilesItem
 from semestra.modules.files.parse import detect
-from semestra.modules.files.schemas import ItemOut, ItemUpdateInput, SourceKind
+from semestra.modules.files.schemas import ItemOut, ItemRef, ItemUpdateInput, SourceKind
 
 
 async def check_upload_target(ctx: Ctx, course_id: str, folder_id: str | None) -> None:
@@ -237,6 +237,14 @@ async def check_item_update(ctx: Ctx, inp: ItemUpdateInput) -> None:
     service.refuse_none(
         [f for f in ("display_name", "pinned") if f in sent and getattr(inp, f) is None]
     )
+
+
+async def check_follows_source(ctx: Ctx, inp: ItemRef) -> None:
+    """Saving in Semestra is a choice about a file its source keeps in step: the user's own
+    files (also those handed over by their source) are stored here already."""
+    row = await service.get_item(ctx, inp.item_id)
+    if not content.follows_source(row):
+        raise AppError("files.not_from_source", 409)
 
 
 async def update_item(ctx: Ctx, inp: ItemUpdateInput) -> ItemOut:

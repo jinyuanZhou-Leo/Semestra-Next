@@ -12,6 +12,8 @@ tools = [
   "lms.course.list",
   "lms.course.link.set",
   "lms.file.save_to_course",
+  "files.item.keep_copy",
+  "files.item.drop_copy",
   "files.document.search",
   "files.document.read",
   "lms.course.import",
@@ -43,7 +45,8 @@ shows the whole course in order (modules and their items), which helps when the 
 about the course's structure or a search keeps missing.
 
 **What is new or due.** `lms.activity.list` (one course or a whole term) for announcements,
-grades and new assignments; `lms.assignment.list` with `status` for what is due, missing or graded.
+grades, new assignments and course materials (new, updated or removed files and pages; read one
+with its `item_id`); `lms.assignment.list` with `status` for what is due, missing or graded.
 
 **Refs.** Every item comes with a `ref` (`page:…`, `assignment:…`, `file:…`). Pass it on as it
 is, never build one. A link written `lms:<ref>` inside a text is a ref too; a link the user
@@ -69,7 +72,9 @@ term must exist) and the syllabus's grading scheme with `lms.syllabus.import` (A
 What is imported then follows the LMS in the background (due dates, weights, grades); when the
 user changed a value the LMS changed too, the app asks them, not you. Searching or reading a
 file never needs a copy; when the user wants to keep one (to open it after the course closes on
-the LMS), use `lms.file.save_to_course`.
+the LMS, or after it is deleted there), save it in Semestra: `files.item.keep_copy` for a course
+file that follows the LMS, `lms.file.save_to_course` for a file the course files don't have.
+`files.item.drop_copy` undoes it.
 
 After starting an import, finish it like a document import: wait with `imports.session.get`
 (`wait_seconds` while it is extracting), summarise what it found and any issues, then call

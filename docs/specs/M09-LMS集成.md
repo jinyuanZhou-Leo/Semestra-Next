@@ -242,7 +242,7 @@ lms_cache  key, user_id, connection_id, scope, payload, expires_at
 | `lms.course.outline` | read | GET /courses/{id}/lms/outline | Agent 用（第 8 节）：模块与全部条目（ref、锁定原因）、开放的栏目、外部工具、不在模块里的页面；`cursor` 分页 |
 | `lms.content.search` | read | GET /courses/{id}/lms/search | Agent 用：搜页面正文、公告、作业与评语、测验、讨论、大纲、文件名和链接；课程文件里有的页面和文件在课程文件里搜（见 §8「一份内容一条路径」） |
 | `lms.content.read` | read | GET /courses/{id}/lms/content | Agent 用：按 ref 或 LMS 地址读任意条目的全文（Markdown），`offset` 分段；课程文件里有的页面和文件从课程文件读，带 `item_id` 与每页的 `citations` |
-| `lms.activity.list` | read | GET /me/lms/activity | Agent 用：一门课或整个学期的新公告、新成绩和新作业 |
+| `lms.activity.list` | read | GET /me/lms/activity | Agent 用：一门课或整个学期的新公告、新成绩、新作业和课程资料的变化 |
 
 - 课程级读取接口要求该课程已关联（否则 `lms.course_not_linked`），并检查 provider 功能标志（否则 `lms.feature_unsupported`）。
 - M08 提交时，item 的 `data.lms_ref` 带回外部引用。本模块订阅 `imports.session.committed`，写入 `lms_imported_refs`。导入课程时也在同一个提交里创建 `lms_course_links`（M08 的 course item 带 `data.lms_link`，本模块在 `imports.session.committing` 钩子里写入，保证在同一事务中）。
@@ -293,7 +293,7 @@ Agent 与 MCP 只看到 11 个按任务设计的工具，而不是每个平台�
 - **不带时区的时间**（`since`、`due_after`、`due_before`）按 Program 时区解释。
 - **outline / search 只读开放的栏目**：从课程导航得出开放的栏目（`open_areas`），页面、文件、测验、讨论栏目被隐藏时不请求它们的列表（Canvas 会返回 404），在结果的 `skipped` 里注明 `hidden`；模块里的页面仍逐页读取。没有导航功能的平台视为全部开放。
 - **搜索**（`search.py`，方案 A：读缓存 + 本地匹配，不建索引）：文档来自模块条目、页面正文（每次最多 60 页，`reads.read_many` 并发 4 个请求；页面列表给出了 `updated_at` 的按它做缓存键、保留 14 天，只能从模块得知的页面缓存 1 小时）、公告、作业、测验、讨论、大纲和按名搜索的文件。按词匹配：英文词匹配词首，中日文按两字切分；先按命中的不同词数排序，再按得分（标题权重 4、短语加分）和日期。单个来源失败只记进 `skipped`，凭证类错误整体失败。
-- **`lms.activity.list`**：默认最近 7 天；`assignment` 项只算“新作业”（未导入且未到截止、最近有改动）。已导入作业的变化由后台同步处理，用户在同步面板里回答（2026-11-12 起不再有 `change` 项与 `lms.change.import`）。
+- **`lms.activity.list`**：默认最近 7 天；`assignment` 项只算“新作业”（未导入且未到截止、最近有改动）。已导入作业的变化由后台同步处理，用户在同步面板里回答（2026-11-12 起不再有 `change` 项与 `lms.change.import`）。`material` 项（2026-11-19）是同步对课程资料做的事，与同步面板的“最近更新”同源（`lms_materials.change`/`changed_at`）：`change` 为 added / duplicate / updated / gone / handed_over，带资料现在对应的课程文件 `item_id`（gone 时为空）和仍在平台上的资料的 `ref`；它们存在本地，平台连不上时照样列出（单门课时有资料项就把平台错误记进 `skipped`，否则仍报错）。
 - **`lms.assignment.list`**：每项带 `ref`；`status`（upcoming / missing / graded；missing 以平台的 missing 标志为准，没有提交记录时才按截止日期推断，且排除纸质等不需在线提交的类型）、`due_after` / `due_before` 过滤；`include_total` 附带课程总分。`lms.assignment.import` 的 `into: gradebook` 即原 `add_to_gradebook`。
 - **课程来源**：academics 新增扩展点 `register_course_source(name, linked)`，`academics.course.find` 的结果带 `sources`，本模块对已关联课程贡献 `lms`，让 Sem 知道课程资料还有 LMS 这一处。
 - 讨论：provider 契约新增 `discussions`、`discussion`（功能标志 `discussions`），Canvas 的公告也按讨论读取（带回复，最多 100 条）。

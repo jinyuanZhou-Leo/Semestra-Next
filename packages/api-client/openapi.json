@@ -773,7 +773,7 @@
           "files"
         ],
         "summary": "List the files, links and folders of a course.",
-        "description": "Use to see what a course has: its files and saved links in one folder (or every\nfolder with recursive=true), with their processing status (doc_status \"none\" means the file is\nstored but not indexed because automatic indexing is off; the user can index it from the file\nlist). Do not use to look for what the files say; use files.document.search for that.",
+        "description": "Use to see what a course has: its files and saved links in one folder (or every\nfolder with recursive=true), with their processing status (doc_status \"none\" means the file is\nstored but not indexed because automatic indexing is off; the user can index it from the file\nlist). Course materials the LMS sync brought in have `source_name` and follow the LMS\n(`follows_source`); ask for `unseen` (new, not opened yet), `stored` (saved in Semestra) or\n`modified_at` with `fields` when they matter. Do not use to look for what the files say; use\nfiles.document.search for that.",
         "operationId": "filesItemList",
         "security": [
           {
@@ -7112,6 +7112,9 @@
           },
           {
             "accessToken": []
+          },
+          {
+            "personalAccessToken": []
           }
         ],
         "parameters": [
@@ -7340,8 +7343,8 @@
         "tags": [
           "files"
         ],
-        "summary": "Remove the local copy of a file that follows its source.",
-        "description": "The file is read from the LMS when opened again, whatever the course's\nsetting, and its storage is freed.",
+        "summary": "Stop saving a course material from the LMS in Semestra.",
+        "description": "Undoes files.item.keep_copy: the file is read from the LMS when opened again,\nwhatever the course's setting, and its storage is freed. Refused while the LMS cannot give the\nfile (its saved copy is then the only one left).",
         "operationId": "filesItemDropCopy",
         "security": [
           {
@@ -7349,6 +7352,9 @@
           },
           {
             "accessToken": []
+          },
+          {
+            "personalAccessToken": []
           }
         ],
         "parameters": [
@@ -7393,8 +7399,8 @@
         "tags": [
           "files"
         ],
-        "summary": "Keep a local copy of a file that follows its source.",
-        "description": "Stores a file that follows the LMS here (in the background when it is read\nfrom the LMS), whatever the course's setting, so it still opens after the course closes there. It\nstill follows the LMS (updated, and kept as the user's own file if deleted there). It takes\nstorage quota; one too large or beyond the quota left is refused.",
+        "summary": "Save a course material from the LMS in Semestra.",
+        "description": "For a file that follows the LMS (follows_source): stores it here (in the\nbackground when it is read from the LMS), whatever the course's setting, so it still opens after\nit is deleted there or the course closes. It still follows the LMS (updated, and kept as the\nuser's own file if deleted there). Only when the user asks to keep it; reading never needs it. It\ntakes storage quota; one too large or beyond the quota left is refused. The choice holds at once,\nbut `stored` stays false until the background job has saved the bytes: that is not a failure (a\nfailed save shows in the app's status bar).",
         "operationId": "filesItemKeepCopy",
         "security": [
           {
@@ -7402,6 +7408,9 @@
           },
           {
             "accessToken": []
+          },
+          {
+            "personalAccessToken": []
           }
         ],
         "parameters": [
@@ -7553,7 +7562,7 @@
           "files"
         ],
         "summary": "Read a file's text again.",
-        "description": "Starts the document pipeline again for a file, for example after a failure or\nafter an AI model for reading scanned pages was set up.",
+        "description": "Starts the document pipeline again for a file, for example after a failure\n(doc_status failed), when it was not indexed, or after an AI model for reading scanned pages was\nset up. It runs in the background; doc_status is pending until it is done.",
         "operationId": "filesItemReprocess",
         "security": [
           {
@@ -7561,6 +7570,9 @@
           },
           {
             "accessToken": []
+          },
+          {
+            "personalAccessToken": []
           }
         ],
         "parameters": [
@@ -11357,8 +11369,8 @@
         "tags": [
           "lms"
         ],
-        "summary": "What is new on its LMS (Canvas) for a course or a whole term: announcements, grades and new assignments.",
-        "description": "Newest first, the last 7 days unless `since`. Imported assignments follow the\nLMS by themselves (due date, weight, grade); what the user and the LMS both changed waits for the\nuser in the app's sync panel. Read an item in full with lms.content.read.",
+        "summary": "What is new on its LMS (Canvas) for a course or a whole term: announcements, grades, new assignments and course materials.",
+        "description": "Newest first, the last 7 days unless `since`. Imported assignments follow the\nLMS by themselves (due date, weight, grade); what the user and the LMS both changed waits for the\nuser in the app's sync panel. Read an item in full with lms.content.read; a material with an\n`item_id` is a course file (files.document.read).",
         "operationId": "lmsActivityList",
         "security": [
           {
@@ -30659,10 +30671,11 @@
             "enum": [
               "announcement",
               "grade",
-              "assignment"
+              "assignment",
+              "material"
             ],
             "title": "Kind",
-            "description": "announcement; grade (newly graded); assignment (new: not imported, due later)"
+            "description": "announcement; grade (newly graded); assignment (new: not imported, due later); material (a file, page or link the sync brought into the course files, or changed or removed there)"
           },
           "ref": {
             "anyOf": [
@@ -30714,6 +30727,37 @@
               }
             ],
             "title": "Summary"
+          },
+          "change": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "added",
+                  "duplicate",
+                  "updated",
+                  "gone",
+                  "handed_over"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change",
+            "description": "A material's: added; duplicate (added, with the name and size of a file the user had put in the course already); updated (its contents); gone (deleted on the LMS, so removed from the course files); handed_over (deleted on the LMS, kept as the user's own file since it was saved in Semestra)"
+          },
+          "item_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Item Id",
+            "description": "A material's course file, for the files tools; none when gone"
           }
         },
         "type": "object",

@@ -83,10 +83,11 @@ async def content_read(ctx: Ctx, inp: LmsReadInput) -> LmsContentDetail:
     name="lms.activity.list",
     untrusted=True,
     summary="What is new on its {lms} for a course or a whole term: announcements, "
-    "grades and new assignments.",
+    "grades, new assignments and course materials.",
     description="""Newest first, the last 7 days unless `since`. Imported assignments follow the
 LMS by themselves (due date, weight, grade); what the user and the LMS both changed waits for the
-user in the app's sync panel. Read an item in full with lms.content.read.""",
+user in the app's sync panel. Read an item in full with lms.content.read; a material with an
+`item_id` is a course file (files.document.read).""",
     effect="read",
     http=Http("GET", "/me/lms/activity"),
     expose=AGENTS,

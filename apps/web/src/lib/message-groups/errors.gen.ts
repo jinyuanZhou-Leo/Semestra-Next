@@ -102,6 +102,7 @@ export const errorMessages = {
   error_files_folder_name_taken: m.error_files_folder_name_taken,
   error_files_folder_not_empty: m.error_files_folder_not_empty,
   error_files_invalid_url: m.error_files_invalid_url,
+  error_files_not_from_source: m.error_files_not_from_source,
   error_files_not_indexed: m.error_files_not_indexed,
   error_files_not_ready: m.error_files_not_ready,
   error_files_parse_failed: m.error_files_parse_failed,
