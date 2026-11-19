@@ -17,10 +17,17 @@ import {
 type State = { error: unknown }
 
 class ErrorBoundary extends Component<
-  { children: ReactNode; compact?: boolean; silent?: boolean },
+  {
+    children: ReactNode
+    compact?: boolean
+    silent?: boolean
+    retryAfterMs?: number
+    onRetry?: () => unknown
+  },
   State
 > {
   state: State = { error: null }
+  private retry: ReturnType<typeof setTimeout> | undefined
 
   static getDerivedStateFromError(error: unknown): State {
     return { error }
@@ -28,6 +35,17 @@ class ErrorBoundary extends Component<
 
   componentDidCatch(error: unknown, info: ErrorInfo) {
     console.error('plugin_render_failed', error, info.componentStack)
+    if (this.props.retryAfterMs !== undefined) {
+      clearTimeout(this.retry)
+      this.retry = setTimeout(() => {
+        this.props.onRetry?.()
+        this.setState({ error: null })
+      }, this.props.retryAfterMs)
+    }
+  }
+
+  componentWillUnmount() {
+    clearTimeout(this.retry)
   }
 
   render() {
@@ -81,16 +99,22 @@ export function PluginBoundary({
   children,
   compact,
   silent,
+  retryAfterMs,
+  onRetry,
   fallback,
 }: {
   children: ReactNode
   compact?: boolean
   silent?: boolean
+  /** Tries again this long after a failure (a line with no retry button of its own). */
+  retryAfterMs?: number
+  /** Run just before that retry, e.g. to start loading the failed code again. */
+  onRetry?: () => unknown
   /** Shown instead of the skeleton block while lazy code loads; `null` shows nothing. */
   fallback?: ReactNode
 }) {
   return (
-    <ErrorBoundary compact={compact} silent={silent}>
+    <ErrorBoundary compact={compact} silent={silent} retryAfterMs={retryAfterMs} onRetry={onRetry}>
       <Suspense
         fallback={
           silent ? null : fallback === undefined ? (

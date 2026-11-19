@@ -44,7 +44,9 @@ import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from '@/u
 import { Spinner } from '@/ui/spinner'
 import {
   type JobKindContribution,
+  type Preloadable,
   preload,
+  preloadable,
   type StatusItem,
   type StatusItemContribution,
   type StatusRank,
@@ -413,42 +415,55 @@ function Slot({
   )
 }
 
-/** Each contribution's hook, loaded once; a failed load is forgotten so the next mount retries. */
-const hooks = new WeakMap<StatusItemContribution, Promise<{ useStatus: () => StatusItem | null }>>()
+type LineProps = { id: string; order: number }
 
-function loadHook(contribution: StatusItemContribution) {
-  let hook = hooks.get(contribution)
-  if (!hook) {
-    hook = contribution.load().then(
-      (useStatus) => ({ useStatus }),
-      (error: unknown) => {
-        hooks.delete(contribution)
-        throw error
-      },
+/** How long a line whose code failed to load (or whose hook threw) waits to try again. */
+const LINE_RETRY_MS = 30_000
+
+/**
+ * Each contribution's line, made once: its hook, loaded on demand like a page (`preloadable`: a
+ * chunk missing after a deploy reloads once). After a failure the line's boundary waits
+ * `LINE_RETRY_MS`, starts the load again and renders the line once more.
+ */
+const lineComponents = new WeakMap<StatusItemContribution, Preloadable<LineProps>>()
+
+function lineOf(contribution: StatusItemContribution) {
+  let line = lineComponents.get(contribution)
+  if (!line) {
+    line = preloadable<LineProps>(() =>
+      contribution.load().then((useStatus) => ({
+        default: (props: LineProps) => <Contribution {...props} useStatus={useStatus} />,
+      })),
     )
-    hooks.set(contribution, hook)
+    lineComponents.set(contribution, line)
   }
-  return hook
+  return line
+}
+
+function LazyLine({ contribution }: { contribution: StatusItemContribution }) {
+  // Made once per contribution (a module-level constant of its manifest), not on each render.
+  const Line = lineOf(contribution)
+  // oxlint-disable-next-line react/static-components
+  return <Line id={contribution.id} order={contribution.order} />
 }
 
 function Contribution({
-  contribution,
+  id,
   order,
-}: {
-  contribution: StatusItemContribution
-  order: number
+  useStatus,
+}: LineProps & {
+  useStatus: () => StatusItem | null
 }) {
-  // Keyed by id, so each instance always calls the same contribution's hook.
-  const line = use(loadHook(contribution))
+  // Each line is its contribution's own component, so it always calls the same hook.
   // oxlint-disable-next-line react/rules-of-hooks
-  const item = line.useStatus()
+  const item = useStatus()
   const [open, setOpen] = useState(false)
   const Panel = item?.Panel
   // Loaded with the line, so opening it does not wait.
   useEffect(() => void preload(Panel), [Panel])
   return (
     <Slot
-      id={contribution.id}
+      id={id}
       order={order}
       item={item}
       open={open}
@@ -773,8 +788,13 @@ export function StatusBar({ className }: { className?: string }) {
       >
         <JobsLine />
         {items.map((contribution) => (
-          <PluginBoundary key={contribution.id} silent>
-            <Contribution contribution={contribution} order={contribution.order} />
+          <PluginBoundary
+            key={contribution.id}
+            silent
+            retryAfterMs={LINE_RETRY_MS}
+            onRetry={() => preload(lineOf(contribution))}
+          >
+            <LazyLine contribution={contribution} />
           </PluginBoundary>
         ))}
         <MoreLine entries={hidden} />

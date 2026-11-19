@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { CircleAlert, School, Timer } from 'lucide-react'
 import { http, HttpResponse } from 'msw'
 import { act, type ReactElement, useSyncExternalStore } from 'react'
-import { afterAll, afterEach, beforeAll, beforeEach, expect, test } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest'
 import template from '@/modules/_template/manifest'
 import { FakeEventSource } from '@/test-event-source'
 import { API, renderWithRouter, server } from '@/test-utils'
@@ -289,6 +289,42 @@ test('a line that changes state shows only its new icon and text', async () => {
     expect(line).toHaveTextContent(new RegExp(`^${state.label}$`))
     expect(line.querySelectorAll('svg')).toHaveLength(1)
   }
+})
+
+test('a line whose code fails to load leaves the others alone and comes back later', async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true })
+  vi.spyOn(console, 'error').mockImplementation(() => {})
+  server.use(http.get(`${API}/jobs`, () => HttpResponse.json({ items: [], next_cursor: null })))
+  let attempts = 0
+  const lines = {
+    ...template,
+    id: 'lines',
+    statusItems: [
+      {
+        id: 'flaky',
+        order: 1,
+        load: async () => {
+          attempts += 1
+          if (attempts === 1) throw new Error('offline')
+          return () => ({ icon: School, label: 'Synced' })
+        },
+      },
+      { id: 'timer', order: 2, load: async () => () => ({ icon: Timer, label: '12:00 left' }) },
+    ],
+  }
+  renderWithRouter(
+    <ModuleRegistry value={[lines]}>
+      <SidebarProvider>
+        <StatusBar />
+      </SidebarProvider>
+    </ModuleRegistry>,
+  )
+  expect(await screen.findByText('12:00 left')).toBeInTheDocument()
+  expect(screen.queryByText('Synced')).not.toBeInTheDocument()
+  await act(() => vi.advanceTimersByTimeAsync(30_000))
+  expect(await screen.findByText('Synced')).toBeInTheDocument()
+  vi.useRealTimers()
+  vi.restoreAllMocks()
 })
 
 test('extension points collect contributions from every module', () => {
