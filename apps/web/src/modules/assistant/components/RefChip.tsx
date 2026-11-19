@@ -51,7 +51,7 @@ export function FileRefChip({ chip }: { chip: Chip }) {
     <>
       <button
         type="button"
-        className="cursor-pointer rounded-md outline-none hover:[&>span]:bg-foreground/12 focus-visible:ring-3 focus-visible:ring-ring/50"
+        className="max-w-full cursor-pointer rounded-md outline-none hover:[&>span]:bg-foreground/12 focus-visible:ring-3 focus-visible:ring-ring/50"
         onClick={() => preview.show({ itemId: chip.id })}
       >
         <RefChip chip={chip} />

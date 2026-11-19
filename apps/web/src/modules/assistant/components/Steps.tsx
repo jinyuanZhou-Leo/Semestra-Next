@@ -69,9 +69,7 @@ function StepRow({
       <TraceIcon>{ICON[status]}</TraceIcon>
       <TraceTitle>
         {label}
-        {said.target ? (
-          <span className="text-foreground wrap-anywhere">{` ${said.target}`}</span>
-        ) : null}
+        {said.target ? <span className="text-foreground">{` ${said.target}`}</span> : null}
       </TraceTitle>
       {said.details.length > 0 ? (
         <TraceDescription>{said.details.join(' · ')}</TraceDescription>
