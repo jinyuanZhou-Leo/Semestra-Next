@@ -5,6 +5,7 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, BackgroundTasks, Depends, Path, Query, Request, Response, UploadFile
 from fastapi.responses import StreamingResponse
 
+from semestra.core.auth_schemes import SESSION_COOKIE
 from semestra.core.context import (
     Ctx,
     client_ip,
@@ -54,7 +55,12 @@ def _meta(request: Request, ctx: Ctx) -> service.RequestMeta:
 
 
 async def _finish(
-    ctx: Ctx, response: Response, tasks: BackgroundTasks, signed_in: SignedIn, client: Client
+    ctx: Ctx,
+    request: Request,
+    response: Response,
+    tasks: BackgroundTasks,
+    signed_in: SignedIn,
+    client: Client,
 ) -> AuthResult:
     """Commits, then answers with cookies (web) or tokens (native)."""
     user = await service.user_out(ctx.db, signed_in.user)
@@ -62,6 +68,8 @@ async def _finish(
     if client == "native":
         result.tokens = service.token_pair(ctx, signed_in)
     else:
+        # The browser keeps one session cookie: the sign-in it replaces ends here.
+        await service.end_session_by_token(ctx, request.cookies.get(SESSION_COOKIE))
         set_session_cookies(
             response, ctx.settings, signed_in.token, signed_in.session.expires_at, ctx.now
         )
@@ -102,7 +110,7 @@ async def email_verify(
     if signed_in is None:
         await ctx.db.commit()
         return AuthResult(status="needs_profile", registration_token=registration_token)
-    return await _finish(ctx, response, tasks, signed_in, client)
+    return await _finish(ctx, request, response, tasks, signed_in, client)
 
 
 @router.post("/register/complete", operation_id="authRegisterComplete", response_model=AuthResult)
@@ -117,7 +125,7 @@ async def register_complete(
     signed_in = await service.complete_registration(
         ctx, body.registration_token, body.display_name, body.password, client, _meta(request, ctx)
     )
-    return await _finish(ctx, response, tasks, signed_in, client)
+    return await _finish(ctx, request, response, tasks, signed_in, client)
 
 
 @router.post("/password/login", operation_id="authPasswordLogin", response_model=AuthResult)
@@ -132,7 +140,7 @@ async def password_login(
     signed_in = await service.login_with_password(
         ctx, body.email, body.password, client, _meta(request, ctx)
     )
-    return await _finish(ctx, response, tasks, signed_in, client)
+    return await _finish(ctx, request, response, tasks, signed_in, client)
 
 
 @router.post(
@@ -161,7 +169,7 @@ async def password_reset(
     signed_in = await service.reset_password(
         ctx, body.reset_token, body.new_password, client, _meta(request, ctx)
     )
-    return await _finish(ctx, response, tasks, signed_in, client)
+    return await _finish(ctx, request, response, tasks, signed_in, client)
 
 
 @router.post("/google", operation_id="authGoogleLogin", response_model=AuthResult)
@@ -175,7 +183,7 @@ async def google_login(
 ) -> AuthResult:
     claims = await ctx.state.auth_runtime.google.verify(body.id_token)
     signed_in = await service.login_with_google(ctx, claims, client, _meta(request, ctx))
-    return await _finish(ctx, response, tasks, signed_in, client)
+    return await _finish(ctx, request, response, tasks, signed_in, client)
 
 
 @router.post("/passkey/options", operation_id="authPasskeyOptions", response_model=WebAuthnOptions)
@@ -194,7 +202,7 @@ async def passkey_login(
     client: ClientParam = "web",
 ) -> AuthResult:
     signed_in = await passkeys.login(ctx, body.credential, client, _meta(request, ctx))
-    return await _finish(ctx, response, tasks, signed_in, client)
+    return await _finish(ctx, request, response, tasks, signed_in, client)
 
 
 @router.post("/token/refresh", operation_id="authTokenRefresh", response_model=TokenPair)
