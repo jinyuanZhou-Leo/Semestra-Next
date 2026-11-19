@@ -523,6 +523,8 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
 
     mats = list(await ctx.db.scalars(read_materials()))
     found = _Found({(r.kind, r.external_id): r for r in mats}, ctx.now)
+    # The states the platform was read for (the rows are read again under the lock below).
+    read_for = {key: mat.state for key, mat in found.known.items()}
     features = b.provider.features
     if "modules" in features:
         await _modules(ctx, link, found)
@@ -617,8 +619,9 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
         for key, mat in known.items():
             if key in found.materials or key in found.kept:
                 continue
-            if mat.state == "restored":
-                # Restored after it left the platform: told, not left waiting.
+            if mat.state == "restored" and read_for.get(key) == "restored":
+                # Restored after it left the platform: told, not left waiting. One restored
+                # while this run read is left to the run the restore queued.
                 enter(mat, "gone", now)
                 _note(mat, "gone", now)
                 forget_applied(mat)
