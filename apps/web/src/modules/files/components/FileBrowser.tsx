@@ -21,12 +21,14 @@ import {
   ArrowDown,
   ArrowUp,
   Cloud,
+  CloudAlert,
   FolderSync,
   Download,
   FileSearch,
   Folder,
   FolderInput,
   HardDrive,
+  HardDriveDownload,
   LayoutGrid,
   List,
   MoreHorizontal,
@@ -43,6 +45,7 @@ import { SEGMENT, SEGMENTED } from '@/lib/segmented'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
+import { Spinner } from '@/ui/spinner'
 import { RowSelectionContext, SelectAllCheckbox, SelectCheckbox } from '@/components/row-selection'
 import {
   DropdownMenu,
@@ -186,21 +189,60 @@ function FolderOrigin({ folder }: { folder: FolderOut }) {
   )
 }
 
+/** Why a copy the user wants here is not (the current version of) it, in a few words. */
+function copyReason(code: string | null | undefined, source: string): string {
+  if (code === 'files.too_large') return m.files_copy_reason_too_large()
+  if (code === 'common.quota_exceeded') return m.files_copy_reason_quota()
+  return m.files_copy_reason_unreachable({ source })
+}
+
+/** Where a file that follows its source is kept, as the status column and its menu say it. */
+function copyLabel(item: ItemOut, source: string): string {
+  const copy = item.local_copy
+  switch (copy?.state) {
+    case 'saving':
+      return m.files_origin_saving()
+    case 'saved':
+      return m.files_origin_stored()
+    case 'outdated':
+      return copy.error_code
+        ? m.files_origin_outdated_reason({ reason: copyReason(copy.error_code, source) })
+        : m.files_origin_outdated()
+    case 'failed':
+      return m.files_origin_failed({ reason: copyReason(copy.error_code, source) })
+    default:
+      return m.files_origin_online({ source })
+  }
+}
+
+const COPY_ICONS = {
+  online: Cloud,
+  saved: HardDrive,
+  outdated: HardDriveDownload,
+  failed: CloudAlert,
+} as const
+
 /**
- * Where a file that follows its source is kept: read from it when opened, or a local copy. The
- * user's own files show nothing.
+ * Where a file that follows its source is kept: read from it, being saved, saved here (or an
+ * older version of it), or not saved and why. The user's own files show nothing.
  */
 function Origin({ item }: { item: ItemOut }) {
   if (!item.follows_source || !item.source_name) return null
-  const Icon = item.stored ? HardDrive : Cloud
-  const kept = item.stored
-    ? m.files_origin_stored()
-    : m.files_origin_online({ source: item.source_name })
+  const state = item.local_copy?.state ?? 'online'
+  const kept = copyLabel(item, item.source_name)
+  const Icon = state === 'saving' ? null : COPY_ICONS[state]
   return (
     <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
       <Tooltip>
         <TooltipTrigger render={<span className="inline-flex shrink-0" />}>
-          <Icon aria-hidden className="size-3.5" />
+          {Icon ? (
+            <Icon
+              aria-hidden
+              className={cn('size-3.5', state === 'failed' && 'text-destructive')}
+            />
+          ) : (
+            <Spinner aria-hidden className="size-3.5" />
+          )}
           <span className="sr-only">{kept}</span>
         </TooltipTrigger>
         <TooltipContent>{kept}</TooltipContent>
@@ -360,11 +402,13 @@ function CopyItems({ item, source }: { item: ItemOut; source: string }) {
   const keep = useMutation({ ...filesItemKeepCopyMutation(), ...options })
   const drop = useMutation({ ...filesItemDropCopyMutation(), ...options })
   const path = { item_id: item.id }
+  // Checked: the file is to be kept here (saved, being saved, or not saved and why).
+  const state = item.local_copy?.state ?? 'online'
   return (
     <>
       <DropdownMenuSeparator />
       <DropdownMenuCheckboxItem
-        checked={item.stored}
+        checked={state !== 'online'}
         closeOnClick
         onCheckedChange={(saved) => (saved ? keep : drop).mutate({ path })}
       >
@@ -374,6 +418,9 @@ function CopyItems({ item, source }: { item: ItemOut; source: string }) {
           <span className="block text-xs text-muted-foreground">
             {m.files_save_here_hint({ source })}
           </span>
+          {state === 'failed' ? (
+            <span className="block text-xs text-destructive">{copyLabel(item, source)}</span>
+          ) : null}
         </span>
       </DropdownMenuCheckboxItem>
     </>

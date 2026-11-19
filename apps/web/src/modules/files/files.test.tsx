@@ -87,6 +87,7 @@ function item(overrides: Partial<ItemOut> = {}): ItemOut {
     sha256: 'aa',
     stored: true,
     follows_source: false,
+    local_copy: null,
     url: null,
     pinned: false,
     source_kind: 'upload',
@@ -348,12 +349,25 @@ test('a file new from the LMS is marked until opened, and shows where it is kept
       display_name: 'Week 3.pdf',
       stored: false,
       follows_source: true,
+      local_copy: { state: 'online', error_code: null, saved_version_at: null },
       source_kind: 'lms',
       source_ref: 'lms:file:301',
       source_name: 'Canvas',
       url: 'https://q.utoronto.ca/courses/101/files/301',
       unseen: true,
       modified_at: '2026-02-01T12:00:00Z',
+    }),
+    item({
+      id: 'big1',
+      folder_id: 'f1',
+      display_name: 'Recording.mp4',
+      stored: false,
+      follows_source: true,
+      local_copy: { state: 'failed', error_code: 'files.too_large', saved_version_at: null },
+      source_kind: 'lms',
+      source_ref: 'lms:file:302',
+      source_name: 'Canvas',
+      url: 'https://q.utoronto.ca/courses/101/files/302',
     }),
   ]
   server.use(
@@ -394,8 +408,18 @@ test('a file new from the LMS is marked until opened, and shows where it is kept
 
   const name = await screen.findByRole('button', { name: /^Week 3\.pdf/ })
   expect(within(name).getByText('New')).toBeInTheDocument()
-  expect(screen.getByText('Canvas')).toBeInTheDocument()
-  expect(screen.getByText('Read from Canvas when opened')).toBeInTheDocument()
+  expect(screen.getAllByText('Canvas')).toHaveLength(2)
+  expect(screen.getByText('Read from Canvas')).toBeInTheDocument()
+
+  // Wanted here but not saved: ticked, and the menu says why.
+  expect(screen.getByText('Couldn’t save: the file exceeds the size limit')).toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: 'Actions for Recording.mp4' }))
+  const wanted = await screen.findByRole('menuitemcheckbox', { name: /^Save in Semestra/ })
+  expect(wanted).toHaveAttribute('aria-checked', 'true')
+  expect(
+    within(wanted).getByText('Couldn’t save: the file exceeds the size limit'),
+  ).toBeInTheDocument()
+  await user.keyboard('{Escape}')
 
   // Read from Canvas until the user saves it in Semestra.
   await user.click(screen.getByRole('button', { name: 'Actions for Week 3.pdf' }))
