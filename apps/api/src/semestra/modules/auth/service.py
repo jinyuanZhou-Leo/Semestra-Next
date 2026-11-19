@@ -402,6 +402,21 @@ async def revoke_sessions(
     await db.execute(stmt)
 
 
+async def end_session_by_token(ctx: Ctx, cookie_token: str | None) -> None:
+    """Ends the web session this cookie value belongs to, whichever account it is."""
+    if not cookie_token:
+        return
+    await ctx.db.execute(
+        update(AuthSession)
+        .where(
+            AuthSession.refresh_token_hash == crypto.hash_token(cookie_token),
+            AuthSession.kind == "web",
+            AuthSession.revoked_at.is_(None),
+        )
+        .values(revoked_at=ctx.now)
+    )
+
+
 async def revoke_all_for_user(db: AsyncSession, user_id: str, now: datetime) -> None:
     """Revokes every session and personal access token (used by account deletion, M13)."""
     await revoke_sessions(db, user_id, now)

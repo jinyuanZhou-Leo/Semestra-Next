@@ -380,6 +380,18 @@ async def test_revoke_other_sessions_keeps_the_current_one(
         assert (await other.get("/account/me")).status_code == 401
 
 
+async def test_signing_in_again_ends_the_session_the_browser_replaces(
+    client: AsyncClient, make_user: MakeUser, login_as: LoginAs
+) -> None:
+    user = await make_user(password=PASSWORD)
+    old = await login_as(client, user)
+    r = await client.post("/auth/password/login", json={"email": user.email, "password": PASSWORD})
+    assert r.status_code == 200
+    listed = (await client.get("/account/sessions")).json()["items"]
+    assert [s["current"] for s in listed] == [True]
+    assert listed[0]["id"] != old
+
+
 # --- profile & password -----------------------------------------------------------------------
 
 
