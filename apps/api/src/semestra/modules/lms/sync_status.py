@@ -1,7 +1,8 @@
 """What the app shows about a Program's sync (M09 §4.1): the status line, its panel and the
 reminders. Read from the database only, so it answers at once while courses sync."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -10,8 +11,15 @@ from sqlalchemy import delete, func, select, update
 from semestra.core.context import Ctx
 from semestra.modules.academics import service as academics
 from semestra.modules.files import sources
+from semestra.modules.files.models import FilesItem
 from semestra.modules.lms import service, sync, sync_feedback
-from semestra.modules.lms.models import LmsCourseLink, LmsImportedRef, LmsMaterial, LmsSyncChange
+from semestra.modules.lms.models import (
+    LmsCourseLink,
+    LmsImportedRef,
+    LmsMaterial,
+    LmsSyncChange,
+    MaterialChange,
+)
 from semestra.modules.lms.schemas.sync import (
     SyncChange,
     SyncConflict,
@@ -227,24 +235,63 @@ async def status(ctx: Ctx, program_id: str) -> SyncStatus:
     )
 
 
-async def _materials(
-    ctx: Ctx, links: list[LmsCourseLink], label: Callable[[str], str]
-) -> tuple[list[SyncMaterialChange], list[SyncRemovedMaterial], int]:
-    """What the platform did lately to the courses' materials, and those the user deleted (the
-    newest `RECENT_MAX`, and how many) where the course's materials sync, so they can come back."""
+@dataclass(frozen=True)
+class MaterialNews:
+    """What the sync lately did to a course material (`LmsMaterial.change`), with the course
+    file it is now (none when it is gone, or the user deleted it since)."""
+
+    material: LmsMaterial
+    change: MaterialChange
+    course_id: str
+    item: FilesItem | None
+
+
+async def material_changes(
+    ctx: Ctx, links: Sequence[LmsCourseLink], since: datetime, limit: int | None = None
+) -> list[MaterialNews]:
+    """The materials of these linked courses the sync changed since then, newest first: the
+    sync panel's recent updates and the assistant's activity read this."""
     course_of = {li.id: li.course_id for li in links}
+    if not course_of:
+        return []
     changed = list(
         await ctx.db.scalars(
             select(LmsMaterial)
             .where(
                 LmsMaterial.user_id == ctx.user_id,
                 LmsMaterial.link_id.in_(list(course_of)),
-                LmsMaterial.changed_at >= ctx.now - CHANGES_KEPT,
+                LmsMaterial.change.is_not(None),
+                LmsMaterial.changed_at >= since,
             )
             .order_by(LmsMaterial.changed_at.desc())
-            .limit(RECENT_MAX)
+            .limit(limit)
         )
     )
+    items = {
+        r.id: r
+        for r in await sources.find_items(
+            ctx, [m.item_id for m in changed if m.item_id and m.change != "gone"]
+        )
+    }
+    return [
+        MaterialNews(
+            material=m,
+            change=m.change,
+            course_id=course_of[m.link_id],
+            item=items.get(m.item_id or "") if m.change != "gone" else None,
+        )
+        for m in changed
+        if m.change is not None
+    ]
+
+
+async def _materials(
+    ctx: Ctx, links: list[LmsCourseLink], label: Callable[[str], str]
+) -> tuple[list[SyncMaterialChange], list[SyncRemovedMaterial], int]:
+    """What the platform did lately to the courses' materials, and those the user deleted (the
+    newest `RECENT_MAX`, and how many) where the course's materials sync, so they can come back."""
+    course_of = {li.id: li.course_id for li in links}
+    changed = await material_changes(ctx, links, ctx.now - CHANGES_KEPT, RECENT_MAX)
     syncing = [li.id for li in links if (await material_settings(ctx, li.course_id)).sync]
     dismissed = (
         LmsMaterial.user_id == ctx.user_id,
@@ -258,26 +305,19 @@ async def _materials(
         .order_by(LmsMaterial.state_at.desc())
         .limit(RECENT_MAX)
     )
-    items = {
-        r.id: r
-        for r in await sources.find_items(
-            ctx, [m.item_id for m in changed if m.item_id and m.change != "gone"]
-        )
-    }
     folders = await sources.folder_names(
-        ctx, list({r.folder_id for r in items.values() if r.folder_id})
+        ctx, list({c.item.folder_id for c in changed if c.item and c.item.folder_id})
     )
     recent: list[SyncMaterialChange] = []
-    for m in changed:
-        row = items.get(m.item_id or "")
-        course_id = course_of[m.link_id]
+    for c in changed:
+        m, row, course_id = c.material, c.item, c.course_id
         recent.append(
             SyncMaterialChange(
                 id=m.id,
                 course_id=course_id,
                 course=label(course_id),
                 title=m.title or "",
-                change=m.change,  # pyright: ignore[reportArgumentType]
+                change=c.change,
                 at=m.changed_at or ctx.now,
                 item_id=row.id if row is not None else None,
                 folder_id=row.folder_id if row is not None else None,

@@ -6,6 +6,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 from semestra.modules.academics.schemas import Id
+from semestra.modules.lms.models import MaterialChange
 from semestra.modules.lms.settings import SyncInterval
 
 
@@ -99,7 +100,7 @@ class SyncMaterialChange(BaseModel):
     course_id: str
     course: str
     title: str = Field(description="Its name on the platform")
-    change: Literal["added", "duplicate", "updated", "gone", "handed_over"] = Field(
+    change: MaterialChange = Field(
         description="added: new in the course's files; duplicate: new, with the name and size "
         "of a file the user had put in the course already; updated: its contents changed; gone: "
         "deleted on the platform, so removed here (it was read online); handed_over: deleted on "

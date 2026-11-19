@@ -21,6 +21,7 @@ from semestra.core.config import Settings
 from semestra.core.jobs import BACKGROUND, CoreJob
 from semestra.modules.files.models import FilesItem
 from semestra.modules.files.tests.conftest import FakeAi, make_pdf
+from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.schemas.dto import FileMeta, InternalRef, Module, ModuleItem, PageSummary
 from semestra.modules.lms.tests.conftest import Api, FakeProvider
 from semestra.modules.lms.tests.test_lms import setup_program
@@ -348,6 +349,11 @@ async def test_turning_materials_off_and_unlinking(api: Api, fake: FakeProvider,
     # without files leaves it out, as any file of theirs).
     kept = items["Lecture 1.pdf"]
     assert (kept["stored"], kept["follows_source"], kept["source_ref"]) == (True, False, None)
+    # So saving it in Semestra (or not) means nothing for it any more, and is refused before
+    # Sem's card would offer it.
+    for action in ("keep-copy", "drop-copy"):
+        r = await api.client.post(f"/files/{kept['id']}:{action}")
+        assert (r.status_code, r.json()["error"]["code"]) == (409, "files.not_from_source")
 
 
 async def test_following_the_platform(api: Api, fake: FakeProvider, clock: Clock):
@@ -401,6 +407,23 @@ async def test_following_the_platform(api: Api, fake: FakeProvider, clock: Clock
     assert (rubric["unseen"], items["Lecture 1 - Intro.pdf"]["unseen"]) == (True, False)
     seen = await api.call("POST", f"/files/{rubric['id']}:seen")
     assert seen["unseen"] is False
+    # Sem reads the same news among the course's activity, with the course file to read, also
+    # while the platform can't be reached.
+
+    async def unreachable(*_: Any, **__: Any) -> Any:
+        raise lms_error("lms.unreachable")
+
+    assignments, fake.assignments = fake.assignments, unreachable  # type: ignore[method-assign]
+    params = {"course_id": course, "since": "2026-01-01T00:00:00", "refresh": True}
+    activity = await api.call("GET", "/me/lms/activity", params=params)
+    news = {i["title"]: i for i in activity["items"] if i["kind"] == "material"}
+    assert {t: (i["change"], i["item_id"], i["ref"]) for t, i in news.items()} == {
+        "Midterm 2025.pdf": ("gone", None, None),
+        "Rubric.pdf": ("added", rubric["id"], "file:208"),
+        "Course syllabus": ("updated", items["Course syllabus"]["id"], "page:syllabus"),
+    }
+    assert [s["reason"] for s in activity["skipped"]] == ["lms.unreachable"]
+    fake.assignments = assignments  # type: ignore[method-assign]
 
     # Back on the platform: back in the files.
     files.append(_file("203", "Midterm 2025.pdf", "Exams"))

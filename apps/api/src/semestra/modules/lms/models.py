@@ -211,7 +211,7 @@ class LmsMaterial(Base, OwnedMixin):
     imported_at: Mapped[datetime | None] = mapped_column(default=None)
     # What the platform last did to it, for the status panel's recent updates (`CHANGES_KEPT`);
     # none for what came in before the course settled (`materials_settled_at`).
-    change: Mapped[str | None] = mapped_column(String, default=None)
+    change: Mapped[MaterialChange | None] = mapped_column(String, default=None)
     changed_at: Mapped[datetime | None] = mapped_column(default=None, index=True)
 
 
