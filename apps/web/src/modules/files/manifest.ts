@@ -7,8 +7,6 @@ import {
   type QueryMatch,
 } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
-import { useOrganizeLine } from './organize-line'
-import { PROCESSING_LINE, useProcessingLine } from './processing-line'
 import { organizeLink } from './organizing'
 import { prefetchFilesPage } from './queries'
 
@@ -165,8 +163,16 @@ export default defineModule({
     { kind: 'files.organize', title: m.files_job_organize, to: (job) => organizeLink(job.result) },
   ],
   statusItems: [
-    { id: PROCESSING_LINE, order: 30, useStatus: useProcessingLine },
-    { id: 'files.organize', order: 35, useStatus: useOrganizeLine },
+    {
+      id: 'files.processing',
+      order: 30,
+      load: () => import('./processing-line').then((line) => line.useProcessingLine),
+    },
+    {
+      id: 'files.organize',
+      order: 35,
+      load: () => import('./organize-line').then((line) => line.useOrganizeLine),
+    },
   ],
   uiPrefPrefixes: ['files.'],
   realtimeInvalidations: INVALIDATIONS,

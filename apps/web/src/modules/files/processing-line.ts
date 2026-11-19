@@ -9,9 +9,6 @@ import { jobIsWaiting } from '@/hooks/use-job'
 import { useNow } from '@/hooks/use-now'
 import { m } from '@/paraglide/messages'
 
-/** The id of the line, for `openStatusPanel`. */
-export const PROCESSING_LINE = 'files.processing'
-
 /** How long the line says "done" after the last file ended well. */
 export const DONE_VISIBLE_MS = 15_000
 

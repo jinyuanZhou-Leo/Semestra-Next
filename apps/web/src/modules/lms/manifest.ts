@@ -60,7 +60,7 @@ import { canvasUi } from './providers/canvas'
 import { LMS_KEPT_QUERIES, LMS_QUERIES, LMS_STATE_QUERIES, settingsPrefetch } from './queries'
 import { LMS_PROVIDER_UI } from './types'
 import { hiddenExcept } from '@/modules/notifications/categories'
-import { SYNC_LINE, hasSyncLine, syncStatusOptions, useSyncLine } from './sync/status'
+import { SYNC_LINE, hasSyncLine, syncStatusOptions } from './sync/status'
 import { SyncOnOpen } from './sync/SyncOnOpen'
 import { FollowButton } from './sync/FollowButton'
 import { FIELD_ORIGINS, type FieldOrigin } from '@/components/FieldOrigins'
@@ -180,7 +180,13 @@ export default defineModule({
     },
   ],
   searchProviders: [announcementSearch],
-  statusItems: [{ id: SYNC_LINE, order: 40, useStatus: useSyncLine }],
+  statusItems: [
+    {
+      id: SYNC_LINE,
+      order: 40,
+      load: () => import('./sync/line').then((line) => line.useSyncLine),
+    },
+  ],
   commands: [
     {
       id: 'lms.sync',

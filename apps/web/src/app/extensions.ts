@@ -462,13 +462,17 @@ export type StatusRank = 'error' | 'attention' | 'running' | 'timer' | 'idle'
 
 /**
  * Rendered at the bottom of the sidebar by the host (M10): a running timer, a background or AI
- * task, a sync's state. Not for notifications. `useStatus` is a hook; returning null hides the
- * line. `order` breaks ties between lines of the same rank.
+ * task, a sync's state. Not for notifications. `order` breaks ties between lines of the same rank.
  */
 export type StatusItemContribution = {
   id: string
   order: number
-  useStatus: () => StatusItem | null
+  /**
+   * Loads the line's hook, e.g. `() => import('./status-line').then((m) => m.useImportLine)`;
+   * the hook returning null hides the line. The signed-in shell loads it, so the hook, its texts
+   * and icons stay out of the sign-in page.
+   */
+  load: () => Promise<() => StatusItem | null>
 }
 
 /**

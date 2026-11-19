@@ -1,7 +1,6 @@
 import { Timer } from 'lucide-react'
 import { defineModule, preloadable } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
-import { usePomodoroStatus } from './status'
 
 /** M14 §3 番茄钟: one timer card plus a status line while a timer runs. */
 export default defineModule({
@@ -23,6 +22,12 @@ export default defineModule({
       multiple: false,
     },
   ],
-  statusItems: [{ id: 'pomodoro.running', order: 50, useStatus: usePomodoroStatus }],
+  statusItems: [
+    {
+      id: 'pomodoro.running',
+      order: 50,
+      load: () => import('./status').then((line) => line.usePomodoroStatus),
+    },
+  ],
   uiPrefPrefixes: ['pomodoro.'],
 })
