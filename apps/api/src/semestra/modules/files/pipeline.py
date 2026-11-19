@@ -81,8 +81,8 @@ class _Work:
     storage_key: str | None
     source_ref: str | None
     original_name: str | None
-    # The item's version this run reads (`sha256`); None for a job queued before versions were
-    # kept.
+    # The item's version this run reads (`content.version`); None for a job queued before
+    # versions were kept.
     version: str | None
     document_id: str = field(default_factory=new_id)
     thumbnail_keys: list[str] = field(default_factory=lambda: [])
@@ -103,7 +103,7 @@ async def _begin(ctx: JobCtx, item_id: str, version: str | None) -> _Work | None
         item = await db.get(FilesItem, item_id)
         if item is None or item.user_id != ctx.user_id or not content.has_content(item):
             return None
-        if version is not None and item.sha256 != version:
+        if version is not None and content.version(item) != version:
             return None
         stale = list(
             (
@@ -162,7 +162,7 @@ async def mark_failed(ctx: Ctx, item_id: str, job: CoreJob) -> None:
     queued_again = await ctx.db.scalar(
         select(CoreJob.id).where(
             CoreJob.user_id == item.user_id,
-            CoreJob.dedupe_key == f"{item.id}:{item.sha256}",
+            CoreJob.dedupe_key == service.process_key(item),
             CoreJob.status.in_(("pending", "running")),
         )
     )
@@ -539,7 +539,9 @@ async def _activate(
     async with ctx.state.session_factory() as db:
         item = await db.get(FilesItem, work.item_id)
         document = await db.get(FilesDocument, work.document_id)
-        stale = item is not None and work.version is not None and item.sha256 != work.version
+        stale = (
+            item is not None and work.version is not None and content.version(item) != work.version
+        )
         if item is None or document is None or stale:  # deleted or changed while processing
             keys += await indexing.delete_documents(db, store, [work.document_id])
             await db.commit()

@@ -224,17 +224,19 @@ async def stage(
     too_large: AppError,
     quota: bool = True,
     reserved: int = 0,
+    replaces: int = 0,
     keep: bool = False,
     content_type: str = "application/octet-stream",
 ) -> Staged:
     """Streams an upload into storage under `key`, refused with `too_large` above `cap` bytes,
     or with `common.quota_exceeded` above the quota left when `quota` is set (`reserved`: bytes
-    this request already staged). Writes nothing to the database; the caller inserts its row
-    with `discard_on_error` and then calls `charge`."""
+    this request already staged; `replaces`: bytes of a stored object these will replace).
+    Writes nothing to the database; the caller inserts its row with `discard_on_error` and then
+    calls `charge`."""
     current = await usage(ctx) if quota else None
     budget = None
     if current is not None and current.quota_bytes > 0:
-        budget = max(0, current.quota_bytes - current.used_bytes - reserved)
+        budget = max(0, current.quota_bytes - current.used_bytes - reserved + replaces)
         if budget == 0:
             raise _quota_error(current)
     limit = cap if budget is None else min(cap, budget)

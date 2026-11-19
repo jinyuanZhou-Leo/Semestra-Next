@@ -2682,6 +2682,28 @@ export type ContextUsage = {
 };
 
 /**
+ * CopyOut
+ *
+ * Where a file that follows its source is kept (`sources.py`): read from the source, a
+ * copy being stored, saved here, saved but older than the source's (its new version being
+ * stored, or `error_code` says why not), or wanted here but not stored (`error_code`).
+ */
+export type CopyOut = {
+    /**
+     * State
+     */
+    state: 'online' | 'saving' | 'saved' | 'outdated' | 'failed';
+    /**
+     * Error Code
+     */
+    error_code?: string | null;
+    /**
+     * Saved Version At
+     */
+    saved_version_at?: string | null;
+};
+
+/**
  * Course
  */
 export type Course = {
@@ -6056,6 +6078,10 @@ export type ItemOut = {
      * Follows Source
      */
     follows_source: boolean;
+    /**
+     * For a file that follows its source: where it is kept; null otherwise
+     */
+    local_copy: CopyOut | null;
     /**
      * Pinned
      */

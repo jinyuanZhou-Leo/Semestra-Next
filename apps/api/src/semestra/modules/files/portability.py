@@ -38,14 +38,33 @@ def _current(payload: dict[str, Any]) -> dict[str, Any]:
     now (`source_folders`), and the folders themselves come as any folder. Read as such at the
     same version (owner 2026-11-18: the backup versions stay)."""
     items = [
-        {**{k: v for k, v in raw.items() if k != "kept_offline"}, "keep_copy": True}
+        _two_sides({**{k: v for k, v in raw.items() if k != "kept_offline"}, "keep_copy": True})
         if raw.get("kept_offline")
-        else {k: v for k, v in raw.items() if k != "kept_offline"}
+        else _two_sides({k: v for k, v in raw.items() if k != "kept_offline"})
         for raw in payload.get("items") or []
         if isinstance(raw, dict)
     ]
     payload = {k: v for k, v in payload.items() if k != "type_folders"}
     return {**payload, "items": items}
+
+
+def _two_sides(raw: dict[str, Any]) -> dict[str, Any]:
+    """Backups up to 2.1 kept a followed file's source version in `sha256`, and the source's type
+    and size only while its copy was older: read as the source's side and the copy's, as
+    migration 0062 does (the copy's hash is taken again when it is handed over)."""
+    if not raw.get("source_ref") or "source_version" in raw or raw.get("kind") != "file":
+        return raw
+    source = {
+        "source_version": raw.get("sha256"),
+        "source_mime": raw.get("source_mime") or raw.get("mime_type"),
+        "source_size": raw.get("source_size")
+        if raw.get("source_size") is not None
+        else raw.get("size_bytes"),
+        "sha256": None,
+    }
+    if raw.get("copy_version") is not None and raw.get("copy_version") == raw.get("sha256"):
+        source["copy_modified_at"] = raw.get("source_modified_at")
+    return {**raw, **source}
 
 
 class FilesAdapter(TableAdapter):
@@ -118,7 +137,7 @@ class FilesAdapter(TableAdapter):
             row.size_bytes = size
             row.storage_key = key
             if content.follows_source(row) and row.copy_version is None:
-                row.copy_version = row.sha256  # a backup from before copies had versions
+                row.copy_version = row.source_version  # a backup from before copies had versions
             if row.doc_status != "unsupported":
                 await service.request_read(ctx, row, "restore")
         await ctx.db.flush()

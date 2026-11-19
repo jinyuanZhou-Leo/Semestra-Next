@@ -53,6 +53,7 @@ async def save_to_course(ctx: Ctx, inp: FileSaveInput) -> SavedFile:
         source_name=b.provider.display_name,
         keep_copy=True,
         modified_at=meta.content_at or meta.updated_at,
+        version=file_version(meta),
     )
     if mat is None:
         mat = LmsMaterial(

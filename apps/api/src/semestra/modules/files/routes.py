@@ -131,7 +131,7 @@ async def content(
             shown, entries.download_name(item.display_name, mime)
         ),
         "Accept-Ranges": "bytes",
-        "ETag": f'"{item.copy_version if item.storage_key and item.copy_version else item.sha256}"',
+        "ETag": f'"{files_content.version(item)}"',
         "Cache-Control": "private, no-cache",
         "X-Content-Type-Options": "nosniff",
         "Cross-Origin-Resource-Policy": "same-site",

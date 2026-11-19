@@ -35,6 +35,20 @@ class FolderOut(BaseModel):
     updated_at: datetime
 
 
+CopyState = Literal["online", "saving", "saved", "outdated", "failed"]
+
+
+class CopyOut(BaseModel):
+    """Where a file that follows its source is kept (`sources.py`): read from the source, a
+    copy being stored, saved here, saved but older than the source's (its new version being
+    stored, or `error_code` says why not), or wanted here but not stored (`error_code`)."""
+
+    state: CopyState
+    error_code: str | None = None
+    # When the source changed the version the copy holds; null while unknown.
+    saved_version_at: datetime | None = None
+
+
 class ItemOut(BaseModel):
     id: str
     course_id: str
@@ -51,6 +65,9 @@ class ItemOut(BaseModel):
     # Kept in step with its source (`content.py`): read from it or with a local copy (`stored`),
     # updated and removed with it. False for the user's own files.
     follows_source: bool
+    local_copy: CopyOut | None = Field(
+        description="For a file that follows its source: where it is kept; null otherwise",
+    )
     pinned: bool
     source_kind: SourceKind | None
     source_ref: str | None

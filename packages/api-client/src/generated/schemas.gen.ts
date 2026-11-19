@@ -4618,6 +4618,51 @@ export const ContextUsageSchema = {
     title: 'ContextUsage'
 } as const;
 
+export const CopyOutSchema = {
+    properties: {
+        state: {
+            type: 'string',
+            enum: [
+                'online',
+                'saving',
+                'saved',
+                'outdated',
+                'failed'
+            ],
+            title: 'State'
+        },
+        error_code: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Error Code'
+        },
+        saved_version_at: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date-time'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Saved Version At'
+        }
+    },
+    type: 'object',
+    required: [
+        'state'
+    ],
+    title: 'CopyOut',
+    description: 'Where a file that follows its source is kept (`sources.py`): read from the source, a\ncopy being stored, saved here, saved but older than the source\'s (its new version being\nstored, or `error_code` says why not), or wanted here but not stored (`error_code`).'
+} as const;
+
 export const CourseSchema = {
     properties: {
         id: {
@@ -10577,6 +10622,17 @@ export const ItemOutSchema = {
             type: 'boolean',
             title: 'Follows Source'
         },
+        local_copy: {
+            anyOf: [
+                {
+                    $ref: '#/components/schemas/CopyOut'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            description: 'For a file that follows its source: where it is kept; null otherwise'
+        },
         pinned: {
             type: 'boolean',
             title: 'Pinned'
@@ -10705,6 +10761,7 @@ export const ItemOutSchema = {
         'url',
         'stored',
         'follows_source',
+        'local_copy',
         'pinned',
         'source_kind',
         'source_ref',

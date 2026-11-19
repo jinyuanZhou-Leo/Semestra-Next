@@ -8,6 +8,7 @@ takes no storage quota; its text, page images and search index are kept here lik
 A source registers once per `source_ref` prefix (`register_content_source("lms:", open)`).
 """
 
+import hashlib
 from collections.abc import AsyncIterator, Awaitable, Callable
 
 from sqlalchemy import select
@@ -45,6 +46,20 @@ def follows_source(row: FilesItem) -> bool:
     """A file its source keeps in step (updates, removes), with a local copy or not: not one
     handed to the user (`sources.detach_from_source`)."""
     return row.kind == "file" and _source(row) is not None
+
+
+def version_hash(version: str) -> str:
+    """A source's version string as stored (`FilesItem.source_version`)."""
+    return hashlib.sha256(version.encode()).hexdigest()
+
+
+def version(row: FilesItem) -> str | None:
+    """The version of the bytes the item opens as, which its text is read for: for a file
+    following its source, the source version its copy holds or (stored nowhere) the source's
+    current one; for any other, the hash of its bytes."""
+    if follows_source(row):
+        return row.copy_version if row.storage_key else row.source_version
+    return row.sha256
 
 
 def has_content(row: FilesItem) -> bool:

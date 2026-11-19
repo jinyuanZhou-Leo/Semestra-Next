@@ -61,25 +61,30 @@ class FilesItem(Base, OwnedMixin, TimestampMixin):
     kind: Mapped[str] = mapped_column(String)  # 'file' | 'link'
     display_name: Mapped[str] = mapped_column(String)
     original_name: Mapped[str | None] = mapped_column(String, default=None)
+    # The file as it opens: its stored bytes', or (stored nowhere) its source's.
     mime_type: Mapped[str | None] = mapped_column(String, default=None)
     size_bytes: Mapped[int] = mapped_column(Integer, default=0)
+    # The hash of the stored bytes; None when nothing is stored (or not known yet).
     sha256: Mapped[str | None] = mapped_column(String, default=None)
     storage_key: Mapped[str | None] = mapped_column(String, default=None)
     url: Mapped[str | None] = mapped_column(String, default=None)
     pinned: Mapped[bool] = mapped_column(Boolean, default=False)
     source_kind: Mapped[str | None] = mapped_column(String, default=None)  # upload|lms|agent
     source_ref: Mapped[str | None] = mapped_column(String, default=None)
-    # A file kept in step with its source (`sources.py`): the user's choice of a local copy for
-    # this file (True keep one, False read it from the source); None: the source's setting for
-    # its course decides.
-    keep_copy: Mapped[bool | None] = mapped_column(Boolean, default=None)
-    # The source version (`sha256`) the local copy holds: an older one while the new bytes are
-    # being fetched, read until they replace it (`sources.update_remote_file`).
-    copy_version: Mapped[str | None] = mapped_column(String(64), default=None)
-    # The type and size of the source's newer version while the local copy holds an older one
-    # (`mime_type` and `size_bytes` are the copy's until the new bytes replace it).
+    # A file kept in step with its source (`sources.py`) has two sides, each written only by the
+    # functions there. The source's: its current version (a hash of the source's version
+    # string), type and size. The local copy's (`storage_key`, `sha256`): the source version it
+    # holds (an older one while the new bytes are being fetched), when the source changed that
+    # version, and why the last attempt to store a copy failed.
+    source_version: Mapped[str | None] = mapped_column(String(64), default=None)
     source_mime: Mapped[str | None] = mapped_column(String, default=None)
     source_size: Mapped[int | None] = mapped_column(Integer, default=None)
+    copy_version: Mapped[str | None] = mapped_column(String(64), default=None)
+    copy_modified_at: Mapped[datetime | None] = mapped_column(UTCDateTime, default=None)
+    copy_error_code: Mapped[str | None] = mapped_column(String, default=None)
+    # The user's choice of a local copy for this file (True keep one, False read it from the
+    # source); None: the source's setting for its course decides.
+    keep_copy: Mapped[bool | None] = mapped_column(Boolean, default=None)
     # The source's name for itself ("Canvas"), shown with the file while it follows the source.
     source_name: Mapped[str | None] = mapped_column(String, default=None)
     # When the source last changed the contents (its time, not when the sync saw it).

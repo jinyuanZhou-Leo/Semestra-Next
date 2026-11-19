@@ -27,7 +27,8 @@ PROCESS_STAGES = [
 
 class ProcessPayload(BaseModel):
     item_id: str
-    # The item's version (`sha256`) it was queued for: a newer one makes its result stale.
+    # The item's version (`content.version`) it was queued for: a newer one makes its result
+    # stale.
     # None in jobs queued before versions were kept.
     version: str | None = None
 

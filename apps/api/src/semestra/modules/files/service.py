@@ -19,7 +19,7 @@ from semestra.modules.academics import service as academics
 from semestra.modules.files import content, indexing
 from semestra.modules.files.models import FilesDocument, FilesFolder, FilesIndexState, FilesItem
 from semestra.modules.files.parse.detect import DOCX, PPTX, XLSX
-from semestra.modules.files.schemas import FileType, ItemOut, ItemRef
+from semestra.modules.files.schemas import CopyOut, FileType, ItemOut, ItemRef
 from semestra.modules.files.vectors import get_vector_store
 
 PARSEABLE = frozenset({"pdf", "docx", "pptx", "xlsx", "csv", "text", "markdown", "html", "image"})
@@ -105,11 +105,7 @@ async def item_outs(ctx: Ctx, rows: Sequence[FilesItem]) -> list[ItemOut]:
         if doc_ids
         else {}
     )
-    keys = {
-        f"{r.id}:{r.sha256}": r.id
-        for r in rows
-        if r.doc_status in ("pending", "processing") and r.sha256
-    }
+    keys = {process_key(r): r.id for r in rows if r.doc_status in ("pending", "processing")}
     jobs: dict[str, str] = {}
     if keys:
         for key, job_id in (
@@ -124,6 +120,7 @@ async def item_outs(ctx: Ctx, rows: Sequence[FilesItem]) -> list[ItemOut]:
         ).all():
             if key is not None:
                 jobs[keys[key]] = job_id
+    saving = await _saving(ctx, [r.id for r in rows if content.follows_source(r)])
     out: list[ItemOut] = []
     for r in rows:
         doc = docs.get(r.active_document_id or "")
@@ -141,6 +138,7 @@ async def item_outs(ctx: Ctx, rows: Sequence[FilesItem]) -> list[ItemOut]:
                 url=r.url,
                 stored=bool(r.storage_key),
                 follows_source=content.follows_source(r),
+                local_copy=_copy_out(r, r.id in saving),
                 pinned=r.pinned,
                 source_kind=r.source_kind,  # pyright: ignore[reportArgumentType]
                 source_ref=r.source_ref,
@@ -153,10 +151,47 @@ async def item_outs(ctx: Ctx, rows: Sequence[FilesItem]) -> list[ItemOut]:
                 job_id=jobs.get(r.id),
                 created_at=r.created_at,
                 updated_at=r.updated_at,
-                modified_at=r.source_modified_at or r.updated_at,
+                modified_at=(r.copy_modified_at if r.storage_key else None)
+                or r.source_modified_at
+                or r.updated_at,
             )
         )
     return out
+
+
+STORE_KINDS = ("files.store_copy", "files.store_synced_copies")
+
+
+async def _saving(ctx: Ctx, item_ids: Sequence[str]) -> set[str]:
+    """Which of these items a copy job is storing or about to store."""
+    if not item_ids:
+        return set()
+    wanted, found = set(item_ids), set[str]()
+    for payload in await ctx.db.scalars(
+        select(CoreJob.payload).where(
+            CoreJob.user_id == ctx.user_id,
+            CoreJob.kind.in_(STORE_KINDS),
+            CoreJob.status.in_(("pending", "running")),
+        )
+    ):
+        found.update(str(i) for i in payload.get("item_ids") or [] if str(i) in wanted)
+    return found
+
+
+def _copy_out(row: FilesItem, saving: bool) -> CopyOut | None:
+    if not content.follows_source(row):
+        return None
+    if not row.storage_key:
+        state = "saving" if saving else "failed" if row.copy_error_code else "online"
+    elif row.copy_version != row.source_version:
+        state = "outdated"
+    else:
+        state = "saved"
+    return CopyOut(
+        state=state,
+        error_code=row.copy_error_code if state in ("failed", "outdated") else None,
+        saved_version_at=row.copy_modified_at if row.storage_key else None,
+    )
 
 
 async def item_out(ctx: Ctx, row: FilesItem) -> ItemOut:
@@ -184,6 +219,12 @@ def refuse_none(fields: list[str]) -> None:
 
 
 PROCESS_KINDS = ("files.process", "files.process_synced")
+
+
+def process_key(row: FilesItem) -> str:
+    """The processing jobs' dedupe key: one read per item and version (`content.version`)."""
+    return f"{row.id}:{content.version(row)}"
+
 
 # Who asks for a file to be read: the user (reprocess, retry), its upload, the source that keeps
 # it in step (new, changed, new bytes stored, retried after the source failed), or a backup
@@ -217,7 +258,7 @@ async def request_read(ctx: Ctx, row: FilesItem, by: Reader) -> None:
     row.doc_status = "pending"
     synced = by == "source" or (by == "restore" and content.follows_source(row))
     kind = PROCESS_KINDS[1] if synced else PROCESS_KINDS[0]
-    key = f"{row.id}:{row.sha256}"
+    key = process_key(row)
     stale = [
         job.id
         for job in await ctx.db.scalars(
@@ -232,7 +273,7 @@ async def request_read(ctx: Ctx, row: FilesItem, by: Reader) -> None:
     ]
     await withdraw(ctx, stale)
     await ctx.db.flush()
-    payload = ProcessPayload(item_id=row.id, version=row.sha256)
+    payload = ProcessPayload(item_id=row.id, version=content.version(row))
     await enqueue(ctx, kind, payload, dedupe_key=key, again=True)
 
 
