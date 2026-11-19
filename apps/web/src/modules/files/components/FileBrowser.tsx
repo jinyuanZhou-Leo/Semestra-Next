@@ -2,7 +2,6 @@ import type { FilesItemList, FolderOut, ItemOut } from '@semestra/api-client'
 import {
   filesItemDropCopyMutation,
   filesItemKeepCopyMutation,
-  filesItemMakeOwnMutation,
   filesItemReprocessMutation,
   filesItemUpdateMutation,
 } from '@semestra/api-client/react-query'
@@ -24,12 +23,10 @@ import {
   Cloud,
   FolderSync,
   Download,
-  FileOutput,
   FileSearch,
   Folder,
   FolderInput,
   HardDrive,
-  HardDriveDownload,
   LayoutGrid,
   List,
   MoreHorizontal,
@@ -51,6 +48,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuGroup,
+  DropdownMenuCheckboxItem,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
@@ -195,7 +193,9 @@ function FolderOrigin({ folder }: { folder: FolderOut }) {
 function Origin({ item }: { item: ItemOut }) {
   if (!item.follows_source || !item.source_name) return null
   const Icon = item.stored ? HardDrive : Cloud
-  const kept = item.stored ? m.files_origin_stored() : m.files_origin_online()
+  const kept = item.stored
+    ? m.files_origin_stored()
+    : m.files_origin_online({ source: item.source_name })
   return (
     <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
       <Tooltip>
@@ -347,9 +347,9 @@ export function ItemMenu({ item }: { item: ItemOut }) {
 }
 
 /**
- * A file that follows its source (an LMS file) is read from it when opened or keeps a local copy;
- * either way it keeps following. Saving it as the user's own file is the one way to stop that.
- * Each fetches what it needs in a job the status bar shows, failing there with the reason.
+ * A file that follows its source (an LMS file) is read from it when opened, or saved here so it
+ * still opens once the source is gone; either way it keeps following. Saving fetches the file in
+ * a job the status bar shows, failing there with the reason.
  */
 function CopyItems({ item, source }: { item: ItemOut; source: string }) {
   const queryClient = useQueryClient()
@@ -359,31 +359,23 @@ function CopyItems({ item, source }: { item: ItemOut; source: string }) {
   }
   const keep = useMutation({ ...filesItemKeepCopyMutation(), ...options })
   const drop = useMutation({ ...filesItemDropCopyMutation(), ...options })
-  const own = useMutation({ ...filesItemMakeOwnMutation(), ...options })
   const path = { item_id: item.id }
   return (
     <>
       <DropdownMenuSeparator />
-      {item.stored ? (
-        <DropdownMenuItem onClick={() => drop.mutate({ path })}>
-          <Cloud aria-hidden />
-          {m.files_read_online()}
-        </DropdownMenuItem>
-      ) : (
-        <DropdownMenuItem onClick={() => keep.mutate({ path })}>
-          <HardDriveDownload aria-hidden />
-          {m.files_store_here()}
-        </DropdownMenuItem>
-      )}
-      <DropdownMenuItem onClick={() => own.mutate({ path })}>
-        <FileOutput aria-hidden />
+      <DropdownMenuCheckboxItem
+        checked={item.stored}
+        closeOnClick
+        onCheckedChange={(saved) => (saved ? keep : drop).mutate({ path })}
+      >
+        <HardDrive aria-hidden />
         <span className="min-w-0">
-          <span className="block">{m.files_make_mine()}</span>
+          <span className="block">{m.files_save_here()}</span>
           <span className="block text-xs text-muted-foreground">
-            {m.files_make_mine_hint({ source })}
+            {m.files_save_here_hint({ source })}
           </span>
         </span>
-      </DropdownMenuItem>
+      </DropdownMenuCheckboxItem>
     </>
   )
 }

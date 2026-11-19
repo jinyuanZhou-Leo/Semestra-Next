@@ -7394,7 +7394,7 @@
           "files"
         ],
         "summary": "Keep a local copy of a file that follows its source.",
-        "description": "Stores a file that follows the LMS here (in the background when it is read\nfrom the LMS), whatever the course's setting, so it still opens after the course closes there. It\nstill follows the LMS (updated, and saved as the user's own file if deleted there). It takes\nstorage quota; one too large or beyond the quota left is refused.",
+        "description": "Stores a file that follows the LMS here (in the background when it is read\nfrom the LMS), whatever the course's setting, so it still opens after the course closes there. It\nstill follows the LMS (updated, and kept as the user's own file if deleted there). It takes\nstorage quota; one too large or beyond the quota left is refused.",
         "operationId": "filesItemKeepCopy",
         "security": [
           {
@@ -7477,59 +7477,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PinnedFiles"
-                }
-              }
-            }
-          },
-          "default": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Default Response"
-          }
-        }
-      }
-    },
-    "/files/{item_id}:make-own": {
-      "post": {
-        "tags": [
-          "files"
-        ],
-        "summary": "Make a file that follows its source the user's own.",
-        "description": "It is no longer updated or removed by the LMS. A file read from the LMS is\nstored here first, in the background (it fails, and stays as it was, when the LMS can't be\nreached); it takes storage quota.",
-        "operationId": "filesItemMakeOwn",
-        "security": [
-          {
-            "sessionCookie": []
-          },
-          {
-            "accessToken": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "item_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "File or link id, from files.item.list",
-              "title": "Item Id"
-            },
-            "description": "File or link id, from files.item.list"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ItemOut"
                 }
               }
             }
@@ -13611,7 +13558,7 @@
         "tags": [
           "lms"
         ],
-        "summary": "Keep a local copy of a file of a linked course on the LMS (Canvas) in the course's files.",
+        "summary": "Save a file of a linked course on the LMS (Canvas) in Semestra (the course's files).",
         "description": "Takes its ref (`file:<id>`) from lms.content.search or lms.course.outline.\nOnly when the user asks to keep a copy, so it opens after the course closes on the LMS: the\ncourse files usually have the file already, and reading it does not need a copy. A file the\ncourse files have keeps its copy in place; one they don't have is added with a copy.",
         "operationId": "lmsFileSaveToCourse",
         "security": [

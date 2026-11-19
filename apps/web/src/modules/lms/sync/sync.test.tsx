@@ -221,7 +221,7 @@ test('materials the platform changed open from the panel; ones the user removed 
   expect(added).toHaveAttribute('href', '/p/p1/c/c1/files?folder=f1&file=item-m1')
   expect(within(added).getByText('Lecture slides')).toBeInTheDocument() // where it is now
   expect(screen.getByRole('link', { name: /^Rubric\.pdf/ })).toBeInTheDocument()
-  expect(screen.getByText('Deleted on Canvas; saved as your own file')).toBeInTheDocument()
+  expect(screen.getByText('Deleted on Canvas; your saved file stays')).toBeInTheDocument()
   // One gone with the platform has nothing to open.
   expect(screen.queryByRole('link', { name: /^Midterm\.pdf/ })).not.toBeInTheDocument()
   expect(screen.getByText('Deleted on Canvas')).toBeInTheDocument()
