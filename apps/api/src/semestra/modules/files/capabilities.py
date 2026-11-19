@@ -75,6 +75,8 @@ agent_hints(
         "recursive=true to delete them all.",
         "files.not_indexed": "Indexing was off when this file was added, so it has no text to "
         "read or search. Tell the user they can index it from the file's menu.",
+        "files.not_from_source": "This file is the user's own (not a course material that "
+        "follows the LMS), so it is stored in Semestra already; nothing to save or unsave.",
         "files.source_unreachable": "The LMS cannot give the file now (the course may be closed "
         "there), so its saved copy is the only one left and stays. Tell the user.",
         "files.not_ready": "The file is still being processed (or failed, see doc_status). Try "
@@ -280,9 +282,12 @@ async def reprocess(ctx: Ctx, inp: ItemRef) -> ItemOut:
 background when it is read from the LMS), whatever the course's setting, so it still opens after
 it is deleted there or the course closes. It still follows the LMS (updated, and kept as the
 user's own file if deleted there). Only when the user asks to keep it; reading never needs it. It
-takes storage quota; one too large or beyond the quota left is refused.""",
+takes storage quota; one too large or beyond the quota left is refused. The choice holds at once,
+but `stored` stays false until the background job has saved the bytes: that is not a failure (a
+failed save shows in the app's status bar).""",
     effect="write",
     http=Http("POST", "/files/{item_id}:keep-copy"),
+    check=items.check_follows_source,
     tags=TAGS,
     agent_output_fields=("id", "display_name", "stored"),
 )
@@ -300,6 +305,7 @@ whatever the course's setting, and its storage is freed. Refused while the LMS c
 file (its saved copy is then the only one left).""",
     effect="write",
     http=Http("POST", "/files/{item_id}:drop-copy"),
+    check=items.check_follows_source,
     tags=TAGS,
     agent_output_fields=("id", "display_name", "stored"),
 )

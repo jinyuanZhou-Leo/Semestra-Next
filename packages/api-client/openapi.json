@@ -7400,7 +7400,7 @@
           "files"
         ],
         "summary": "Save a course material from the LMS in Semestra.",
-        "description": "For a file that follows the LMS (follows_source): stores it here (in the\nbackground when it is read from the LMS), whatever the course's setting, so it still opens after\nit is deleted there or the course closes. It still follows the LMS (updated, and kept as the\nuser's own file if deleted there). Only when the user asks to keep it; reading never needs it. It\ntakes storage quota; one too large or beyond the quota left is refused.",
+        "description": "For a file that follows the LMS (follows_source): stores it here (in the\nbackground when it is read from the LMS), whatever the course's setting, so it still opens after\nit is deleted there or the course closes. It still follows the LMS (updated, and kept as the\nuser's own file if deleted there). Only when the user asks to keep it; reading never needs it. It\ntakes storage quota; one too large or beyond the quota left is refused. The choice holds at once,\nbut `stored` stays false until the background job has saved the bytes: that is not a failure (a\nfailed save shows in the app's status bar).",
         "operationId": "filesItemKeepCopy",
         "security": [
           {

@@ -27,7 +27,15 @@ from semestra.modules.files import search as file_search
 from semestra.modules.files.models import FilesItem
 from semestra.modules.files.schemas import Citation, SearchInput
 from semestra.modules.grading import service as grading
-from semestra.modules.lms import announcements, files, reads, refs, service, sync_feedback
+from semestra.modules.lms import (
+    announcements,
+    files,
+    reads,
+    refs,
+    service,
+    sync_feedback,
+    sync_status,
+)
 from semestra.modules.lms import search as ranking
 from semestra.modules.lms.errors import BROKEN_ON_READ, lms_error
 from semestra.modules.lms.markdown import to_markdown
@@ -1037,42 +1045,22 @@ _ON_LMS = frozenset(("added", "duplicate", "updated"))  # still there to read
 async def _material_activity(
     ctx: Ctx, course_ids: list[str], labels: dict[str, str], since: datetime
 ) -> list[LmsActivityItem]:
-    """What the sync lately did to the courses' materials (`LmsMaterial.change`, as the sync
-    status lists it), with the course file each one is now."""
+    """What the sync lately did to the courses' materials, as the sync panel lists it."""
     links = [li for c in course_ids if (li := await service.link_row(ctx, c)) is not None]
-    course_of = {li.id: li.course_id for li in links}
-    if not course_of:
-        return []
-    changed = list(
-        await ctx.db.scalars(
-            select(LmsMaterial).where(
-                LmsMaterial.user_id == ctx.user_id,
-                LmsMaterial.link_id.in_(list(course_of)),
-                LmsMaterial.change.is_not(None),
-                LmsMaterial.changed_at >= since,
-            )
-        )
-    )
-    found = {
-        r.id
-        for r in await sources.find_items(
-            ctx, [m.item_id for m in changed if m.item_id and m.change != "gone"]
-        )
-    }
     out: list[LmsActivityItem] = []
-    for m in changed:
-        course_id = course_of[m.link_id]
+    for news in await sync_status.material_changes(ctx, links, since):
+        m = news.material
         kind = _MATERIAL_REFS.get(m.kind)
         out.append(
             LmsActivityItem(
-                course_id=course_id,
-                course=labels[course_id],
+                course_id=news.course_id,
+                course=labels[news.course_id],
                 kind="material",
-                ref=refs.make(kind, m.external_id) if kind and m.change in _ON_LMS else None,
+                ref=refs.make(kind, m.external_id) if kind and news.change in _ON_LMS else None,
                 title=m.title or m.name or "",
                 at=m.changed_at,
-                change=m.change,  # pyright: ignore[reportArgumentType]
-                item_id=m.item_id if m.item_id in found else None,
+                change=news.change,
+                item_id=news.item.id if news.item is not None else None,
             )
         )
     return out

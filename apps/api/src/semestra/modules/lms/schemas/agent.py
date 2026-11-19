@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field, model_validator
 
 from semestra.modules.academics.schemas import Id
 from semestra.modules.files.schemas import Citation
+from semestra.modules.lms.models import MaterialChange
 
 ContentKind = Literal[
     "page", "announcement", "assignment", "quiz", "discussion", "file", "syllabus", "link"
@@ -215,7 +216,6 @@ class LmsActivityInput(BaseModel):
 
 
 ActivityKind = Literal["announcement", "grade", "assignment", "material"]
-MaterialChange = Literal["added", "duplicate", "updated", "gone", "handed_over"]
 
 
 class LmsActivityItem(BaseModel):

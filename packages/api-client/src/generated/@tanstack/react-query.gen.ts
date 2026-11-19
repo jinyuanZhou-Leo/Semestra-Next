@@ -2831,7 +2831,9 @@ export const filesItemDropCopyMutation = (options?: Partial<Options<FilesItemDro
  * background when it is read from the LMS), whatever the course's setting, so it still opens after
  * it is deleted there or the course closes. It still follows the LMS (updated, and kept as the
  * user's own file if deleted there). Only when the user asks to keep it; reading never needs it. It
- * takes storage quota; one too large or beyond the quota left is refused.
+ * takes storage quota; one too large or beyond the quota left is refused. The choice holds at once,
+ * but `stored` stays false until the background job has saved the bytes: that is not a failure (a
+ * failed save shows in the app's status bar).
  */
 export const filesItemKeepCopyMutation = (options?: Partial<Options<FilesItemKeepCopyData>>): UseMutationOptions<FilesItemKeepCopyResponse, FilesItemKeepCopyError, Options<FilesItemKeepCopyData>> => {
     const mutationOptions: UseMutationOptions<FilesItemKeepCopyResponse, FilesItemKeepCopyError, Options<FilesItemKeepCopyData>> = {

@@ -271,6 +271,11 @@ async def test_turning_materials_off_and_unlinking(api: Api, fake: FakeProvider,
     # without files leaves it out, as any file of theirs).
     kept = items["Lecture 1.pdf"]
     assert (kept["stored"], kept["follows_source"], kept["source_ref"]) == (True, False, None)
+    # So saving it in Semestra (or not) means nothing for it any more, and is refused before
+    # Sem's card would offer it.
+    for action in ("keep-copy", "drop-copy"):
+        r = await api.client.post(f"/files/{kept['id']}:{action}")
+        assert (r.status_code, r.json()["error"]["code"]) == (409, "files.not_from_source")
 
 
 async def test_following_the_platform(api: Api, fake: FakeProvider, clock: Clock):
