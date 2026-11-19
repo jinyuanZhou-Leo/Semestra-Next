@@ -223,9 +223,9 @@ test('the status bar shows running jobs and module items, and hides empty lines'
       {
         id: 'timer.running',
         order: 1,
-        useStatus: () => ({ icon: Timer, label: '12:00 left', to: '/' }),
+        load: async () => () => ({ icon: Timer, label: '12:00 left', to: '/' }),
       },
-      { id: 'timer.idle', order: 2, useStatus: () => null },
+      { id: 'timer.idle', order: 2, load: async () => () => null },
     ],
   }
   renderWithRouter(
@@ -259,7 +259,7 @@ test('a line that changes state shows only its new icon and text', async () => {
       {
         id: 'sync.line',
         order: 1,
-        useStatus: () =>
+        load: async () => () =>
           states[
             useSyncExternalStore(
               (listener) => {
@@ -315,7 +315,7 @@ function renderLines(Panel?: StatusItem['Panel']) {
   const line = (id: string, label: string, rank?: StatusRank, panel?: StatusItem['Panel']) => ({
     id,
     order: 1,
-    useStatus: () => ({ icon: Timer, label, rank, Panel: panel }),
+    load: async () => () => ({ icon: Timer, label, rank, Panel: panel }),
   })
   const lines = {
     ...template,

@@ -50,6 +50,7 @@ import {
   type StatusRank,
 } from '../extensions'
 import { useModules, useStatusItems } from '../registry'
+import { PluginBoundary } from './PluginBoundary'
 import { onStatusPanelRequest, openStatusPanel } from './status-panel'
 import { useUiPref } from '../ui-pref'
 
@@ -412,6 +413,24 @@ function Slot({
   )
 }
 
+/** Each contribution's hook, loaded once; a failed load is forgotten so the next mount retries. */
+const hooks = new WeakMap<StatusItemContribution, Promise<{ useStatus: () => StatusItem | null }>>()
+
+function loadHook(contribution: StatusItemContribution) {
+  let hook = hooks.get(contribution)
+  if (!hook) {
+    hook = contribution.load().then(
+      (useStatus) => ({ useStatus }),
+      (error: unknown) => {
+        hooks.delete(contribution)
+        throw error
+      },
+    )
+    hooks.set(contribution, hook)
+  }
+  return hook
+}
+
 function Contribution({
   contribution,
   order,
@@ -420,8 +439,9 @@ function Contribution({
   order: number
 }) {
   // Keyed by id, so each instance always calls the same contribution's hook.
+  const line = use(loadHook(contribution))
   // oxlint-disable-next-line react/rules-of-hooks
-  const item = contribution.useStatus()
+  const item = line.useStatus()
   const [open, setOpen] = useState(false)
   const Panel = item?.Panel
   // Loaded with the line, so opening it does not wait.
@@ -753,11 +773,9 @@ export function StatusBar({ className }: { className?: string }) {
       >
         <JobsLine />
         {items.map((contribution) => (
-          <Contribution
-            key={contribution.id}
-            contribution={contribution}
-            order={contribution.order}
-          />
+          <PluginBoundary key={contribution.id} silent>
+            <Contribution contribution={contribution} order={contribution.order} />
+          </PluginBoundary>
         ))}
         <MoreLine entries={hidden} />
       </SidebarMenu>

@@ -64,14 +64,15 @@ export default defineModule({
     bleed: true,               // optional: content fills the card edge to edge, no title row at any size
   }],
   settingsSections: [{ id, level: 'account', pluginId, title, order, namespace: 'plugin.hello-note' }],
-  statusItems: [{ id, order, useStatus }],   // sidebar status bar (Pomodoro shows the running timer here)
+  statusItems: [{ id, order, load: () => import('./status').then((line) => line.useStatus) }],   // sidebar status bar (Pomodoro shows the running timer here)
 })
 ```
 
 - Load every heavy component on demand. A page's `component` and the `component`
   of cards and settings sections use `preloadable()` (`@/app/extensions`), so the router and the
   settings dialog can fetch the code early and render it as soon as it is there. A plain
-  `lazy()` flashes a placeholder on every first render (`registry.test.ts` catches it). Whatever
+  `lazy()` flashes a placeholder on every first render (`registry.test.ts` catches it). A status
+  line's hook is loaded on demand too (`load`), by the signed-in shell. Whatever
   the manifest imports statically is part of the first load, so import constants and small
   functions from a file of their own, not from a component's file (`entry:check` in `pnpm lint`
   catches it and prints the chain of imports). Pass
