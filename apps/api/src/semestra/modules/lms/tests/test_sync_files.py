@@ -18,8 +18,10 @@ from sqlalchemy import func, select
 
 from semestra.core import jobs
 from semestra.core.config import Settings
+from semestra.core.context import run_as_system
 from semestra.core.jobs import BACKGROUND, CoreJob
-from semestra.modules.files.models import FilesItem
+from semestra.modules.files import pipeline, sources
+from semestra.modules.files.models import FilesDocument, FilesDocumentPage, FilesItem
 from semestra.modules.files.tests.conftest import FakeAi, make_pdf
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.schemas.dto import FileMeta, InternalRef, Module, ModuleItem, PageSummary
@@ -1123,6 +1125,61 @@ async def test_a_file_is_read_once_for_its_latest_version(
 
     await api.call("POST", f"/files/{item['id']}:reprocess")
     assert await reads() == [("files.process", f"{item['id']}:{newer['sha256']}")]
+
+
+async def test_a_read_of_an_older_version_never_becomes_its_text(
+    api: Api, fake: FakeProvider, app: FastAPI, monkeypatch: pytest.MonkeyPatch
+):
+    """The platform has a new version while the old one is being read: the old read's text is
+    dropped (the file waits for the new version's read), and the new version is read once."""
+    fake.course_file_list = [_file("201", "Lecture 1.pdf", mime_type="application/pdf")]
+    fake.file_bytes["201"] = make_pdf(["Week one covers recursion and induction proofs."])
+    program_id, course = await _course(api)
+    embed = pipeline._embed  # pyright: ignore[reportPrivateUsage]
+    reads: list[str | None] = []
+
+    async def newer_meanwhile(ctx: Any, work: Any, refs: Any) -> Any:
+        if not reads:
+            fake.file_bytes["201"] = make_pdf(["Week one now covers sorting and searching."])
+
+            async def update(sctx: Any) -> None:
+                row = await sctx.db.get(FilesItem, work.item_id)
+                await sources.update_remote_file(
+                    sctx, row, name=None, mime="application/pdf", size=1000, version="v2",
+                    url=row.url, modified_at=FEB,
+                )  # fmt: skip
+
+            await run_as_system(app.state, work.user_id, update)
+        reads.append(work.version)
+        return await embed(ctx, work, refs)
+
+    async def text(item_id: str) -> str | None:
+        async with app.state.session_factory() as db:
+            item = await db.get(FilesItem, item_id)
+            assert item is not None
+            if item.active_document_id is None:
+                return None
+            pages = select(FilesDocumentPage.markdown).where(
+                FilesDocumentPage.document_id == item.active_document_id
+            )
+            return " ".join(await db.scalars(pages))
+
+    monkeypatch.setattr(pipeline, "_embed", newer_meanwhile)
+    await api.call("POST", f"/programs/{program_id}/lms/sync", json={"force": True})
+    assert await app.state.jobs.run_one(BACKGROUND) is True  # the sync
+    assert await app.state.jobs.run_one(BACKGROUND) is True  # the read of the first version
+    item = (await _files(api, course))[1]["Lecture 1.pdf"]
+    assert item["doc_status"] == "pending"
+    assert await text(item["id"]) is None
+
+    await api.run_jobs()
+    item = (await _files(api, course))[1]["Lecture 1.pdf"]
+    assert item["doc_status"] == "ready"
+    assert await text(item["id"]) == "Week one now covers sorting and searching."
+    assert reads[1:] == [item["sha256"]]  # read once more, for the new version
+    async with app.state.session_factory() as db:
+        documents = select(func.count()).where(FilesDocument.item_id == item["id"])
+        assert await db.scalar(documents) == 1
 
 
 async def test_scanned_pages_of_synced_files_are_read_like_any_file(

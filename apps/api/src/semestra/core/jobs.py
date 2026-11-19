@@ -974,20 +974,30 @@ async def job_list(ctx: Ctx, inp: JobListInput) -> JobPage:
 async def withdraw(ctx: Ctx, job_ids: Sequence[str]) -> None:
     """Jobs not started yet that a newer one replaces (the work they would do is queued again):
     they end `cancelled` without their `on_failure`, which would record a stop nobody asked
-    for. One that started meanwhile is left to run."""
-    for job in await ctx.db.scalars(
-        select(CoreJob).where(
-            CoreJob.user_id == ctx.user_id,
-            CoreJob.id.in_(list(job_ids)),
-            CoreJob.status == "pending",
+    for. One a worker claimed meanwhile is left to run: the update only ends jobs still pending
+    when it runs, whatever the caller read before."""
+    if not job_ids:
+        return
+    ended = list(
+        await ctx.db.scalars(
+            update(CoreJob)
+            .where(
+                CoreJob.user_id == ctx.user_id,
+                CoreJob.id.in_(list(job_ids)),
+                CoreJob.status == "pending",
+            )
+            .values(status="cancelled", **_end_values(ctx.now))
+            .returning(CoreJob.id),
+            execution_options={"synchronize_session": False},
         )
+    )
+    if not ended:
+        return
+    for job in await ctx.db.scalars(
+        select(CoreJob).where(CoreJob.id.in_(ended)).execution_options(populate_existing=True)
     ):
-        job.status = "cancelled"
-        for key, value in _end_values(ctx.now).items():
-            setattr(job, key, value)
         await events.publish(ctx, JOB_PROGRESS, _event(job).data)
         await events.publish(ctx, JOB_FINISHED, _finished(job).data)
-    await ctx.db.flush()
 
 
 @capability(
