@@ -140,7 +140,7 @@ export function CourseFiles({
   const own = useUploads()
   const uploads = shared ?? own
   const upload = (files: readonly File[], into: string | null = currentId) =>
-    uploads.start(files, { courseId, folderId: into, existing: list.items })
+    uploads.start(files, { courseId, folderId: into })
   const dragging = useFileDrop(upload)
   // The folder the dragged files are over, if any; otherwise they go into the open one.
   const [dropFolderId, setDropFolderId] = useState<string | null>(null)

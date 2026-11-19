@@ -1,4 +1,4 @@
-import type { FolderOut, ItemOut } from '@semestra/api-client'
+import type { DuplicateCheckInputBody, FolderOut, ItemOut } from '@semestra/api-client'
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Blob as NodeBlob, File as NodeFile } from 'node:buffer'
@@ -16,7 +16,7 @@ import CourseFilesPage from './pages/CourseFilesPage'
 import TermFilesPage from './pages/TermFilesPage'
 import { pageTarget } from './page-target'
 import { Toaster } from '@/ui/sonner'
-import { findDuplicates, planUpload } from './upload'
+import { planUpload } from './upload'
 
 // pdf.js does not run in jsdom; the viewer's page is enough to check where it opens.
 vi.mock('react-pdf', () => ({
@@ -171,6 +171,16 @@ beforeEach(() => {
         { items: [item({ id: 'new', display_name: 'notes.txt' })] },
         { headers: CORS },
       )
+    }),
+    // The server's rule, as far as these tests need it: a name already there or on its way.
+    http.post(`${API}/courses/c1/files\\:check-duplicates`, async ({ request }) => {
+      const { files, pending = [] } = (await request.json()) as DuplicateCheckInputBody
+      const names = new Set(
+        [...items, ...pending].map((f) => ('name' in f ? f.name : f.display_name)),
+      )
+      return HttpResponse.json({
+        duplicates: files.flatMap((f, i) => (names.has(f.name) ? [i] : [])),
+      })
     }),
     http.get(`${API}/files/:id/outline`, ({ params }) =>
       HttpResponse.json({
@@ -501,32 +511,6 @@ test('uploads that cannot fit are refused before sending', () => {
   expect(plan.room).toBe(true)
   expect(planUpload([small, small, small, small, small, small], usage).room).toBe(false)
   expect(planUpload([big], { ...usage, quota_bytes: 0, max_upload_bytes: 100 }).room).toBe(true)
-})
-
-test('duplicates are the same bytes or name and size in the course, or the same name in the folder', () => {
-  const same = new File(['a'], 'other-name.pdf')
-  const named = new File(['b'], 'Syllabus.PDF')
-  const fresh = new File(['c'], 'fresh.pdf')
-  const dupes = findDuplicates(
-    [
-      { file: same, sha256: 'aa' },
-      { file: named, sha256: 'bb' },
-      { file: fresh, sha256: 'cc' },
-    ],
-    [item()],
-    null,
-  )
-  expect([...dupes]).toEqual([same, named])
-  expect([...findDuplicates([{ file: named, sha256: 'bb' }], [item()], 'folder-2')]).toEqual([])
-  // A file read from the LMS has no hash of its bytes: its name and size elsewhere still count.
-  const fromLms = item({
-    folder_id: 'lectures',
-    display_name: 'Week 1.pdf',
-    size_bytes: 3,
-    sha256: 'v1',
-  })
-  const again = new File(['abc'], 'week 1.pdf')
-  expect([...findDuplicates([{ file: again, sha256: 'dd' }], [fromLms], null)]).toEqual([again])
 })
 
 test('highlighting escapes file text and marks every match', () => {

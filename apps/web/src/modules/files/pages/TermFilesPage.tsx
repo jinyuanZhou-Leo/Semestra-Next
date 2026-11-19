@@ -344,7 +344,6 @@ function CourseFolders({
       uploads.start(files, {
         courseId,
         folderId: null,
-        existing: folders.find((f) => f.course.id === courseId)?.list?.data?.items ?? [],
       }),
   }
 

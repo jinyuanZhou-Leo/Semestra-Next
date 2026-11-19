@@ -3865,6 +3865,66 @@ export type Done = {
 };
 
 /**
+ * DuplicateCheck
+ */
+export type DuplicateCheck = {
+    /**
+     * Duplicates
+     *
+     * Positions in `files` that look already there
+     */
+    duplicates: Array<number>;
+};
+
+/**
+ * DuplicateCheckInputBody
+ */
+export type DuplicateCheckInputBody = {
+    /**
+     * Files
+     *
+     * The files about to be uploaded
+     */
+    files: Array<DuplicateFile>;
+    /**
+     * Pending
+     *
+     * Files picked earlier and still on their way: compared with like the course's files
+     */
+    pending?: Array<DuplicateFile>;
+};
+
+/**
+ * DuplicateFile
+ */
+export type DuplicateFile = {
+    /**
+     * Name
+     *
+     * File name
+     */
+    name: string;
+    /**
+     * Size
+     *
+     * Size in bytes
+     */
+    size: number;
+    /**
+     * Sha256
+     *
+     * SHA-256 of the bytes, hex; null while not known yet
+     */
+    sha256?: string | null;
+    /**
+     * Folder Id
+     *
+     * The folder it goes into
+     */
+    folder_id?: string | null;
+};
+
+/**
  * EmailChangeConfirmInputBody
  */
 export type EmailChangeConfirmInputBody = {
@@ -17597,6 +17657,38 @@ export type FilesFolderUpdateResponses = {
 };
 
 export type FilesFolderUpdateResponse = FilesFolderUpdateResponses[keyof FilesFolderUpdateResponses];
+
+export type FilesItemCheckDuplicatesData = {
+    body: DuplicateCheckInputBody;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/files:check-duplicates';
+};
+
+export type FilesItemCheckDuplicatesErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesItemCheckDuplicatesError = FilesItemCheckDuplicatesErrors[keyof FilesItemCheckDuplicatesErrors];
+
+export type FilesItemCheckDuplicatesResponses = {
+    /**
+     * Successful Response
+     */
+    200: DuplicateCheck;
+};
+
+export type FilesItemCheckDuplicatesResponse = FilesItemCheckDuplicatesResponses[keyof FilesItemCheckDuplicatesResponses];
 
 export type FilesItemDeleteData = {
     body?: never;

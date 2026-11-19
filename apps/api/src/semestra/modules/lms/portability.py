@@ -119,7 +119,27 @@ def _current(data: dict[str, Any], files: dict[str, Any] | None = None) -> dict[
         else r
         for r in materials
     ]
+    materials = _made_own(materials, files)
     return {**data, "refs": kept, "materials": _placed_by_type(data, materials, files)}
+
+
+def _made_own(
+    materials: list[dict[str, Any]], files: dict[str, Any] | None
+) -> list[dict[str, Any]]:
+    """A file made the user's own in 2.1.0 (its `source_ref` cleared) while its material stayed
+    `synced`: the user's now, and the platform's not brought in beside it, as if deleted
+    (`dismissed`, listed so it can be restored), as migration 0063 reads it."""
+    own = {
+        i.get("id"): i.get("updated_at")
+        for i in (files or {}).get("items") or []
+        if isinstance(i, dict) and i.get("kind") == "file" and i.get("source_ref") is None
+    }
+    return [
+        {**r, "state": "dismissed", "state_at": own[r["item_id"]], "item_id": None}
+        if r.get("state", "synced") == "synced" and r.get("item_id") in own
+        else r
+        for r in materials
+    ]
 
 
 def _placed_by_type(

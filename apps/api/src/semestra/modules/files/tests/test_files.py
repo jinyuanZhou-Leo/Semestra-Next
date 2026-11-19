@@ -1135,3 +1135,28 @@ async def test_downloading_several_as_one_zip(fx: Fx, monkeypatch: pytest.Monkey
         f"/courses/{fx.course_id}/files:download", params={"item_ids": [link["id"]]}
     )
     assert r.status_code == 404
+
+
+async def test_an_upload_asks_which_files_look_already_there(fx: Fx):
+    """The same bytes, or the same name (any case) and size, anywhere in the course; or the same
+    name in the folder it goes into. Files picked earlier and still on their way count too."""
+    notes = await fx.upload("Notes.txt", b"my notes")
+    folder = await fx.call("POST", f"/courses/{fx.course_id}/folders", json={"name": "Week 1"})
+
+    def f(name: str, size: int, sha: str | None = None, folder_id: str | None = None) -> Any:
+        return {"name": name, "size": size, "sha256": sha, "folder_id": folder_id}
+
+    files = [
+        f("copy.txt", 1, notes["sha256"], folder["id"]),  # the same bytes
+        f("notes.TXT", 8, folder_id=folder["id"]),  # the same name and size
+        f("notes.txt", 99),  # the same name in the folder it goes into
+        f("notes.txt", 99, folder_id=folder["id"]),  # same name, elsewhere: not
+        f("later.txt", 5, "ab"),  # picked earlier, still on its way
+        f("other.txt", 3, "cd"),
+    ]
+    got = await fx.call(
+        "POST",
+        f"/courses/{fx.course_id}/files:check-duplicates",
+        json={"files": files, "pending": [f("sent.txt", 5, "ab", folder["id"])]},
+    )
+    assert got["duplicates"] == [0, 1, 2, 4]
