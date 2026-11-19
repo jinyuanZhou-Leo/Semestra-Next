@@ -22,8 +22,15 @@ export function fieldDescription(
 }
 
 /** `settings_<namespace>_<field>_option_<value>` for select and segmented choices. */
-export function optionLabel(namespace: string, field: string, value: unknown): string {
-  return lookup(`settings_${part(namespace)}_${field}_option_${part(value)}`) ?? String(value)
+export function optionLabel(
+  namespace: string,
+  field: string,
+  value: unknown,
+  params?: TextParams,
+): string {
+  return (
+    lookup(`settings_${part(namespace)}_${field}_option_${part(value)}`, params) ?? String(value)
+  )
 }
 
 /** `settings_<namespace>_<field>_option_<value>_description`: one line on what a choice does. */
