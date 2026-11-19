@@ -717,7 +717,7 @@
       "capability": "lms.file.save_to_course",
       "module": "lms",
       "effect": "write",
-      "summary": "Keep a local copy of a file of a linked course on the LMS (Canvas) in the course's files.",
+      "summary": "Save a file of a linked course on the LMS (Canvas) in Semestra (the course's files).",
       "plugin_id": null
     },
     {

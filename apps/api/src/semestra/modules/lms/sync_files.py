@@ -22,9 +22,8 @@ there) with its item and what was last applied (platform title, content version,
 The user's changes always win: a moved item stays where they put it (an item is placed once,
 when it comes in; one the sync put somewhere else than its place now is offered to move back by
 the course's "Organize", `homes`), a renamed one keeps their name, a deleted one is not brought
-back until they restore it (`dismissed`), one they made their own is not followed
-(`handed_over`). A folder of a place the user deleted is not made again: its new items go to the
-folder above.
+back until they restore it (`dismissed`). A folder of a place the user deleted is not made
+again: its new items go to the folder above.
 
 An item gone from the platform (deleted, locked again), judged only on a run that read every area
 whole: with a local copy it becomes the user's own file (`handed_over`); read online, it is
@@ -539,9 +538,6 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
             # The user deleted it (told at once by `files.item.deleted`, unless that was missed).
             mat.item_id = None
             enter(mat, "dismissed", now)
-        elif row.source_ref is None:
-            enter(mat, "handed_over", now)  # the user made it their own
-            del rows[row.id]
     # What came in before the course settled is not news.
     settled = link.materials_settled_at is not None
     places = SourceFolders(ctx, link.course_id, "lms", b.provider.display_name)
@@ -677,7 +673,7 @@ async def homes(ctx: Ctx, course_id: str) -> list[sources.Home]:
     for mat in mats:
         row = rows.get(mat.item_id or "")
         if row is None or row.source_ref is None or row.folder_id != mat.placed_folder_id:
-            continue  # the user moved it, or made it their own
+            continue  # the user moved it, or it is theirs now
         name = row.source_name or "LMS"
         if places is None:
             places = SourceFolders(ctx, course_id, "lms", name)

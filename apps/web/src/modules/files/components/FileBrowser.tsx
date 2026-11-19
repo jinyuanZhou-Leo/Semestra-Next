@@ -365,6 +365,7 @@ function CopyItems({ item, source }: { item: ItemOut; source: string }) {
       <DropdownMenuSeparator />
       <DropdownMenuCheckboxItem
         checked={item.stored}
+        closeOnClick
         onCheckedChange={(saved) => (saved ? keep : drop).mutate({ path })}
       >
         <HardDrive aria-hidden />

@@ -407,43 +407,6 @@ async def test_a_local_copy_the_user_asks_for(api: Api, fake: FakeProvider, sett
     assert (await api.call("GET", f"/files/{lecture['id']}"))["stored"] is False
 
 
-async def test_making_a_file_ones_own(api: Api, fake: FakeProvider, clock: Clock):
-    _materials(fake)
-    program_id, course = await _course(api)
-    await api.sync(program_id)
-    _, items = await _files(api, course)
-    lecture, midterm = items["Lecture 1.pdf"], items["Midterm 2025.pdf"]
-
-    # Read online: its bytes are fetched first; while the platform can't be reached it stays
-    # as it was and the job says why.
-    fake.fail_downloads = True
-    await api.call("POST", f"/files/{lecture['id']}:make-own")
-    await api.run_jobs()
-    after = await api.call("GET", f"/files/{lecture['id']}")
-    assert (after["stored"], after["follows_source"]) == (False, True)
-    fake.fail_downloads = False
-    await api.call("POST", f"/files/{lecture['id']}:make-own")
-    await api.run_jobs()
-    after = await api.call("GET", f"/files/{lecture['id']}")
-    assert (after["stored"], after["follows_source"], after["source_name"]) == (True, False, None)
-
-    # With a local copy: at once.
-    await api.call("POST", f"/files/{midterm['id']}:keep-copy")
-    await api.run_jobs()
-    own = await api.call("POST", f"/files/{midterm['id']}:make-own")
-    assert (own["stored"], own["follows_source"]) == (True, False)
-
-    # No longer followed: a change on the platform does not reach them, nor is either brought in
-    # again.
-    files = fake.course_file_list
-    files[0] = files[0].model_copy(update={"name": "Lecture 1 v2.pdf", "updated_at": FEB})
-    clock.advance(minutes=1)
-    await api.sync(program_id)
-    _, items = await _files(api, course)
-    assert "Lecture 1 v2.pdf" not in items
-    assert [n for n in items if n.startswith("Midterm")] == ["Midterm 2025.pdf"]
-
-
 async def test_stored_here_still_follows_the_platform(
     api: Api, fake: FakeProvider, settings: Settings, clock: Clock
 ):

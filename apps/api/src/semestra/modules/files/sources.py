@@ -14,8 +14,8 @@ A source module reads and writes `files_*` only through these.
 A file that follows its source is read from it when opened, or has a local copy here; either
 way it keeps following (updated, removed). The source's setting for the course says which
 (`apply_copies`), unless the user chose for the file (`keep_copy`, `drop_copy`: `FilesItem.
-keep_copy`). Only `make_own` (or `detach_from_source`) ends the following: the file becomes the
-user's own, with its bytes stored here.
+keep_copy`). Only the source ends the following (`detach_from_source`: the file is gone there, or
+the course is no longer linked): a file stored here becomes the user's own.
 """
 
 import hashlib
@@ -56,7 +56,6 @@ __all__ = [
     "folder_names",
     "get_folder",
     "keep_copy",
-    "make_own",
     "purge_items",
     "remote",
     "rename_synced",
@@ -235,13 +234,13 @@ async def _check_room(ctx: Ctx, row: FilesItem) -> None:
         )
 
 
-async def _store(ctx: Ctx, row: FilesItem, *, own: bool) -> None:
+async def _store(ctx: Ctx, row: FilesItem) -> None:
     from semestra.modules.files.jobs import KeepPayload
 
     await enqueue(
         ctx,
         "files.store_copy",
-        KeepPayload(item_ids=[row.id], own=own),
+        KeepPayload(item_ids=[row.id]),
         dedupe_key=f"files.store_copy:{row.id}",
     )
 
@@ -260,7 +259,7 @@ async def keep_copy(ctx: Ctx, row: FilesItem) -> None:
     row.keep_copy = True
     if _outdated(row):
         await _check_room(ctx, row)
-        await _store(ctx, row, own=False)
+        await _store(ctx, row)
     await _updated(ctx, row)
 
 
@@ -272,20 +271,6 @@ async def drop_copy(ctx: Ctx, row: FilesItem) -> None:
     row.keep_copy = False
     await _release(ctx, row)
     await _updated(ctx, row)
-
-
-async def make_own(ctx: Ctx, row: FilesItem) -> None:
-    """The user makes a file that follows its source their own: no longer updated or removed by
-    the source. Its bytes must be here first: a file read from its source is stored in a listed
-    job and handed over once they are (`store_from_source`); one that can't be stored (the
-    source is unreachable) stays as it was and the job's failure says why."""
-    if not content.follows_source(row):
-        return
-    if not _outdated(row):
-        await detach_from_source(ctx, [row])
-        return
-    await _check_room(ctx, row)
-    await _store(ctx, row, own=True)
 
 
 async def apply_copies(ctx: Ctx, rows: Sequence[FilesItem], local: bool, *, dedupe: str) -> None:
@@ -320,15 +305,13 @@ async def apply_copies(ctx: Ctx, rows: Sequence[FilesItem], local: bool, *, dedu
         )
 
 
-async def store_from_source(ctx: Ctx, item_id: str, *, quiet: bool, own: bool = False) -> bool:
+async def store_from_source(ctx: Ctx, item_id: str, *, quiet: bool) -> bool:
     """Stores one file read from its source (the copy jobs). The source is opened in a short
     transaction, the bytes are written to storage holding no database lock, and the item takes
     them in another short transaction. Each run stages under a key of its own, so two runs for
     one item never touch each other's bytes. `quiet` (the source's setting): a file the user
-    chose to read from its source meanwhile is left alone. `own`: the item becomes the user's
-    own file in the transaction that has its bytes stored, so a failure leaves it following.
-    False (`quiet` only): the quota is full and nothing changed; otherwise that and every other
-    failure raise."""
+    chose to read from its source meanwhile is left alone. False (`quiet` only): the quota is
+    full and nothing changed; otherwise that and every other failure raise."""
     opened: list[AsyncIterator[bytes]] = []
     version: list[str | None] = []  # of the bytes opened
 
@@ -346,8 +329,6 @@ async def store_from_source(ctx: Ctx, item_id: str, *, quiet: bool, own: bool = 
         if _outdated(row):
             version.append(row.sha256)
             opened.append(await content.open_source(sys_ctx, row))
-        elif own:  # stored meanwhile: hand it over now
-            await detach_from_source(sys_ctx, [row])
 
     await run_as_system(ctx.state, ctx.user_id, open_)
     if not opened:
@@ -385,10 +366,7 @@ async def store_from_source(ctx: Ctx, item_id: str, *, quiet: bool, own: bool = 
                 await _read_new_bytes(sys_ctx, row)
         row.updated_at = sys_ctx.now
         await charge(sys_ctx)
-        if own:
-            await detach_from_source(sys_ctx, [row])
-        else:
-            await _updated(sys_ctx, row)
+        await _updated(sys_ctx, row)
 
     try:
         await run_as_system(ctx.state, ctx.user_id, take)
@@ -431,8 +409,8 @@ async def rename_synced(ctx: Ctx, row: FilesItem, name: str) -> None:
 
 
 async def detach_from_source(ctx: Ctx, rows: Sequence[FilesItem]) -> None:
-    """Files with a local copy become the user's own (`make_own`, or the source no longer keeps
-    them: an LMS course unlinked, the file deleted there): plain files from now on (`source_ref`
+    """Files with a local copy become the user's own when the source no longer keeps them (an
+    LMS course unlinked, the file deleted there): plain files from now on (`source_ref`
     cleared), never updated or removed by the source."""
     for row in rows:
         assert row.storage_key

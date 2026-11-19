@@ -3483,7 +3483,7 @@
   "lms_course_unlink_removed": "Read from {provider} ({count}): removed from the course's files. They remain on {provider}.",
   "settings_lms_materials_sync_label": "Bring in course materials",
   "settings_lms_materials_sync_description": "Brings slides, pages and links from {provider} into course files, in their original folders.",
-  "settings_lms_materials_store_label": "Keep materials",
+  "settings_lms_materials_store_label": "Material storage",
   "settings_lms_materials_store_description": "Both follow updates on {provider}.",
   "settings_lms_materials_store_option_online": "Read from {provider}",
   "settings_lms_materials_store_option_online_description": "Read when opened. Uses no storage. Removed here when deleted on {provider}.",
