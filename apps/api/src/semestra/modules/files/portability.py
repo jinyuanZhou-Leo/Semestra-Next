@@ -120,9 +120,7 @@ class FilesAdapter(TableAdapter):
             if content.follows_source(row) and row.copy_version is None:
                 row.copy_version = row.sha256  # a backup from before copies had versions
             if row.doc_status != "unsupported":
-                row.doc_status = "pending"
-                # A copy stored for its source is read as its source's sync reads it.
-                await service.enqueue_processing(ctx, row, synced=content.follows_source(row))
+                await service.request_read(ctx, row, "restore")
         await ctx.db.flush()
         return report
 
@@ -163,7 +161,8 @@ ADAPTER = FilesAdapter(
 register_portability(
     module="files",
     schema_version=SCHEMA_VERSION,
-    depends_on=("academics",),
+    # Settings first: what a restored file reads follows its course's `auto_index`.
+    depends_on=("academics", "settings"),
     export=ADAPTER.export,
     import_=ADAPTER.import_,
     prepare=ADAPTER.prepare,

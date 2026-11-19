@@ -20,7 +20,6 @@ from semestra.modules.files import content, folders, service
 from semestra.modules.files.models import FilesItem
 from semestra.modules.files.parse import detect
 from semestra.modules.files.schemas import ItemOut, ItemRef, ItemUpdateInput, SourceKind
-from semestra.modules.files.settings import auto_index
 
 
 async def check_upload_target(ctx: Ctx, course_id: str, folder_id: str | None) -> None:
@@ -90,7 +89,7 @@ async def add_staged_files(
                 storage_key=file.stored.key,
                 source_kind=source_kind,
                 source_ref=source_ref,
-                doc_status="pending" if file.supported else "unsupported",
+                doc_status="none" if file.supported else "unsupported",
                 doc_error_code=None if file.supported else "files.unsupported_type",
                 created_at=ctx.now,
                 updated_at=ctx.now,
@@ -99,15 +98,9 @@ async def add_staged_files(
         ]
         ctx.db.add_all(rows)
         await charge(ctx)
-    # With auto-indexing off, supported files wait as "none" until the user (or an import that
-    # needs the text) asks for them to be read.
-    if any(row.doc_status == "pending" for row in rows) and not await auto_index(ctx, course_id):
-        for row in rows:
-            if row.doc_status == "pending":
-                row.doc_status = "none"
     for row in rows:
-        if row.doc_status == "pending":
-            await service.enqueue_processing(ctx, row)
+        if row.doc_status != "unsupported":
+            await service.request_read(ctx, row, "upload")
         await events.publish(ctx, "files.item.created", {"item_id": row.id, "course_id": course_id})
     return rows
 
@@ -277,10 +270,7 @@ async def reprocess(ctx: Ctx, item_id: str) -> ItemOut:
         raise AppError("files.unsupported_type", 422)
     if not row.storage_key:
         # Read from its source when the job runs, which also tells what it is.
-        row.doc_status, row.doc_error_code = "pending", None
-        await service.enqueue_processing(ctx, row)
-        row.updated_at = ctx.now
-        await ctx.db.flush()
+        await service.request_read(ctx, row, "user")
         await events.publish(
             ctx, "files.item.updated", {"item_id": row.id, "course_id": row.course_id}
         )
@@ -291,8 +281,7 @@ async def reprocess(ctx: Ctx, item_id: str) -> ItemOut:
     if detected.kind not in service.PARSEABLE:
         row.doc_status, row.doc_error_code = "unsupported", "files.unsupported_type"
     else:
-        row.doc_status, row.doc_error_code = "pending", None
-        await service.enqueue_processing(ctx, row)
+        await service.request_read(ctx, row, "user")
     row.updated_at = ctx.now
     await ctx.db.flush()
     await events.publish(ctx, "files.item.updated", {"item_id": row.id, "course_id": row.course_id})

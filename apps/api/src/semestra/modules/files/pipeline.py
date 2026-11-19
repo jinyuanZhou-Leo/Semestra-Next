@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 import anyio.to_thread
 import structlog
 from sqlalchemy import ColumnElement, func, select, update
+from sqlalchemy.orm.attributes import flag_modified
 
 from semestra.core.context import Ctx, run_as_system
 from semestra.core.db import new_id
@@ -80,6 +81,9 @@ class _Work:
     storage_key: str | None
     source_ref: str | None
     original_name: str | None
+    # The item's version this run reads (`sha256`); None for a job queued before versions were
+    # kept.
+    version: str | None
     document_id: str = field(default_factory=new_id)
     thumbnail_keys: list[str] = field(default_factory=lambda: [])
     document_written: bool = False
@@ -90,12 +94,16 @@ async def _announce(ctx: Ctx, *kinds: tuple[str, dict[str, object]]) -> None:
         await events.dispatch(ctx.state, Event(kind, data, ctx.user_id))
 
 
-async def _begin(ctx: JobCtx, item_id: str) -> _Work | None:
-    """Marks the item as processing and clears leftovers of an interrupted earlier run."""
+async def _begin(ctx: JobCtx, item_id: str, version: str | None) -> _Work | None:
+    """Marks the item as processing and clears leftovers of an interrupted earlier run. None
+    when there is nothing to read: the item is gone, or has a newer version than the job was
+    queued for (the job for that one reads it)."""
     store = get_vector_store()
     async with ctx.state.session_factory() as db:
         item = await db.get(FilesItem, item_id)
         if item is None or item.user_id != ctx.user_id or not content.has_content(item):
+            return None
+        if version is not None and item.sha256 != version:
             return None
         stale = list(
             (
@@ -117,6 +125,7 @@ async def _begin(ctx: JobCtx, item_id: str) -> _Work | None:
             item.storage_key,
             item.source_ref,
             item.original_name,
+            version,
         )
         await db.commit()
     await _remove_objects(ctx.state.storage, keys)
@@ -165,7 +174,10 @@ async def mark_failed(ctx: Ctx, item_id: str, job: CoreJob) -> None:
     quiet = code == "files.unsupported_type" or (code == "files.too_large" and content.remote(item))
     item.doc_status = "unsupported" if quiet else "failed"
     item.doc_error_code = code
+    # When it failed (the source's sync times its retry from it), even if a write at this same
+    # moment set it already: an unchanged value would let the column's own `onupdate` stamp it.
     item.updated_at = ctx.now
+    flag_modified(item, "updated_at")
     data = {"item_id": item.id, "course_id": item.course_id}
     await events.publish(ctx, "files.item.updated", data, user_id=item.user_id)
     await events.publish(
@@ -176,10 +188,11 @@ async def mark_failed(ctx: Ctx, item_id: str, job: CoreJob) -> None:
     )
 
 
-async def run(ctx: JobCtx, item_id: str) -> int:
-    """Processes one item; returns its page count. A failure ends the job with the reason as its
-    error code, which `mark_failed` records on the item."""
-    work = await _begin(ctx, item_id)
+async def run(ctx: JobCtx, item_id: str, version: str | None = None) -> int:
+    """Processes one item at `version` (`service.request_read`); returns its page count. A
+    failure ends the job with the reason as its error code, which `mark_failed` records on the
+    item."""
+    work = await _begin(ctx, item_id, version)
     if work is None:
         return 0
     try:
@@ -519,13 +532,15 @@ async def _store_vectors(
 async def _activate(
     ctx: JobCtx, work: _Work, space: str | None, mime: str, page_count: int
 ) -> None:
-    """The one step that changes what search sees: new document in, old document out."""
+    """The one step that changes what search sees: new document in, old document out. Not for
+    a version the item no longer has: the job for its new one reads it (`request_read`)."""
     store = get_vector_store()
     keys: list[str] = []
     async with ctx.state.session_factory() as db:
         item = await db.get(FilesItem, work.item_id)
         document = await db.get(FilesDocument, work.document_id)
-        if item is None or document is None:  # deleted while processing
+        stale = item is not None and work.version is not None and item.sha256 != work.version
+        if item is None or document is None or stale:  # deleted or changed while processing
             keys += await indexing.delete_documents(db, store, [work.document_id])
             await db.commit()
             keys += work.thumbnail_keys
@@ -680,7 +695,7 @@ async def _embed_stale(
         if not chunks:
             continue
         refs = [(c[0], list(c[1]), c[2]) for c in chunks]
-        work = _Work(item_id, ctx.user_id, course_id, None, None, None)
+        work = _Work(item_id, ctx.user_id, course_id, None, None, None, None)
         try:
             for start in range(0, len(refs), BATCH_SIZE):
                 batch = refs[start : start + BATCH_SIZE]

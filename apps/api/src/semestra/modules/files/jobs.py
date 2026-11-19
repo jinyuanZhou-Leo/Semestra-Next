@@ -27,6 +27,9 @@ PROCESS_STAGES = [
 
 class ProcessPayload(BaseModel):
     item_id: str
+    # The item's version (`sha256`) it was queued for: a newer one makes its result stale.
+    # None in jobs queued before versions were kept.
+    version: str | None = None
 
 
 class ProcessResult(BaseModel):
@@ -66,7 +69,7 @@ async def _process_failed(ctx: Ctx, payload: ProcessPayload, job: CoreJob) -> No
     listed=False,
 )
 async def process(ctx: JobCtx, payload: ProcessPayload) -> ProcessResult:
-    return ProcessResult(page_count=await pipeline.run(ctx, payload.item_id))
+    return ProcessResult(page_count=await pipeline.run(ctx, payload.item_id, payload.version))
 
 
 # The same work for files another module keeps in step with its source (M09's course materials):
@@ -83,7 +86,7 @@ async def process(ctx: JobCtx, payload: ProcessPayload) -> ProcessResult:
     priority=-1,
 )
 async def process_synced(ctx: JobCtx, payload: ProcessPayload) -> ProcessResult:
-    return ProcessResult(page_count=await pipeline.run(ctx, payload.item_id))
+    return ProcessResult(page_count=await pipeline.run(ctx, payload.item_id, payload.version))
 
 
 @job_handler("files.store_copy", stages=[("storing", 1)], max_attempts=1)

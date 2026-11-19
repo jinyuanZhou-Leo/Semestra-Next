@@ -527,3 +527,17 @@ async def test_a_job_asked_for_again_while_it_runs_runs_once_more(
     await app.state.jobs.run_until_idle()
     assert (await get(app, job_id)).status == "failed"
     assert ran_again == ["f"]
+
+
+async def test_withdrawing_leaves_a_job_that_has_started(app: FastAPI, make_user: MakeUser):
+    user = await make_user()
+    started = await start(app, user.id, "test.asked_again", name="ok", dedupe_key="a")
+    queued = await start(app, user.id, "test.asked_again", name="ok", dedupe_key="b")
+    claimed = await JobRunner(app.state)._claim()  # pyright: ignore[reportPrivateUsage]
+    assert claimed is not None
+    assert claimed.id == started
+    async with system_ctx(app.state, user.id) as ctx:
+        await jobs.withdraw(ctx, [started, queued])
+        await ctx.db.commit()
+    assert (await get(app, started)).status == "running"
+    assert (await get(app, queued)).status == "cancelled"

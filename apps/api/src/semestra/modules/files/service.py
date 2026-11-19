@@ -6,14 +6,14 @@ several entries at once (the file page's selection) in `entries`, the storage us
 
 import re
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, Literal
 
 from sqlalchemy import delete, select
 
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError, not_found
 from semestra.core.events import events
-from semestra.core.jobs import CoreJob, enqueue
+from semestra.core.jobs import CoreJob, enqueue, withdraw
 from semestra.core.storage import delete_after_commit
 from semestra.modules.academics import service as academics
 from semestra.modules.files import content, indexing
@@ -185,14 +185,55 @@ def refuse_none(fields: list[str]) -> None:
 
 PROCESS_KINDS = ("files.process", "files.process_synced")
 
+# Who asks for a file to be read: the user (reprocess, retry), its upload, the source that keeps
+# it in step (new, changed, new bytes stored, retried after the source failed), or a backup
+# restore.
+Reader = Literal["user", "upload", "source", "restore"]
 
-async def enqueue_processing(ctx: Ctx, row: FilesItem, *, synced: bool = False) -> None:
-    """Queues reading the file's text; `synced`: kept in step with its source by another
-    module, not something the user is waiting on (`files.process_synced`)."""
+
+async def request_read(ctx: Ctx, row: FilesItem, by: Reader) -> None:
+    """The one way into `pending`: the item's text is to be read. Whether it is read now:
+
+    - the user asked: always, in the user's queue (`files.process`), ahead of synced files;
+    - an upload or its source: as the course's `auto_index` says (else `none`, read when asked);
+      a source's in the queue behind it (`files.process_synced`);
+    - a backup restore: what was read when the backup was made is read again, the rest as
+      `auto_index` says.
+
+    A job queued for an older version of the item (or, for the user, behind the synced files)
+    is withdrawn; one running reads again once it ends (`again`), and a result for a version the
+    item no longer has is dropped (`pipeline._activate`). The caller makes sure the item can be
+    read (`content.has_content`) and tells of its change (`files.item.*`)."""
     from semestra.modules.files.jobs import ProcessPayload
+    from semestra.modules.files.settings import auto_index
 
+    was_read = row.doc_status == "ready"
+    wanted = by == "user" or (by == "restore" and was_read) or await auto_index(ctx, row.course_id)
+    row.doc_error_code, row.updated_at = None, ctx.now
+    if not wanted:
+        row.doc_status = "none"
+        await ctx.db.flush()
+        return
+    row.doc_status = "pending"
+    synced = by == "source" or (by == "restore" and content.follows_source(row))
     kind = PROCESS_KINDS[1] if synced else PROCESS_KINDS[0]
-    await enqueue(ctx, kind, ProcessPayload(item_id=row.id), dedupe_key=f"{row.id}:{row.sha256}")
+    key = f"{row.id}:{row.sha256}"
+    stale = [
+        job.id
+        for job in await ctx.db.scalars(
+            select(CoreJob).where(
+                CoreJob.user_id == ctx.user_id,
+                CoreJob.kind.in_(PROCESS_KINDS),
+                CoreJob.status == "pending",
+                CoreJob.dedupe_key.like(f"{row.id}:%"),
+            )
+        )
+        if job.dedupe_key != key or (job.kind != kind and kind == PROCESS_KINDS[0])
+    ]
+    await withdraw(ctx, stale)
+    await ctx.db.flush()
+    payload = ProcessPayload(item_id=row.id, version=row.sha256)
+    await enqueue(ctx, kind, payload, dedupe_key=key, again=True)
 
 
 async def delete_item(ctx: Ctx, item_id: str) -> None:

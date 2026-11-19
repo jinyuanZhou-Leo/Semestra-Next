@@ -496,26 +496,30 @@ async def test_course_files_travel_with_their_contents(
 ) -> None:
     alice = await make_user(email="alice@example.com")
     ids = await _seed(app, alice)
-    item_id = new_id()
-    key = files_service.storage_key(alice.id, item_id)
-    await app.state.storage.put(key, _one(b"week 1 notes"), "text/plain")
     async with app.state.session_factory() as db:
-        db.add(
-            FilesItem(
-                id=item_id,
-                user_id=alice.id,
-                course_id=ids["course"],
-                kind="file",
-                display_name="notes.txt",
-                original_name="notes.txt",
-                mime_type="text/plain",
-                size_bytes=12,
-                storage_key=key,
-                doc_status="ready",
+        # One file read, one left unread (the course reads files only when asked).
+        for name, status in (("notes.txt", "ready"), ("draft.txt", "none")):
+            item_id = new_id()
+            key = files_service.storage_key(alice.id, item_id)
+            await app.state.storage.put(key, _one(b"week 1 notes"), "text/plain")
+            db.add(
+                FilesItem(
+                    id=item_id,
+                    user_id=alice.id,
+                    course_id=ids["course"],
+                    kind="file",
+                    display_name=name,
+                    original_name=name,
+                    mime_type="text/plain",
+                    size_bytes=12,
+                    storage_key=key,
+                    doc_status=status,
+                )
             )
-        )
         await db.commit()
     await login_as(client, alice)
+    values = {"scope_type": "program", "scope_id": ids["program"], "values": {"auto_index": False}}
+    assert (await client.patch("/me/settings/files", json=values)).status_code == 200
     with_files = await _export(client, run_jobs, include_files=True)
     without = await _export(client, run_jobs)
 
@@ -531,23 +535,28 @@ async def test_course_files_travel_with_their_contents(
 
     bob, done = await restore("bob@example.com", with_files)
     assert done["status"] == "imported", done
-    assert done["report"]["imported"]["files"] == {"folders": 1, "items": 2, "source_folders": 1}
+    assert done["report"]["imported"]["files"] == {"folders": 1, "items": 3, "source_folders": 1}
     async with app.state.session_factory() as db:
-        copy = await db.scalar(
-            select(FilesItem).where(FilesItem.user_id == bob.id, FilesItem.kind == "file")
-        )
-    assert copy is not None
+        copies = {
+            row.display_name: row
+            for row in await db.scalars(
+                select(FilesItem).where(FilesItem.user_id == bob.id, FilesItem.kind == "file")
+            )
+        }
+    copy = copies["notes.txt"]
     assert copy.storage_key == files_service.storage_key(bob.id, copy.id)
     assert copy.size_bytes == 12
     stored = b"".join([c async for c in app.state.storage.open(copy.storage_key)])
     assert stored == b"week 1 notes"
-    # The copy was processed again (the parsed document is not in the backup).
+    # What was read is read again (the parsed document is not in the backup); the rest waits
+    # to be asked for, as the course's setting says.
     assert copy.doc_status != "none"
+    assert copies["draft.txt"].doc_status == "none"
 
     # Without the contents, the file is left out and reported; the link still comes.
     _, done = await restore("carol@example.com", without)
     assert done["report"]["imported"]["files"] == {"folders": 1, "items": 1, "source_folders": 1}
-    assert done["report"]["skipped"] == {"files": {"items": 1}}
+    assert done["report"]["skipped"] == {"files": {"items": 2}}
 
 
 async def test_replacing_counts_the_quota_without_the_files_it_removes(
