@@ -280,6 +280,18 @@ test('on the icon rail a hidden group label lets clicks through to the entry abo
   }
 })
 
+test("on the icon rail the term's courses are one entry whose menu opens them", async () => {
+  const { router } = mount('/p/p1/summary')
+  const nav = await screen.findByRole('navigation', { name: 'Main navigation' })
+  await within(nav).findByRole('link', { name: /APS105H1/ })
+  await userEvent.keyboard('{Control>}b{/Control}')
+  await userEvent.click(await within(nav).findByRole('button', { name: 'Courses' }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: /APS105H1/ }))
+  await waitFor(() => expect(router.state.location.pathname).toBe('/p/p1/c/c1'))
+  expect(within(nav).getByRole('button', { name: 'Courses' })).toHaveAttribute('data-active')
+  await userEvent.keyboard('{Control>}b{/Control}')
+})
+
 test("a past term's course page puts that term in the sidebar, and it stays there", async () => {
   const { router } = mount('/p/p1/c/c3?fromTerm=t1')
   const nav = await screen.findByRole('navigation', { name: 'Main navigation' })

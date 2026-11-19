@@ -7,6 +7,7 @@ import {
   ChartColumn,
   Check,
   ChevronDown,
+  LibraryBig,
   MoreHorizontal,
   Undo2,
 } from 'lucide-react'
@@ -34,6 +35,8 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarSeparator,
+  useSidebar,
 } from '@/ui/sidebar'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { courseColor, courseLabel } from '../color'
@@ -206,7 +209,10 @@ function PagesMenu({ onManage }: { onManage: () => void }) {
   )
 }
 
-/** The courses of the term the sidebar shows (hidden on the icon rail). */
+/**
+ * The courses of the term the sidebar shows. On the icon rail they fold into one "Courses" entry
+ * whose menu (on hover or click) lists them, so a course is still one step away.
+ */
 function TermCourses({
   programId,
   term,
@@ -218,8 +224,82 @@ function TermCourses({
 }) {
   const courses = useCourses(programId, term.id).data?.items
   const tabOf = useCourseLinkTab(programId, courses?.map((c) => c.id) ?? [])
+  const { state } = useSidebar()
+  const isActive = (courseId: string) => {
+    const href = coursePath(programId, courseId)
+    return pathname === href || pathname.startsWith(`${href}/`)
+  }
+  const hrefOf = (courseId: string) => coursePath(programId, courseId, tabOf(courseId), term.id)
+
+  if (state === 'collapsed') {
+    const anyActive = (courses ?? []).some((course) => isActive(course.id))
+    return (
+      <>
+        {/* Stands in for the hidden "Courses" label. The Separator's `data-horizontal:w-full`
+            outranks SidebarSeparator's `w-auto`, so the margins need `w-auto` here too. */}
+        <SidebarSeparator className="mx-3 data-horizontal:w-auto" />
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    openOnHover
+                    delay={80}
+                    render={
+                      <SidebarMenuButton
+                        isActive={anyActive}
+                        aria-label={m.academics_sidebar_courses()}
+                      />
+                    }
+                  >
+                    <LibraryBig aria-hidden />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent side="right" align="start" className="max-h-96 w-60">
+                    <DropdownMenuGroup>
+                      <DropdownMenuLabel className="truncate text-xs text-muted-foreground">
+                        {term.name}
+                      </DropdownMenuLabel>
+                      {courses && courses.length === 0 ? (
+                        <DropdownMenuItem disabled>
+                          {m.academics_term_no_courses()}
+                        </DropdownMenuItem>
+                      ) : null}
+                      {(courses ?? []).map((course) => {
+                        const active = isActive(course.id)
+                        return (
+                          <DropdownMenuItem
+                            key={course.id}
+                            render={
+                              <HistoryLink
+                                href={hrefOf(course.id)}
+                                aria-current={active ? 'page' : undefined}
+                              />
+                            }
+                          >
+                            <span
+                              aria-hidden
+                              className="mx-1 size-2 shrink-0 rounded-full"
+                              style={{ backgroundColor: courseColor(course) }}
+                            />
+                            <span className="truncate">{courseLabel(course)}</span>
+                            {active ? <Check aria-hidden className="ml-auto" /> : null}
+                          </DropdownMenuItem>
+                        )
+                      })}
+                    </DropdownMenuGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      </>
+    )
+  }
+
   return (
-    <SidebarGroup className="group-data-[collapsible=icon]:hidden">
+    <SidebarGroup>
       <SidebarGroupLabel className={GROUP_LABEL}>{m.academics_sidebar_courses()}</SidebarGroupLabel>
       <SidebarGroupContent>
         <SidebarMenu>
@@ -231,8 +311,7 @@ function TermCourses({
             </SidebarMenuItem>
           ) : null}
           {(courses ?? []).map((course) => {
-            const href = coursePath(programId, course.id)
-            const active = pathname === href || pathname.startsWith(`${href}/`)
+            const active = isActive(course.id)
             return (
               <SidebarMenuItem key={course.id}>
                 <SidebarMenuButton
@@ -240,7 +319,7 @@ function TermCourses({
                   tooltip={course.title}
                   render={
                     <HistoryLink
-                      href={coursePath(programId, course.id, tabOf(course.id), term.id)}
+                      href={hrefOf(course.id)}
                       aria-current={active ? 'page' : undefined}
                     />
                   }
