@@ -202,7 +202,10 @@ export const accountAvatarGet = <ThrowOnError extends boolean = false>(options: 
  * Use to see what a course has: its files and saved links in one folder (or every
  * folder with recursive=true), with their processing status (doc_status "none" means the file is
  * stored but not indexed because automatic indexing is off; the user can index it from the file
- * list). Do not use to look for what the files say; use files.document.search for that.
+ * list). Course materials the LMS sync brought in have `source_name` and follow the LMS
+ * (`follows_source`); ask for `unseen` (new, not opened yet), `stored` (saved in Semestra) or
+ * `modified_at` with `fields` when they matter. Do not use to look for what the files say; use
+ * files.document.search for that.
  */
 export const filesItemList = <ThrowOnError extends boolean = false>(options: Options<FilesItemListData, ThrowOnError>): RequestResult<FilesItemListResponses, FilesItemListErrors, ThrowOnError> => (options.client ?? client).get<FilesItemListResponses, FilesItemListErrors, ThrowOnError>({
     security: [
@@ -2779,15 +2782,23 @@ export const filesFolderDelete = <ThrowOnError extends boolean = false>(options:
  * Folders are listed by name. Only send the fields to change.
  */
 export const filesFolderUpdate = <ThrowOnError extends boolean = false>(options: Options<FilesFolderUpdateData, ThrowOnError>): RequestResult<FilesFolderUpdateResponses, FilesFolderUpdateErrors, ThrowOnError> => (options.client ?? client).patch<FilesFolderUpdateResponses, FilesFolderUpdateErrors, ThrowOnError>({
-    security: [{
+    security: [
+        {
             in: 'cookie',
             name: 'semestra_session',
             type: 'apiKey'
-        }, {
+        },
+        {
             key: 'accessToken',
             scheme: 'bearer',
             type: 'http'
-        }],
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/folders/{folder_id}',
     ...options,
     headers: {
@@ -2886,43 +2897,61 @@ export const filesItemUpdate = <ThrowOnError extends boolean = false>(options: O
 });
 
 /**
- * Remove the local copy of a file that follows its source.
+ * Stop saving a course material from the LMS in Semestra.
  *
- * The file is read from the LMS when opened again, whatever the course's
- * setting, and its storage is freed.
+ * Undoes files.item.keep_copy: the file is read from the LMS when opened again,
+ * whatever the course's setting, and its storage is freed. Refused while the LMS cannot give the
+ * file (its saved copy is then the only one left).
  */
 export const filesItemDropCopy = <ThrowOnError extends boolean = false>(options: Options<FilesItemDropCopyData, ThrowOnError>): RequestResult<FilesItemDropCopyResponses, FilesItemDropCopyErrors, ThrowOnError> => (options.client ?? client).post<FilesItemDropCopyResponses, FilesItemDropCopyErrors, ThrowOnError>({
-    security: [{
+    security: [
+        {
             in: 'cookie',
             name: 'semestra_session',
             type: 'apiKey'
-        }, {
+        },
+        {
             key: 'accessToken',
             scheme: 'bearer',
             type: 'http'
-        }],
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/files/{item_id}:drop-copy',
     ...options
 });
 
 /**
- * Keep a local copy of a file that follows its source.
+ * Save a course material from the LMS in Semestra.
  *
- * Stores a file that follows the LMS here (in the background when it is read
- * from the LMS), whatever the course's setting, so it still opens after the course closes there. It
- * still follows the LMS (updated, and kept as the user's own file if deleted there). It takes
- * storage quota; one too large or beyond the quota left is refused.
+ * For a file that follows the LMS (follows_source): stores it here (in the
+ * background when it is read from the LMS), whatever the course's setting, so it still opens after
+ * it is deleted there or the course closes. It still follows the LMS (updated, and kept as the
+ * user's own file if deleted there). Only when the user asks to keep it; reading never needs it. It
+ * takes storage quota; one too large or beyond the quota left is refused.
  */
 export const filesItemKeepCopy = <ThrowOnError extends boolean = false>(options: Options<FilesItemKeepCopyData, ThrowOnError>): RequestResult<FilesItemKeepCopyResponses, FilesItemKeepCopyErrors, ThrowOnError> => (options.client ?? client).post<FilesItemKeepCopyResponses, FilesItemKeepCopyErrors, ThrowOnError>({
-    security: [{
+    security: [
+        {
             in: 'cookie',
             name: 'semestra_session',
             type: 'apiKey'
-        }, {
+        },
+        {
             key: 'accessToken',
             scheme: 'bearer',
             type: 'http'
-        }],
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/files/{item_id}:keep-copy',
     ...options
 });
@@ -2969,19 +2998,28 @@ export const filesItemMarkSeen = <ThrowOnError extends boolean = false>(options:
 /**
  * Read a file's text again.
  *
- * Starts the document pipeline again for a file, for example after a failure or
- * after an AI model for reading scanned pages was set up.
+ * Starts the document pipeline again for a file, for example after a failure
+ * (doc_status failed), when it was not indexed, or after an AI model for reading scanned pages was
+ * set up. It runs in the background; doc_status is pending until it is done.
  */
 export const filesItemReprocess = <ThrowOnError extends boolean = false>(options: Options<FilesItemReprocessData, ThrowOnError>): RequestResult<FilesItemReprocessResponses, FilesItemReprocessErrors, ThrowOnError> => (options.client ?? client).post<FilesItemReprocessResponses, FilesItemReprocessErrors, ThrowOnError>({
-    security: [{
+    security: [
+        {
             in: 'cookie',
             name: 'semestra_session',
             type: 'apiKey'
-        }, {
+        },
+        {
             key: 'accessToken',
             scheme: 'bearer',
             type: 'http'
-        }],
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/files/{item_id}:reprocess',
     ...options
 });
@@ -4534,11 +4572,12 @@ export const layoutsTemplateSaveFromBoard = <ThrowOnError extends boolean = fals
 });
 
 /**
- * What is new on its LMS (Canvas) for a course or a whole term: announcements, grades and new assignments.
+ * What is new on its LMS (Canvas) for a course or a whole term: announcements, grades, new assignments and course materials.
  *
  * Newest first, the last 7 days unless `since`. Imported assignments follow the
  * LMS by themselves (due date, weight, grade); what the user and the LMS both changed waits for the
- * user in the app's sync panel. Read an item in full with lms.content.read.
+ * user in the app's sync panel. Read an item in full with lms.content.read; a material with an
+ * `item_id` is a course file (files.document.read).
  */
 export const lmsActivityList = <ThrowOnError extends boolean = false>(options?: Options<LmsActivityListData, ThrowOnError>): RequestResult<LmsActivityListResponses, LmsActivityListErrors, ThrowOnError> => (options?.client ?? client).get<LmsActivityListResponses, LmsActivityListErrors, ThrowOnError>({
     security: [

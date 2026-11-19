@@ -61,7 +61,8 @@ TAGS = ("files",)
 # What agents get back (M00 §3.6): no hashes, storage names, import refs or timestamps.
 _FILE_FIELDS = (
     "id", "course_id", "folder_id", "kind", "display_name", "mime_type", "size_bytes", "url",
-    "pinned", "doc_status", "doc_error_code", "page_count", "ocr_skipped_pages",
+    "pinned", "doc_status", "doc_error_code", "page_count", "ocr_skipped_pages", "source_name",
+    "follows_source", "stored", "unseen",
 )  # fmt: skip
 
 
@@ -74,6 +75,8 @@ agent_hints(
         "recursive=true to delete them all.",
         "files.not_indexed": "Indexing was off when this file was added, so it has no text to "
         "read or search. Tell the user they can index it from the file's menu.",
+        "files.source_unreachable": "The LMS cannot give the file now (the course may be closed "
+        "there), so its saved copy is the only one left and stays. Tell the user.",
         "files.not_ready": "The file is still being processed (or failed, see doc_status). Try "
         "again later or tell the user.",
     }
@@ -86,7 +89,10 @@ agent_hints(
     description="""Use to see what a course has: its files and saved links in one folder (or every
 folder with recursive=true), with their processing status (doc_status "none" means the file is
 stored but not indexed because automatic indexing is off; the user can index it from the file
-list). Do not use to look for what the files say; use files.document.search for that.""",
+list). Course materials the LMS sync brought in have `source_name` and follow the LMS
+(`follows_source`); ask for `unseen` (new, not opened yet), `stored` (saved in Semestra) or
+`modified_at` with `fields` when they matter. Do not use to look for what the files say; use
+files.document.search for that.""",
     effect="read",
     http=Http("GET", "/courses/{course_id}/files"),
     tags=TAGS,
@@ -193,8 +199,8 @@ async def folder_create(ctx: Ctx, inp: FolderCreateInput) -> FolderOut:
 Folders are listed by name. Only send the fields to change.""",
     effect="write",
     http=Http("PATCH", "/folders/{folder_id}"),
-    expose=("http",),
     tags=TAGS,
+    agent_output_fields=("id", "name", "parent_id"),
 )
 async def folder_update(ctx: Ctx, inp: FolderUpdateInput) -> FolderOut:
     return await folders.update_folder(
@@ -255,12 +261,13 @@ async def entries_delete(ctx: Ctx, inp: EntriesDeleteInput) -> Deleted:
 @capability(
     name="files.item.reprocess",
     summary="Read a file's text again.",
-    description="""Starts the document pipeline again for a file, for example after a failure or
-after an AI model for reading scanned pages was set up.""",
+    description="""Starts the document pipeline again for a file, for example after a failure
+(doc_status failed), when it was not indexed, or after an AI model for reading scanned pages was
+set up. It runs in the background; doc_status is pending until it is done.""",
     effect="write",
     http=Http("POST", "/files/{item_id}:reprocess"),
-    expose=("http",),
     tags=TAGS,
+    agent_output_fields=("id", "display_name", "doc_status"),
 )
 async def reprocess(ctx: Ctx, inp: ItemRef) -> ItemOut:
     return await items.reprocess(ctx, inp.item_id)
@@ -268,15 +275,16 @@ async def reprocess(ctx: Ctx, inp: ItemRef) -> ItemOut:
 
 @capability(
     name="files.item.keep_copy",
-    summary="Keep a local copy of a file that follows its source.",
-    description="""Stores a file that follows the LMS here (in the background when it is read
-from the LMS), whatever the course's setting, so it still opens after the course closes there. It
-still follows the LMS (updated, and kept as the user's own file if deleted there). It takes
-storage quota; one too large or beyond the quota left is refused.""",
+    summary="Save a course material from the LMS in Semestra.",
+    description="""For a file that follows the LMS (follows_source): stores it here (in the
+background when it is read from the LMS), whatever the course's setting, so it still opens after
+it is deleted there or the course closes. It still follows the LMS (updated, and kept as the
+user's own file if deleted there). Only when the user asks to keep it; reading never needs it. It
+takes storage quota; one too large or beyond the quota left is refused.""",
     effect="write",
     http=Http("POST", "/files/{item_id}:keep-copy"),
-    expose=("http",),
     tags=TAGS,
+    agent_output_fields=("id", "display_name", "stored"),
 )
 async def keep_copy(ctx: Ctx, inp: ItemRef) -> ItemOut:
     row = await service.get_item(ctx, inp.item_id)
@@ -286,13 +294,14 @@ async def keep_copy(ctx: Ctx, inp: ItemRef) -> ItemOut:
 
 @capability(
     name="files.item.drop_copy",
-    summary="Remove the local copy of a file that follows its source.",
-    description="""The file is read from the LMS when opened again, whatever the course's
-setting, and its storage is freed.""",
+    summary="Stop saving a course material from the LMS in Semestra.",
+    description="""Undoes files.item.keep_copy: the file is read from the LMS when opened again,
+whatever the course's setting, and its storage is freed. Refused while the LMS cannot give the
+file (its saved copy is then the only one left).""",
     effect="write",
     http=Http("POST", "/files/{item_id}:drop-copy"),
-    expose=("http",),
     tags=TAGS,
+    agent_output_fields=("id", "display_name", "stored"),
 )
 async def drop_copy(ctx: Ctx, inp: ItemRef) -> ItemOut:
     row = await service.get_item(ctx, inp.item_id)

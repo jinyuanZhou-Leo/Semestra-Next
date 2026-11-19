@@ -6357,9 +6357,9 @@ export type LmsActivityItem = {
     /**
      * Kind
      *
-     * announcement; grade (newly graded); assignment (new: not imported, due later)
+     * announcement; grade (newly graded); assignment (new: not imported, due later); material (a file, page or link the sync brought into the course files, or changed or removed there)
      */
-    kind: 'announcement' | 'grade' | 'assignment';
+    kind: 'announcement' | 'grade' | 'assignment' | 'material';
     /**
      * Ref
      */
@@ -6382,6 +6382,18 @@ export type LmsActivityItem = {
      * Summary
      */
     summary?: string | null;
+    /**
+     * Change
+     *
+     * A material's: added; duplicate (added, with the name and size of a file the user had put in the course already); updated (its contents); gone (deleted on the LMS, so removed from the course files); handed_over (deleted on the LMS, kept as the user's own file since it was saved in Semestra)
+     */
+    change?: 'added' | 'duplicate' | 'updated' | 'gone' | 'handed_over' | null;
+    /**
+     * Item Id
+     *
+     * A material's course file, for the files tools; none when gone
+     */
+    item_id?: string | null;
 };
 
 /**

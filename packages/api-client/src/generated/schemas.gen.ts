@@ -11150,10 +11150,11 @@ export const LmsActivityItemSchema = {
             enum: [
                 'announcement',
                 'grade',
-                'assignment'
+                'assignment',
+                'material'
             ],
             title: 'Kind',
-            description: 'announcement; grade (newly graded); assignment (new: not imported, due later)'
+            description: 'announcement; grade (newly graded); assignment (new: not imported, due later); material (a file, page or link the sync brought into the course files, or changed or removed there)'
         },
         ref: {
             anyOf: [
@@ -11205,6 +11206,37 @@ export const LmsActivityItemSchema = {
                 }
             ],
             title: 'Summary'
+        },
+        change: {
+            anyOf: [
+                {
+                    type: 'string',
+                    enum: [
+                        'added',
+                        'duplicate',
+                        'updated',
+                        'gone',
+                        'handed_over'
+                    ]
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Change',
+            description: 'A material\'s: added; duplicate (added, with the name and size of a file the user had put in the course already); updated (its contents); gone (deleted on the LMS, so removed from the course files); handed_over (deleted on the LMS, kept as the user\'s own file since it was saved in Semestra)'
+        },
+        item_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Item Id',
+            description: 'A material\'s course file, for the files tools; none when gone'
         }
     },
     type: 'object',

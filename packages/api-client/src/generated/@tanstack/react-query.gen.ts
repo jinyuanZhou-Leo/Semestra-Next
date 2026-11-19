@@ -329,7 +329,10 @@ export const filesItemListQueryKey = (options: Options<FilesItemListData>) => cr
  * Use to see what a course has: its files and saved links in one folder (or every
  * folder with recursive=true), with their processing status (doc_status "none" means the file is
  * stored but not indexed because automatic indexing is off; the user can index it from the file
- * list). Do not use to look for what the files say; use files.document.search for that.
+ * list). Course materials the LMS sync brought in have `source_name` and follow the LMS
+ * (`follows_source`); ask for `unseen` (new, not opened yet), `stored` (saved in Semestra) or
+ * `modified_at` with `fields` when they matter. Do not use to look for what the files say; use
+ * files.document.search for that.
  */
 export const filesItemListOptions = (options: Options<FilesItemListData>) => queryOptions<FilesItemListResponse, FilesItemListError, FilesItemListResponse, ReturnType<typeof filesItemListQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -381,7 +384,10 @@ export const filesItemListInfiniteQueryKey = (options: Options<FilesItemListData
  * Use to see what a course has: its files and saved links in one folder (or every
  * folder with recursive=true), with their processing status (doc_status "none" means the file is
  * stored but not indexed because automatic indexing is off; the user can index it from the file
- * list). Do not use to look for what the files say; use files.document.search for that.
+ * list). Course materials the LMS sync brought in have `source_name` and follow the LMS
+ * (`follows_source`); ask for `unseen` (new, not opened yet), `stored` (saved in Semestra) or
+ * `modified_at` with `fields` when they matter. Do not use to look for what the files say; use
+ * files.document.search for that.
  */
 export const filesItemListInfiniteOptions = (options: Options<FilesItemListData>) => {
     const opts = infiniteQueryOptions<FilesItemListResponse, FilesItemListError, InfiniteData<FilesItemListResponse>, QueryKey<Options<FilesItemListData>>, string | null | Pick<QueryKey<Options<FilesItemListData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
@@ -2798,10 +2804,11 @@ export const filesItemUpdateMutation = (options?: Partial<Options<FilesItemUpdat
 };
 
 /**
- * Remove the local copy of a file that follows its source.
+ * Stop saving a course material from the LMS in Semestra.
  *
- * The file is read from the LMS when opened again, whatever the course's
- * setting, and its storage is freed.
+ * Undoes files.item.keep_copy: the file is read from the LMS when opened again,
+ * whatever the course's setting, and its storage is freed. Refused while the LMS cannot give the
+ * file (its saved copy is then the only one left).
  */
 export const filesItemDropCopyMutation = (options?: Partial<Options<FilesItemDropCopyData>>): UseMutationOptions<FilesItemDropCopyResponse, FilesItemDropCopyError, Options<FilesItemDropCopyData>> => {
     const mutationOptions: UseMutationOptions<FilesItemDropCopyResponse, FilesItemDropCopyError, Options<FilesItemDropCopyData>> = {
@@ -2818,12 +2825,13 @@ export const filesItemDropCopyMutation = (options?: Partial<Options<FilesItemDro
 };
 
 /**
- * Keep a local copy of a file that follows its source.
+ * Save a course material from the LMS in Semestra.
  *
- * Stores a file that follows the LMS here (in the background when it is read
- * from the LMS), whatever the course's setting, so it still opens after the course closes there. It
- * still follows the LMS (updated, and kept as the user's own file if deleted there). It takes
- * storage quota; one too large or beyond the quota left is refused.
+ * For a file that follows the LMS (follows_source): stores it here (in the
+ * background when it is read from the LMS), whatever the course's setting, so it still opens after
+ * it is deleted there or the course closes. It still follows the LMS (updated, and kept as the
+ * user's own file if deleted there). Only when the user asks to keep it; reading never needs it. It
+ * takes storage quota; one too large or beyond the quota left is refused.
  */
 export const filesItemKeepCopyMutation = (options?: Partial<Options<FilesItemKeepCopyData>>): UseMutationOptions<FilesItemKeepCopyResponse, FilesItemKeepCopyError, Options<FilesItemKeepCopyData>> => {
     const mutationOptions: UseMutationOptions<FilesItemKeepCopyResponse, FilesItemKeepCopyError, Options<FilesItemKeepCopyData>> = {
@@ -2882,8 +2890,9 @@ export const filesItemMarkSeenMutation = (options?: Partial<Options<FilesItemMar
 /**
  * Read a file's text again.
  *
- * Starts the document pipeline again for a file, for example after a failure or
- * after an AI model for reading scanned pages was set up.
+ * Starts the document pipeline again for a file, for example after a failure
+ * (doc_status failed), when it was not indexed, or after an AI model for reading scanned pages was
+ * set up. It runs in the background; doc_status is pending until it is done.
  */
 export const filesItemReprocessMutation = (options?: Partial<Options<FilesItemReprocessData>>): UseMutationOptions<FilesItemReprocessResponse, FilesItemReprocessError, Options<FilesItemReprocessData>> => {
     const mutationOptions: UseMutationOptions<FilesItemReprocessResponse, FilesItemReprocessError, Options<FilesItemReprocessData>> = {
@@ -4183,11 +4192,12 @@ export const layoutsTemplateSaveFromBoardMutation = (options?: Partial<Options<L
 export const lmsActivityListQueryKey = (options?: Options<LmsActivityListData>) => createQueryKey('lmsActivityList', options);
 
 /**
- * What is new on its LMS (Canvas) for a course or a whole term: announcements, grades and new assignments.
+ * What is new on its LMS (Canvas) for a course or a whole term: announcements, grades, new assignments and course materials.
  *
  * Newest first, the last 7 days unless `since`. Imported assignments follow the
  * LMS by themselves (due date, weight, grade); what the user and the LMS both changed waits for the
- * user in the app's sync panel. Read an item in full with lms.content.read.
+ * user in the app's sync panel. Read an item in full with lms.content.read; a material with an
+ * `item_id` is a course file (files.document.read).
  */
 export const lmsActivityListOptions = (options?: Options<LmsActivityListData>) => queryOptions<LmsActivityListResponse, LmsActivityListError, LmsActivityListResponse, ReturnType<typeof lmsActivityListQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {

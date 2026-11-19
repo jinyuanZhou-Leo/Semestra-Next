@@ -273,11 +273,27 @@
       "plugin_id": null
     },
     {
+      "name": "files__folder__update",
+      "capability": "files.folder.update",
+      "module": "files",
+      "effect": "write",
+      "summary": "Rename or move a folder.",
+      "plugin_id": null
+    },
+    {
       "name": "files__item__delete",
       "capability": "files.item.delete",
       "module": "files",
       "effect": "destructive",
       "summary": "Delete a file or link permanently.",
+      "plugin_id": null
+    },
+    {
+      "name": "files__item__drop_copy",
+      "capability": "files.item.drop_copy",
+      "module": "files",
+      "effect": "write",
+      "summary": "Stop saving a course material from the LMS in Semestra.",
       "plugin_id": null
     },
     {
@@ -289,11 +305,27 @@
       "plugin_id": null
     },
     {
+      "name": "files__item__keep_copy",
+      "capability": "files.item.keep_copy",
+      "module": "files",
+      "effect": "write",
+      "summary": "Save a course material from the LMS in Semestra.",
+      "plugin_id": null
+    },
+    {
       "name": "files__item__list",
       "capability": "files.item.list",
       "module": "files",
       "effect": "read",
       "summary": "List the files, links and folders of a course.",
+      "plugin_id": null
+    },
+    {
+      "name": "files__item__reprocess",
+      "capability": "files.item.reprocess",
+      "module": "files",
+      "effect": "write",
+      "summary": "Read a file's text again.",
       "plugin_id": null
     },
     {
@@ -629,7 +661,7 @@
       "capability": "lms.activity.list",
       "module": "lms",
       "effect": "read",
-      "summary": "What is new on its LMS (Canvas) for a course or a whole term: announcements, grades and new assignments.",
+      "summary": "What is new on its LMS (Canvas) for a course or a whole term: announcements, grades, new assignments and course materials.",
       "plugin_id": null
     },
     {
@@ -1078,6 +1110,7 @@
         "files__document__read",
         "files__document__outline",
         "files__item__list",
+        "files__item__reprocess",
         "academics__course__find",
         "lms__content__search",
         "lms__content__read"
@@ -1272,6 +1305,8 @@
         "lms__course__list",
         "lms__course__link__set",
         "lms__file__save_to_course",
+        "files__item__keep_copy",
+        "files__item__drop_copy",
         "files__document__search",
         "files__document__read",
         "lms__course__import",

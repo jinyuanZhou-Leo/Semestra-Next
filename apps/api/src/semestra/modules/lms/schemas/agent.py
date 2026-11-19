@@ -214,20 +214,33 @@ class LmsActivityInput(BaseModel):
         return self
 
 
-ActivityKind = Literal["announcement", "grade", "assignment"]
+ActivityKind = Literal["announcement", "grade", "assignment", "material"]
+MaterialChange = Literal["added", "duplicate", "updated", "gone", "handed_over"]
 
 
 class LmsActivityItem(BaseModel):
     course_id: str
     course: str = Field(description="The course's code or title")
     kind: ActivityKind = Field(
-        description="announcement; grade (newly graded); assignment (new: not imported, due later)"
+        description="announcement; grade (newly graded); assignment (new: not imported, due "
+        "later); material (a file, page or link the sync brought into the course files, or "
+        "changed or removed there)"
     )
     ref: str | None = None
     title: str
     at: datetime | None = Field(default=None, description="When it happened (posted, graded)")
     due_at: datetime | None = None
     summary: str | None = None
+    change: MaterialChange | None = Field(
+        default=None,
+        description="A material's: added; duplicate (added, with the name and size of a file the "
+        "user had put in the course already); updated (its contents); gone (deleted on the LMS, "
+        "so removed from the course files); handed_over (deleted on the LMS, kept as the user's "
+        "own file since it was saved in Semestra)",
+    )
+    item_id: str | None = Field(
+        default=None, description="A material's course file, for the files tools; none when gone"
+    )
 
 
 class LmsActivityList(BaseModel):
