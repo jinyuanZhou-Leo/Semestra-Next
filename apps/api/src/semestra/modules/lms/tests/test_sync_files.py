@@ -492,21 +492,30 @@ async def test_stored_here_and_read_again(api: Api, fake: FakeProvider, clock: C
 
 
 async def test_copies_stay_while_the_course_cannot_be_read_whole(
-    api: Api, fake: FakeProvider, clock: Clock
+    api: Api, fake: FakeProvider, clock: Clock, settings: Settings
 ):
     _materials(fake)
+    fake.course_file_list.append(
+        _file("206", "Huge recording.pdf").model_copy(update={"size_bytes": 10**8})
+    )
+    settings.files_max_upload_bytes = 10**7
     program_id, course = await _course(api)
     await _materials_setting(api, course, store="local")
     await api.sync(program_id)
     await api.run_jobs()
-    assert (await _files(api, course))[1]["Lecture 1.pdf"]["stored"] is True
+    _, items = await _files(api, course)
+    assert items["Lecture 1.pdf"]["stored"] is True
+    assert items["Huge recording.pdf"]["local_copy"]["state"] == "failed"
 
     # Read from the platform again while the course refuses its files (closed there): the
     # copies may be the only ones left, so they stay until a run reads the course whole.
     fake.files_hidden = True
     await _materials_setting(api, course, store="online")
     await api.run_jobs()
-    assert (await _files(api, course))[1]["Lecture 1.pdf"]["stored"] is True
+    _, items = await _files(api, course)
+    assert items["Lecture 1.pdf"]["stored"] is True
+    # No copy is wanted any more, so none failed.
+    assert items["Huge recording.pdf"]["local_copy"]["state"] == "online"
     fake.files_hidden = False
     clock.advance(hours=2)
     await api.sync(program_id)
@@ -996,6 +1005,59 @@ async def test_a_2_1_backup_keeps_where_the_sync_filed_and_its_settings(
     assert [(m["name"], m["folder_name"]) for m in plan["moves"]] == [("Lecture 1.pdf", "Lectures")]
 
 
+def _files_as_2_1(archive: bytes, own_id: str) -> bytes:
+    """The files as 2.1 wrote them: a followed file's platform version in `sha256`, no source
+    version or copy columns; and one of the user's own files saved by Sem from a chat (its
+    attachment as `source_ref`)."""
+    source = zipfile.ZipFile(io.BytesIO(archive))
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w") as z:
+        for name in source.namelist():
+            data = source.read(name)
+            if name == "data/files.json":
+                payload = json.loads(data)
+                for row in payload["items"]:
+                    version = row.pop("source_version")
+                    del row["copy_modified_at"], row["copy_error_code"]
+                    if row["id"] == own_id:
+                        row |= {"source_kind": "agent", "source_ref": "att-1"}
+                    elif version is not None:
+                        row["sha256"] = version
+                data = json.dumps(payload).encode()
+            z.writestr(name, data)
+    return out.getvalue()
+
+
+async def test_a_2_1_backup_restores_saved_copies_and_own_files(api: Api, fake: FakeProvider):
+    _materials(fake)
+    program_id, course = await _course(api)
+    await _materials_setting(api, course, store="local")
+    await api.sync(program_id)
+    upload = ("notes.txt", b"my notes", "text/plain")
+    [own] = (await api.call("POST", f"/courses/{course}/files", files={"files": upload}))["items"]
+    await api.run_jobs()
+
+    started = await api.call("POST", "/me/exports", json={"include_files": True})
+    await api.run_jobs()
+    archive = (await api.client.get(f"/me/exports/{started['id']}/download")).content
+    uploaded = await api.client.post(
+        "/me/imports",
+        files={"file": ("backup.zip", _files_as_2_1(archive, own["id"]), "application/zip")},
+    )
+    body = {"mode": "replace", "confirmation": "Replace my data"}
+    await api.call("POST", f"/me/imports/{uploaded.json()['id']}:start", json=body)
+    await api.run_jobs()
+
+    [program] = (await api.call("GET", "/programs"))["items"]
+    [course] = [
+        c["id"] for c in (await api.call("GET", f"/programs/{program['id']}/courses"))["items"]
+    ]
+    _, items = await _files(api, course)
+    # The saved copy is the platform's current version; the user's file keeps its hash.
+    assert items["Lecture 1.pdf"]["local_copy"]["state"] == "saved"
+    assert (items["notes.txt"]["sha256"], items["notes.txt"]["local_copy"]) == (own["sha256"], None)
+
+
 async def test_a_restored_copy_stored_for_the_sync_is_read_as_the_sync_reads_it(
     api: Api, fake: FakeProvider, app: FastAPI
 ):
@@ -1330,6 +1392,7 @@ def test_migration_to_a_source_side_and_a_copy_side(tmp_path: Path):
         # Saved from the platform and never changed there: its own hash in both.
         ("4", "lms:file:4", "k4", "h4", "h4", None, None),
         ("5", None, "k5", "h5", None, None, None),  # the user's own
+        ("6", "att-1", "k6", "h6", None, None, None),  # the user's, saved by Sem from a chat
     ]
     for iid, ref, key, sha, copy, smime, ssize in rows:
         db.execute(
@@ -1357,4 +1420,5 @@ def test_migration_to_a_source_side_and_a_copy_side(tmp_path: Path):
         (None, "v3b", "v3a", "text/plain", 9, 0),  # older: shown as such
         (None, "h4", "h4", pdf, 5, 1),  # current until the platform changes it
         ("h5", None, None, None, None, 0),
+        ("h6", None, None, None, None, 0),
     ]

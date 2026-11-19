@@ -3482,6 +3482,7 @@
   "files_copy_reason_too_large": "the file exceeds the size limit",
   "files_copy_reason_quota": "not enough storage",
   "files_copy_reason_unreachable": "{source} can’t be reached",
+  "files_copy_reason_unavailable": "the file can’t be fetched from {source}",
   "files_save_here": "Save in Semestra",
   "files_save_here_hint": "Still opens if deleted on {source}.",
   "files_job_store_copy": "Saving to Semestra",

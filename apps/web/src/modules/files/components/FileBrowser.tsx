@@ -193,7 +193,9 @@ function FolderOrigin({ folder }: { folder: FolderOut }) {
 function copyReason(code: string | null | undefined, source: string): string {
   if (code === 'files.too_large') return m.files_copy_reason_too_large()
   if (code === 'common.quota_exceeded') return m.files_copy_reason_quota()
-  return m.files_copy_reason_unreachable({ source })
+  if (code === 'lms.unreachable' || code === 'files.source_unreachable')
+    return m.files_copy_reason_unreachable({ source })
+  return m.files_copy_reason_unavailable({ source })
 }
 
 /** Where a file that follows its source is kept, as the status column and its menu say it. */

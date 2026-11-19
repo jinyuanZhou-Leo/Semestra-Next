@@ -32,9 +32,19 @@ def register_content_source(prefix: str, opener: ContentOpener) -> None:
     _sources[prefix] = opener
 
 
-def _source(row: FilesItem) -> ContentOpener | None:
-    ref = row.source_ref or ""
+def _source_for(ref: str | None) -> ContentOpener | None:
+    ref = ref or ""
     return next((open_ for prefix, open_ in _sources.items() if ref.startswith(prefix)), None)
+
+
+def _source(row: FilesItem) -> ContentOpener | None:
+    return _source_for(row.source_ref)
+
+
+def is_source_ref(ref: str | None) -> bool:
+    """A `source_ref` that a source keeps in step (not, say, the attachment a file was saved
+    from)."""
+    return _source_for(ref) is not None
 
 
 def remote(row: FilesItem) -> bool:

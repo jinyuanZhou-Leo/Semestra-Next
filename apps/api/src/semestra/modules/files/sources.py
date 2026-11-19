@@ -342,6 +342,7 @@ async def apply_copies(
         error = row.copy_error_code
         want = row.keep_copy if row.keep_copy is not None else local
         if not want:
+            row.copy_error_code = None  # not wanted: nothing failed, copy kept or not
             released = release and await _release(ctx, row)
             if released or row.copy_error_code != error:
                 await _updated(ctx, row)
@@ -446,11 +447,17 @@ async def store_from_source(ctx: Ctx, item_id: str, *, quiet: bool) -> bool:
 
 async def _note_failure(ctx: Ctx, item_id: str, code: str) -> None:
     """Why the copy could not be stored, shown with the file until a later attempt stores it
-    (the source's next sync, or the user asking again) or the copy is no longer wanted."""
+    (the source's next sync, or the user asking again) or the copy is no longer wanted: not
+    noted for a file the user chose to read from its source meanwhile."""
 
     async def note(sys_ctx: Ctx) -> None:
         row = await sys_ctx.db.get(FilesItem, item_id)
-        if row is not None and content.follows_source(row) and row.copy_error_code != code:
+        if (
+            row is not None
+            and content.follows_source(row)
+            and row.keep_copy is not False
+            and row.copy_error_code != code
+        ):
             row.copy_error_code = code
             await _updated(sys_ctx, row)
 

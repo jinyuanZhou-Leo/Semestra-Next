@@ -3482,6 +3482,7 @@
   "files_copy_reason_too_large": "文件超出大小限制",
   "files_copy_reason_quota": "存储空间不足",
   "files_copy_reason_unreachable": "无法连接 {source}",
+  "files_copy_reason_unavailable": "无法从 {source} 获取文件",
   "files_save_here": "保存在 Semestra",
   "files_save_here_hint": "{source} 上删除后仍能打开。",
   "files_job_store_copy": "保存到 Semestra",

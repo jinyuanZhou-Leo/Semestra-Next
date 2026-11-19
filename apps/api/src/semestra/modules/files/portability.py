@@ -52,7 +52,8 @@ def _two_sides(raw: dict[str, Any]) -> dict[str, Any]:
     """Backups up to 2.1 kept a followed file's source version in `sha256`, and the source's type
     and size only while its copy was older: read as the source's side and the copy's, as
     migration 0062 does (the copy's hash is taken again when it is handed over)."""
-    if not raw.get("source_ref") or "source_version" in raw or raw.get("kind") != "file":
+    followed = raw.get("kind") == "file" and content.is_source_ref(raw.get("source_ref"))
+    if not followed or "source_version" in raw:
         return raw
     source = {
         "source_version": raw.get("sha256"),
