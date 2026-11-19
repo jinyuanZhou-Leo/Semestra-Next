@@ -21,7 +21,7 @@ export function RefChip({ chip, selected = false }: { chip: Chip; selected?: boo
     <span
       data-chip={chip.kind}
       className={cn(
-        'mx-px inline-flex h-5 items-center gap-1 rounded-md px-1.5 align-[-0.25em] text-[0.8125rem] font-medium whitespace-nowrap select-none [&>svg]:size-3.5 [&>svg]:shrink-0',
+        'mx-px inline-flex h-5 max-w-full items-center gap-1 rounded-md px-1.5 align-[-0.25em] text-[0.8125rem] font-medium whitespace-nowrap select-none [&>svg]:size-3.5 [&>svg]:shrink-0',
         chip.kind === 'skill' || chip.kind === 'command'
           ? 'bg-primary/12 text-primary dark:bg-primary/35 dark:text-foreground'
           : 'bg-foreground/7 text-foreground',
@@ -39,7 +39,7 @@ export function RefChip({ chip, selected = false }: { chip: Chip; selected?: boo
       ) : (
         <BookOpen aria-hidden style={course ? { color: courseColor(course) } : undefined} />
       )}
-      {chip.label}
+      <span className="truncate">{chip.label}</span>
     </span>
   )
 }
@@ -51,7 +51,7 @@ export function FileRefChip({ chip }: { chip: Chip }) {
     <>
       <button
         type="button"
-        className="cursor-pointer rounded-md outline-none hover:[&>span]:bg-foreground/12 focus-visible:ring-3 focus-visible:ring-ring/50"
+        className="max-w-full cursor-pointer rounded-md outline-none hover:[&>span]:bg-foreground/12 focus-visible:ring-3 focus-visible:ring-ring/50"
         onClick={() => preview.show({ itemId: chip.id })}
       >
         <RefChip chip={chip} />

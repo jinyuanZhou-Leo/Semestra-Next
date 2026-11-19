@@ -91,7 +91,9 @@ function PickButton({
         aria-hidden
         className={cn('size-4 shrink-0', picked ? 'text-primary' : 'text-muted-foreground')}
       />
-      <span className="truncate">{name}</span>
+      <span className="truncate" title={name}>
+        {name}
+      </span>
       {picked ? <Check aria-hidden className="ml-auto size-4 shrink-0" /> : null}
     </button>
   )
