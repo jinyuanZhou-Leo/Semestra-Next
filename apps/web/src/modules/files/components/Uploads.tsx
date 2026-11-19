@@ -37,6 +37,12 @@ type Sent = {
   folder_id: string | null
 }
 
+type Asked = {
+  all: File[]
+  dupes: File[]
+  into: UploadTarget
+}
+
 type Row = {
   key: string
   name: string
@@ -69,33 +75,18 @@ export function useUploads(): Uploads {
   const queryClient = useQueryClient()
   const usage = useFilesUsage().data
   const [rows, setRows] = useState<Row[]>([])
-  const duplicates = useDialogTarget<{
-    all: File[]
-    dupes: File[]
-    into: UploadTarget
-    hashes: ReadonlyMap<File, string>
-  }>()
-  // Files sent (or about to be) that the course's list may not show yet: the duplicate check
-  // counts them too, so the same file picked again mid-upload is asked about.
+  const duplicates = useDialogTarget<Asked>()
+  // Files picked and not yet in the course's list (being read, waiting for the question below,
+  // or uploading): the duplicate check counts them too, so the same file picked again meanwhile
+  // is asked about.
   const sending = useRef(new Map<File, Sent>())
+  // Batches waiting for the "already exists" question, one shown at a time, in order.
+  const asking = useRef<Asked[]>([])
 
   const patch = (key: string, change: Partial<Row>) =>
     setRows((current) => current.map((r) => (r.key === key ? { ...r, ...change } : r)))
 
-  const send = async (
-    files: readonly File[],
-    { courseId, folderId }: UploadTarget,
-    hashes: ReadonlyMap<File, string> = new Map(),
-  ) => {
-    for (const file of files)
-      sending.current.set(file, {
-        courseId,
-        kind: 'file',
-        display_name: file.name,
-        size_bytes: file.size,
-        sha256: hashes.get(file) ?? null,
-        folder_id: folderId,
-      })
+  const send = async (files: readonly File[], { courseId, folderId }: UploadTarget) => {
     const queued = files.map((file) => ({
       file,
       row: {
@@ -143,20 +134,47 @@ export function useUploads(): Uploads {
       return
     }
     if (plan.accepted.length === 0) return
-    void Promise.all(plan.accepted.map(async (file) => ({ file, sha256: await sha256Hex(file) })))
-      .then((hashed) => {
-        const inFlight = [...sending.current.values()].filter((f) => f.courseId === target.courseId)
-        const dupes = findDuplicates(hashed, [...target.existing, ...inFlight], target.folderId)
-        const hashes = new Map(hashed.map(({ file, sha256 }) => [file, sha256]))
-        if (dupes.size === 0) return send(plan.accepted, target, hashes)
-        duplicates.show({
-          all: plan.accepted,
-          dupes: plan.accepted.filter((f) => dupes.has(f)),
-          into: target,
-          hashes,
-        })
+    const batch = plan.accepted
+    // What was picked before this batch, still on its way: compared with, like the course's files.
+    const earlier = [...sending.current.values()].filter((f) => f.courseId === target.courseId)
+    for (const file of batch)
+      sending.current.set(file, {
+        courseId: target.courseId,
+        kind: 'file',
+        display_name: file.name,
+        size_bytes: file.size,
+        sha256: null,
+        folder_id: target.folderId,
       })
-      .catch(() => send(plan.accepted, target))
+    void Promise.all(batch.map(async (file) => ({ file, sha256: await sha256Hex(file) })))
+      .then((hashed) => {
+        for (const { file, sha256 } of hashed) {
+          const sent = sending.current.get(file)
+          if (sent) sent.sha256 = sha256
+        }
+        const dupes = findDuplicates(hashed, [...target.existing, ...earlier], target.folderId)
+        if (dupes.size === 0) return send(batch, target)
+        ask({ all: batch, dupes: batch.filter((f) => dupes.has(f)), into: target })
+      })
+      .catch(() => send(batch, target))
+  }
+
+  const ask = (batch: Asked) => {
+    asking.current.push(batch)
+    if (asking.current.length === 1) duplicates.show(batch)
+  }
+  // The question about the first waiting batch was answered: send what it says, then ask about
+  // the next one, if any.
+  const answer = (uploadDuplicates: boolean) => {
+    const [asked, ...rest] = asking.current
+    if (!asked) return
+    asking.current = rest
+    const skipped = uploadDuplicates ? [] : asked.dupes
+    for (const file of skipped) sending.current.delete(file)
+    const files = asked.all.filter((f) => !skipped.includes(f))
+    if (rest[0]) duplicates.show(rest[0])
+    else duplicates.close()
+    if (files.length) void send(files, asked.into)
   }
 
   const active = rows.some((r) => r.status === 'queued' || r.status === 'uploading')
@@ -228,11 +246,7 @@ export function useUploads(): Uploads {
 
   // Closing the question any way but "Upload anyway" skips the duplicates and keeps the rest.
   const skipDuplicates = () => {
-    const asked = duplicates.target
-    if (!duplicates.open || !asked) return
-    const rest = asked.all.filter((f) => !asked.dupes.includes(f))
-    duplicates.close()
-    if (rest.length) void send(rest, asked.into, asked.hashes)
+    if (duplicates.open) answer(false)
   }
   const dialog = (
     <AlertDialog
@@ -251,14 +265,7 @@ export function useUploads(): Uploads {
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>{m.files_duplicate_skip()}</AlertDialogCancel>
-          <AlertDialogAction
-            onClick={() => {
-              const asked = duplicates.target
-              if (!asked) return
-              duplicates.close()
-              void send(asked.all, asked.into, asked.hashes)
-            }}
-          >
+          <AlertDialogAction onClick={() => answer(true)}>
             {m.files_duplicate_upload_anyway()}
           </AlertDialogAction>
         </AlertDialogFooter>

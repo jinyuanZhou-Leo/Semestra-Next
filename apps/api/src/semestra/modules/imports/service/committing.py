@@ -622,8 +622,13 @@ async def _file_uploads(ctx: Ctx, row: ImportsSession, c: _Commit) -> None:
     refs = [dict(r) for r in row.source_refs]
     for upload in uploads:
         key = upload.storage_key
-        if await deps.course_has_file(ctx, course_ids[0], upload.sha256):
-            # Imported again: the course already has this file, so no second copy is saved.
+        if await deps.course_has_file(
+            ctx, course_ids[0], upload.filename, upload.size_bytes, upload.sha256
+        ):
+            # The course already has this file: no second copy, and the upload goes as it would
+            # once filed (it is not kept taking storage).
+            await ctx.db.delete(upload)
+            delete_after_commit(ctx, [key])
             for ref in refs:
                 if ref.get("upload_id") == upload.id:
                     ref["warning_code"] = "import.upload_already_filed"

@@ -23,8 +23,6 @@ from collections.abc import AsyncIterator, Awaitable, Callable, Mapping, Sequenc
 from dataclasses import dataclass
 from datetime import datetime
 
-from sqlalchemy import select
-
 from semestra.core.context import Ctx, run_as_system
 from semestra.core.db import new_id
 from semestra.core.errors import AppError
@@ -40,7 +38,7 @@ from semestra.core.storage import (
 from semestra.core.storage import usage as core_usage
 from semestra.modules.files import content, items, service
 from semestra.modules.files.folders import folder_names
-from semestra.modules.files.items import create_link, save_bytes_as_file
+from semestra.modules.files.items import create_link, find_duplicate, save_bytes_as_file
 from semestra.modules.files.models import FilesItem
 from semestra.modules.files.parse.detect import DOCX, PPTX, XLSX
 from semestra.modules.files.schemas import SourceKind
@@ -54,11 +52,11 @@ __all__ = [
     "create_link",
     "detach_from_source",
     "drop_copy",
+    "find_duplicate",
     "find_items",
     "folder_names",
     "get_folder",
     "keep_copy",
-    "own_file_keys",
     "purge_items",
     "remote",
     "rename_synced",
@@ -70,20 +68,6 @@ __all__ = [
 ]
 
 remote = content.remote
-
-
-async def own_file_keys(ctx: Ctx, course_id: str) -> set[tuple[str, int]]:
-    """(lowercased name, size) of the course's files that follow no source: what the user put
-    there. A source's new file with the same name and size is most likely one of them."""
-    rows = await ctx.db.execute(
-        select(FilesItem.display_name, FilesItem.size_bytes).where(
-            FilesItem.user_id == ctx.user_id,
-            FilesItem.course_id == course_id,
-            FilesItem.kind == "file",
-            FilesItem.source_ref.is_(None),
-        )
-    )
-    return {(name.lower(), size) for name, size in rows.all()}
 
 
 # A file read from its source that has not been read yet (restored from a backup).

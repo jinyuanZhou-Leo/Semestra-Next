@@ -3477,7 +3477,7 @@
   "files_preview_unreachable_description": "Below is the text read from it last time.",
   "lms_sync_material_added": "New material",
   "lms_sync_material_updated": "Updated",
-  "lms_sync_material_duplicate": "Same name and size as a file you uploaded",
+  "lms_sync_material_duplicate": "Same name and size as one of your files",
   "lms_sync_material_removed": "Deleted on {provider}",
   "lms_sync_material_kept": "Deleted on {provider}; your saved file stays",
   "lms_sync_removed_by_you": "Removed by you {ago}",

@@ -270,10 +270,13 @@ async def read_attachment(ctx: Ctx, attachment_id: str) -> tuple[str, str, bytes
     return row.name, mime, data
 
 
-async def course_has_file(ctx: Ctx, course_id: str, sha256: str) -> bool:
-    """Whether the course's files (M07) already hold a file with exactly these bytes."""
+async def course_has_file(ctx: Ctx, course_id: str, name: str, size: int, sha256: str) -> bool:
+    """Whether the course's files (M07) already have this file (M07's duplicate rule)."""
     items = _files("items")
-    return items is not None and await items.find_same_bytes(ctx, course_id, sha256) is not None
+    if items is None:
+        return False
+    found = await items.find_duplicate(ctx, course_id, name=name, size=size, sha256=sha256)
+    return found is not None
 
 
 async def move_to_course(

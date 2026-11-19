@@ -3477,7 +3477,7 @@
   "files_preview_unreachable_description": "下面是上次读取到的文字。",
   "lms_sync_material_added": "新资料",
   "lms_sync_material_updated": "已更新",
-  "lms_sync_material_duplicate": "与你上传过的文件同名且大小相同",
+  "lms_sync_material_duplicate": "与你的某个文件同名且大小相同",
   "lms_sync_material_removed": "已从 {provider} 删除",
   "lms_sync_material_kept": "已从 {provider} 删除，文件已保留",
   "lms_sync_removed_by_you": "{ago}由你移除",

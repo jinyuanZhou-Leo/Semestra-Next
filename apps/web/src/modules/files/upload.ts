@@ -40,9 +40,10 @@ export function planUpload(files: readonly File[], usage: FilesUsageGet | undefi
 }
 
 /**
- * Files that look already uploaded to this course: the same bytes anywhere in the course, the same
- * name and size anywhere in the course (a file read from its source, such as an LMS, has no hash of
- * its bytes here), or the same name in the target folder.
+ * Files that look already uploaded to this course. The rule is M07's (`items.find_duplicate`): the
+ * same bytes, or the same name and size, anywhere in the course (a file read from its source, such
+ * as an LMS, has no hash of its bytes here). An upload also asks about the same name in the target
+ * folder.
  */
 export function findDuplicates(
   files: readonly { file: File; sha256: string }[],

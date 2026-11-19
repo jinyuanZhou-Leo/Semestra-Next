@@ -144,6 +144,8 @@ async def test_syllabus_imported_again_is_not_filed_twice(
         done = await api.commit(session["id"], item_ids=[task["id"]])
         refs.append(done["session"]["source_refs"][0].get("warning_code"))
     assert refs == [None, "import.upload_already_filed"]
+    # The second upload is not kept either (it would take storage).
+    assert (await api.client.get(f"/imports/uploads/{upload}/content")).status_code == 404
     files = await api.call("GET", f"/courses/{course['id']}/files")
     assert [i["display_name"] for i in files["items"]] == ["syllabus.pdf"]
 

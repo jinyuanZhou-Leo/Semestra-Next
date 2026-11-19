@@ -269,6 +269,66 @@ test('files dropped on a folder go into it, once', async () => {
   expect(uploads).toHaveLength(1)
 })
 
+test('the same file picked again while the first is still uploading is asked about', async () => {
+  let release = () => {}
+  const held = new Promise<void>((resolve) => (release = resolve))
+  server.use(
+    http.post(`${API}/courses/c1/files`, async ({ request }) => {
+      uploads.push(await request.text())
+      await held
+      return HttpResponse.json({ items: [item({ id: 'new' })] }, { headers: CORS })
+    }),
+  )
+  const user = userEvent.setup()
+  mount()
+  expect(await screen.findByRole('button', { name: 'syllabus.pdf' })).toBeInTheDocument()
+  const drop = () => {
+    const file = new File(['hello'], 'notes.txt', { type: 'text/plain' })
+    const dataTransfer = { types: ['Files'], files: [file] }
+    fireEvent.dragEnter(window, { dataTransfer })
+    fireEvent.drop(window, { dataTransfer })
+  }
+  drop()
+  await waitFor(() => expect(uploads).toHaveLength(1))
+  drop()
+  const question = await screen.findByRole('alertdialog', { name: 'Some files already exist' })
+  await user.click(within(question).getByRole('button', { name: 'Skip these' }))
+  release()
+  expect(await screen.findByText('Uploads finished')).toBeInTheDocument()
+  expect(uploads).toHaveLength(1)
+})
+
+test('a folder name already used there shows under the name until it is changed', async () => {
+  let code = 'files.folder_name_taken'
+  server.use(
+    http.post(`${API}/courses/c1/folders`, () =>
+      HttpResponse.json(
+        { error: { code, params: { name: 'Week 1' }, request_id: 'r' } },
+        { status: code === 'files.folder_name_taken' ? 409 : 422 },
+      ),
+    ),
+  )
+  const user = userEvent.setup()
+  mount()
+  await user.click(await screen.findByRole('button', { name: 'New' }))
+  await user.click(await screen.findByRole('menuitem', { name: 'New folder' }))
+  const dialog = await screen.findByRole('dialog', { name: 'New folder' })
+  const name = within(dialog).getByRole('textbox', { name: 'Name' })
+  await user.type(name, 'week 1')
+  await user.click(within(dialog).getByRole('button', { name: 'Create' }))
+  expect(await within(dialog).findByText(/folder named “Week 1”/)).toBeInTheDocument()
+  expect(name).toHaveAttribute('aria-invalid', 'true')
+  await user.type(name, 's')
+  expect(within(dialog).queryByText(/folder named “Week 1”/)).not.toBeInTheDocument()
+  expect(name).not.toHaveAttribute('aria-invalid')
+
+  // Any other error is about the request, not the name: it stays below the fields.
+  code = 'files.folder_depth'
+  await user.click(within(dialog).getByRole('button', { name: 'Create' }))
+  expect(await within(dialog).findByText(/three levels deep/)).toBeInTheDocument()
+  expect(name).not.toHaveAttribute('aria-invalid')
+})
+
 test('a search hit opens the preview on its page', async () => {
   mount()
   await userEvent.type(await screen.findByRole('searchbox'), 'midterm')
