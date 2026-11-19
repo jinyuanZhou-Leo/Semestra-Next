@@ -1,5 +1,30 @@
 # @semestra/api
 
+## 2.2.0
+
+### Patch Changes
+
+- d22fd35: <!-- area: canvas -->
+  <!-- en -->
+  Sync status marks new course materials that match a file you uploaded yourself.
+  <!-- zh -->
+  同步状态会标出与你自己上传的文件重复的新课程资料。
+- d22fd35: <!-- area: files -->
+  <!-- en -->
+  Uploading a file the course already has now asks first, including Canvas materials read online and files still uploading.
+  <!-- zh -->
+  上传课程中已有的文件时会先询问，包括在线读取的 Canvas 资料和正在上传的文件。
+- d22fd35: <!-- area: files -->
+  <!-- en -->
+  Creating or renaming a folder to a name already used there shows a clear error on the name.
+  <!-- zh -->
+  新建或重命名文件夹时如与已有文件夹重名，会在名称处直接提示。
+- d22fd35: <!-- area: imports -->
+  <!-- en -->
+  Importing a syllabus again no longer saves a second copy to the course files.
+  <!-- zh -->
+  再次导入同一份大纲时，不会在课程文件中重复保存。
+
 ## 2.1.0
 
 ### Minor Changes

@@ -1,5 +1,73 @@
 # @semestra/web
 
+## 2.2.0
+
+### Minor Changes
+
+- 699bdf5: <!-- area: canvas -->
+  <!-- en -->
+  Course materials from Canvas now arrive in the same folders as on Canvas; use Organize to move materials synced earlier to match.
+  <!-- zh -->
+  Canvas 上的课程资料按原目录同步到课程文件中，之前同步的资料可以用「整理」移到对应位置。
+- 699bdf5: <!-- area: canvas -->
+  <!-- improved -->
+  <!-- en -->
+  Canvas sync settings are now in one place, and each course can adjust its own course materials.
+  <!-- zh -->
+  Canvas 同步设置集中到一处，每门课程可以单独调整课程资料。
+- 699bdf5: <!-- area: canvas -->
+  <!-- improved -->
+  <!-- en -->
+  A clearer sync status, with progress when you sync now.
+  <!-- zh -->
+  同步状态更清晰，立即同步时显示进度。
+- dce73ef: <!-- area: files -->
+  <!-- improved -->
+  <!-- en -->
+  File processing now shows as one sidebar line, listing each file with the option to stop it.
+  <!-- zh -->
+  文件处理在侧边栏合为一行，可以查看每个文件并停止处理。
+- 699bdf5: <!-- area: files -->
+  <!-- improved -->
+  <!-- en -->
+  Organize puts loose files into your existing folders and moves materials that changed folders on Canvas.
+  <!-- zh -->
+  「整理」会把散落的文件放进已有文件夹，并移动在 Canvas 上换了位置的资料。
+- 590efe3: <!-- area: canvas -->
+  <!-- en -->
+  Course materials now offer one simple choice: read them from Canvas, or save them in Semestra so they still open after they are deleted on Canvas.
+  <!-- zh -->
+  课程资料的保存方式更简单：从 Canvas 读取，或保存在 Semestra，在 Canvas 上删除后仍能打开。
+
+### Patch Changes
+
+- 38285c5: <!-- area: canvas -->
+  <!-- en -->
+  The announcements list and the open announcement now scroll separately, and the simplified view uses the full width of the page.
+  <!-- zh -->
+  公告列表与正文改为各自独立滚动，简洁样式下正文占满整个宽度。
+- d22fd35: <!-- area: canvas -->
+  <!-- en -->
+  Sync status marks new course materials that match a file you uploaded yourself.
+  <!-- zh -->
+  同步状态会标出与你自己上传的文件重复的新课程资料。
+- d22fd35: <!-- area: files -->
+  <!-- en -->
+  Uploading a file the course already has now asks first, including Canvas materials read online and files still uploading.
+  <!-- zh -->
+  上传课程中已有的文件时会先询问，包括在线读取的 Canvas 资料和正在上传的文件。
+- d22fd35: <!-- area: files -->
+  <!-- en -->
+  Creating or renaming a folder to a name already used there shows a clear error on the name.
+  <!-- zh -->
+  新建或重命名文件夹时如与已有文件夹重名，会在名称处直接提示。
+- d22fd35: <!-- area: imports -->
+  <!-- en -->
+  Importing a syllabus again no longer saves a second copy to the course files.
+  <!-- zh -->
+  再次导入同一份大纲时，不会在课程文件中重复保存。
+- @semestra/api-client@2.2.0
+
 ## 2.1.0
 
 ### Minor Changes
