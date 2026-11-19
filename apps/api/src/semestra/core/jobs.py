@@ -547,9 +547,13 @@ async def _ended(state: State, job: CoreJob) -> None:
 
 
 async def _discard(ctx: Ctx) -> None:
-    """Roll back `ctx`'s transaction, with the side effects it had queued."""
+    """Roll back `ctx`'s transaction, with the side effects it had queued. The user is read
+    again (a rollback expires it), so what runs after (`on_failure`, the job that follows)
+    still has `ctx.user_id`."""
     await ctx.db.rollback()
     ctx.after_commit.clear()
+    if ctx.user is not None:
+        await ctx.db.refresh(ctx.user)
 
 
 def _lease_lapsed(now: datetime) -> ColumnElement[bool]:

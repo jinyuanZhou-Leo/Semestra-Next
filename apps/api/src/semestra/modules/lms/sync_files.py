@@ -655,6 +655,8 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
             if key in found.materials or key in found.kept or key in found.locked:
                 continue
             if mat.state == "absent" and mat.quiet:
+                if mat.state_at is not None and mat.state_at > found.now:
+                    continue  # restored after this run read: left to the run after it
                 # Restored, but the platform no longer has it: told, not left waiting.
                 enter(mat, "absent", now)
                 _note(mat, "gone", now)
@@ -851,7 +853,6 @@ async def on_item_deleted(ctx: Ctx, event: Event) -> None:
         )
     ).all()
     for mat, link in found:
-        mat.item_id = None
         enter(mat, "dismissed", ctx.now)
         await events.publish(ctx, UPDATED, {"program_id": link.program_id})
 

@@ -4,11 +4,15 @@ follow the platform, and leave alone what the user moved, renamed or deleted."""
 
 import io
 import json
+import sqlite3
 import zipfile
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 import pytest
+from alembic import command
+from alembic.config import Config
 from fastapi import FastAPI
 from sqlalchemy import func, select
 
@@ -20,7 +24,7 @@ from semestra.modules.files.tests.conftest import FakeAi, make_pdf
 from semestra.modules.lms.schemas.dto import FileMeta, InternalRef, Module, ModuleItem, PageSummary
 from semestra.modules.lms.tests.conftest import Api, FakeProvider
 from semestra.modules.lms.tests.test_lms import setup_program
-from semestra.testing import Clock
+from semestra.testing import API_DIR, Clock
 
 pytestmark = pytest.mark.usefixtures("fake")
 
@@ -291,6 +295,7 @@ async def test_restore_all_and_a_restore_while_the_course_syncs(
         nonlocal restored_meanwhile
         if not restored_meanwhile:
             restored_meanwhile = True
+            clock.advance(seconds=1)  # after the run started reading
             await api.call("POST", f"/lms/sync/materials/{removed['id']}:restore")
         return await read_pages(*args)
 
@@ -298,7 +303,10 @@ async def test_restore_all_and_a_restore_while_the_course_syncs(
     clock.advance(minutes=1)
     await api.sync(program_id)
     assert restored_meanwhile
-    assert "Course syllabus" in (await _files(api, course))[1]
+    # Back, and as restored: not marked new, nor listed as gone or added.
+    assert (await _files(api, course))[1]["Course syllabus"]["unseen"] is False
+    status = await api.call("GET", f"/programs/{program_id}/lms/sync")
+    assert "Course syllabus" not in {m["title"] for m in status["materials"]}
 
 
 async def test_turning_materials_off_and_unlinking(api: Api, fake: FakeProvider, clock: Clock):
@@ -1077,3 +1085,41 @@ async def _pending(app: FastAPI, kind: str) -> int:
     async with app.state.session_factory() as db:
         query = select(func.count()).where(CoreJob.kind == kind, CoreJob.status == "pending")
         return await db.scalar(query) or 0
+
+
+def test_migration_to_four_states_and_names_the_sync_gave(tmp_path: Path):
+    path = tmp_path / "m.db"
+    cfg = Config(str(API_DIR / "alembic.ini"))
+    cfg.set_main_option("script_location", str(API_DIR / "migrations"))
+    cfg.attributes["database_url"] = f"sqlite+aiosqlite:///{path}"
+    command.upgrade(cfg, "0060")
+    db = sqlite3.connect(path)  # foreign keys are off: no user or link rows needed
+    rows = [
+        # Renamed by the user, the sync having written that name back: theirs again.
+        ("1", "synced", "i1", "Lecture 1.pdf", "Week 1 slides", "v1"),
+        ("2", "synced", "i2", "Notes/a.pdf", "a.pdf", "v1"),  # the name the sync gave it
+        ("3", "restored", None, "Syllabus", None, "v1"),
+        ("4", "handed_over", "i4", "Midterm.pdf", "Midterm.pdf", "v1"),
+        ("5", "gone", None, "Old.pdf", None, None),
+    ]
+    for mid, state, item, title, name, version in rows:
+        db.execute(
+            "INSERT INTO lms_materials (id, user_id, link_id, kind, external_id, state, item_id,"
+            " title, name, version, links) VALUES (?, 'u1', 'l1', 'file', ?, ?, ?, ?, ?, ?, '[]')",
+            (mid, mid, state, item, title, name, version),
+        )
+    db.commit()
+    db.close()
+    command.upgrade(cfg, "head")
+    db = sqlite3.connect(path)
+    got = db.execute(
+        "SELECT state, quiet, item_id, name, version FROM lms_materials ORDER BY id"
+    ).fetchall()
+    db.close()
+    assert got == [
+        ("synced", 0, "i1", "Lecture 1.pdf", "v1"),
+        ("synced", 0, "i2", "a.pdf", "v1"),
+        ("absent", 1, None, None, None),  # read whole when it comes in
+        ("absent", 0, "i4", None, None),  # still names the user's own file
+        ("absent", 0, None, None, None),
+    ]
