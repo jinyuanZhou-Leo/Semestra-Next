@@ -271,13 +271,14 @@ test('another term stays in the sidebar on other pages until the user goes back'
   ).not.toBeInTheDocument()
 })
 
-test('on the icon rail a hidden group label lets clicks through to the entry above it', async () => {
+test('on the icon rail the hidden term switcher lets clicks through to the entry above it', async () => {
   mount('/p/p1/summary')
   const nav = await screen.findByRole('navigation', { name: 'Main navigation' })
-  // The label slides up behind the entry above it (`-mt-8`) when the sidebar is folded.
-  for (const label of [await termSwitcher(nav, 'Winter 2026'), within(nav).getByText('Courses')]) {
-    expect(label).toHaveClass('group-data-[collapsible=icon]:pointer-events-none')
-  }
+  // The label slides up behind the entry above it (`-mt-8`) when the sidebar is folded. The
+  // courses' label isn't there then: the rail shows a separator and a Courses entry instead.
+  expect(await termSwitcher(nav, 'Winter 2026')).toHaveClass(
+    'group-data-[collapsible=icon]:pointer-events-none',
+  )
 })
 
 test("on the icon rail the term's courses are one entry whose menu opens them", async () => {

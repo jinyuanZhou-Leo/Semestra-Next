@@ -24,7 +24,10 @@
       :root[data-boot='shell'] #boot .mark, :root[data-boot='rail'] #boot .mark { display: none; }
       #boot .side { width: 16rem; flex: none; display: flex; flex-direction: column; padding: 8px; background: var(--sidebar); border-right: 1px solid var(--sidebar-border); }
       :root[data-boot='rail'] #boot .side { width: 3rem; }
-      :root[data-boot='rail'] #boot .t, :root[data-boot='rail'] #boot .label { display: none; }
+      :root[data-boot='rail'] #boot .t, :root[data-boot='rail'] #boot .label, :root[data-boot='rail'] #boot .wide { display: none; }
+      #boot .narrow { display: none; }
+      :root[data-boot='rail'] #boot .narrow { display: block; }
+      :root[data-boot='rail'] #boot .row.narrow { display: flex; }
       :root[data-boot='rail'] #boot .row, :root[data-boot='rail'] #boot .head { padding: 0 8px; }
       :root[data-boot='rail'] #boot .head { padding: 0; }
       #boot .bar { border-radius: 6px; background: color-mix(in oklch, var(--sidebar-foreground) 8%, transparent); }
@@ -63,11 +66,14 @@
           <div class="row"><div class="bar"></div><div class="bar t" style="width: 44px"></div></div>
           <div class="row"><div class="bar"></div><div class="bar t" style="width: 52px"></div></div>
           <div class="row"><div class="bar"></div><div class="bar t" style="width: 40px"></div></div>
-          <div style="height: 32px"></div>
+          <div class="wide" style="height: 32px"></div>
           <div class="label"><div class="bar" style="width: 48px"></div></div>
-          <div class="row"><div class="bar t" style="width: 8px; height: 8px; border-radius: 999px; margin-left: 4px"></div><div class="bar t" style="width: 72px"></div></div>
-          <div class="row"><div class="bar t" style="width: 8px; height: 8px; border-radius: 999px; margin-left: 4px"></div><div class="bar t" style="width: 64px"></div></div>
-          <div class="row"><div class="bar t" style="width: 8px; height: 8px; border-radius: 999px; margin-left: 4px"></div><div class="bar t" style="width: 80px"></div></div>
+          <div class="row wide"><div class="bar t" style="width: 8px; height: 8px; border-radius: 999px; margin-left: 4px"></div><div class="bar t" style="width: 72px"></div></div>
+          <div class="row wide"><div class="bar t" style="width: 8px; height: 8px; border-radius: 999px; margin-left: 4px"></div><div class="bar t" style="width: 64px"></div></div>
+          <div class="row wide"><div class="bar t" style="width: 8px; height: 8px; border-radius: 999px; margin-left: 4px"></div><div class="bar t" style="width: 80px"></div></div>
+          <!-- On the rail the courses are one entry below a short rule (SidebarWork's TermCourses). -->
+          <div class="rule narrow" style="margin: 15px 4px"></div>
+          <div class="row narrow"><div class="bar"></div></div>
           <div class="grow"></div>
           <div class="row"><div class="bar"></div><div class="bar t" style="width: 84px"></div></div>
           <div class="row"><div class="bar"></div><div class="bar t" style="width: 104px"></div></div>
