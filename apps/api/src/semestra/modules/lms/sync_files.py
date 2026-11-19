@@ -594,11 +594,6 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
         if row is None:
             # The user deleted it (told at once by `files.item.deleted`, unless that was missed).
             enter(mat, "dismissed", now)
-        elif row.source_ref is None:
-            # No longer the sync's (a file made the user's own in 2.1.0): theirs, and the
-            # platform's not brought in beside it, as if deleted (listed, so it can be restored).
-            enter(mat, "dismissed", now)
-            del rows[row.id]
     # What came in before the course settled is not news.
     settled = link.materials_settled_at is not None
     places = SourceFolders(ctx, link.course_id, "lms", b.provider.display_name)
@@ -714,7 +709,7 @@ async def synced_items(ctx: Ctx, link_id: str) -> list[FilesItem]:
             LmsMaterial.item_id.is_not(None),
         )
     )
-    return [r for r in await sources.find_items(ctx, [i for i in ids if i]) if r.source_ref]
+    return list(await sources.find_items(ctx, [i for i in ids if i]))
 
 
 def has_copy(row: FilesItem) -> bool:

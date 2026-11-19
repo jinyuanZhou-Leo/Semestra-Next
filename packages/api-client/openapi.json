@@ -7164,6 +7164,69 @@
         }
       }
     },
+    "/courses/{course_id}/files:check-duplicates": {
+      "post": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Find which files about to be uploaded look already there.",
+        "description": "Before an upload: which of the files are the same as one of the course's\n(the same bytes, or the same name and size) or have the same name in the folder they go into.",
+        "operationId": "filesItemCheckDuplicates",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Course id",
+              "title": "Course Id"
+            },
+            "description": "Course id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DuplicateCheckInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DuplicateCheck"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/files/{item_id}": {
       "delete": {
         "tags": [
@@ -26362,6 +26425,99 @@
         },
         "type": "object",
         "title": "Done"
+      },
+      "DuplicateCheck": {
+        "properties": {
+          "duplicates": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Duplicates",
+            "description": "Positions in `files` that look already there"
+          }
+        },
+        "type": "object",
+        "required": [
+          "duplicates"
+        ],
+        "title": "DuplicateCheck"
+      },
+      "DuplicateCheckInputBody": {
+        "properties": {
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/DuplicateFile"
+            },
+            "type": "array",
+            "maxItems": 500,
+            "title": "Files",
+            "description": "The files about to be uploaded"
+          },
+          "pending": {
+            "items": {
+              "$ref": "#/components/schemas/DuplicateFile"
+            },
+            "type": "array",
+            "maxItems": 500,
+            "title": "Pending",
+            "description": "Files picked earlier and still on their way: compared with like the course's files"
+          }
+        },
+        "type": "object",
+        "required": [
+          "files"
+        ],
+        "title": "DuplicateCheckInputBody"
+      },
+      "DuplicateFile": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "title": "Name",
+            "description": "File name"
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Size",
+            "description": "Size in bytes"
+          },
+          "sha256": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sha256",
+            "description": "SHA-256 of the bytes, hex; null while not known yet"
+          },
+          "folder_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder Id",
+            "description": "The folder it goes into"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "size"
+        ],
+        "title": "DuplicateFile"
       },
       "EmailChangeConfirmInputBody": {
         "properties": {

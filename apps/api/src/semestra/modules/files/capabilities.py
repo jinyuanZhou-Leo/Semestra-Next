@@ -7,6 +7,7 @@ from semestra.core.errors import agent_hints
 from semestra.core.events import events
 from semestra.core.jobs import JobOut
 from semestra.core.labels import owned_row
+from semestra.modules.academics import service as academics
 from semestra.modules.files import (
     documents,
     entries,
@@ -26,6 +27,8 @@ from semestra.modules.files.schemas import (
     DocumentOutline,
     DocumentRead,
     DocumentReadInput,
+    DuplicateCheck,
+    DuplicateCheckInput,
     EntriesDeleteInput,
     EntriesMoved,
     EntriesMoveInput,
@@ -117,6 +120,23 @@ files.document.search for that.""",
 )
 async def files_list(ctx: Ctx, inp: FilesItemListInput) -> FilesItemList:
     return await listing.list_files(ctx, inp)
+
+
+@capability(
+    name="files.item.check_duplicates",
+    summary="Find which files about to be uploaded look already there.",
+    description="""Before an upload: which of the files are the same as one of the course's
+(the same bytes, or the same name and size) or have the same name in the folder they go into.""",
+    effect="read",
+    http=Http("POST", "/courses/{course_id}/files:check-duplicates"),
+    expose=("http",),  # the upload dialog asks before sending
+    tags=TAGS,
+)
+async def item_check_duplicates(ctx: Ctx, inp: DuplicateCheckInput) -> DuplicateCheck:
+    await academics.get_course_row(ctx, inp.course_id)
+    return DuplicateCheck(
+        duplicates=await items.check_duplicates(ctx, inp.course_id, inp.files, inp.pending)
+    )
 
 
 @capability(

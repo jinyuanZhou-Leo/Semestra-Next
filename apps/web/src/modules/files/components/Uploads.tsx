@@ -1,4 +1,8 @@
-import type { ItemOut, UploadResult } from '@semestra/api-client'
+import {
+  type DuplicateFile,
+  type UploadResult,
+  filesItemCheckDuplicates,
+} from '@semestra/api-client'
 import { useQueryClient } from '@tanstack/react-query'
 import { CircleAlert, CircleCheck, X } from 'lucide-react'
 import { type ReactNode, useRef, useState } from 'react'
@@ -26,16 +30,9 @@ import { Progress } from '@/ui/progress'
 import { Spinner } from '@/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { invalidateFiles, useFilesUsage } from '../queries'
-import { findDuplicates, planUpload, sha256Hex } from '../upload'
+import { planUpload, sha256Hex } from '../upload'
 
-type Sent = {
-  courseId: string
-  kind: 'file'
-  display_name: string
-  size_bytes: number
-  sha256: string | null
-  folder_id: string | null
-}
+type Sent = { courseId: string; file: DuplicateFile }
 
 type Asked = {
   all: File[]
@@ -53,11 +50,10 @@ type Row = {
   error?: string
 }
 
-/** Where an upload goes: a course folder (null for the top), and what that course has already. */
+/** Where an upload goes: a course folder (null for the top). */
 export type UploadTarget = {
   courseId: string
   folderId: string | null
-  existing: readonly ItemOut[]
 }
 
 /**
@@ -137,24 +133,31 @@ export function useUploads(): Uploads {
     const batch = plan.accepted
     // What was picked before this batch, still on its way: compared with, like the course's files.
     const earlier = [...sending.current.values()].filter((f) => f.courseId === target.courseId)
-    for (const file of batch)
-      sending.current.set(file, {
-        courseId: target.courseId,
-        kind: 'file',
-        display_name: file.name,
-        size_bytes: file.size,
+    const sent = batch.map((file) => {
+      const entry: DuplicateFile = {
+        name: file.name,
+        size: file.size,
         sha256: null,
         folder_id: target.folderId,
-      })
-    void Promise.all(batch.map(async (file) => ({ file, sha256: await sha256Hex(file) })))
-      .then((hashed) => {
-        for (const { file, sha256 } of hashed) {
-          const sent = sending.current.get(file)
-          if (sent) sent.sha256 = sha256
-        }
-        const dupes = findDuplicates(hashed, [...target.existing, ...earlier], target.folderId)
-        if (dupes.size === 0) return send(batch, target)
-        ask({ all: batch, dupes: batch.filter((f) => dupes.has(f)), into: target })
+      }
+      sending.current.set(file, { courseId: target.courseId, file: entry })
+      return { file, entry }
+    })
+    // Which look already there is the server's rule (M07 `items.check_duplicates`).
+    void Promise.all(
+      sent.map(async ({ file, entry }) => {
+        entry.sha256 = await sha256Hex(file)
+      }),
+    )
+      .then(async () => {
+        const { data } = await filesItemCheckDuplicates({
+          path: { course_id: target.courseId },
+          body: { files: sent.map((s) => s.entry), pending: earlier.map((s) => s.file) },
+          throwOnError: true,
+        })
+        if (data.duplicates.length === 0) return send(batch, target)
+        const dupes = new Set(data.duplicates)
+        ask({ all: batch, dupes: batch.filter((_, i) => dupes.has(i)), into: target })
       })
       .catch(() => send(batch, target))
   }

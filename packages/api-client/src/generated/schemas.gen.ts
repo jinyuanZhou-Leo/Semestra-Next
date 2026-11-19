@@ -6756,6 +6756,102 @@ export const DoneSchema = {
     title: 'Done'
 } as const;
 
+export const DuplicateCheckSchema = {
+    properties: {
+        duplicates: {
+            items: {
+                type: 'integer'
+            },
+            type: 'array',
+            title: 'Duplicates',
+            description: 'Positions in `files` that look already there'
+        }
+    },
+    type: 'object',
+    required: [
+        'duplicates'
+    ],
+    title: 'DuplicateCheck'
+} as const;
+
+export const DuplicateCheckInputBodySchema = {
+    properties: {
+        files: {
+            items: {
+                $ref: '#/components/schemas/DuplicateFile'
+            },
+            type: 'array',
+            maxItems: 500,
+            title: 'Files',
+            description: 'The files about to be uploaded'
+        },
+        pending: {
+            items: {
+                $ref: '#/components/schemas/DuplicateFile'
+            },
+            type: 'array',
+            maxItems: 500,
+            title: 'Pending',
+            description: 'Files picked earlier and still on their way: compared with like the course\'s files'
+        }
+    },
+    type: 'object',
+    required: [
+        'files'
+    ],
+    title: 'DuplicateCheckInputBody'
+} as const;
+
+export const DuplicateFileSchema = {
+    properties: {
+        name: {
+            type: 'string',
+            maxLength: 255,
+            title: 'Name',
+            description: 'File name'
+        },
+        size: {
+            type: 'integer',
+            minimum: 0,
+            title: 'Size',
+            description: 'Size in bytes'
+        },
+        sha256: {
+            anyOf: [
+                {
+                    type: 'string',
+                    maxLength: 64
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Sha256',
+            description: 'SHA-256 of the bytes, hex; null while not known yet'
+        },
+        folder_id: {
+            anyOf: [
+                {
+                    type: 'string',
+                    maxLength: 64,
+                    minLength: 1
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Folder Id',
+            description: 'The folder it goes into'
+        }
+    },
+    type: 'object',
+    required: [
+        'name',
+        'size'
+    ],
+    title: 'DuplicateFile'
+} as const;
+
 export const EmailChangeConfirmInputBodySchema = {
     properties: {
         code: {

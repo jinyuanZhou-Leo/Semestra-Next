@@ -122,6 +122,31 @@ ItemField = Literal[
 ]
 
 
+class DuplicateFile(BaseModel):
+    name: Annotated[str, Field(max_length=255)] = Field(description="File name")
+    size: int = Field(ge=0, description="Size in bytes")
+    sha256: Annotated[str, Field(max_length=64)] | None = Field(
+        default=None, description="SHA-256 of the bytes, hex; null while not known yet"
+    )
+    folder_id: Id | None = Field(default=None, description="The folder it goes into")
+
+
+class DuplicateCheckInput(BaseModel):
+    course_id: Id = Field(description="Course id")
+    files: Annotated[list[DuplicateFile], Field(max_length=500)] = Field(
+        description="The files about to be uploaded"
+    )
+    pending: Annotated[list[DuplicateFile], Field(max_length=500)] = Field(
+        default_factory=list,
+        description="Files picked earlier and still on their way: compared with like the "
+        "course's files",
+    )
+
+
+class DuplicateCheck(BaseModel):
+    duplicates: list[int] = Field(description="Positions in `files` that look already there")
+
+
 class FilesItemListInput(BaseModel):
     course_id: Id = Field(description="Course id")
     folder_id: Id | None = Field(

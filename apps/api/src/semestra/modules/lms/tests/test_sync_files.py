@@ -570,28 +570,40 @@ async def test_a_local_copy_the_user_asks_for(api: Api, fake: FakeProvider, sett
     assert (await api.call("GET", f"/files/{lecture['id']}"))["stored"] is False
 
 
-async def test_a_file_without_its_source_is_no_longer_followed(
-    api: Api, app: FastAPI, fake: FakeProvider, clock: Clock
-):
-    _materials(fake)
-    program_id, course = await _course(api)
-    await api.sync(program_id)
-    lecture = (await _files(api, course))[1]["Lecture 1.pdf"]
-    async with app.state.session_factory() as db:
-        row = await db.get(FilesItem, lecture["id"])
-        assert row is not None
-        row.source_ref = row.source_name = None
-        row.storage_key = "kept"
-        await db.commit()
-
-    # A change on the platform does not reach the user's file, nor is it brought in again.
-    files = fake.course_file_list
-    files[0] = files[0].model_copy(update={"name": "Lecture 1 v2.pdf", "updated_at": FEB})
-    clock.advance(minutes=1)
-    await api.sync(program_id)
-    _, items = await _files(api, course)
-    assert "Lecture 1 v2.pdf" not in items
-    assert items["Lecture 1.pdf"]["id"] == lecture["id"]
+def test_migration_dismisses_materials_whose_file_was_made_the_users_own(tmp_path: Path):
+    """A file made the user's own in 2.1.0 (no `source_ref`) is theirs: its material is
+    `dismissed`, so the platform's is not brought in beside it and it can be restored."""
+    path = tmp_path / "m.db"
+    cfg = Config(str(API_DIR / "alembic.ini"))
+    cfg.set_main_option("script_location", str(API_DIR / "migrations"))
+    cfg.attributes["database_url"] = f"sqlite+aiosqlite:///{path}"
+    command.upgrade(cfg, "0062")
+    db = sqlite3.connect(path)  # foreign keys are off: no user, course or link rows needed
+    for iid, ref in (("own", None), ("followed", "lms:file:2")):
+        db.execute(
+            "INSERT INTO files_items (id, user_id, course_id, kind, display_name, mime_type,"
+            " size_bytes, storage_key, source_ref, pinned, unseen, doc_status, created_at,"
+            " updated_at) VALUES (?, 'u1', 'c1', 'file', ?, 'application/pdf', 5, 'k', ?, 0, 0,"
+            " 'none', '2026-01-10 00:00:00', '2026-01-12 00:00:00')",
+            (iid, iid, ref),
+        )
+        db.execute(
+            "INSERT INTO lms_materials (id, user_id, link_id, kind, external_id, state, quiet,"
+            " item_id, links) VALUES (?, 'u1', 'l1', 'file', ?, 'synced', 0, ?, '[]')",
+            (f"m-{iid}", iid, iid),
+        )
+    db.commit()
+    db.close()
+    command.upgrade(cfg, "head")
+    db = sqlite3.connect(path)
+    got = db.execute(
+        "SELECT id, state, item_id, state_at FROM lms_materials ORDER BY id"
+    ).fetchall()
+    db.close()
+    assert got == [
+        ("m-followed", "synced", "followed", None),
+        ("m-own", "dismissed", None, "2026-01-12 00:00:00"),
+    ]
 
 
 async def test_a_renamed_item_keeps_its_name_and_a_locked_one_stays(
@@ -1005,10 +1017,10 @@ async def test_a_2_1_backup_keeps_where_the_sync_filed_and_its_settings(
     assert [(m["name"], m["folder_name"]) for m in plan["moves"]] == [("Lecture 1.pdf", "Lectures")]
 
 
-def _files_as_2_1(archive: bytes, own_id: str) -> bytes:
+def _files_as_2_1(archive: bytes, own_id: str, made_own_id: str) -> bytes:
     """The files as 2.1 wrote them: a followed file's platform version in `sha256`, no source
-    version or copy columns; and one of the user's own files saved by Sem from a chat (its
-    attachment as `source_ref`)."""
+    version or copy columns; one of the user's own files saved by Sem from a chat (its
+    attachment as `source_ref`); and a material made the user's own (no `source_ref`)."""
     source = zipfile.ZipFile(io.BytesIO(archive))
     out = io.BytesIO()
     with zipfile.ZipFile(out, "w") as z:
@@ -1021,6 +1033,8 @@ def _files_as_2_1(archive: bytes, own_id: str) -> bytes:
                     del row["copy_modified_at"], row["copy_error_code"]
                     if row["id"] == own_id:
                         row |= {"source_kind": "agent", "source_ref": "att-1"}
+                    elif row["id"] == made_own_id:  # made the user's own in 2.1.0
+                        row |= {"source_ref": None, "source_name": None}
                     elif version is not None:
                         row["sha256"] = version
                 data = json.dumps(payload).encode()
@@ -1036,13 +1050,15 @@ async def test_a_2_1_backup_restores_saved_copies_and_own_files(api: Api, fake: 
     upload = ("notes.txt", b"my notes", "text/plain")
     [own] = (await api.call("POST", f"/courses/{course}/files", files={"files": upload}))["items"]
     await api.run_jobs()
+    _, items = await _files(api, course)
 
     started = await api.call("POST", "/me/exports", json={"include_files": True})
     await api.run_jobs()
     archive = (await api.client.get(f"/me/exports/{started['id']}/download")).content
+    backup = _files_as_2_1(archive, own["id"], items["W1.pdf"]["id"])
     uploaded = await api.client.post(
         "/me/imports",
-        files={"file": ("backup.zip", _files_as_2_1(archive, own["id"]), "application/zip")},
+        files={"file": ("backup.zip", backup, "application/zip")},
     )
     body = {"mode": "replace", "confirmation": "Replace my data"}
     await api.call("POST", f"/me/imports/{uploaded.json()['id']}:start", json=body)
@@ -1056,6 +1072,22 @@ async def test_a_2_1_backup_restores_saved_copies_and_own_files(api: Api, fake: 
     # The saved copy is the platform's current version; the user's file keeps its hash.
     assert items["Lecture 1.pdf"]["local_copy"]["state"] == "saved"
     assert (items["notes.txt"]["sha256"], items["notes.txt"]["local_copy"]) == (own["sha256"], None)
+    # The material made the user's own: theirs, and the platform's not brought in beside it.
+    assert items["W1.pdf"]["follows_source"] is False
+    [connection] = (await api.call("GET", "/lms/connections"))["items"]
+    token = {"credentials": {"token": "good-token-1"}}
+    await api.call("PATCH", f"/lms/connections/{connection['id']}", json=token)
+    files = fake.course_file_list
+    files[1] = files[1].model_copy(update={"name": "W1 v2.pdf", "updated_at": FEB})
+    await api.sync(program["id"])
+    names = [
+        i["display_name"]
+        for i in (await api.call("GET", f"/courses/{course}/files", params={"recursive": True}))[
+            "items"
+        ]
+    ]
+    assert names.count("W1.pdf") == 1
+    assert "W1 v2.pdf" not in names
 
 
 async def test_a_restored_copy_stored_for_the_sync_is_read_as_the_sync_reads_it(

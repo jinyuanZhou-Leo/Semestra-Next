@@ -8,7 +8,7 @@ from datetime import datetime
 from urllib.parse import urlsplit, urlunsplit
 
 import anyio
-from sqlalchemy import func, select
+from sqlalchemy import ColumnElement, func, select
 
 from semestra.core.context import Ctx
 from semestra.core.db import new_id
@@ -19,7 +19,13 @@ from semestra.modules.academics import service as academics
 from semestra.modules.files import content, folders, service
 from semestra.modules.files.models import FilesItem
 from semestra.modules.files.parse import detect
-from semestra.modules.files.schemas import ItemOut, ItemRef, ItemUpdateInput, SourceKind
+from semestra.modules.files.schemas import (
+    DuplicateFile,
+    ItemOut,
+    ItemRef,
+    ItemUpdateInput,
+    SourceKind,
+)
 
 
 async def check_upload_target(ctx: Ctx, course_id: str, folder_id: str | None) -> None:
@@ -114,23 +120,63 @@ async def find_duplicate(
     sha256: str | None = None,
     own_only: bool = False,
 ) -> FilesItem | None:
-    """A file of the course that is most likely the same file: the same bytes, or the same name
-    (any case) and size. A file that follows its source has its source's version for `sha256`,
-    not a hash of its bytes, so it can only match by name and size. `own_only`: only files that
-    follow no source (what the user put there). The upload dialog applies the same rule
-    (`upload.ts` `findDuplicates`)."""
-    same = (func.lower(FilesItem.display_name) == name.lower()) & (FilesItem.size_bytes == size)
-    if sha256:
-        same = same | (FilesItem.sha256 == sha256)
+    """A file of the course that is most likely the same file (`same_file`). `own_only`: only
+    files that follow no source (what the user put there)."""
     stmt = select(FilesItem).where(
         FilesItem.user_id == ctx.user_id,
         FilesItem.course_id == course_id,
         FilesItem.kind == "file",
-        same,
+        _same_as(name, size, sha256),
     )
     if own_only:
         stmt = stmt.where(FilesItem.source_ref.is_(None))
     return await ctx.db.scalar(stmt.limit(1))
+
+
+def same_file(a: tuple[str, int, str | None], b: tuple[str, int, str | None]) -> bool:
+    """The one rule for “the same file” (name, size, sha256): the same bytes, or the same name
+    (any case) and size. A file read from its source has no hash of its bytes here, so it
+    matches by name and size only. `_same_as` is the same rule as a query."""
+    return bool(a[2] and a[2] == b[2]) or (a[0].lower() == b[0].lower() and a[1] == b[1])
+
+
+def _same_as(name: str, size: int, sha256: str | None) -> ColumnElement[bool]:
+    same = (func.lower(FilesItem.display_name) == name.lower()) & (FilesItem.size_bytes == size)
+    return same | (FilesItem.sha256 == sha256) if sha256 else same
+
+
+async def check_duplicates(
+    ctx: Ctx, course_id: str, files: Sequence[DuplicateFile], pending: Sequence[DuplicateFile]
+) -> list[int]:
+    """Which of the files about to be uploaded look already there (`same_file`), in the course
+    or among `pending` (picked before, still on their way); an upload also counts a file of the
+    same name (any case) in the folder it goes into."""
+    out: list[int] = []
+    for i, f in enumerate(files):
+        key = (f.name, f.size, f.sha256)
+        named = func.lower(FilesItem.display_name) == f.name.lower()
+        in_folder = (
+            FilesItem.folder_id.is_(None)
+            if f.folder_id is None
+            else FilesItem.folder_id == f.folder_id
+        )
+        there = await ctx.db.scalar(
+            select(FilesItem.id)
+            .where(
+                FilesItem.user_id == ctx.user_id,
+                FilesItem.course_id == course_id,
+                FilesItem.kind == "file",
+                _same_as(*key) | (named & in_folder),
+            )
+            .limit(1)
+        )
+        if there is not None or any(
+            same_file(key, (p.name, p.size, p.sha256))
+            or (p.folder_id == f.folder_id and p.name.lower() == f.name.lower())
+            for p in pending
+        ):
+            out.append(i)
+    return out
 
 
 async def store_file(
