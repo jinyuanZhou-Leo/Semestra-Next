@@ -231,6 +231,37 @@ async def test_the_users_changes_win(api: Api, fake: FakeProvider, clock: Clock)
     assert "Midterm 2025.pdf" not in {m["title"] for m in status["materials"]}
 
 
+async def test_a_restored_page_comes_back_and_one_gone_meanwhile_says_so(
+    api: Api, fake: FakeProvider, clock: Clock
+):
+    _materials(fake)
+    program_id, course = await _course(api)
+    await api.sync(program_id)
+    _, items = await _files(api, course)
+    await api.call("DELETE", f"/files/{items['Course syllabus']['id']}")
+    await api.call("DELETE", f"/files/{items['data.zip']['id']}")
+    status = await api.call("GET", f"/programs/{program_id}/lms/sync")
+    removed = {r["title"]: r["id"] for r in status["removed_materials"]}
+
+    # The page has not changed on the platform since it was deleted: restored, it comes back
+    # all the same.
+    clock.advance(minutes=1)
+    await api.call("POST", f"/lms/sync/materials/{removed['Course syllabus']}:restore")
+    await api.run_jobs()
+    folders, items = await _files(api, course)
+    assert _where(folders, items["Course syllabus"]) == "Week 1"
+
+    # Restored after it left the platform: listed as gone, not waiting for good.
+    fake.course_file_list = [f for f in fake.course_file_list if f.external_id != "205"]
+    clock.advance(minutes=1)
+    await api.call("POST", f"/lms/sync/materials/{removed['data.zip']}:restore")
+    await api.run_jobs()
+    assert "data.zip" not in (await _files(api, course))[1]
+    status = await api.call("GET", f"/programs/{program_id}/lms/sync")
+    assert {m["title"]: m["change"] for m in status["materials"]}["data.zip"] == "gone"
+    assert status["removed_materials"] == []
+
+
 async def test_turning_materials_off_and_unlinking(api: Api, fake: FakeProvider, clock: Clock):
     _materials(fake)
     program_id, course = await _course(api)

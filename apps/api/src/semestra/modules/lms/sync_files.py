@@ -72,6 +72,12 @@ SKIPPED = AREA_REFUSALS | {"lms.area_hidden", "lms.feature_unsupported"}
 CHECK_EVERY = timedelta(days=1)
 # A file the platform failed to give is read again after this.
 RETRY_AFTER = timedelta(hours=1)
+# States in which a page unchanged on the platform needs nothing more than what was taken from
+# it last time (its links): it is followed, a list, or not brought in. A restored one (or one
+# gone, whose version is forgotten) is read whole, to come in.
+UNCHANGED_KEEPS: frozenset[MaterialState] = frozenset(
+    {"synced", "list", "dismissed", "handed_over"}
+)
 
 
 def source_ref(kind: MaterialKind, external_id: str) -> str:
@@ -278,7 +284,14 @@ async def _page(ctx: Ctx, link: LmsCourseLink, b: Bound, found: _Found, slug: st
     title, version, web_url = found.pages[slug]
     key = ("page", slug)
     mat = found.known.get(key)
-    unchanged = version is not None and mat is not None and mat.version == version
+    # Not read again while what was taken from it still stands: not when it is to come in
+    # (restored), which needs all of it.
+    unchanged = (
+        version is not None
+        and mat is not None
+        and mat.state in UNCHANGED_KEEPS
+        and mat.version == version
+    )
     if unchanged or (version is None and found.checked_lately(key)):
         assert mat is not None
         # As it was when last read: what it links to still holds.
@@ -602,8 +615,16 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
         # Gone from the platform: a local copy becomes the user's own file, an item read online
         # goes (it comes back if the platform shows it again).
         for key, mat in known.items():
+            if key in found.materials or key in found.kept:
+                continue
+            if mat.state == "restored":
+                # Restored after it left the platform: told, not left waiting.
+                enter(mat, "gone", now)
+                _note(mat, "gone", now)
+                forget_applied(mat)
+                continue
             row = rows.get(mat.item_id or "") if mat.state == "synced" else None
-            if row is None or key in found.materials or key in found.kept:
+            if row is None:
                 continue
             if row.kind == "file" and row.storage_key:
                 handed.append(row)

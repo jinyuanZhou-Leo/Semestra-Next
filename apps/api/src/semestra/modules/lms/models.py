@@ -166,7 +166,7 @@ class LmsMaterial(Base, OwnedMixin):
       but never an item;
     - `dismissed`: the user deleted its item; not brought back until they restore it;
     - `restored`: the user restored it: it comes in again with the next sync, as it did before
-      (not marked new or told);
+      (not marked new or told); `gone` (and told) if the platform no longer has it;
     - `gone`: deleted on the platform, so its item (read online) was removed; it comes in again
       if the platform shows it again;
     - `handed_over`: its item became the user's own file (`item_id` still names it): it had a
