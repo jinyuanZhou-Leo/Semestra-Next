@@ -1,4 +1,5 @@
 import { type FormEvent, useId, useState } from 'react'
+import { errorCode, errorMessage } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import {
@@ -11,6 +12,9 @@ import {
 } from '@/ui/dialog'
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
+
+/** Errors about the name itself, shown under the name field until the name is changed. */
+const NAME_ERRORS = new Set(['files.folder_name_taken'])
 
 /** A name (and for links, an address) for a new or renamed file, folder or link. */
 export function NameDialog({
@@ -34,7 +38,8 @@ export function NameDialog({
   initial: string
   submitLabel: string
   pending: boolean
-  error: string | null
+  /** The failed request's error, if any. */
+  error: unknown
   onSubmit: (value: string, extra: string) => void
   onClose: () => void
   extraField?: { label: string; placeholder?: string; required: boolean }
@@ -43,12 +48,19 @@ export function NameDialog({
   const [value, setValue] = useState(initial)
   const [extra, setExtra] = useState('')
   const [touched, setTouched] = useState(false)
+  // The name last sent: an error about it no longer applies once the name is edited.
+  const [sent, setSent] = useState<string | null>(null)
   const nameMissing = !extraField?.required && value.trim() === ''
   const extraMissing = Boolean(extraField?.required) && extra.trim() === ''
+  const failed = error ? errorMessage(error) : null
+  const aboutName = error ? NAME_ERRORS.has(errorCode(error)) : false
+  const nameError =
+    touched && nameMissing ? m.files_required() : aboutName && value.trim() === sent ? failed : null
   const submit = (event: FormEvent) => {
     event.preventDefault()
     setTouched(true)
     if (nameMissing || extraMissing) return
+    setSent(value.trim())
     onSubmit(value.trim(), extra.trim())
   }
   return (
@@ -78,17 +90,17 @@ export function NameDialog({
                 {touched && extraMissing ? <FieldError>{m.files_required()}</FieldError> : null}
               </Field>
             ) : null}
-            <Field data-invalid={(touched && nameMissing) || undefined}>
+            <Field data-invalid={nameError ? true : undefined}>
               <FieldLabel htmlFor={`${id}-name`}>{label}</FieldLabel>
               <Input
                 id={`${id}-name`}
-                aria-invalid={(touched && nameMissing) || undefined}
+                aria-invalid={nameError ? true : undefined}
                 value={value}
                 onChange={(event) => setValue(event.target.value)}
               />
-              {touched && nameMissing ? <FieldError>{m.files_required()}</FieldError> : null}
+              {nameError ? <FieldError>{nameError}</FieldError> : null}
             </Field>
-            {error ? <FieldError>{error}</FieldError> : null}
+            {failed && !aboutName ? <FieldError>{failed}</FieldError> : null}
             <DialogFooter>
               <DialogClose render={<Button type="button" variant="outline" disabled={pending} />}>
                 {m.common_cancel()}

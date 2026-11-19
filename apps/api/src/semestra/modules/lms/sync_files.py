@@ -587,8 +587,14 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
         _seen(mat, m)
         mat.name, mat.placed_folder_id = row.display_name, folder_id
         mat.change = mat.changed_at = None
-        if news:
+        # Most likely one of the user's own files: listed, so they can keep just one.
+        if m.kind == "file" and await sources.find_duplicate(
+            ctx, link.course_id, name=row.display_name, size=m.size, own_only=True
+        ):
+            _note(mat, "duplicate", now)
+        elif news:
             _note(mat, "added", now)
+        if news:
             result.notices.append(Notice("material", m.external_id, m.title, item_id=row.id))
 
     handed: list[FilesItem] = []

@@ -8,6 +8,7 @@ from datetime import datetime
 from urllib.parse import urlsplit, urlunsplit
 
 import anyio
+from sqlalchemy import func, select
 
 from semestra.core.context import Ctx
 from semestra.core.db import new_id
@@ -109,6 +110,34 @@ async def add_staged_files(
             await service.enqueue_processing(ctx, row)
         await events.publish(ctx, "files.item.created", {"item_id": row.id, "course_id": course_id})
     return rows
+
+
+async def find_duplicate(
+    ctx: Ctx,
+    course_id: str,
+    *,
+    name: str,
+    size: int,
+    sha256: str | None = None,
+    own_only: bool = False,
+) -> FilesItem | None:
+    """A file of the course that is most likely the same file: the same bytes, or the same name
+    (any case) and size. A file that follows its source has its source's version for `sha256`,
+    not a hash of its bytes, so it can only match by name and size. `own_only`: only files that
+    follow no source (what the user put there). The upload dialog applies the same rule
+    (`upload.ts` `findDuplicates`)."""
+    same = (func.lower(FilesItem.display_name) == name.lower()) & (FilesItem.size_bytes == size)
+    if sha256:
+        same = same | (FilesItem.sha256 == sha256)
+    stmt = select(FilesItem).where(
+        FilesItem.user_id == ctx.user_id,
+        FilesItem.course_id == course_id,
+        FilesItem.kind == "file",
+        same,
+    )
+    if own_only:
+        stmt = stmt.where(FilesItem.source_ref.is_(None))
+    return await ctx.db.scalar(stmt.limit(1))
 
 
 async def store_file(

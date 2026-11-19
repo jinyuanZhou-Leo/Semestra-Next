@@ -112,7 +112,7 @@ lms_materials                        # 课程资料（文件、页面、链接�
   path?, placed_folder_id?,          # 在平台上的位置（文件夹名，迁移 0060 起由同步填写）；同步放进的文件夹
   state ('synced'|'list'|'dismissed'|'restored'|'gone'|'handed_over'), state_at?,  # 见 §4.2「状态」
   links [[kind, id]], checked_at?,   # 页面链接到的资料；上次单独读取的时间
-  imported_at?, change? ('added'|'updated'|'gone'|'handed_over'), changed_at?  # 最近一次平台带来的变化（面板，保留 14 天）
+  imported_at?, change? ('added'|'duplicate'|'updated'|'gone'|'handed_over'), changed_at?  # 最近一次平台带来的变化（面板，保留 14 天）
   UNIQUE(link_id, kind, external_id)
 
 lms_feedback                         # 已导入考核的老师反馈（§4.4），每个考核一行，属于考核
@@ -174,7 +174,7 @@ lms_cache  key, user_id, connection_id, scope, payload, expires_at
 - **按平台目录放**（2026-11-18，迁移 0060，取代按类型归类与模型定类）：`_place` 给每项算出它在平台上的位置，每一级是（id，名称）：所在单元（`module:<id>`）；否则文件区里的文件夹（`folder:<id>`，provider 在 `FileMeta.folder_ids` 给出各级文件夹 id，没有时按路径名）；否则第一个链接它的页面的位置加上该页面（`page:<slug>`，页面在同步里本来就按 slug 识别）（首页链接一切，不算；页面互相链接时不成环）。有这类子项的页面自己也放进以它命名的文件夹。只有链接、自身文字不到 160 字的页面是“列表页”，不保存，它列出的东西放进以它命名的文件夹。文件夹由 M07 的 `SourceFolders` 建立并记住（`files_source_folders`），最多三级。不按周归类（owner 2026-11-17），不再调用模型。
 - **记录与用户优先**：每个带进来的东西在 `lms_materials` 记一行（迁移 0056 从 `lms_imported_refs` 搬过来，原来的状态都在 `snapshot` JSON 里），项是 `item_id`，上次应用的平台标题、版本、项名、位置（`path`）与放进的文件夹（`placed_folder_id`）各是一列。每项只在第一次带进来时放一次：用户移动、改名、删除都不会被同步改回（删除见下面的「状态」）；平台改了名而用户没改的才跟着改名（只改名，不重新处理）；平台上换了位置的不自动移动，由 M07 的「整理」提议移回（`homes`：项还在 `placed_folder_id`、而平台位置对应的文件夹不同；迁移 0060 用原来的类型文件夹填 `placed_folder_id`，升级后第一次同步填 `path`）。来源文件夹被删时，那个位置的新资料放进上一级，也不再重建（owner 2026-11-17：不从用户放别的资料的位置去推断）。文件的版本取 `FileMeta.content_at`（Canvas 的 `modified_at`，没有时用 `updated_at`），链接的版本是 url；版本变化的文件更新大小、版本与平台修改时间并重新处理（本地副本先放掉字节，再由本轮按保存方式重新存）。每次最多新建 100 项，其余留到下一次。
 - **发现**：页面里链接到的文件和页面、只在单元里出现的文件也会带进来（逐个读取）。没变化的页面复用记下的链接（`lms_materials.links`）；单独读的文件与页面一天最多查一次（`CHECK_EVERY`，`checked_at`）。列表页也记一行（`state="list"`，没有项），只为下次判断它变没变。
-- **平台上删除**（2026-11-18 PR 3）：这一轮读全了（没有因为功能关闭、无权限或截断而跳过的区域，`_Found.complete`；单个文件或页面读到 `lms.not_found`/`lms.forbidden` 只说明那一项不在，不影响判断，`_one`）时，没再见到的：有本地副本的文件经 M07 `detach_from_source` 原地交给用户（`handed_over`，之后平台再出现也不再带回，以免出现两份）；在线读取的文件与链接删掉（`gone`，`item_id` 清空，平台再出现时重新带进来）。两种都记进面板的最近更新。原来是资料、现在成了列表页的也删掉。
+- **平台上删除**（2026-11-18 PR 3）：这一轮读全了（没有因为功能关闭、无权限或截断而跳过的区域，`_Found.complete`；单个文件或页面读到 `lms.not_found`/`lms.forbidden` 只说明那一项不在，不影响判断，`_one`）时，没再见到的：有本地副本的文件经 M07 `detach_from_source` 原地交给用户（`handed_over`，之后平台再出现也不再带回，以免出现两份）；在线读取的文件与链接删掉（`gone`，`item_id` 清空，平台再出现时重新带进来）。两种都记进面板的最近更新。新带进来的文件与用户自己的某个文件（不跟随来源的，M07 `find_duplicate(own_only=True)`）同名且大小相同时，照常带进来，变化记为 `duplicate`（首次同步也记），面板写“与你的某个文件同名且大小相同”，由用户决定留哪份（2026-11-19）。原来是资料、现在成了列表页的也删掉。
 - **重试**：读取失败的远程文件（`files.source_unread`，或 `lms.*` 错误超过 1 小时，`RETRY_AFTER`）在下一轮同步时重新处理。
 - **保存方式**（2026-11-18 PR 3）：`lms.materials.store`（`online` 从平台读取 / `local` 保存在 Semestra，默认 `online`，两级；2026-11-19 界面改用这两个名称，存的值不变）。资料的解析（含扫描页识别）遵守 M07 的 `auto_index`，没有单独的设置。两种保存方式都跟随平台。每轮同步调用 M07 的 `apply_copies`，改成 `local` 时（订阅 `settings.values.updated`）也立即调用，改成 `online` 时只给课程排一次同步（2026-11-19：放掉副本只在读全了课程的一轮里做，`release=found.complete`，课程在平台上关闭、各区域被拒绝时副本可能是唯一的一份，留着）：每个文件按自己的 `files_items.keep_copy`（用户在 ⋯ 菜单里的选择，空 = 跟课程设置）决定要不要副本，不要的立即放掉字节，要的交给 `files.store_synced_copies`（`background` 通道、不进列表，去重键 `lms.materials:<link_id>`）；入队前按平台给的大小筛掉超过上传上限和剩余配额的，配额满时不再下载，任务里单个文件失败就跳过。迁移 0057 把原来的 `files_offline=1` 写成课程级 `store=local`，用户保留过的离线副本（`kept_offline`）变成 `keep_copy=1`，仍跟随平台。
 - **关闭同步**：`sync=false` 只停止这个阶段，已有资料保留，不再更新。

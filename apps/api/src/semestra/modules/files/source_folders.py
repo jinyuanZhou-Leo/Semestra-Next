@@ -162,7 +162,7 @@ class SourceFolders:
         try:
             await folders.update_folder(self.ctx, folder.id, {"name"}, name, None)
         except AppError as exc:
-            if exc.code != "common.conflict":
+            if exc.code != "files.folder_name_taken":
                 raise
             return
         row.name = name

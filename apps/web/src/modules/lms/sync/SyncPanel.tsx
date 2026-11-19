@@ -26,6 +26,7 @@ import {
   FileMinus,
   FilePen,
   FilePlus,
+  Files,
   FileX,
   type LucideIcon,
   MessageSquareText,
@@ -588,6 +589,7 @@ const FIELD_ICON: Record<string, LucideIcon> = {
 
 const MATERIAL_ICON: Record<SyncMaterialChange['change'], LucideIcon> = {
   added: FilePlus,
+  duplicate: Files,
   updated: FilePen,
   gone: FileX,
   handed_over: FileCheck,
@@ -595,6 +597,7 @@ const MATERIAL_ICON: Record<SyncMaterialChange['change'], LucideIcon> = {
 
 const MATERIAL_TEXT: Record<SyncMaterialChange['change'], (provider: string) => string> = {
   added: () => m.lms_sync_material_added(),
+  duplicate: () => m.lms_sync_material_duplicate(),
   updated: () => m.lms_sync_material_updated(),
   gone: (provider) => m.lms_sync_material_removed({ provider }),
   handed_over: (provider) => m.lms_sync_material_kept({ provider }),

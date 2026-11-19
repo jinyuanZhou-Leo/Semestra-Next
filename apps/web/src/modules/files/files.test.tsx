@@ -269,6 +269,66 @@ test('files dropped on a folder go into it, once', async () => {
   expect(uploads).toHaveLength(1)
 })
 
+test('the same file picked again while the first is still uploading is asked about', async () => {
+  let release = () => {}
+  const held = new Promise<void>((resolve) => (release = resolve))
+  server.use(
+    http.post(`${API}/courses/c1/files`, async ({ request }) => {
+      uploads.push(await request.text())
+      await held
+      return HttpResponse.json({ items: [item({ id: 'new' })] }, { headers: CORS })
+    }),
+  )
+  const user = userEvent.setup()
+  mount()
+  expect(await screen.findByRole('button', { name: 'syllabus.pdf' })).toBeInTheDocument()
+  const drop = () => {
+    const file = new File(['hello'], 'notes.txt', { type: 'text/plain' })
+    const dataTransfer = { types: ['Files'], files: [file] }
+    fireEvent.dragEnter(window, { dataTransfer })
+    fireEvent.drop(window, { dataTransfer })
+  }
+  drop()
+  await waitFor(() => expect(uploads).toHaveLength(1))
+  drop()
+  const question = await screen.findByRole('alertdialog', { name: 'Some files already exist' })
+  await user.click(within(question).getByRole('button', { name: 'Skip these' }))
+  release()
+  expect(await screen.findByText('Uploads finished')).toBeInTheDocument()
+  expect(uploads).toHaveLength(1)
+})
+
+test('a folder name already used there shows under the name until it is changed', async () => {
+  let code = 'files.folder_name_taken'
+  server.use(
+    http.post(`${API}/courses/c1/folders`, () =>
+      HttpResponse.json(
+        { error: { code, params: { name: 'Week 1' }, request_id: 'r' } },
+        { status: code === 'files.folder_name_taken' ? 409 : 422 },
+      ),
+    ),
+  )
+  const user = userEvent.setup()
+  mount()
+  await user.click(await screen.findByRole('button', { name: 'New' }))
+  await user.click(await screen.findByRole('menuitem', { name: 'New folder' }))
+  const dialog = await screen.findByRole('dialog', { name: 'New folder' })
+  const name = within(dialog).getByRole('textbox', { name: 'Name' })
+  await user.type(name, 'week 1')
+  await user.click(within(dialog).getByRole('button', { name: 'Create' }))
+  expect(await within(dialog).findByText(/folder named “Week 1”/)).toBeInTheDocument()
+  expect(name).toHaveAttribute('aria-invalid', 'true')
+  await user.type(name, 's')
+  expect(within(dialog).queryByText(/folder named “Week 1”/)).not.toBeInTheDocument()
+  expect(name).not.toHaveAttribute('aria-invalid')
+
+  // Any other error is about the request, not the name: it stays below the fields.
+  code = 'files.folder_depth'
+  await user.click(within(dialog).getByRole('button', { name: 'Create' }))
+  expect(await within(dialog).findByText(/three levels deep/)).toBeInTheDocument()
+  expect(name).not.toHaveAttribute('aria-invalid')
+})
+
 test('a search hit opens the preview on its page', async () => {
   mount()
   await userEvent.type(await screen.findByRole('searchbox'), 'midterm')
@@ -419,7 +479,7 @@ test('uploads that cannot fit are refused before sending', () => {
   expect(planUpload([big], { ...usage, quota_bytes: 0, max_upload_bytes: 100 }).room).toBe(true)
 })
 
-test('duplicates are the same bytes in the course or the same name in the folder', () => {
+test('duplicates are the same bytes or name and size in the course, or the same name in the folder', () => {
   const same = new File(['a'], 'other-name.pdf')
   const named = new File(['b'], 'Syllabus.PDF')
   const fresh = new File(['c'], 'fresh.pdf')
@@ -434,6 +494,15 @@ test('duplicates are the same bytes in the course or the same name in the folder
   )
   expect([...dupes]).toEqual([same, named])
   expect([...findDuplicates([{ file: named, sha256: 'bb' }], [item()], 'folder-2')]).toEqual([])
+  // A file read from the LMS has no hash of its bytes: its name and size elsewhere still count.
+  const fromLms = item({
+    folder_id: 'lectures',
+    display_name: 'Week 1.pdf',
+    size_bytes: 3,
+    sha256: 'v1',
+  })
+  const again = new File(['abc'], 'week 1.pdf')
+  expect([...findDuplicates([{ file: again, sha256: 'dd' }], [fromLms], null)]).toEqual([again])
 })
 
 test('highlighting escapes file text and marks every match', () => {

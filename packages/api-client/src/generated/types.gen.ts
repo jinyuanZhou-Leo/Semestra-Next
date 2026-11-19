@@ -11383,9 +11383,9 @@ export type SyncMaterialChange = {
     /**
      * Change
      *
-     * added: new in the course's files; updated: its contents changed; gone: deleted on the platform, so removed here (it was read online); handed_over: deleted on the platform, kept as the user's own file (it had a local copy)
+     * added: new in the course's files; duplicate: new, with the name and size of a file the user had put in the course already; updated: its contents changed; gone: deleted on the platform, so removed here (it was read online); handed_over: deleted on the platform, kept as the user's own file (it had a local copy)
      */
-    change: 'added' | 'updated' | 'gone' | 'handed_over';
+    change: 'added' | 'duplicate' | 'updated' | 'gone' | 'handed_over';
     /**
      * At
      */

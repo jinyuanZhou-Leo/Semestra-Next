@@ -68,6 +68,8 @@ _FILE_FIELDS = (
 agent_hints(
     {
         "files.folder_depth": "Folders nest at most `max` deep; put it higher up.",
+        "files.folder_name_taken": "That folder already has a folder with this name (any case). "
+        "Use the existing one or pick another name.",
         "files.folder_not_empty": "The folder has files or subfolders. Ask the user, then pass "
         "recursive=true to delete them all.",
         "files.not_indexed": "Indexing was off when this file was added, so it has no text to "

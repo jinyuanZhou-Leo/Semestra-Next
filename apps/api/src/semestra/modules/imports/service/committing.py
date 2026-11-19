@@ -601,7 +601,8 @@ def _jsonable(params: dict[str, Any]) -> dict[str, Any]:
 
 async def _file_uploads(ctx: Ctx, row: ImportsSession, c: _Commit) -> None:
     """A syllabus becomes a file of its course (M07), once that course exists, unless the user
-    unticked "Also save to the course files" (`source_meta.keep_files: false`)."""
+    unticked "Also save to the course files" (`source_meta.keep_files: false`) or the course
+    already has a file with the same bytes (said in the session's notes)."""
     if row.source_kind != "syllabus" or row.source_meta.get("keep_files") is False:
         return
     uploads = await session_uploads(ctx, row.id)
@@ -621,6 +622,17 @@ async def _file_uploads(ctx: Ctx, row: ImportsSession, c: _Commit) -> None:
     refs = [dict(r) for r in row.source_refs]
     for upload in uploads:
         key = upload.storage_key
+        if await deps.course_has_file(
+            ctx, course_ids[0], upload.filename, upload.size_bytes, upload.sha256
+        ):
+            # The course already has this file: no second copy, and the upload goes as it would
+            # once filed (it is not kept taking storage).
+            await ctx.db.delete(upload)
+            delete_after_commit(ctx, [key])
+            for ref in refs:
+                if ref.get("upload_id") == upload.id:
+                    ref["warning_code"] = "import.upload_already_filed"
+            continue
         try:
             # The upload's row goes first, so the copy is not counted against the quota twice;
             # the savepoint brings it back if the copy is refused.

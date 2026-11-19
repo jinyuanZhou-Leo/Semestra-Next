@@ -38,7 +38,7 @@ from semestra.core.storage import (
 from semestra.core.storage import usage as core_usage
 from semestra.modules.files import content, items, service
 from semestra.modules.files.folders import folder_names
-from semestra.modules.files.items import create_link, save_bytes_as_file
+from semestra.modules.files.items import create_link, find_duplicate, save_bytes_as_file
 from semestra.modules.files.models import FilesItem
 from semestra.modules.files.parse.detect import DOCX, PPTX, XLSX
 from semestra.modules.files.schemas import SourceKind
@@ -52,6 +52,7 @@ __all__ = [
     "create_link",
     "detach_from_source",
     "drop_copy",
+    "find_duplicate",
     "find_items",
     "folder_names",
     "get_folder",
@@ -67,6 +68,7 @@ __all__ = [
 ]
 
 remote = content.remote
+
 
 # A file read from its source that has not been read yet (restored from a backup).
 SOURCE_UNREAD = "files.source_unread"
