@@ -398,6 +398,13 @@ async def test_a_local_copy_the_user_asks_for(api: Api, fake: FakeProvider, sett
     after = await api.call("GET", f"/files/{lecture['id']}")
     assert (after["stored"], after["follows_source"]) == (True, True)
 
+    # Not let go while the platform can't give the file: the copy may be the only one left.
+    fake.fail_downloads = True
+    r = await api.client.post(f"/files/{lecture['id']}:drop-copy")
+    assert (r.status_code, r.json()["error"]["code"]) == (409, "files.source_unreachable")
+    assert (await api.call("GET", f"/files/{lecture['id']}"))["stored"] is True
+    fake.fail_downloads = False
+
     # Removed: read online again, its storage freed, and the course's setting does not store it
     # again.
     await _materials_setting(api, course, store="local")
@@ -405,6 +412,30 @@ async def test_a_local_copy_the_user_asks_for(api: Api, fake: FakeProvider, sett
     await api.sync(program_id)
     await api.run_jobs()
     assert (await api.call("GET", f"/files/{lecture['id']}"))["stored"] is False
+
+
+async def test_a_file_without_its_source_is_no_longer_followed(
+    api: Api, app: FastAPI, fake: FakeProvider, clock: Clock
+):
+    _materials(fake)
+    program_id, course = await _course(api)
+    await api.sync(program_id)
+    lecture = (await _files(api, course))[1]["Lecture 1.pdf"]
+    async with app.state.session_factory() as db:
+        row = await db.get(FilesItem, lecture["id"])
+        assert row is not None
+        row.source_ref = row.source_name = None
+        row.storage_key = "kept"
+        await db.commit()
+
+    # A change on the platform does not reach the user's file, nor is it brought in again.
+    files = fake.course_file_list
+    files[0] = files[0].model_copy(update={"name": "Lecture 1 v2.pdf", "updated_at": FEB})
+    clock.advance(minutes=1)
+    await api.sync(program_id)
+    _, items = await _files(api, course)
+    assert "Lecture 1 v2.pdf" not in items
+    assert items["Lecture 1.pdf"]["id"] == lecture["id"]
 
 
 async def test_stored_here_still_follows_the_platform(
@@ -533,8 +564,8 @@ async def test_a_new_version_of_another_type_replaces_the_copy(
     clock.advance(minutes=1)
     await api.sync(program_id)
     await api.run_jobs()
-    await api.call("POST", f"/files/{midterm['id']}:drop-copy")  # read online: the new one
     fake.fail_downloads = False
+    await api.call("POST", f"/files/{midterm['id']}:drop-copy")  # read online: the new one
     clock.advance(minutes=1)
     await api.sync(program_id)
     await api.run_jobs()

@@ -124,7 +124,7 @@ function ContentCheck({ file, children }: { file: FileMeta; children: ReactNode 
   )
 }
 
-/** "Save to course files": the file keeps a local copy in the course's files (M07), the one it
+/** "Save in Semestra": the file keeps a copy in the course's files (M07), the one it
  * already has there or a new one, and keeps following the platform like the course's own. */
 function useSaveToCourse(fileId: string, name: string) {
   const { courseId } = useCanvasPage()
@@ -184,7 +184,7 @@ export function FileActions({ fileId, name }: { fileId: string; name: string }) 
 }
 
 /** The preview of a Canvas file opened from a module or a link in a page; the same frame as the
- * course files preview (M07 §6.1), with "Save to course files" among the actions. */
+ * course files preview (M07 §6.1), with "Save in Semestra" among the actions. */
 export function FilePreviewDialog({
   fileId: shown,
   ...props

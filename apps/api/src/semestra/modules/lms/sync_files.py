@@ -538,6 +538,10 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
             # The user deleted it (told at once by `files.item.deleted`, unless that was missed).
             mat.item_id = None
             enter(mat, "dismissed", now)
+        elif row.source_ref is None:
+            # No longer the sync's: the user's own file now. Never followed again.
+            enter(mat, "handed_over", now)
+            del rows[row.id]
     # What came in before the course settled is not news.
     settled = link.materials_settled_at is not None
     places = SourceFolders(ctx, link.course_id, "lms", b.provider.display_name)

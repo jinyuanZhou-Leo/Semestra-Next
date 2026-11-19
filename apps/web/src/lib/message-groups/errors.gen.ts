@@ -104,6 +104,7 @@ export const errorMessages = {
   error_files_not_indexed: m.error_files_not_indexed,
   error_files_not_ready: m.error_files_not_ready,
   error_files_parse_failed: m.error_files_parse_failed,
+  error_files_source_unreachable: m.error_files_source_unreachable,
   error_files_source_unread: m.error_files_source_unread,
   error_files_too_complex: m.error_files_too_complex,
   error_files_too_large: m.error_files_too_large,

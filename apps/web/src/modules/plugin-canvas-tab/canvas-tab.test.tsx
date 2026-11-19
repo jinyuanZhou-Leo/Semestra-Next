@@ -558,9 +558,7 @@ test('a module file can be saved to the course files', async () => {
     }),
   )
   renderPage('/?tab=modules&ref=m1')
-  await userEvent.click(
-    await screen.findByRole('button', { name: 'Save Slides.pdf to course files' }),
-  )
+  await userEvent.click(await screen.findByRole('button', { name: 'Save Slides.pdf in Semestra' }))
   await waitFor(() => expect(saves).toHaveBeenCalled())
   expect(screen.getByRole('button', { name: 'Download Slides.pdf' })).toHaveAttribute(
     'href',

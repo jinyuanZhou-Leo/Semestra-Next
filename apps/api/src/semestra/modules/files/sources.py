@@ -250,6 +250,18 @@ async def _updated(ctx: Ctx, row: FilesItem) -> None:
     await events.publish(ctx, "files.item.updated", {"item_id": row.id, "course_id": row.course_id})
 
 
+async def _check_source(ctx: Ctx, row: FilesItem) -> None:
+    """Refuses (`files.source_unreachable`) when the source does not give the file now."""
+    try:
+        stream = await content.open_source(ctx, row)
+        try:
+            await anext(aiter(stream), None)
+        finally:
+            await stream.aclose()  # pyright: ignore[reportAttributeAccessIssue]
+    except AppError as exc:
+        raise AppError("files.source_unreachable", 409, source=row.source_name or "") from exc
+
+
 async def keep_copy(ctx: Ctx, row: FilesItem) -> None:
     """The user keeps a local copy of a file that follows its source, whatever the source's
     setting: stored in a listed job (its failure shows in the status bar), so it still opens
@@ -265,9 +277,12 @@ async def keep_copy(ctx: Ctx, row: FilesItem) -> None:
 
 async def drop_copy(ctx: Ctx, row: FilesItem) -> None:
     """The user reads a file that follows its source from there again, whatever the source's
-    setting: its local copy is let go, freeing its storage."""
+    setting: its local copy is let go, freeing its storage. Not while the source can't give the
+    file (a course closed on the LMS): the copy may be the only one left."""
     if not content.follows_source(row):
         return
+    if row.storage_key:
+        await _check_source(ctx, row)
     row.keep_copy = False
     await _release(ctx, row)
     await _updated(ctx, row)
