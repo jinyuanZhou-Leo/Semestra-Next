@@ -871,6 +871,21 @@ async def sync_material_restore(ctx: Ctx, inp: MaterialRef) -> SyncStatus:
 
 
 @capability(
+    name="lms.sync.material.restore_all",
+    summary="Bring back every course material the user deleted in a Program.",
+    description="""Each comes in again with a sync of its course, queued now (courses whose
+materials don't sync are left alone).""",
+    effect="write",
+    http=Http("POST", "/programs/{program_id}/lms/sync/materials:restore"),
+    expose=HTTP_ONLY,
+    tags=TAGS,
+)
+async def sync_material_restore_all(ctx: Ctx, inp: ProgramRef) -> SyncStatus:
+    await sync_files.restore_all(ctx, inp.program_id)
+    return await sync_status.status(ctx, inp.program_id)
+
+
+@capability(
     name="lms.sync.change.revert",
     summary="Put back what the sync changed on an imported item.",
     description="""The field then counts as the user's: the platform's next change to it asks

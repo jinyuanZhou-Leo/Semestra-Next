@@ -233,6 +233,37 @@ test('materials the platform changed open from the panel; ones the user removed 
   await waitFor(() => expect(screen.queryByText('Old notes.pdf')).not.toBeInTheDocument())
 })
 
+test('every removed material is restored at once, also those past the listed rows', async () => {
+  const at = new Date().toISOString()
+  const removed = (id: string, title: string) => ({
+    id,
+    course_id: 'c1',
+    course: 'CSC148',
+    title,
+    at,
+  })
+  const restoredAll = vi.fn<(url: string) => void>()
+  server.use(
+    ...handlers(
+      status({
+        removed_materials: [removed('m1', 'Old notes.pdf'), removed('m2', 'Week 1')],
+        removed_count: 60,
+      }),
+    ),
+    http.post(`${API}/programs/p1/lms/sync/materials\\:restore`, ({ request }) => {
+      restoredAll(request.url)
+      return HttpResponse.json(status())
+    }),
+  )
+  renderWithRouter(<InPopover />, undefined, IN_PROGRAM)
+  // There while the list is folded.
+  await userEvent.click(await screen.findByRole('button', { name: 'Restore all' }))
+  await waitFor(() => expect(restoredAll).toHaveBeenCalledOnce())
+  await waitFor(() =>
+    expect(screen.queryByRole('button', { name: /^Removed materials/ })).not.toBeInTheDocument(),
+  )
+})
+
 test('a connection that stopped working says so and goes to its settings from the panel', async () => {
   server.use(
     ...handlers(

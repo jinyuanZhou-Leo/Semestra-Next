@@ -215,31 +215,39 @@ export function PanelRow({
   )
 }
 
-/** A folded list at the bottom of the panel ("Different from Canvas 1"). */
+/**
+ * A folded list at the bottom of the panel ("Different from Canvas 1"), with an optional action
+ * on all of it beside the title, there while folded ("Restore all").
+ */
 export function PanelMoreList({
   label,
   count,
+  action,
   children,
 }: {
   label: string
   count: number
+  action?: ReactNode
   children: ReactNode
 }) {
   return (
     <Collapsible className="flex flex-col">
-      <CollapsibleTrigger
-        render={
-          <Button
-            size="xs"
-            variant="ghost"
-            className="justify-start text-muted-foreground [&[data-panel-open]>svg:first-child]:rotate-90"
-          />
-        }
-      >
-        <ChevronRight aria-hidden className="transition-transform" />
-        {label}
-        <span className="tabular-nums text-muted-foreground/70">{count}</span>
-      </CollapsibleTrigger>
+      <div className="flex items-center gap-1">
+        <CollapsibleTrigger
+          render={
+            <Button
+              size="xs"
+              variant="ghost"
+              className="flex-1 justify-start text-muted-foreground [&[data-panel-open]>svg:first-child]:rotate-90"
+            />
+          }
+        >
+          <ChevronRight aria-hidden className="transition-transform" />
+          {label}
+          <span className="tabular-nums text-muted-foreground/70">{count}</span>
+        </CollapsibleTrigger>
+        {action}
+      </div>
       <CollapsibleContent className="-mx-2">
         <ItemGroup className="gap-0 has-data-[size=xs]:gap-0">{children}</ItemGroup>
       </CollapsibleContent>

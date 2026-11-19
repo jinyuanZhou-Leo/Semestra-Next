@@ -285,11 +285,12 @@ async def active_course_ids(ctx: Ctx) -> set[str]:
 
 
 async def queue(ctx: Ctx, links: Sequence[LmsCourseLink], *, manual: bool = False) -> int:
-    """Queues a sync of each link's course (one job per course: a course already queued or
-    syncing is not queued twice). Returns how many were queued."""
+    """Queues a sync of each link's course: one job per course. A course already queued is not
+    queued twice; one syncing now syncs again once it ends, as that run may have read the course
+    before what this asks for (a restore, a changed setting). Returns how many were queued."""
     for link in links:
         payload = SyncPayload(course_id=link.course_id, manual=manual)
-        await enqueue(ctx, JOB, payload, dedupe_key=_dedupe(link.course_id))
+        await enqueue(ctx, JOB, payload, dedupe_key=_dedupe(link.course_id), again=True)
     for program_id in {li.program_id for li in links}:
         await events.publish(ctx, UPDATED, {"program_id": program_id})
     return len(links)
@@ -314,6 +315,10 @@ async def request_sync(
         for li in links
         if li.synced_at is None or li.synced_at <= since or (force and li.sync_errors)
     ]
+    if not force:
+        # Opening the app asks for nothing new: a course syncing now is left to that run.
+        busy = await syncing_courses(ctx, [li.course_id for li in links])
+        links = [li for li in links if li.course_id not in busy]
     return await queue(ctx, links, manual=force)
 
 

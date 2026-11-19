@@ -3482,6 +3482,7 @@
   "lms_sync_material_kept": "Deleted on {provider}; your saved file stays",
   "lms_sync_removed_by_you": "Removed by you {ago}",
   "lms_sync_restore": "Restore",
+  "lms_sync_restore_all": "Restore all",
   "lms_materials_group": "Course materials",
   "lms_course_unlink_kept": "Saved in Semestra ({count}): they stay in the course's files.",
   "lms_course_unlink_removed": "Read from {provider} ({count}): removed from the course's files. They remain on {provider}.",

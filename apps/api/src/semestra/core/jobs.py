@@ -5,7 +5,10 @@
   seconds declare weighted stages and call `ctx.stage(...)` / `ctx.skip_stage(...)`; the overall
   percentage is computed here, never by the frontend.
 * `await enqueue(ctx, "files.parse", In(...), dedupe_key=...)` adds a row to `core_jobs` inside
-  the caller's transaction; workers pick it up after commit.
+  the caller's transaction; workers pick it up after commit. A job with the same key that has
+  not started yet stands for the new request; one already running may have read what the request
+  is about before it changed, so with `again=True` it runs once more after it ends (succeeded or
+  failed, not cancelled), with the last such request's payload.
 * Workers are asyncio tasks in the API process. A claimed job holds a lease that a heartbeat
   renews; if the process dies the lease runs out and another worker retries the job.
 * An `AppError` from a handler fails the job at once (the input is wrong, retrying will not
@@ -116,6 +119,9 @@ class CoreJob(Base, OwnedMixin):
     run_after: Mapped[datetime] = mapped_column(UTCDateTime)
     # Cleared when the job ends, so the same key can be enqueued again.
     dedupe_key: Mapped[str | None] = mapped_column(String, default=None)
+    # Asked for again while it ran (`enqueue(..., again=True)`): the payload of the job that
+    # follows it once it ends.
+    next_payload: Mapped[dict[str, Any] | None] = mapped_column(JSON, default=None)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime)
     started_at: Mapped[datetime | None] = mapped_column(UTCDateTime, default=None)
     finished_at: Mapped[datetime | None] = mapped_column(UTCDateTime, default=None)
@@ -402,9 +408,11 @@ async def enqueue(
     *,
     dedupe_key: str | None = None,
     run_after: datetime | None = None,
+    again: bool = False,
 ) -> CoreJob:
     """Add a job for the ctx user. With `dedupe_key`, an unfinished job with the same key is
-    returned instead of adding a new one. Runs once the caller's transaction commits, or not
+    returned instead of adding a new one; with `again` too, one already running runs once more
+    after it ends (see the module docstring). Runs once the caller's transaction commits, or not
     before `run_after`."""
     handler = _handlers.get(kind)
     if handler is None:
@@ -439,6 +447,9 @@ async def enqueue(
                 )
             )
             assert existing is not None
+            if again and existing.status == "running":
+                existing.next_payload = values["payload"]
+                await ctx.db.flush()
             return existing
         job = inserted
     await events.publish(ctx, JOB_PROGRESS, _event(job).data)
@@ -550,6 +561,19 @@ _GIVE_UP = or_(CoreJob.cancel_requested, CoreJob.attempts >= CoreJob.max_attempt
 
 def _end_values(now: datetime) -> dict[str, Any]:
     return {"finished_at": now, "lease_owner": None, "lease_expires_at": None, "dedupe_key": None}
+
+
+async def _run_again(ctx: Ctx, job: CoreJob, dedupe_key: str | None) -> None:
+    """A job asked for again while it ran (`next_payload`) that has now ended: the one that
+    follows it, in the transaction that ends it. Not after a cancel: the user stopped it."""
+    handler = _handlers.get(job.kind)
+    if job.next_payload is None or job.status not in ("succeeded", "failed") or handler is None:
+        return
+    try:
+        payload = handler.payload_model.model_validate(job.next_payload)
+    except ValidationError:
+        return
+    await enqueue(ctx, job.kind, payload, dedupe_key=dedupe_key)
 
 
 def _backoff(attempts: int) -> timedelta:
@@ -687,6 +711,7 @@ class JobRunner:
         the same transaction; if that fails, the job stays as it was and the next poll retries."""
         try:
             async with system_ctx(self.state, user_id) as ctx:
+                key = await ctx.db.scalar(select(CoreJob.dedupe_key).where(CoreJob.id == job_id))
                 row = await ctx.db.scalar(
                     update(CoreJob)
                     .where(CoreJob.id == job_id, _lease_lapsed(now), _GIVE_UP)
@@ -702,6 +727,7 @@ class JobRunner:
                 if row is None:  # another worker ended it first
                     return
                 await _on_failure(ctx, row)
+                await _run_again(ctx, row, key)
                 await ctx.db.commit()
         except Exception:
             log.exception("job_on_failure_failed", job_id=job_id)
@@ -789,6 +815,7 @@ class JobRunner:
                 await _discard(ctx)  # lease lost: another worker owns the job now
                 return None
             await _on_failure(ctx, row)
+            await _run_again(ctx, row, job.dedupe_key)
             await ctx.db.commit()
             return row
 
@@ -833,6 +860,8 @@ class JobRunner:
                         "run_after": self.state.now() + _backoff(job.attempts),
                         "lease_owner": None,
                         "lease_expires_at": None,
+                        # Running again reads everything afresh.
+                        "next_payload": None,
                     }
                     row = await finish({**retry, **error})
             else:

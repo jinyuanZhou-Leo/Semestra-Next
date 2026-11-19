@@ -153,7 +153,7 @@ class LmsFeedback(Base, OwnedMixin):
     rubric_scores: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
 
 
-MaterialState = Literal["synced", "list", "dismissed", "restored", "gone", "handed_over"]
+MaterialState = Literal["synced", "list", "dismissed", "absent"]
 MaterialChange = Literal["added", "duplicate", "updated", "gone", "handed_over"]
 
 
@@ -165,14 +165,13 @@ class LmsMaterial(Base, OwnedMixin):
     - `list`: a page that only lists other things, remembered (read again only when it changes)
       but never an item;
     - `dismissed`: the user deleted its item; not brought back until they restore it;
-    - `restored`: the user restored it: it comes in again with the next sync, as it did before
-      (not marked new or told);
-    - `gone`: deleted on the platform, so its item (read online) was removed; it comes in again
-      if the platform shows it again;
-    - `handed_over`: its item became the user's own file (`item_id` still names it): it had a
-      local copy when the platform deleted it. Not brought in again.
+    - `absent`: not in the course's files, brought in when the platform shows it. Either it left
+      the platform (an item read online was removed; one saved in Semestra stayed as the user's
+      own file, `item_id`, no longer followed), or the user restored it (`quiet`: it comes in as
+      it did before, not marked new or told).
 
-    Items never seen have no row."""
+    Only `sync_files.enter` changes the state, and checks the change (`sync_files.NEXT`). Items
+    never seen have no row."""
 
     __tablename__ = "lms_materials"
     __table_args__ = (
@@ -188,6 +187,8 @@ class LmsMaterial(Base, OwnedMixin):
     state: Mapped[str] = mapped_column(String, default="synced", server_default="synced")
     # When it entered its state.
     state_at: Mapped[datetime | None] = mapped_column(default=None)
+    # `absent` because the user restored it: it comes in without being told as new.
+    quiet: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     # The item of the course's files (M07's `files_items.id`). Not a foreign key: the sync tells
     # an item the user deleted from one never made.
     item_id: Mapped[str | None] = mapped_column(String, default=None, index=True)
@@ -195,7 +196,8 @@ class LmsMaterial(Base, OwnedMixin):
     # contents (it changes when the bytes do, not on a rename).
     title: Mapped[str | None] = mapped_column(String, default=None)
     version: Mapped[str | None] = mapped_column(String, default=None)
-    # The item's name as the sync last set it: a different one, the user renamed it.
+    # The item's name as the sync last set it (written only where the sync names the item): a
+    # different one, the user renamed it.
     name: Mapped[str | None] = mapped_column(String, default=None)
     # Its place on the platform, as [id, name] pairs from the top (`sync_files._place`; None
     # until a sync has seen it since places were kept), and the

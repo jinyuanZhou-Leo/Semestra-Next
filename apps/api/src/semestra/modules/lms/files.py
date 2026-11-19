@@ -17,7 +17,7 @@ from semestra.modules.lms.models import LmsCourseLink, LmsMaterial
 from semestra.modules.lms.schemas.dto import FileMeta
 from semestra.modules.lms.schemas.io import FilePreview, FileSaveInput, SavedFile
 from semestra.modules.lms.service import Bound
-from semestra.modules.lms.sync_files import enter, file_version, forget_applied, source_ref
+from semestra.modules.lms.sync_files import enter, file_version, source_ref
 
 
 async def save_to_course(ctx: Ctx, inp: FileSaveInput) -> SavedFile:
@@ -60,9 +60,7 @@ async def save_to_course(ctx: Ctx, inp: FileSaveInput) -> SavedFile:
         )
         ctx.db.add(mat)
     # The sync follows it from now on, and does not bring the file in again.
-    mat.item_id, mat.imported_at = item.id, ctx.now
-    enter(mat, "synced", ctx.now)
-    forget_applied(mat)
+    enter(mat, "synced", ctx.now, item_id=item.id)
     mat.title, mat.version, mat.name = meta.name, file_version(meta), item.display_name
     await ctx.db.flush()
     return SavedFile(file_item_id=str(item.id), name=str(item.display_name))
