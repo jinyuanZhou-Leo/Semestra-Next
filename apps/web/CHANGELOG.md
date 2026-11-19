@@ -1,5 +1,30 @@
 # @semestra/web
 
+## 2.3.0
+
+### Minor Changes
+
+- a08a0fb: <!-- area: courses -->
+  <!-- improved -->
+  <!-- en -->
+  With the sidebar collapsed, the Courses icon lists the term's courses, so any course is one click away.
+  <!-- zh -->
+  侧边栏折叠后，「课程」图标会列出本学期的课程，一步即可进入。
+- 1a7c305: <!-- area: files -->
+  <!-- en -->
+  The file list shows whether each course material is read from the LMS, being saved, saved, or saved as an older version, and why a save failed. Changing a course's storage setting now applies to all of its materials.
+  <!-- zh -->
+  文件列表会显示每份课程资料是从 LMS 读取、正在保存、已保存还是旧版本，保存失败时说明原因；更改课程的保存方式后，所有资料统一按新设置处理。
+- e247b9c: <!-- area: canvas -->
+  <!-- en -->
+  Course materials follow Canvas more reliably: renamed files keep your name through updates, files locked on Canvas stay until they open, removed materials can be restored all at once, and materials published again on Canvas come back.
+  <!-- zh -->
+  课程资料更稳定地跟随 Canvas：改过名的文件更新后保留你的名字，Canvas 上锁定的文件保持原样，已移除的资料可以一次全部恢复，Canvas 上重新发布的资料会重新加进来。
+
+### Patch Changes
+
+- @semestra/api-client@2.3.0
+
 ## 2.2.0
 
 ### Minor Changes
