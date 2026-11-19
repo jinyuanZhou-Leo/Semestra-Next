@@ -352,6 +352,7 @@ async def test_stored_here_and_read_again(api: Api, fake: FakeProvider, clock: C
     # Read online again: the copies go at once. A file the platform failed to give is read
     # again by a later sync.
     await _materials_setting(api, course, store="online")
+    await api.run_jobs()
     assert (await api.call("GET", "/files-usage"))["files_bytes"] == 0
     fake.course_file_list.append(_file("210", "Lecture 10.pdf", mime_type="application/pdf"))
     fake.fail_downloads = True
@@ -365,6 +366,29 @@ async def test_stored_here_and_read_again(api: Api, fake: FakeProvider, clock: C
     await api.sync(program_id)
     await api.run_jobs()
     assert (await _files(api, course))[1]["Lecture 10.pdf"]["doc_status"] == "ready"
+
+
+async def test_copies_stay_while_the_course_cannot_be_read_whole(
+    api: Api, fake: FakeProvider, clock: Clock
+):
+    _materials(fake)
+    program_id, course = await _course(api)
+    await _materials_setting(api, course, store="local")
+    await api.sync(program_id)
+    await api.run_jobs()
+    assert (await _files(api, course))[1]["Lecture 1.pdf"]["stored"] is True
+
+    # Read from the platform again while the course refuses its files (closed there): the
+    # copies may be the only ones left, so they stay until a run reads the course whole.
+    fake.files_hidden = True
+    await _materials_setting(api, course, store="online")
+    await api.run_jobs()
+    assert (await _files(api, course))[1]["Lecture 1.pdf"]["stored"] is True
+    fake.files_hidden = False
+    clock.advance(hours=2)
+    await api.sync(program_id)
+    await api.run_jobs()
+    assert (await _files(api, course))[1]["Lecture 1.pdf"]["stored"] is False
 
 
 async def test_a_local_copy_the_user_asks_for(api: Api, fake: FakeProvider, settings: Settings):

@@ -617,8 +617,14 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
     for row in followed:
         if _retry_due(row, now):
             await sources.retry_synced(ctx, row)
+    # Copies are let go only on a run that read the whole course: a course closed on the
+    # platform refuses its areas, and its copies may be the only ones left.
     await sources.apply_copies(
-        ctx, followed, cfg.store == "local", dedupe=f"lms.materials:{link.id}"
+        ctx,
+        followed,
+        cfg.store == "local",
+        dedupe=f"lms.materials:{link.id}",
+        release=found.complete,
     )
     if not settled and not result.cap_reached:
         link.materials_settled_at = now
@@ -827,6 +833,7 @@ async def on_settings_changed(ctx: Ctx, event: Event) -> None:
     else:
         return
     turned_on: list[LmsCourseLink] = []
+    again: list[LmsCourseLink] = []
     for link in links:
         if not link.sync_enabled:
             continue
@@ -835,11 +842,15 @@ async def on_settings_changed(ctx: Ctx, event: Event) -> None:
             # What the platform added while off is not news: the next run is quiet again.
             link.materials_settled_at = None
             turned_on.append(link)
-        if "store" in changed:
+        if "store" in changed and cfg.store == "local":
             await sources.apply_copies(
                 ctx,
                 await synced_items(ctx, link.id),
-                cfg.store == "local",
+                True,
                 dedupe=f"lms.materials:{link.id}",
             )
-    await sync_queue(ctx, turned_on)
+        elif "store" in changed and cfg.sync:
+            # Read from the platform again: the copies go with the next run, once it has read
+            # the course whole (they may be the only ones left of a course closed there).
+            again.append(link)
+    await sync_queue(ctx, [*turned_on, *(li for li in again if li not in turned_on)])

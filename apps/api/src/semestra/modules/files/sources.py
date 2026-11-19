@@ -251,15 +251,22 @@ async def _updated(ctx: Ctx, row: FilesItem) -> None:
 
 
 async def _check_source(ctx: Ctx, row: FilesItem) -> None:
-    """Refuses (`files.source_unreachable`) when the source does not give the file now."""
+    """Refuses (`files.source_unreachable`) when the source does not give the file now. The
+    source is opened in a short transaction of its own (it may write, say renewed credentials)
+    and closed right away: opening reads up to the first bytes, which tells."""
+    opened: list[AsyncIterator[bytes]] = []
+
+    async def open_(sys_ctx: Ctx) -> None:
+        found = await sys_ctx.db.get(FilesItem, row.id)
+        if found is not None:
+            opened.append(await content.open_source(sys_ctx, found))
+
     try:
-        stream = await content.open_source(ctx, row)
-        try:
-            await anext(aiter(stream), None)
-        finally:
-            await stream.aclose()  # pyright: ignore[reportAttributeAccessIssue]
+        await run_as_system(ctx.state, ctx.user_id, open_)
     except AppError as exc:
         raise AppError("files.source_unreachable", 409, source=row.source_name or "") from exc
+    for stream in opened:
+        await stream.aclose()  # pyright: ignore[reportAttributeAccessIssue]
 
 
 async def keep_copy(ctx: Ctx, row: FilesItem) -> None:
@@ -288,12 +295,15 @@ async def drop_copy(ctx: Ctx, row: FilesItem) -> None:
     await _updated(ctx, row)
 
 
-async def apply_copies(ctx: Ctx, rows: Sequence[FilesItem], local: bool, *, dedupe: str) -> None:
+async def apply_copies(
+    ctx: Ctx, rows: Sequence[FilesItem], local: bool, *, dedupe: str, release: bool = True
+) -> None:
     """Brings the files that follow their source in line with the source's setting for their
     course (`local`: keep local copies), except where the user chose for a file (`keep_copy`).
-    Copies no longer wanted are let go at once; wanted ones are stored quietly in the background
-    as far as the quota goes (by the source's sizes, so a full quota downloads nothing): the
-    rest stay read from the source."""
+    Copies no longer wanted are let go at once, unless `release` is False (the source could not
+    show it still has them: the copy may be the only one left); wanted ones are stored quietly
+    in the background as far as the quota goes (by the source's sizes, so a full quota
+    downloads nothing): the rest stay read from the source."""
     cap = ctx.settings.files_max_upload_bytes
     left = await remaining_quota(ctx)
     ids: list[str] = []
@@ -302,7 +312,7 @@ async def apply_copies(ctx: Ctx, rows: Sequence[FilesItem], local: bool, *, dedu
             continue
         want = row.keep_copy if row.keep_copy is not None else local
         if not want:
-            if await _release(ctx, row):
+            if release and await _release(ctx, row):
                 await _updated(ctx, row)
             continue
         if not _outdated(row) or row.size_bytes > cap:
