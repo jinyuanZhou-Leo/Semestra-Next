@@ -238,9 +238,7 @@ async def retry(ctx: Ctx, inp: RetryInput) -> Retried:
     for row in rows:
         if not content.has_content(row) or row.doc_status in ("pending", "processing"):
             continue
-        row.doc_status, row.doc_error_code = "pending", None
-        row.updated_at = ctx.now
-        await service.enqueue_processing(ctx, row)
+        await service.request_read(ctx, row, "user")
         await events.publish(
             ctx, "files.item.updated", {"item_id": row.id, "course_id": row.course_id}
         )

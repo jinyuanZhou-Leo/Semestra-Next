@@ -1066,6 +1066,42 @@ async def test_reading_the_files_waits_for_a_course_sync_queued_since(
     assert await _pending(app, "files.process_synced") > 0
 
 
+async def test_a_file_is_read_once_for_its_latest_version(
+    api: Api, fake: FakeProvider, app: FastAPI, clock: Clock
+):
+    """A new version before the file is read replaces the read queued for the old one; the
+    user asking for it moves it ahead of the synced files."""
+    fake.course_file_list = [_file("201", "Lecture 1.pdf", mime_type="application/pdf")]
+    program_id, course = await _course(api)
+
+    async def sync() -> None:
+        clock.advance(minutes=1)
+        await api.call("POST", f"/programs/{program_id}/lms/sync", json={"force": True})
+        assert await app.state.jobs.run_one(BACKGROUND) is True  # the sync, not the reading
+
+    async def reads() -> list[tuple[str, str | None]]:
+        async with app.state.session_factory() as db:
+            query = select(CoreJob.kind, CoreJob.dedupe_key).where(
+                CoreJob.kind.in_(("files.process", "files.process_synced")),
+                CoreJob.status == "pending",
+            )
+            return [(kind, key) for kind, key in (await db.execute(query)).all()]
+
+    await sync()
+    item = (await _files(api, course))[1]["Lecture 1.pdf"]
+    assert await reads() == [("files.process_synced", f"{item['id']}:{item['sha256']}")]
+
+    files = fake.course_file_list
+    files[0] = files[0].model_copy(update={"updated_at": FEB, "content_at": FEB})
+    await sync()
+    newer = (await _files(api, course))[1]["Lecture 1.pdf"]
+    assert newer["sha256"] != item["sha256"]
+    assert await reads() == [("files.process_synced", f"{item['id']}:{newer['sha256']}")]
+
+    await api.call("POST", f"/files/{item['id']}:reprocess")
+    assert await reads() == [("files.process", f"{item['id']}:{newer['sha256']}")]
+
+
 async def test_scanned_pages_of_synced_files_are_read_like_any_file(
     api: Api, fake: FakeProvider, fake_ai: FakeAi
 ):

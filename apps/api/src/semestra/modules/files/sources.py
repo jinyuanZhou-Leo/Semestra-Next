@@ -43,7 +43,6 @@ from semestra.modules.files.models import FilesItem
 from semestra.modules.files.parse.detect import DOCX, PPTX, XLSX
 from semestra.modules.files.schemas import SourceKind
 from semestra.modules.files.service import find_items, get_folder, purge_items
-from semestra.modules.files.settings import auto_index
 
 __all__ = [
     "SOURCE_UNREAD",
@@ -102,7 +101,7 @@ def _remote_status(ctx: Ctx, name: str, mime: str | None, size: int) -> tuple[st
     if size > ctx.settings.files_max_upload_bytes:
         # Not the user's file to make smaller: it opens, its text is just not read.
         return "unsupported", "files.too_large"
-    return "pending", None
+    return "none", None  # readable: `service.request_read` says when
 
 
 async def add_remote_file(
@@ -148,12 +147,10 @@ async def add_remote_file(
         created_at=ctx.now,
         updated_at=ctx.now,
     )
-    if row.doc_status == "pending" and not await auto_index(ctx, course_id):
-        row.doc_status = "none"
     ctx.db.add(row)
     await ctx.db.flush()
-    if row.doc_status == "pending":
-        await service.enqueue_processing(ctx, row, synced=True)
+    if row.doc_status != "unsupported":
+        await service.request_read(ctx, row, "source")
     await events.publish(ctx, "files.item.created", {"item_id": row.id, "course_id": course_id})
     return row
 
@@ -185,12 +182,10 @@ async def update_remote_file(
         return
     row.mime_type, row.size_bytes = mime, size
     status, error = _remote_status(ctx, row.original_name or row.display_name, mime, size)
-    if status == "pending" and not await auto_index(ctx, row.course_id):
-        status = "none"
     row.doc_status, row.doc_error_code = status, error
+    if status != "unsupported":
+        await service.request_read(ctx, row, "source")
     await ctx.db.flush()
-    if status == "pending":
-        await service.enqueue_processing(ctx, row, synced=True)
     await events.publish(ctx, "files.item.updated", {"item_id": row.id, "course_id": row.course_id})
 
 
@@ -408,22 +403,13 @@ async def store_from_source(ctx: Ctx, item_id: str, *, quiet: bool) -> bool:
 
 
 async def _read_new_bytes(ctx: Ctx, row: FilesItem) -> None:
-    status = "pending" if await auto_index(ctx, row.course_id) else "none"
-    row.doc_status, row.doc_error_code = status, None
-    await ctx.db.flush()
-    if status == "pending":
-        await service.enqueue_processing(ctx, row, synced=True)
+    await service.request_read(ctx, row, "source")
 
 
 async def retry_synced(ctx: Ctx, row: FilesItem) -> None:
     """Reads a file from its source again after the source failed (or was never read); the
     source's sync decides when (M09 retries once its platform answers again)."""
-    row.doc_status, row.doc_error_code, row.updated_at = "pending", None, ctx.now
-    if not await auto_index(ctx, row.course_id):
-        row.doc_status = "none"
-    await ctx.db.flush()
-    if row.doc_status == "pending":
-        await service.enqueue_processing(ctx, row, synced=True)
+    await service.request_read(ctx, row, "source")
     await events.publish(ctx, "files.item.updated", {"item_id": row.id, "course_id": row.course_id})
 
 

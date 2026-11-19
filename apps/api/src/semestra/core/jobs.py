@@ -971,6 +971,25 @@ async def job_list(ctx: Ctx, inp: JobListInput) -> JobPage:
     return JobPage(items=items, next_cursor=next_cursor)
 
 
+async def withdraw(ctx: Ctx, job_ids: Sequence[str]) -> None:
+    """Jobs not started yet that a newer one replaces (the work they would do is queued again):
+    they end `cancelled` without their `on_failure`, which would record a stop nobody asked
+    for. One that started meanwhile is left to run."""
+    for job in await ctx.db.scalars(
+        select(CoreJob).where(
+            CoreJob.user_id == ctx.user_id,
+            CoreJob.id.in_(list(job_ids)),
+            CoreJob.status == "pending",
+        )
+    ):
+        job.status = "cancelled"
+        for key, value in _end_values(ctx.now).items():
+            setattr(job, key, value)
+        await events.publish(ctx, JOB_PROGRESS, _event(job).data)
+        await events.publish(ctx, JOB_FINISHED, _finished(job).data)
+    await ctx.db.flush()
+
+
 @capability(
     name="core.job.cancel",
     summary="Cancel a pending or running background job.",
