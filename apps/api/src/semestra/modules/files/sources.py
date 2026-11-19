@@ -59,6 +59,7 @@ __all__ = [
     "purge_items",
     "remote",
     "rename_synced",
+    "reset_copy_choices",
     "retry_synced",
     "save_bytes_as_file",
     "store_from_source",
@@ -89,10 +90,6 @@ def _readable(name: str, mime: str | None) -> bool:
         mime in ("application/pdf", DOCX, PPTX, XLSX, "text/html", "text/plain", "text/csv")
         or mime.startswith("text/")
     )
-
-
-def _version_hash(version: str) -> str:
-    return hashlib.sha256(version.encode()).hexdigest()
 
 
 def _remote_status(ctx: Ctx, name: str, mime: str | None, size: int) -> tuple[str, str | None]:
@@ -135,7 +132,9 @@ async def add_remote_file(
         original_name=clean,
         mime_type=mime,
         size_bytes=size,
-        sha256=_version_hash(version),
+        source_version=content.version_hash(version),
+        source_mime=mime,
+        source_size=size,
         url=url,
         source_kind=source_kind,
         source_ref=source_ref,
@@ -174,10 +173,10 @@ async def update_remote_file(
     if name is not None:
         row.display_name = row.original_name = service.safe_name(name)
     row.url, row.source_modified_at = url, modified_at
-    row.sha256 = _version_hash(version)
+    row.source_version = content.version_hash(version)
+    row.source_mime, row.source_size = mime, size
     row.updated_at = ctx.now
-    if row.storage_key:
-        row.source_mime, row.source_size = mime, size
+    if row.storage_key:  # opens as its copy until the new bytes replace it
         await _updated(ctx, row)
         return
     row.mime_type, row.size_bytes = mime, size
@@ -189,42 +188,66 @@ async def update_remote_file(
     await events.publish(ctx, "files.item.updated", {"item_id": row.id, "course_id": row.course_id})
 
 
+# --- the local copy -------------------------------------------------------------------------
+# A followed file's source side (`source_version`, `source_mime`, `source_size`) is the
+# source's current version; its copy side (`storage_key`, `sha256`, `copy_version`,
+# `copy_modified_at`, `copy_error_code`) what is stored here. `mime_type` and `size_bytes` are
+# the file as it opens. Only `_take_copy` and `_release` change the copy side, and they read the
+# text again when the version the file opens as (`content.version`) changes.
+
+
+async def _reread_if_changed(ctx: Ctx, row: FilesItem, before: str | None) -> None:
+    if content.version(row) != before and row.doc_status != "unsupported":
+        await service.request_read(ctx, row, "source")
+
+
+def _take_copy(row: FilesItem, key: str, sha256: str, size: int, version: str | None) -> None:
+    row.storage_key, row.sha256, row.size_bytes = key, sha256, size
+    row.copy_version, row.copy_error_code = version, None
+    current = version == row.source_version
+    if current and row.source_mime is not None:
+        row.mime_type = row.source_mime
+    row.copy_modified_at = row.source_modified_at if current else None
+
+
 async def _release(ctx: Ctx, row: FilesItem) -> bool:
-    """Lets the local copy go (deleted once the transaction commits): the item is read from its
-    source again, its newer version if the copy held an older one. False when it had none."""
+    """Lets the local copy go (deleted once the transaction commits): the item opens as the
+    source's current version again. False when it had none."""
+    row.copy_error_code = None
     if not row.storage_key:
         return False
+    before = content.version(row)
     delete_after_commit(ctx, [row.storage_key])
-    older = row.copy_version != row.sha256
-    row.storage_key = row.copy_version = None
-    _take_source_meta(row)
+    row.storage_key = row.sha256 = row.copy_version = row.copy_modified_at = None
+    if row.source_mime is not None:
+        row.mime_type = row.source_mime
+    row.size_bytes = _source_size(row)
     row.updated_at = ctx.now
-    if older:
-        await _read_new_bytes(ctx, row)
+    await _reread_if_changed(ctx, row, before)
     return True
 
 
-def _take_source_meta(row: FilesItem) -> None:
-    """The type and size of the source's version the item now holds (see `source_mime`)."""
-    if row.source_mime is not None:
-        row.mime_type = row.source_mime
-    if row.source_size is not None:
-        row.size_bytes = row.source_size
-    row.source_mime = row.source_size = None
+def _source_size(row: FilesItem) -> int:
+    return row.source_size if row.source_size is not None else row.size_bytes
 
 
 def _outdated(row: FilesItem) -> bool:
     """Its bytes are not the source's current version: none here, or an older local copy."""
-    return not row.storage_key or row.copy_version != row.sha256
+    return not row.storage_key or row.copy_version != row.source_version
+
+
+def _room_needed(row: FilesItem) -> int:
+    """What storing the source's current version adds: replacing a copy takes the difference."""
+    return _source_size(row) - (row.size_bytes if row.storage_key else 0)
 
 
 async def _check_room(ctx: Ctx, row: FilesItem) -> None:
     """Refuses now what can be told now about storing a copy: too large, no quota left."""
     cap = ctx.settings.files_max_upload_bytes
-    if row.size_bytes > cap:
+    if _source_size(row) > cap:
         raise AppError("files.too_large", 413, max=cap)
     left = await remaining_quota(ctx)
-    if left is not None and row.size_bytes > left:
+    if left is not None and _room_needed(row) > left:
         current = await core_usage(ctx)
         raise AppError(
             "common.quota_exceeded", 413, used=current.used_bytes, quota=current.quota_bytes
@@ -292,6 +315,15 @@ async def drop_copy(ctx: Ctx, row: FilesItem) -> None:
     await _updated(ctx, row)
 
 
+async def reset_copy_choices(ctx: Ctx, rows: Sequence[FilesItem]) -> None:
+    """The source's setting for these files changed: the user's choices for single files are
+    cleared, so each follows the setting (`apply_copies`)."""
+    for row in rows:
+        if content.follows_source(row) and row.keep_copy is not None:
+            row.keep_copy = None
+            await _updated(ctx, row)
+
+
 async def apply_copies(
     ctx: Ctx, rows: Sequence[FilesItem], local: bool, *, dedupe: str, release: bool = True
 ) -> None:
@@ -307,18 +339,26 @@ async def apply_copies(
     for row in rows:
         if not content.follows_source(row):
             continue
+        error = row.copy_error_code
         want = row.keep_copy if row.keep_copy is not None else local
         if not want:
-            if release and await _release(ctx, row):
+            row.copy_error_code = None  # not wanted: nothing failed, copy kept or not
+            released = release and await _release(ctx, row)
+            if released or row.copy_error_code != error:
                 await _updated(ctx, row)
             continue
-        if not _outdated(row) or row.size_bytes > cap:
+        if not _outdated(row):
             continue
-        if left is not None:
-            if row.size_bytes > left:
-                continue
-            left -= row.size_bytes
-        ids.append(row.id)
+        need = _room_needed(row)
+        if _source_size(row) > cap:
+            row.copy_error_code = "files.too_large"
+        elif left is not None and need > left:
+            row.copy_error_code = "common.quota_exceeded"
+        else:
+            left = None if left is None else left - max(need, 0)
+            ids.append(row.id)
+        if row.copy_error_code != error:
+            await _updated(ctx, row)
     if ids:
         from semestra.modules.files.jobs import KeepPayload
 
@@ -336,6 +376,7 @@ async def store_from_source(ctx: Ctx, item_id: str, *, quiet: bool) -> bool:
     full and nothing changed; otherwise that and every other failure raise."""
     opened: list[AsyncIterator[bytes]] = []
     version: list[str | None] = []  # of the bytes opened
+    replaces: list[int] = []  # the size of the copy they replace (counted in the quota now)
 
     def wanted(row: FilesItem | None) -> bool:
         return (
@@ -349,22 +390,25 @@ async def store_from_source(ctx: Ctx, item_id: str, *, quiet: bool) -> bool:
         if row is None or not wanted(row):
             return
         if _outdated(row):
-            version.append(row.sha256)
+            version.append(row.source_version)
+            replaces.append(row.size_bytes if row.storage_key else 0)
             opened.append(await content.open_source(sys_ctx, row))
 
-    await run_as_system(ctx.state, ctx.user_id, open_)
-    if not opened:
-        return True
     cap = ctx.settings.files_max_upload_bytes
     try:
+        await run_as_system(ctx.state, ctx.user_id, open_)
+        if not opened:
+            return True
         staged = await stage(
             ctx,
             f"{service.storage_key(ctx.user_id or '', item_id)}-{new_id()}",
             opened[0],
             cap=cap,
             too_large=AppError("files.too_large", 413, max=cap),
+            replaces=replaces[0],
         )
     except AppError as exc:
+        await _note_failure(ctx, item_id, exc.code)
         if quiet and exc.code == "common.quota_exceeded":
             return False
         raise
@@ -377,15 +421,13 @@ async def store_from_source(ctx: Ctx, item_id: str, *, quiet: bool) -> bool:
             return
         # Else the same version was stored meanwhile: these bytes are not needed.
         if not row.storage_key or row.copy_version != version[0]:
-            older = row.storage_key
-            row.storage_key, row.copy_version = staged.stored.key, version[0]
-            if version[0] == row.sha256:
-                _take_source_meta(row)
-            row.size_bytes = staged.stored.size
+            older, before = row.storage_key, content.version(row)
+            stored = staged.stored
+            _take_copy(row, stored.key, stored.sha256, stored.size, version[0])
             taken.append(True)
-            if older:  # a newer version replaces the copy: its text is read again
+            if older:
                 delete_after_commit(sys_ctx, [older])
-                await _read_new_bytes(sys_ctx, row)
+            await _reread_if_changed(sys_ctx, row, before)
         row.updated_at = sys_ctx.now
         await charge(sys_ctx)
         await _updated(sys_ctx, row)
@@ -394,6 +436,7 @@ async def store_from_source(ctx: Ctx, item_id: str, *, quiet: bool) -> bool:
         await run_as_system(ctx.state, ctx.user_id, take)
     except AppError as exc:
         await get_storage(ctx).delete(staged.stored.key)
+        await _note_failure(ctx, item_id, exc.code)
         if quiet and exc.code == "common.quota_exceeded":
             return False
         raise
@@ -402,8 +445,30 @@ async def store_from_source(ctx: Ctx, item_id: str, *, quiet: bool) -> bool:
     return True
 
 
-async def _read_new_bytes(ctx: Ctx, row: FilesItem) -> None:
-    await service.request_read(ctx, row, "source")
+async def _note_failure(ctx: Ctx, item_id: str, code: str) -> None:
+    """Why the copy could not be stored, shown with the file until a later attempt stores it
+    (the source's next sync, or the user asking again) or the copy is no longer wanted: not
+    noted for a file the user chose to read from its source meanwhile."""
+
+    async def note(sys_ctx: Ctx) -> None:
+        row = await sys_ctx.db.get(FilesItem, item_id)
+        if (
+            row is not None
+            and content.follows_source(row)
+            and row.keep_copy is not False
+            and row.copy_error_code != code
+        ):
+            row.copy_error_code = code
+            await _updated(sys_ctx, row)
+
+    await run_as_system(ctx.state, ctx.user_id, note)
+
+
+async def _hash_stored(ctx: Ctx, key: str) -> str:
+    digest = hashlib.sha256()
+    async for chunk in get_storage(ctx).open(key):
+        digest.update(chunk)
+    return digest.hexdigest()
 
 
 async def retry_synced(ctx: Ctx, row: FilesItem) -> None:
@@ -427,11 +492,16 @@ async def detach_from_source(ctx: Ctx, rows: Sequence[FilesItem]) -> None:
     cleared), never updated or removed by the source."""
     for row in rows:
         assert row.storage_key
+        before = service.process_key(row)
+        if row.sha256 is None:  # a copy stored before copies kept their hash (migration 0062)
+            row.sha256 = await _hash_stored(ctx, row.storage_key)
         row.source_ref = row.source_name = row.keep_copy = None
-        # The version it holds (an older one if the newest was still being fetched).
-        row.sha256 = row.copy_version or row.sha256
-        row.copy_version = row.source_mime = row.source_size = None
+        row.source_version = row.source_mime = row.source_size = None
+        row.copy_version = row.copy_modified_at = row.copy_error_code = None
         row.updated_at = ctx.now
+        if row.doc_status in ("pending", "processing") and service.process_key(row) != before:
+            # Its read was queued under the source's version: queued again under its own.
+            await service.request_read(ctx, row, "source")
         await _updated(ctx, row)
 
 

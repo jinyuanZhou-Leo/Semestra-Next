@@ -289,15 +289,19 @@ async def reset_value(
 async def _publish_values_updated(
     ctx: Ctx, namespace: str, scope_type: ScopeType, stored_id: str, changed: list[str]
 ) -> None:
-    """`changed`: the keys whose effective value at this scope changed (or was reset)."""
+    """`changed`: the keys whose effective value at this scope changed (or was reset).
+    Subscribers that must change with the settings (or stop the change) run in this
+    transaction (`in_transaction=True`), the rest after it commits."""
+    data = {
+        "namespace": namespace,
+        "scope": {"type": scope_type, "id": stored_id or None},
+        "changed": changed,
+    }
+    await events.publish_in_transaction(ctx, "settings.values.updated", data)
     await events.publish(
         ctx,
         "settings.values.updated",
-        {
-            "namespace": namespace,
-            "scope": {"type": scope_type, "id": stored_id or None},
-            "changed": changed,
-        },
+        data,
     )
 
 

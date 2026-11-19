@@ -164,10 +164,11 @@ async def save_bytes_as_file(
     source_name: str | None = None,
     keep_copy: bool | None = None,
     modified_at: datetime | None = None,
+    version: str | None = None,
 ) -> ItemOut:
     """For other modules (M09 saves Canvas files, M12 files the agent generates). With a
     `source_ref` its source keeps (`content.py`) the file follows that source with this local
-    copy (`keep_copy`: the user asked for one); without, it is a plain file."""
+    copy of its `version` (`keep_copy`: the user asked for one); without, it is a plain file."""
     row = await store_file(
         ctx,
         course_id=course_id,
@@ -177,10 +178,14 @@ async def save_bytes_as_file(
         source_kind=source_kind,
         source_ref=source_ref,
     )
-    if source_ref is not None:
+    if content.follows_source(row):
         row.source_name, row.keep_copy = source_name, keep_copy
-        row.copy_version = row.sha256
-        row.source_modified_at = modified_at
+        row.source_version = content.version_hash(version) if version else row.sha256
+        row.source_mime, row.source_size = row.mime_type, row.size_bytes
+        row.copy_version = row.source_version
+        row.source_modified_at = row.copy_modified_at = modified_at
+        if row.doc_status == "pending":  # queued under its own hash: again under this version
+            await service.request_read(ctx, row, "upload")
         await ctx.db.flush()
     return await service.item_out(ctx, row)
 

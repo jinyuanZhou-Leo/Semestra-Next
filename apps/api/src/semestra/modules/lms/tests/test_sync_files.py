@@ -2,6 +2,7 @@
 come into the course's files in the folders they are in on the platform without taking storage,
 follow the platform, and leave alone what the user moved, renamed or deleted."""
 
+import hashlib
 import io
 import json
 import sqlite3
@@ -20,7 +21,7 @@ from semestra.core import jobs
 from semestra.core.config import Settings
 from semestra.core.context import run_as_system
 from semestra.core.jobs import BACKGROUND, CoreJob
-from semestra.modules.files import pipeline, sources
+from semestra.modules.files import content, pipeline, sources
 from semestra.modules.files.models import FilesDocument, FilesDocumentPage, FilesItem
 from semestra.modules.files.tests.conftest import FakeAi, make_pdf
 from semestra.modules.lms.errors import lms_error
@@ -491,21 +492,30 @@ async def test_stored_here_and_read_again(api: Api, fake: FakeProvider, clock: C
 
 
 async def test_copies_stay_while_the_course_cannot_be_read_whole(
-    api: Api, fake: FakeProvider, clock: Clock
+    api: Api, fake: FakeProvider, clock: Clock, settings: Settings
 ):
     _materials(fake)
+    fake.course_file_list.append(
+        _file("206", "Huge recording.pdf").model_copy(update={"size_bytes": 10**8})
+    )
+    settings.files_max_upload_bytes = 10**7
     program_id, course = await _course(api)
     await _materials_setting(api, course, store="local")
     await api.sync(program_id)
     await api.run_jobs()
-    assert (await _files(api, course))[1]["Lecture 1.pdf"]["stored"] is True
+    _, items = await _files(api, course)
+    assert items["Lecture 1.pdf"]["stored"] is True
+    assert items["Huge recording.pdf"]["local_copy"]["state"] == "failed"
 
     # Read from the platform again while the course refuses its files (closed there): the
     # copies may be the only ones left, so they stay until a run reads the course whole.
     fake.files_hidden = True
     await _materials_setting(api, course, store="online")
     await api.run_jobs()
-    assert (await _files(api, course))[1]["Lecture 1.pdf"]["stored"] is True
+    _, items = await _files(api, course)
+    assert items["Lecture 1.pdf"]["stored"] is True
+    # No copy is wanted any more, so none failed.
+    assert items["Huge recording.pdf"]["local_copy"]["state"] == "online"
     fake.files_hidden = False
     clock.advance(hours=2)
     await api.sync(program_id)
@@ -634,10 +644,14 @@ async def test_stored_here_still_follows_the_platform(
     await api.sync(program_id)
     await api.run_jobs()
     _, items = await _files(api, course)
-    # Too large to store: left read from the platform, the rest stored all the same.
+    # Too large to store: left read from the platform, saying why; the rest stored all the same.
     assert items["Huge recording.pdf"]["stored"] is False
+    assert items["Huge recording.pdf"]["local_copy"] == {
+        "state": "failed", "error_code": "files.too_large", "saved_version_at": None,
+    }  # fmt: skip
     lecture, midterm = items["Lecture 1.pdf"], items["Midterm 2025.pdf"]
     assert (lecture["stored"], lecture["follows_source"]) == (True, True)
+    assert lecture["local_copy"]["state"] == "saved"
     # The user's choice for one file wins over the course's: read online.
     await api.call("POST", f"/files/{items['W1.pdf']['id']}:drop-copy")
 
@@ -654,7 +668,7 @@ async def test_stored_here_still_follows_the_platform(
     await api.run_jobs()
     _, items = await _files(api, course)
     assert (items["Lecture 1.pdf"]["stored"], items["Lecture 1.pdf"]["size_bytes"]) == (True, 5)
-    assert items["Lecture 1.pdf"]["sha256"] != lecture["sha256"]
+    assert items["Lecture 1.pdf"]["modified_at"] != lecture["modified_at"]
     assert items["W1.pdf"]["stored"] is False
     for name in ("Midterm 2025.pdf", "Set 1.pdf"):
         assert (items[name]["stored"], items[name]["follows_source"]) == (True, False)
@@ -688,8 +702,20 @@ async def test_stored_here_still_follows_the_platform(
     clock.advance(minutes=1)
     await api.sync(program_id)
     await api.run_jobs()
-    assert (await _files(api, course))[1]["Lecture 11.pdf"]["stored"] is False
+    eleven = (await _files(api, course))[1]["Lecture 11.pdf"]
+    assert eleven["stored"] is False
+    assert eleven["local_copy"]["state"] == "failed"
+    assert eleven["local_copy"]["error_code"] == "common.quota_exceeded"
     assert await storing_jobs() == before
+
+    # The course's setting changed again: the choices made for single files are cleared, and
+    # every file follows it (owner 2026-11-19), the one read online included.
+    settings.user_storage_quota_bytes = 10**9
+    await _materials_setting(api, course, store="online")
+    await _materials_setting(api, course, store="local")
+    await api.run_jobs()
+    w1 = (await _files(api, course))[1]["W1.pdf"]
+    assert (w1["stored"], w1["local_copy"]["state"]) == (True, "saved")
 
 
 async def test_a_local_copy_outlasts_a_new_version_it_could_not_get(
@@ -722,6 +748,10 @@ async def test_a_local_copy_outlasts_a_new_version_it_could_not_get(
         lecture["size_bytes"],
         "application/pdf",
     )  # the copy's, not the new version's
+    # Told as older than the platform's, with why the new one is not here, and its own time.
+    assert after["local_copy"]["state"] == "outdated"
+    assert after["local_copy"]["error_code"] is not None
+    assert after["modified_at"] == after["local_copy"]["saved_version_at"] == lecture["modified_at"]
     assert (await api.client.get(f"/files/{lecture['id']}/content")).content == old
 
     files[:] = [f for f in files if f.external_id != "201"]
@@ -734,6 +764,48 @@ async def test_a_local_copy_outlasts_a_new_version_it_could_not_get(
         lecture["sha256"],
     )
     assert (await api.client.get(f"/files/{lecture['id']}/content")).content == old
+
+
+async def test_a_new_version_needs_room_only_for_what_it_adds(
+    api: Api, fake: FakeProvider, app: FastAPI, settings: Settings, clock: Clock
+):
+    """With the quota full, a new version no larger than the copy still replaces it; and a copy
+    stored before copies kept their hash gets one when it becomes the user's own file."""
+    fake.course_file_list = [
+        _file("201", "Lecture 1.pdf", content_at=JAN).model_copy(update={"size_bytes": 5})
+    ]
+    program_id, course = await _course(api)
+    await _materials_setting(api, course, store="local")
+    await api.sync(program_id)
+    await api.run_jobs()
+    lecture = (await _files(api, course))[1]["Lecture 1.pdf"]
+    assert lecture["local_copy"]["state"] == "saved"
+    settings.user_storage_quota_bytes = (await api.call("GET", "/files-usage"))["used_bytes"]
+
+    fake.course_file_list[0] = fake.course_file_list[0].model_copy(update={"content_at": FEB})
+    clock.advance(minutes=1)
+    await api.sync(program_id)
+    await api.run_jobs()
+    newer = await api.call("GET", f"/files/{lecture['id']}")
+    assert newer["local_copy"]["state"] == "saved"
+    assert newer["modified_at"] != lecture["modified_at"]
+
+    async with app.state.session_factory() as db:  # as migration 0062 leaves an older copy
+        row = await db.get(FilesItem, lecture["id"])
+        assert row is not None
+        row.sha256 = None
+        await db.commit()
+    fake.course_file_list = []
+    clock.advance(minutes=1)
+    await api.sync(program_id)
+    own = await api.call("GET", f"/files/{lecture['id']}")
+    assert (own["follows_source"], own["local_copy"]) == (False, None)
+    assert (
+        own["sha256"]
+        == hashlib.sha256(
+            (await api.client.get(f"/files/{lecture['id']}/content")).content
+        ).hexdigest()
+    )
 
 
 async def test_a_new_version_of_another_type_replaces_the_copy(
@@ -933,6 +1005,59 @@ async def test_a_2_1_backup_keeps_where_the_sync_filed_and_its_settings(
     assert [(m["name"], m["folder_name"]) for m in plan["moves"]] == [("Lecture 1.pdf", "Lectures")]
 
 
+def _files_as_2_1(archive: bytes, own_id: str) -> bytes:
+    """The files as 2.1 wrote them: a followed file's platform version in `sha256`, no source
+    version or copy columns; and one of the user's own files saved by Sem from a chat (its
+    attachment as `source_ref`)."""
+    source = zipfile.ZipFile(io.BytesIO(archive))
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w") as z:
+        for name in source.namelist():
+            data = source.read(name)
+            if name == "data/files.json":
+                payload = json.loads(data)
+                for row in payload["items"]:
+                    version = row.pop("source_version")
+                    del row["copy_modified_at"], row["copy_error_code"]
+                    if row["id"] == own_id:
+                        row |= {"source_kind": "agent", "source_ref": "att-1"}
+                    elif version is not None:
+                        row["sha256"] = version
+                data = json.dumps(payload).encode()
+            z.writestr(name, data)
+    return out.getvalue()
+
+
+async def test_a_2_1_backup_restores_saved_copies_and_own_files(api: Api, fake: FakeProvider):
+    _materials(fake)
+    program_id, course = await _course(api)
+    await _materials_setting(api, course, store="local")
+    await api.sync(program_id)
+    upload = ("notes.txt", b"my notes", "text/plain")
+    [own] = (await api.call("POST", f"/courses/{course}/files", files={"files": upload}))["items"]
+    await api.run_jobs()
+
+    started = await api.call("POST", "/me/exports", json={"include_files": True})
+    await api.run_jobs()
+    archive = (await api.client.get(f"/me/exports/{started['id']}/download")).content
+    uploaded = await api.client.post(
+        "/me/imports",
+        files={"file": ("backup.zip", _files_as_2_1(archive, own["id"]), "application/zip")},
+    )
+    body = {"mode": "replace", "confirmation": "Replace my data"}
+    await api.call("POST", f"/me/imports/{uploaded.json()['id']}:start", json=body)
+    await api.run_jobs()
+
+    [program] = (await api.call("GET", "/programs"))["items"]
+    [course] = [
+        c["id"] for c in (await api.call("GET", f"/programs/{program['id']}/courses"))["items"]
+    ]
+    _, items = await _files(api, course)
+    # The saved copy is the platform's current version; the user's file keeps its hash.
+    assert items["Lecture 1.pdf"]["local_copy"]["state"] == "saved"
+    assert (items["notes.txt"]["sha256"], items["notes.txt"]["local_copy"]) == (own["sha256"], None)
+
+
 async def test_a_restored_copy_stored_for_the_sync_is_read_as_the_sync_reads_it(
     api: Api, fake: FakeProvider, app: FastAPI
 ):
@@ -1114,17 +1239,18 @@ async def test_a_file_is_read_once_for_its_latest_version(
 
     await sync()
     item = (await _files(api, course))[1]["Lecture 1.pdf"]
-    assert await reads() == [("files.process_synced", f"{item['id']}:{item['sha256']}")]
+    first = await _version(app, item["id"])
+    assert await reads() == [("files.process_synced", f"{item['id']}:{first}")]
 
     files = fake.course_file_list
     files[0] = files[0].model_copy(update={"updated_at": FEB, "content_at": FEB})
     await sync()
-    newer = (await _files(api, course))[1]["Lecture 1.pdf"]
-    assert newer["sha256"] != item["sha256"]
-    assert await reads() == [("files.process_synced", f"{item['id']}:{newer['sha256']}")]
+    newer = await _version(app, item["id"])
+    assert newer != first
+    assert await reads() == [("files.process_synced", f"{item['id']}:{newer}")]
 
     await api.call("POST", f"/files/{item['id']}:reprocess")
-    assert await reads() == [("files.process", f"{item['id']}:{newer['sha256']}")]
+    assert await reads() == [("files.process", f"{item['id']}:{newer}")]
 
 
 async def test_a_read_of_an_older_version_never_becomes_its_text(
@@ -1176,7 +1302,7 @@ async def test_a_read_of_an_older_version_never_becomes_its_text(
     item = (await _files(api, course))[1]["Lecture 1.pdf"]
     assert item["doc_status"] == "ready"
     assert await text(item["id"]) == "Week one now covers sorting and searching."
-    assert reads[1:] == [item["sha256"]]  # read once more, for the new version
+    assert reads[1:] == [await _version(app, item["id"])]  # once more, for the new version
     async with app.state.session_factory() as db:
         documents = select(func.count()).where(FilesDocument.item_id == item["id"])
         assert await db.scalar(documents) == 1
@@ -1195,6 +1321,14 @@ async def test_scanned_pages_of_synced_files_are_read_like_any_file(
     assert items["Scan 201.pdf"]["doc_status"] == "ready"
     assert items["Scan 201.pdf"]["ocr_skipped_pages"] == 0
     assert fake_ai.ocr_calls == 1
+
+
+async def _version(app: FastAPI, item_id: str) -> str | None:
+    """The version the item's text is read for (`content.version`)."""
+    async with app.state.session_factory() as db:
+        row = await db.get(FilesItem, item_id)
+        assert row is not None
+        return content.version(row)
 
 
 async def _pending(app: FastAPI, kind: str) -> int:
@@ -1238,4 +1372,53 @@ def test_migration_to_four_states_and_names_the_sync_gave(tmp_path: Path):
         ("absent", 1, None, None, None),  # read whole when it comes in
         ("absent", 0, "i4", None, None),  # still names the user's own file
         ("absent", 0, None, None, None),
+    ]
+
+
+def test_migration_to_a_source_side_and_a_copy_side(tmp_path: Path):
+    path = tmp_path / "m.db"
+    cfg = Config(str(API_DIR / "alembic.ini"))
+    cfg.set_main_option("script_location", str(API_DIR / "migrations"))
+    cfg.attributes["database_url"] = f"sqlite+aiosqlite:///{path}"
+    command.upgrade(cfg, "0061")
+    db = sqlite3.connect(path)  # foreign keys are off: no user or course rows needed
+    rows = [
+        # Read online: `sha256` held the platform's version.
+        ("1", "lms:file:1", None, "v1", None, None, None),
+        # A copy of the current version.
+        ("2", "lms:file:2", "k2", "v2", "v2", None, None),
+        # A copy older than the platform's version (`source_mime` and size while it is).
+        ("3", "lms:file:3", "k3", "v3b", "v3a", "text/plain", 9),
+        # Saved from the platform and never changed there: its own hash in both.
+        ("4", "lms:file:4", "k4", "h4", "h4", None, None),
+        ("5", None, "k5", "h5", None, None, None),  # the user's own
+        ("6", "att-1", "k6", "h6", None, None, None),  # the user's, saved by Sem from a chat
+    ]
+    for iid, ref, key, sha, copy, smime, ssize in rows:
+        db.execute(
+            "INSERT INTO files_items (id, user_id, course_id, kind, display_name, mime_type,"
+            " size_bytes, sha256, storage_key, source_ref, copy_version, source_mime, source_size,"
+            " source_modified_at, pinned, unseen, doc_status, created_at, updated_at)"
+            " VALUES (?, 'u1', 'c1', 'file', ?, 'application/pdf', 5, ?, ?, ?, ?, ?, ?,"
+            " '2026-01-10 00:00:00', 0, 0, 'none', '2026-01-10 00:00:00',"
+            " '2026-01-10 00:00:00')",
+            (iid, iid, sha, key, ref, copy, smime, ssize),
+        )
+    db.commit()
+    db.close()
+    command.upgrade(cfg, "head")
+    db = sqlite3.connect(path)
+    got = db.execute(
+        "SELECT sha256, source_version, copy_version, source_mime, source_size,"
+        " copy_modified_at IS NOT NULL FROM files_items ORDER BY id"
+    ).fetchall()
+    db.close()
+    pdf = "application/pdf"
+    assert got == [
+        (None, "v1", None, pdf, 5, 0),
+        (None, "v2", "v2", pdf, 5, 1),  # current
+        (None, "v3b", "v3a", "text/plain", 9, 0),  # older: shown as such
+        (None, "h4", "h4", pdf, 5, 1),  # current until the platform changes it
+        ("h5", None, None, None, None, 0),
+        ("h6", None, None, None, None, 0),
     ]

@@ -67,6 +67,7 @@ from semestra.modules.lms.service import Bound
 from semestra.modules.lms.settings import materials as material_settings
 from semestra.modules.lms.sync import UPDATED, Notice, StageResult, hold, register_sync_stage
 from semestra.modules.lms.sync import queue as sync_queue
+from semestra.modules.settings import service as settings_service
 
 MaterialKind = Literal["file", "page", "link"]
 Key = tuple[str, str]
@@ -904,6 +905,38 @@ async def restore_all(ctx: Ctx, program_id: str) -> None:
         restored[mat.link_id] = by_id[mat.link_id]
     if restored:
         await sync_queue(ctx, list(restored.values()), manual=True)
+
+
+@events.subscribe("settings.values.updated", in_transaction=True)
+async def on_store_changing(ctx: Ctx, event: Event) -> None:
+    """The way a course keeps its materials changed (its own value, or the account's it
+    follows): the choices made for single files there are cleared, so every file follows the
+    new setting (owner 2026-11-19: the last change the user made wins). In the settings'
+    transaction, before the change is applied after it commits (`on_settings_changed`)."""
+    data = event.data
+    scope = data.get("scope")
+    if (
+        data.get("namespace") != "lms.materials"
+        or "store" not in (data.get("changed") or [])
+        or not isinstance(scope, dict)
+    ):
+        return
+    if scope.get("type") == "account":
+        links = [
+            link
+            for link in await service.user_links(ctx)
+            if (
+                await settings_service.get_values(ctx, "lms.materials", "course", link.course_id)
+            ).sources.get("store")
+            != "course"
+        ]
+    elif scope.get("type") == "course" and isinstance(scope_id := scope.get("id"), str):
+        link = await service.link_row(ctx, scope_id)
+        links = [link] if link is not None else []
+    else:
+        return
+    for link in links:
+        await sources.reset_copy_choices(ctx, await synced_items(ctx, link.id))
 
 
 @events.subscribe("settings.values.updated")
