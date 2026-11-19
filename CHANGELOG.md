@@ -3,6 +3,23 @@
 Generated from `release-notes/*.json` by `scripts/release.mjs`; do not edit by hand.
 The same notes in Chinese are in the JSON files and on the docs site.
 
+## 2.3.0 (2026-11-19)
+
+### New
+
+- **Files:** The file list shows whether each course material is read from the LMS, being saved, saved, or saved as an older version, and why a save failed. Changing a course's storage setting now applies to all of its materials.
+- **Canvas:** Course materials follow Canvas more reliably: renamed files keep your name through updates, files locked on Canvas stay until they open, removed materials can be restored all at once, and materials published again on Canvas come back.
+
+### Improved
+
+- **Sem:** Sem can save course materials in Semestra or stop saving them, process a file again and rename folders.
+- **Sem:** Ask Sem which course materials were posted or updated on your LMS lately.
+- **Terms & courses:** With the sidebar collapsed, the Courses icon lists the term's courses, so any course is one click away.
+
+### Fixed
+
+- **Files:** Files changed again before they are read are now read once, for the latest version, and restored backups only re-index files that were indexed before.
+
 ## 2.2.0 (2026-11-18)
 
 ### New

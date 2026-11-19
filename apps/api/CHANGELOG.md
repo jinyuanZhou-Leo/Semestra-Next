@@ -1,5 +1,40 @@
 # @semestra/api
 
+## 2.3.0
+
+### Minor Changes
+
+- 1a7c305: <!-- area: files -->
+  <!-- en -->
+  The file list shows whether each course material is read from the LMS, being saved, saved, or saved as an older version, and why a save failed. Changing a course's storage setting now applies to all of its materials.
+  <!-- zh -->
+  文件列表会显示每份课程资料是从 LMS 读取、正在保存、已保存还是旧版本，保存失败时说明原因；更改课程的保存方式后，所有资料统一按新设置处理。
+- e247b9c: <!-- area: canvas -->
+  <!-- en -->
+  Course materials follow Canvas more reliably: renamed files keep your name through updates, files locked on Canvas stay until they open, removed materials can be restored all at once, and materials published again on Canvas come back.
+  <!-- zh -->
+  课程资料更稳定地跟随 Canvas：改过名的文件更新后保留你的名字，Canvas 上锁定的文件保持原样，已移除的资料可以一次全部恢复，Canvas 上重新发布的资料会重新加进来。
+- cd22c98: <!-- area: sem -->
+  <!-- improved -->
+  <!-- en -->
+  Sem can save course materials in Semestra or stop saving them, process a file again and rename folders.
+  <!-- zh -->
+  Sem 可以将课程资料保存在 Semestra 或取消保存，重新处理文件，以及重命名文件夹。
+- cd22c98: <!-- area: sem -->
+  <!-- improved -->
+  <!-- en -->
+  Ask Sem which course materials were posted or updated on your LMS lately.
+  <!-- zh -->
+  可以问 Sem 最近 LMS 上新增或更新了哪些课程资料。
+
+### Patch Changes
+
+- 6a15653: <!-- area: files -->
+  <!-- en -->
+  Files changed again before they are read are now read once, for the latest version, and restored backups only re-index files that were indexed before.
+  <!-- zh -->
+  文件在读取前又有更新时只读取一次最新版本；恢复备份时只为原先已建立索引的文件重新建立索引。
+
 ## 2.2.0
 
 ### Patch Changes
