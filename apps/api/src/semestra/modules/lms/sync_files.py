@@ -47,6 +47,8 @@ from sqlalchemy import select
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError, not_found
 from semestra.core.events import Event, events
+from semestra.core.jobs import JOB_FINISHED, CoreJob
+from semestra.modules.academics import service as academics
 from semestra.modules.files import register_content_source, sources
 from semestra.modules.files.models import FilesItem
 from semestra.modules.files.source_folders import Segment, SourceFolders
@@ -58,6 +60,7 @@ from semestra.modules.lms.reads import AREA_REFUSALS, ITEM_ERRORS
 from semestra.modules.lms.schemas.dto import FileMeta, ModuleItem
 from semestra.modules.lms.service import Bound
 from semestra.modules.lms.settings import materials as material_settings
+from semestra.modules.lms.sync import JOB as SYNC_JOB
 from semestra.modules.lms.sync import UPDATED, Notice, StageResult, hold, register_sync_stage
 from semestra.modules.lms.sync import queue as sync_queue
 
@@ -621,7 +624,7 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
                 continue
             if mat.state == "restored" and read_for.get(key) == "restored":
                 # Restored after it left the platform: told, not left waiting. One restored
-                # while this run read is left to the run the restore queued.
+                # while this run read is left to the sync after it (`on_sync_finished`).
                 enter(mat, "gone", now)
                 _note(mat, "gone", now)
                 forget_applied(mat)
@@ -822,6 +825,11 @@ async def on_item_deleted(ctx: Ctx, event: Event) -> None:
         await events.publish(ctx, UPDATED, {"program_id": link.program_id})
 
 
+async def _restorable(ctx: Ctx, link: LmsCourseLink) -> bool:
+    """Only where the materials sync: elsewhere nothing would bring a removed one back."""
+    return link.sync_enabled and (await material_settings(ctx, link.course_id)).sync
+
+
 async def restore(ctx: Ctx, material_id: str) -> str:
     """A material the user deleted comes in again with a sync queued now (`restored`). Returns
     its Program."""
@@ -832,16 +840,65 @@ async def restore(ctx: Ctx, material_id: str) -> str:
     assert link is not None
     await hold(ctx, link)
     await ctx.db.refresh(mat)
-    # Only where the materials sync: elsewhere nothing would bring it back.
-    if (
-        mat.state != "dismissed"
-        or not link.sync_enabled
-        or not (await material_settings(ctx, link.course_id)).sync
-    ):
+    if mat.state != "dismissed" or not await _restorable(ctx, link):
         raise lms_error("lms.sync_nothing_to_resolve")
     enter(mat, "restored", ctx.now)
     await sync_queue(ctx, [link], manual=True)
     return link.program_id
+
+
+async def restore_all(ctx: Ctx, program_id: str) -> None:
+    """Every material the user deleted in the Program's syncing courses comes in again, as with
+    `restore`: all in this transaction, one sync queued per course."""
+    await academics.get_program_row(ctx, program_id)  # owned, or not found
+    links = [
+        li for li in await service.program_links(ctx, program_id) if await _restorable(ctx, li)
+    ]
+    if not links:
+        return
+    await hold(ctx, links[0])  # the database's write lock: one for every course
+    by_id = {li.id: li for li in links}
+    restored: dict[str, LmsCourseLink] = {}
+    for mat in await ctx.db.scalars(
+        select(LmsMaterial)
+        .where(
+            LmsMaterial.user_id == ctx.user_id,
+            LmsMaterial.link_id.in_(list(by_id)),
+            LmsMaterial.state == "dismissed",
+        )
+        .execution_options(populate_existing=True)
+    ):
+        enter(mat, "restored", ctx.now)
+        restored[mat.link_id] = by_id[mat.link_id]
+    if restored:
+        await sync_queue(ctx, list(restored.values()), manual=True)
+
+
+@events.subscribe(JOB_FINISHED)
+async def on_sync_finished(ctx: Ctx, event: Event) -> None:
+    """A course's sync is one job at a time: a restore while one runs queues nothing, and that
+    run may have read the course before it. Once it ends, the course syncs again for what was
+    restored after it started (not for what it saw restored: that stays for the next sync)."""
+    if event.data.get("kind") != SYNC_JOB:
+        return
+    job = await ctx.db.get(CoreJob, event.data.get("job_id") or "")
+    course_id = (job.payload or {}).get("course_id") if job is not None else None
+    if job is None or job.started_at is None or not isinstance(course_id, str):
+        return
+    link = await service.link_row(ctx, course_id)
+    if link is None or not link.sync_enabled:
+        return
+    late = await ctx.db.scalar(
+        select(LmsMaterial.id)
+        .where(
+            LmsMaterial.link_id == link.id,
+            LmsMaterial.state == "restored",
+            LmsMaterial.state_at >= job.started_at,
+        )
+        .limit(1)
+    )
+    if late is not None:
+        await sync_queue(ctx, [link], manual=True)
 
 
 @events.subscribe("settings.values.updated")

@@ -14943,6 +14943,59 @@
         }
       }
     },
+    "/programs/{program_id}/lms/sync/materials:restore": {
+      "post": {
+        "tags": [
+          "lms"
+        ],
+        "summary": "Bring back every course material the user deleted in a Program.",
+        "description": "Each comes in again with a sync of its course, queued now (courses whose\nmaterials don't sync are left alone).",
+        "operationId": "lmsSyncMaterialRestoreAll",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "program_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Program id",
+              "title": "Program Id"
+            },
+            "description": "Program id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncStatus"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/programs/{program_id}/lms/sync": {
       "post": {
         "tags": [

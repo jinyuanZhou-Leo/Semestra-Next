@@ -3482,6 +3482,7 @@
   "lms_sync_material_kept": "已从 {provider} 删除，文件已保留",
   "lms_sync_removed_by_you": "{ago}由你移除",
   "lms_sync_restore": "恢复",
+  "lms_sync_restore_all": "全部恢复",
   "lms_materials_group": "课程资料",
   "lms_course_unlink_kept": "{count} 个保存在 Semestra 的资料会留在课程文件中。",
   "lms_course_unlink_removed": "{count} 个从 {provider} 读取的资料将从课程文件中移除，仍可在 {provider} 上查看。",

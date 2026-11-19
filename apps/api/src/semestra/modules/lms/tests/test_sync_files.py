@@ -262,6 +262,45 @@ async def test_a_restored_page_comes_back_and_one_gone_meanwhile_says_so(
     assert status["removed_materials"] == []
 
 
+async def test_restore_all_and_a_restore_while_the_course_syncs(
+    api: Api, fake: FakeProvider, clock: Clock, monkeypatch: pytest.MonkeyPatch
+):
+    _materials(fake)
+    program_id, course = await _course(api)
+    await api.sync(program_id)
+    _, items = await _files(api, course)
+    for name in ("Course syllabus", "data.zip", "Lecture 1.pdf"):
+        await api.call("DELETE", f"/files/{items[name]['id']}")
+
+    # Everything at once: one sync of the course brings all back.
+    clock.advance(minutes=1)
+    status = await api.call("POST", f"/programs/{program_id}/lms/sync/materials:restore")
+    assert (status["removed_materials"], status["removed_count"]) == ([], 0)
+    await api.run_jobs()
+    _, items = await _files(api, course)
+    assert {"Course syllabus", "data.zip", "Lecture 1.pdf"} <= set(items)
+
+    # Restored while a sync of the course reads it (its own queued sync merged into that one):
+    # the course syncs again once that one ends.
+    await api.call("DELETE", f"/files/{items['Course syllabus']['id']}")
+    [removed] = (await api.call("GET", f"/programs/{program_id}/lms/sync"))["removed_materials"]
+    read_pages = fake.pages
+    restored_meanwhile = False
+
+    async def pages(*args: Any) -> list[PageSummary]:
+        nonlocal restored_meanwhile
+        if not restored_meanwhile:
+            restored_meanwhile = True
+            await api.call("POST", f"/lms/sync/materials/{removed['id']}:restore")
+        return await read_pages(*args)
+
+    monkeypatch.setattr(fake, "pages", pages)
+    clock.advance(minutes=1)
+    await api.sync(program_id)
+    assert restored_meanwhile
+    assert "Course syllabus" in (await _files(api, course))[1]
+
+
 async def test_turning_materials_off_and_unlinking(api: Api, fake: FakeProvider, clock: Clock):
     _materials(fake)
     program_id, course = await _course(api)
