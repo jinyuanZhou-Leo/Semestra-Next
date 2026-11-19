@@ -291,7 +291,7 @@ function ConfirmPanel({
               <Badge variant="destructive">{m.assistant_proposal_destructive()}</Badge>
             ) : null}
           </p>
-          {target ? <p className="text-sm text-muted-foreground">{target}</p> : null}
+          {target ? <p className="text-sm text-muted-foreground wrap-anywhere">{target}</p> : null}
         </>
       }
       pager={pager}

@@ -210,7 +210,7 @@ export function ChangeList({
             <dd className="flex min-w-0 items-baseline gap-1.5">
               {'before' in change ? (
                 <>
-                  <span className="text-muted-foreground line-through">
+                  <span className="text-muted-foreground line-through wrap-anywhere">
                     {changeText(change, 'before', cardTitles)}
                   </span>
                   {removed ? null : (
@@ -222,7 +222,9 @@ export function ChangeList({
                 </>
               ) : null}
               {removed ? null : (
-                <span className="font-medium">{changeText(change, 'after', cardTitles)}</span>
+                <span className="font-medium wrap-anywhere">
+                  {changeText(change, 'after', cardTitles)}
+                </span>
               )}
             </dd>
           </div>

@@ -386,6 +386,31 @@
   html {
     @apply font-sans;
   }
+  /*
+   * Dialog and AlertDialog stack their parts in a grid whose one implicit column is `auto`, so it
+   * grows to the widest thing that cannot wrap: a long folder or file name pushed the search box,
+   * rows and buttons past the dialog even where the name truncates. Hold the column to the
+   * dialog's width; a `grid-cols-*` on the content still wins (utilities come after base).
+   */
+  :is([data-slot='dialog-content'], [data-slot='alert-dialog-content']) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  /* Titles and descriptions often quote a name ("Delete <file>?"); one without spaces breaks
+     anywhere instead of running out of the dialog. */
+  :is(
+    [data-slot='dialog-title'],
+    [data-slot='dialog-description'],
+    [data-slot='alert-dialog-title'],
+    [data-slot='alert-dialog-description'],
+    [data-slot='sheet-title'],
+    [data-slot='sheet-description']
+  ) {
+    overflow-wrap: anywhere;
+  }
+  /* A long title wraps before the close button in the corner instead of running under it. */
+  [data-slot='dialog-content']:has(> [data-slot='dialog-close']) > [data-slot='dialog-header'] {
+    padding-inline-end: 2rem;
+  }
 }
 
 /*
