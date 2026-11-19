@@ -709,7 +709,7 @@ async def synced_items(ctx: Ctx, link_id: str) -> list[FilesItem]:
             LmsMaterial.item_id.is_not(None),
         )
     )
-    return [r for r in await sources.find_items(ctx, [i for i in ids if i]) if r.source_ref]
+    return list(await sources.find_items(ctx, [i for i in ids if i]))
 
 
 def has_copy(row: FilesItem) -> bool:
