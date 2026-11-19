@@ -11,6 +11,7 @@ import {
   lmsSyncDismiss,
   lmsSyncFieldResolve,
   lmsSyncMaterialRestore,
+  lmsSyncMaterialRestoreAll,
   lmsSyncResolve,
 } from '@semestra/api-client'
 import { lmsSyncRequestMutation, lmsSyncStatusQueryKey } from '@semestra/api-client/react-query'
@@ -192,6 +193,12 @@ function Panel({
   const restore = (id: string) =>
     void answer([id], () =>
       lmsSyncMaterialRestore({ path: { material_id: id }, throwOnError: true }),
+    )
+  /** Every removed material of the Program, also those past the rows listed. */
+  const restoreAll = () =>
+    void answer(
+      status.removed_materials.map((item) => item.id),
+      () => lmsSyncMaterialRestoreAll({ path: { program_id: programId }, throwOnError: true }),
     )
 
   // How far a sync the user asked for is; the background's own shows no count.
@@ -509,7 +516,17 @@ function Panel({
               </MoreList>
             ) : null}
             {status.removed_materials.length > 0 ? (
-              <MoreList label={m.lms_sync_panel_removed()} count={status.removed_count}>
+              <MoreList
+                label={m.lms_sync_panel_removed()}
+                count={status.removed_count}
+                action={
+                  status.removed_count > 1 ? (
+                    <Button size="xs" variant="ghost" disabled={busy} onClick={restoreAll}>
+                      {m.lms_sync_restore_all()}
+                    </Button>
+                  ) : null
+                }
+              >
                 {status.removed_materials.map((item) => (
                   <Fold key={item.id} leaving={leaving.includes(item.id)}>
                     <Row

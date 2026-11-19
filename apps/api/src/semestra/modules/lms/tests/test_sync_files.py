@@ -4,11 +4,15 @@ follow the platform, and leave alone what the user moved, renamed or deleted."""
 
 import io
 import json
+import sqlite3
 import zipfile
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 import pytest
+from alembic import command
+from alembic.config import Config
 from fastapi import FastAPI
 from sqlalchemy import func, select
 
@@ -20,7 +24,7 @@ from semestra.modules.files.tests.conftest import FakeAi, make_pdf
 from semestra.modules.lms.schemas.dto import FileMeta, InternalRef, Module, ModuleItem, PageSummary
 from semestra.modules.lms.tests.conftest import Api, FakeProvider
 from semestra.modules.lms.tests.test_lms import setup_program
-from semestra.testing import Clock
+from semestra.testing import API_DIR, Clock
 
 pytestmark = pytest.mark.usefixtures("fake")
 
@@ -229,6 +233,80 @@ async def test_the_users_changes_win(api: Api, fake: FakeProvider, clock: Clock)
     assert items["Midterm 2025.pdf"]["unseen"] is False
     status = await api.call("GET", f"/programs/{program_id}/lms/sync")
     assert "Midterm 2025.pdf" not in {m["title"] for m in status["materials"]}
+
+
+async def test_a_restored_page_comes_back_and_one_gone_meanwhile_says_so(
+    api: Api, fake: FakeProvider, clock: Clock
+):
+    _materials(fake)
+    program_id, course = await _course(api)
+    await api.sync(program_id)
+    _, items = await _files(api, course)
+    await api.call("DELETE", f"/files/{items['Course syllabus']['id']}")
+    await api.call("DELETE", f"/files/{items['data.zip']['id']}")
+    status = await api.call("GET", f"/programs/{program_id}/lms/sync")
+    removed = {r["title"]: r["id"] for r in status["removed_materials"]}
+
+    # The page has not changed on the platform since it was deleted: restored, it comes back
+    # all the same.
+    clock.advance(minutes=1)
+    await api.call("POST", f"/lms/sync/materials/{removed['Course syllabus']}:restore")
+    await api.run_jobs()
+    folders, items = await _files(api, course)
+    assert _where(folders, items["Course syllabus"]) == "Week 1"
+
+    # Restored after it left the platform: listed as gone, not waiting for good.
+    fake.course_file_list = [f for f in fake.course_file_list if f.external_id != "205"]
+    clock.advance(minutes=1)
+    await api.call("POST", f"/lms/sync/materials/{removed['data.zip']}:restore")
+    await api.run_jobs()
+    assert "data.zip" not in (await _files(api, course))[1]
+    status = await api.call("GET", f"/programs/{program_id}/lms/sync")
+    assert {m["title"]: m["change"] for m in status["materials"]}["data.zip"] == "gone"
+    assert status["removed_materials"] == []
+
+
+async def test_restore_all_and_a_restore_while_the_course_syncs(
+    api: Api, fake: FakeProvider, clock: Clock, monkeypatch: pytest.MonkeyPatch
+):
+    _materials(fake)
+    program_id, course = await _course(api)
+    await api.sync(program_id)
+    _, items = await _files(api, course)
+    for name in ("Course syllabus", "data.zip", "Lecture 1.pdf"):
+        await api.call("DELETE", f"/files/{items[name]['id']}")
+
+    # Everything at once: one sync of the course brings all back.
+    clock.advance(minutes=1)
+    status = await api.call("POST", f"/programs/{program_id}/lms/sync/materials:restore")
+    assert (status["removed_materials"], status["removed_count"]) == ([], 0)
+    await api.run_jobs()
+    _, items = await _files(api, course)
+    assert {"Course syllabus", "data.zip", "Lecture 1.pdf"} <= set(items)
+
+    # Restored while a sync of the course reads it (its own queued sync merged into that one):
+    # the course syncs again once that one ends.
+    await api.call("DELETE", f"/files/{items['Course syllabus']['id']}")
+    [removed] = (await api.call("GET", f"/programs/{program_id}/lms/sync"))["removed_materials"]
+    read_pages = fake.pages
+    restored_meanwhile = False
+
+    async def pages(*args: Any) -> list[PageSummary]:
+        nonlocal restored_meanwhile
+        if not restored_meanwhile:
+            restored_meanwhile = True
+            clock.advance(seconds=1)  # after the run started reading
+            await api.call("POST", f"/lms/sync/materials/{removed['id']}:restore")
+        return await read_pages(*args)
+
+    monkeypatch.setattr(fake, "pages", pages)
+    clock.advance(minutes=1)
+    await api.sync(program_id)
+    assert restored_meanwhile
+    # Back, and as restored: not marked new, nor listed as gone or added.
+    assert (await _files(api, course))[1]["Course syllabus"]["unseen"] is False
+    status = await api.call("GET", f"/programs/{program_id}/lms/sync")
+    assert "Course syllabus" not in {m["title"] for m in status["materials"]}
 
 
 async def test_turning_materials_off_and_unlinking(api: Api, fake: FakeProvider, clock: Clock):
@@ -481,6 +559,42 @@ async def test_a_file_without_its_source_is_no_longer_followed(
     assert items["Lecture 1.pdf"]["id"] == lecture["id"]
 
 
+async def test_a_renamed_item_keeps_its_name_and_a_locked_one_stays(
+    api: Api, fake: FakeProvider, clock: Clock
+):
+    _materials(fake)
+    program_id, course = await _course(api)
+    await _materials_setting(api, course, store="local")
+    await api.sync(program_id)
+    await api.run_jobs()
+    _, items = await _files(api, course)
+    lecture = items["Lecture 1.pdf"]
+    await api.call("PATCH", f"/files/{lecture['id']}", json={"display_name": "Week 1 slides"})
+
+    # A sync with nothing new, then new contents: the user's name stays all along.
+    clock.advance(minutes=1)
+    await api.sync(program_id)
+    files = fake.course_file_list
+    files[0] = files[0].model_copy(update={"name": "Lecture 1 v2.pdf", "updated_at": FEB})
+    clock.advance(minutes=1)
+    await api.sync(program_id)
+    after = await api.call("GET", f"/files/{lecture['id']}")
+    assert after["display_name"] == "Week 1 slides"
+    assert after["modified_at"] == FEB.isoformat().replace("+00:00", "Z")
+
+    # Locked on the platform, then open again: still there and still followed throughout.
+    files[1] = files[1].model_copy(update={"locked": True})
+    clock.advance(minutes=1)
+    await api.sync(program_id)
+    w1 = (await _files(api, course))[1]["W1.pdf"]
+    assert (w1["id"], w1["follows_source"]) == (items["W1.pdf"]["id"], True)
+    files[1] = files[1].model_copy(update={"locked": False, "updated_at": FEB})
+    clock.advance(minutes=1)
+    await api.sync(program_id)
+    w1 = await api.call("GET", f"/files/{items['W1.pdf']['id']}")
+    assert (w1["follows_source"], w1["modified_at"]) == (True, after["modified_at"])
+
+
 async def test_stored_here_still_follows_the_platform(
     api: Api, fake: FakeProvider, settings: Settings, clock: Clock
 ):
@@ -524,6 +638,19 @@ async def test_stored_here_still_follows_the_platform(
     handed = {m["title"]: m for m in status["materials"] if m["change"] == "handed_over"}
     assert set(handed) == {"Midterm 2025.pdf", "Set 1.pdf"}
     assert handed["Midterm 2025.pdf"]["item_id"] == midterm["id"]
+
+    # Back on the platform (published again): it comes in beside the user's own, told as a
+    # likely duplicate so they can keep just one.
+    files.append(_file("203", "Midterm 2025.pdf", "Exams").model_copy(update={"size_bytes": 5}))
+    clock.advance(minutes=1)
+    await api.sync(program_id)
+    got = await api.call("GET", f"/courses/{course}/files", params={"recursive": True})
+    midterms = [i for i in got["items"] if i["display_name"].startswith("Midterm 2025")]
+    assert sorted(i["follows_source"] for i in midterms) == [False, True]
+    status = await api.call("GET", f"/programs/{program_id}/lms/sync")
+    assert {m["title"]: m["change"] for m in status["materials"]}["Midterm 2025.pdf"] == (
+        "duplicate"
+    )
 
     # A full quota: nothing more is downloaded to be stored.
     async def storing_jobs() -> int:
@@ -958,3 +1085,41 @@ async def _pending(app: FastAPI, kind: str) -> int:
     async with app.state.session_factory() as db:
         query = select(func.count()).where(CoreJob.kind == kind, CoreJob.status == "pending")
         return await db.scalar(query) or 0
+
+
+def test_migration_to_four_states_and_names_the_sync_gave(tmp_path: Path):
+    path = tmp_path / "m.db"
+    cfg = Config(str(API_DIR / "alembic.ini"))
+    cfg.set_main_option("script_location", str(API_DIR / "migrations"))
+    cfg.attributes["database_url"] = f"sqlite+aiosqlite:///{path}"
+    command.upgrade(cfg, "0060")
+    db = sqlite3.connect(path)  # foreign keys are off: no user or link rows needed
+    rows = [
+        # Renamed by the user, the sync having written that name back: theirs again.
+        ("1", "synced", "i1", "Lecture 1.pdf", "Week 1 slides", "v1"),
+        ("2", "synced", "i2", "Notes/a.pdf", "a.pdf", "v1"),  # the name the sync gave it
+        ("3", "restored", None, "Syllabus", None, "v1"),
+        ("4", "handed_over", "i4", "Midterm.pdf", "Midterm.pdf", "v1"),
+        ("5", "gone", None, "Old.pdf", None, None),
+    ]
+    for mid, state, item, title, name, version in rows:
+        db.execute(
+            "INSERT INTO lms_materials (id, user_id, link_id, kind, external_id, state, item_id,"
+            " title, name, version, links) VALUES (?, 'u1', 'l1', 'file', ?, ?, ?, ?, ?, ?, '[]')",
+            (mid, mid, state, item, title, name, version),
+        )
+    db.commit()
+    db.close()
+    command.upgrade(cfg, "head")
+    db = sqlite3.connect(path)
+    got = db.execute(
+        "SELECT state, quiet, item_id, name, version FROM lms_materials ORDER BY id"
+    ).fetchall()
+    db.close()
+    assert got == [
+        ("synced", 0, "i1", "Lecture 1.pdf", "v1"),
+        ("synced", 0, "i2", "a.pdf", "v1"),
+        ("absent", 1, None, None, None),  # read whole when it comes in
+        ("absent", 0, "i4", None, None),  # still names the user's own file
+        ("absent", 0, None, None, None),
+    ]

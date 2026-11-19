@@ -16,8 +16,12 @@ migration 0035 did. Later changes kept version 2 (owner 2026-11-18) and are read
 `_current`: a 2.0.0 backup keeps the materials among the refs (`external_kind`
 file, page or link), moved into `materials` as migration 0056 did; materials without a `state`
 (before migration 0057) take it from `deleted_at`, and pages that only list others are left
-out. The course's materials settings left the link for M11 (`lms.materials`), which the
-settings' own backup carries. Materials of backups made before their places were kept (`path`,
+out, as are materials no longer in the files (`handed_over` of backups made before migration
+0061: their file is the user's own, and the material comes in again if the platform shows it);
+a followed one is named as the sync named it (`safe_name` of its title), as migration 0061 does,
+so a name the user gave it reads as theirs.
+The course's materials settings left the link for M11 (`lms.materials`), which the settings' own
+backup carries. Materials of backups made before their places were kept (`path`,
 `placed_folder_id`) get their place from the next sync; those the sync had filed by type were
 put in their course's type folder (the files backup's `type_folders`), as migration 0060 reads.
 """
@@ -32,6 +36,7 @@ from sqlalchemy import delete, select
 
 from semestra.core.context import Ctx
 from semestra.core.db import new_id
+from semestra.modules.files.service import safe_name
 from semestra.modules.lms.models import (
     LmsAnnouncement,
     LmsCache,
@@ -104,7 +109,15 @@ def _current(data: dict[str, Any], files: dict[str, Any] | None = None) -> dict[
             "state_at": r.get("deleted_at"),
         }
         for r in [*(data.get("materials") or []), *moved]
-        if isinstance(r, dict) and not r.get("is_list")
+        if isinstance(r, dict)
+        and not r.get("is_list")
+        and r.get("state", "synced") in ("synced", "dismissed")
+    ]
+    materials = [
+        {**r, "name": safe_name(r["title"])}
+        if r.get("state", "synced") == "synced" and isinstance(r.get("title"), str)
+        else r
+        for r in materials
     ]
     return {**data, "refs": kept, "materials": _placed_by_type(data, materials, files)}
 
@@ -200,8 +213,7 @@ class MaterialRow(BaseModel):
     link_id: str
     kind: str
     external_id: str
-    # `synced`, `dismissed` (the user deleted its item) or `handed_over` (its item is the user's
-    # own file now).
+    # `synced` or `dismissed` (the user deleted its item).
     state: str = "synced"
     state_at: datetime | None = None
     item_id: str | None = None
@@ -271,7 +283,7 @@ async def export(ctx: Ctx, writer: Writer) -> None:
     materials = await ctx.db.scalars(
         select(LmsMaterial).where(
             LmsMaterial.user_id == uid,
-            LmsMaterial.state.in_(("synced", "dismissed", "handed_over")),
+            LmsMaterial.state.in_(("synced", "dismissed")),
         )
     )
     posts = await ctx.db.scalars(select(LmsAnnouncement).where(LmsAnnouncement.user_id == uid))

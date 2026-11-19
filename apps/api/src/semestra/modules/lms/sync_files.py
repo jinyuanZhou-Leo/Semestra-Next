@@ -25,12 +25,18 @@ the course's "Organize", `homes`), a renamed one keeps their name, a deleted one
 back until they restore it (`dismissed`). A folder of a place the user deleted is not made
 again: its new items go to the folder above.
 
-An item gone from the platform (deleted, locked again), judged only on a run that read every area
-whole: with a local copy it becomes the user's own file (`handed_over`); read online, it is
-removed (`gone`) and comes back if the platform shows it again. Both, and what came in or
-changed, show in the status panel's recent updates (`change`); new ones are marked unseen in the
-files and told by notification. Not until the course has settled (`materials_settled_at`, the
-first run that brought everything in): linking a course is quiet.
+An item gone from the platform (deleted, unpublished), judged only on a run that read every area
+whole, becomes `absent`: one saved in Semestra stays as the user's own file (`handed_over`), one
+read online is removed (`gone`); either comes in again if the platform shows it again. One locked
+on the platform is still there: it stays as it was. What left, and what came in or changed, shows
+in the status panel's recent updates (`change`); new ones are marked unseen in the files and told
+by notification. Not until the course has settled (`materials_settled_at`, the first run that
+brought everything in): linking a course is quiet.
+
+A run reads the platform first, then, under the write lock, takes what happened to each material
+to `enter` its next state: the one place that changes `LmsMaterial.state`, keeping what each
+state holds (an item only while `synced`; what was applied from the platform forgotten when it
+left the files) and refusing a change `NEXT` does not list.
 
 Pages that are only a list of links (a module's table of contents) are not kept; what they list
 goes in a folder named after them.
@@ -47,6 +53,7 @@ from sqlalchemy import select
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError, not_found
 from semestra.core.events import Event, events
+from semestra.modules.academics import service as academics
 from semestra.modules.files import register_content_source, sources
 from semestra.modules.files.models import FilesItem
 from semestra.modules.files.source_folders import Segment, SourceFolders
@@ -128,6 +135,8 @@ class _Found:
     file_ids: dict[str, None] = field(default_factory=lambda: {})
     # Items there and unchanged, not read again this run.
     kept: set[Key] = field(default_factory=lambda: set[Key]())
+    # Items locked on the platform: still there, left as they are until they open.
+    locked: set[Key] = field(default_factory=lambda: set[Key]())
     # Every area was read whole: what is not found is gone from the platform.
     complete: bool = True
 
@@ -197,9 +206,11 @@ async def _modules(ctx: Ctx, link: LmsCourseLink, found: _Found) -> None:
 
 
 def _module_item(item: ModuleItem, module: Segment, found: _Found) -> None:
-    if item.locked:
-        return
     target = item.target.ref if item.target is not None else None
+    if item.locked:
+        if item.kind in ("file", "page") and target:
+            found.locked.add((item.kind, target))
+        return
     if item.kind == "file" and target:
         found.placed.setdefault(("file", target), module)
         found.file_ids.setdefault(target, None)
@@ -241,6 +252,7 @@ async def _files(ctx: Ctx, link: LmsCourseLink, b: Bound, found: _Found) -> None
             checked.add(file_id)
     for meta in metas.values():
         if meta.locked:
+            found.locked.add(("file", meta.external_id))
             continue  # comes in once it opens
         found.add(
             Material(
@@ -301,6 +313,8 @@ async def _page(ctx: Ctx, link: LmsCourseLink, b: Bound, found: _Found, slug: st
             found.kept.add(key)
         return
     detail = await _one(found, reads.page(ctx, link.course_id, slug, refresh=True))
+    if detail is not None and detail.locked:
+        found.locked.add(key)
     if detail is None or detail.locked:
         return
     title = detail.title or title
@@ -438,7 +452,8 @@ async def _create(
 async def _follow(ctx: Ctx, m: Material, mat: LmsMaterial, row: FilesItem) -> bool:
     """The item follows the platform's, except where the user changed it: a new name unless
     they renamed it, new contents (read again only when the bytes changed, not on a rename; a
-    local copy is let go until stored again). True when the contents changed."""
+    local copy is let go until stored again). True when the contents changed. `mat.name` is
+    what the sync named it: the user's own name never takes its place, so it stays theirs."""
     title = None if row.display_name != mat.name else m.title
     retitled = title is not None and title != (mat.title if mat.title is not None else mat.name)
     changed = mat.version != m.version
@@ -458,20 +473,60 @@ async def _follow(ctx: Ctx, m: Material, mat: LmsMaterial, row: FilesItem) -> bo
         )
     elif retitled and title is not None:
         await sources.rename_synced(ctx, row, title)
+    if title is not None:
+        mat.name = row.display_name  # as named now (made unique in its folder)
     if m.modified_at is not None and row.source_modified_at != m.modified_at:
         row.source_modified_at = m.modified_at  # read the first time, or a rename moved it
     return changed
 
 
-def forget_applied(mat: LmsMaterial) -> None:
-    """Clears what was applied from the platform (its title stays: the status panel names what
-    went by it)."""
+# The states each state may go to; `None` is a row just made. Any other change is a bug.
+NEXT: dict[str | None, frozenset[MaterialState]] = {
+    None: frozenset({"synced", "list"}),
+    # Followed (again, from a file saved anew); a page become a list; deleted by the user; gone
+    # from the platform.
+    "synced": frozenset({"synced", "list", "dismissed", "absent"}),
+    "list": frozenset({"synced"}),
+    # Restored by the user; saved in Semestra from the platform's own view.
+    "dismissed": frozenset({"absent", "synced"}),
+    # Back on the platform; a restored one gone from it meanwhile (told, no longer quiet).
+    "absent": frozenset({"synced", "list", "absent"}),
+}
+
+
+def _forget_applied(mat: LmsMaterial) -> None:
+    """Clears what was applied from the platform, so it is read whole when it comes in (its
+    title stays: the status panel names what went by it)."""
     mat.version = mat.name = mat.checked_at = mat.placed_folder_id = None
     mat.links = []
 
 
-def enter(mat: LmsMaterial, state: MaterialState, now: datetime) -> None:
-    mat.state, mat.state_at = state, now
+def enter(
+    mat: LmsMaterial,
+    state: MaterialState,
+    now: datetime,
+    *,
+    item_id: str | None = None,
+    quiet: bool = False,
+) -> None:
+    """The material's next state, and what that state holds:
+
+    - `synced`: its item `item_id`, nothing applied yet (the caller applies what it read);
+    - `list`: no item, nothing applied yet;
+    - `dismissed`: no item; what was read stays (what the page links to still comes in);
+    - `absent`: nothing applied; `item_id` the user's own file it left, if any (never
+      followed); `quiet` when the user restored it."""
+    if state not in NEXT[mat.state]:
+        raise RuntimeError(f"lms material {mat.id}: {mat.state} -> {state}")
+    if state == "synced" and item_id is None:
+        raise RuntimeError(f"lms material {mat.id}: synced without an item")
+    mat.state, mat.state_at, mat.quiet = state, now, quiet
+    mat.item_id = item_id
+    if state == "synced":
+        mat.imported_at = now
+        mat.change = mat.changed_at = None
+    if state != "dismissed":
+        _forget_applied(mat)
 
 
 def _note(mat: LmsMaterial, change: MaterialChange, now: datetime) -> None:
@@ -530,17 +585,18 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
         )
     }
     now = ctx.now
+    handed: list[FilesItem] = []
     for mat in known.values():
         if mat.state != "synced":
             continue
         row = rows.get(mat.item_id or "")
         if row is None:
             # The user deleted it (told at once by `files.item.deleted`, unless that was missed).
-            mat.item_id = None
             enter(mat, "dismissed", now)
         elif row.source_ref is None:
-            # No longer the sync's: the user's own file now. Never followed again.
-            enter(mat, "handed_over", now)
+            # No longer the sync's (a file made the user's own in 2.1.0): theirs, and the
+            # platform's not brought in beside it, as if deleted (listed, so it can be restored).
+            enter(mat, "dismissed", now)
             del rows[row.id]
     # What came in before the course settled is not news.
     settled = link.materials_settled_at is not None
@@ -552,41 +608,36 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
     for key, m in found.materials.items():
         mat = known.get(key)
         row = rows.get(mat.item_id or "") if mat is not None and mat.state == "synced" else None
-        if mat is not None and mat.state in ("dismissed", "handed_over"):
+        if mat is not None and mat.state == "dismissed":
             continue
         if m.is_list:
             if mat is None:
                 mat = _material(ctx, link, m)
             elif row is not None:
                 gone.append(row)  # a page that has become a list of links
-                mat.item_id = None
-            forget_applied(mat)
+            if mat.state != "list":
+                enter(mat, "list", now)
             _seen(mat, m)
-            enter(mat, "list", now)
             continue
         if mat is not None and row is not None:
             if await _follow(ctx, m, mat, row) and settled:
                 _note(mat, "updated", now)
             _seen(mat, m)
-            mat.name = row.display_name
             await places.follow_names(m.path)
             continue
-        # New, back on the platform, or a list page that has become a page.
+        # New, back on the platform, restored, or a list page that has become a page.
         if len(added) >= PER_RUN:
             result.cap_reached = True
             continue
-        news = settled and (mat is None or mat.state != "restored")
+        news = settled and not (mat is not None and mat.quiet)
         folder_id = await places.folder_at(m.path)
         row = await _create(ctx, link, b, m, folder_id, unseen=news)
         added.append(row)
         if mat is None:
             mat = _material(ctx, link, m)
-        mat.item_id, mat.imported_at = row.id, now
-        enter(mat, "synced", now)
-        forget_applied(mat)
+        enter(mat, "synced", now, item_id=row.id)
         _seen(mat, m)
         mat.name, mat.placed_folder_id = row.display_name, folder_id
-        mat.change = mat.changed_at = None
         # Most likely one of the user's own files: listed, so they can keep just one.
         if m.kind == "file" and await sources.find_duplicate(
             ctx, link.course_id, name=row.display_name, size=m.size, own_only=True
@@ -597,24 +648,30 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
         if news:
             result.notices.append(Notice("material", m.external_id, m.title, item_id=row.id))
 
-    handed: list[FilesItem] = []
     if found.complete:
-        # Gone from the platform: a local copy becomes the user's own file, an item read online
-        # goes (it comes back if the platform shows it again).
+        # Gone from the platform (locked is not gone): one saved in Semestra stays as the user's
+        # own file, one read online goes. Either comes in again if the platform shows it again.
         for key, mat in known.items():
-            row = rows.get(mat.item_id or "") if mat.state == "synced" else None
-            if row is None or key in found.materials or key in found.kept:
+            if key in found.materials or key in found.kept or key in found.locked:
                 continue
-            if row.kind == "file" and row.storage_key:
+            if mat.state == "absent" and mat.quiet:
+                if mat.state_at is not None and mat.state_at > found.now:
+                    continue  # restored after this run read: left to the run after it
+                # Restored, but the platform no longer has it: told, not left waiting.
+                enter(mat, "absent", now)
+                _note(mat, "gone", now)
+                continue
+            row = rows.get(mat.item_id or "") if mat.state == "synced" else None
+            if row is None:
+                continue
+            if has_copy(row):
                 handed.append(row)
-                enter(mat, "handed_over", now)
+                enter(mat, "absent", now, item_id=row.id)
                 _note(mat, "handed_over", now)
             else:
                 gone.append(row)
-                mat.item_id = None
-                enter(mat, "gone", now)
+                enter(mat, "absent", now)
                 _note(mat, "gone", now)
-            forget_applied(mat)
     await sources.purge_items(ctx, gone)
     await sources.detach_from_source(ctx, handed)
     left = {r.id for r in (*gone, *handed)}
@@ -706,7 +763,9 @@ async def moved_back(ctx: Ctx, placed: Mapping[str, str | None]) -> None:
     so a later move on the platform is offered again."""
     for mat in await ctx.db.scalars(
         select(LmsMaterial).where(
-            LmsMaterial.user_id == ctx.user_id, LmsMaterial.item_id.in_(list(placed))
+            LmsMaterial.user_id == ctx.user_id,
+            LmsMaterial.state == "synced",
+            LmsMaterial.item_id.in_(list(placed)),
         )
     ):
         mat.placed_folder_id = placed[mat.item_id or ""]
@@ -726,6 +785,7 @@ async def _material_of(ctx: Ctx, item: FilesItem) -> tuple[LmsMaterial, LmsCours
             .where(
                 LmsMaterial.user_id == ctx.user_id,
                 LmsMaterial.item_id == item.id,
+                LmsMaterial.state == "synced",
                 LmsCourseLink.course_id == item.course_id,
             )
         )
@@ -793,14 +853,18 @@ async def on_item_deleted(ctx: Ctx, event: Event) -> None:
         )
     ).all()
     for mat, link in found:
-        mat.item_id = None
         enter(mat, "dismissed", ctx.now)
         await events.publish(ctx, UPDATED, {"program_id": link.program_id})
 
 
+async def _restorable(ctx: Ctx, link: LmsCourseLink) -> bool:
+    """Only where the materials sync: elsewhere nothing would bring a removed one back."""
+    return link.sync_enabled and (await material_settings(ctx, link.course_id)).sync
+
+
 async def restore(ctx: Ctx, material_id: str) -> str:
-    """A material the user deleted comes in again with a sync queued now (`restored`). Returns
-    its Program."""
+    """A material the user deleted comes in again, quietly, with a sync queued now. Returns its
+    Program."""
     mat = await ctx.db.get(LmsMaterial, material_id)
     if mat is None or mat.user_id != ctx.user_id:
         raise not_found("lms_material", material_id)
@@ -808,16 +872,38 @@ async def restore(ctx: Ctx, material_id: str) -> str:
     assert link is not None
     await hold(ctx, link)
     await ctx.db.refresh(mat)
-    # Only where the materials sync: elsewhere nothing would bring it back.
-    if (
-        mat.state != "dismissed"
-        or not link.sync_enabled
-        or not (await material_settings(ctx, link.course_id)).sync
-    ):
+    if mat.state != "dismissed" or not await _restorable(ctx, link):
         raise lms_error("lms.sync_nothing_to_resolve")
-    enter(mat, "restored", ctx.now)
+    enter(mat, "absent", ctx.now, quiet=True)
     await sync_queue(ctx, [link], manual=True)
     return link.program_id
+
+
+async def restore_all(ctx: Ctx, program_id: str) -> None:
+    """Every material the user deleted in the Program's syncing courses comes in again, as with
+    `restore`: all in this transaction, one sync queued per course."""
+    await academics.get_program_row(ctx, program_id)  # owned, or not found
+    links = [
+        li for li in await service.program_links(ctx, program_id) if await _restorable(ctx, li)
+    ]
+    if not links:
+        return
+    await hold(ctx, links[0])  # the database's write lock: one for every course
+    by_id = {li.id: li for li in links}
+    restored: dict[str, LmsCourseLink] = {}
+    for mat in await ctx.db.scalars(
+        select(LmsMaterial)
+        .where(
+            LmsMaterial.user_id == ctx.user_id,
+            LmsMaterial.link_id.in_(list(by_id)),
+            LmsMaterial.state == "dismissed",
+        )
+        .execution_options(populate_existing=True)
+    ):
+        enter(mat, "absent", ctx.now, quiet=True)
+        restored[mat.link_id] = by_id[mat.link_id]
+    if restored:
+        await sync_queue(ctx, list(restored.values()), manual=True)
 
 
 @events.subscribe("settings.values.updated")

@@ -133,6 +133,31 @@ async def retried_with_on_failure(ctx: JobCtx, payload: Payload) -> Result:
     return Result()
 
 
+ran_again: list[str] = []
+
+
+@job_handler("test.asked_again", max_attempts=1)
+async def asked_again(ctx: JobCtx, payload: Payload) -> Result:
+    """Asked for again while it runs (`<what>:<then>`: ask for `then` this many times), then
+    ends as `what` says."""
+    ran_again.append(payload.name)
+    what, _, then = payload.name.partition(":")
+    for name in then.split(",") if then else []:
+        async with system_ctx(ctx.state, ctx.user_id) as other:
+            await enqueue(other, "test.asked_again", Payload(name=name), dedupe_key="k", again=True)
+            await other.db.commit()
+    if what == "fails":
+        raise AppError("test.bad_input", 422)
+    if what == "cancelled":
+        async with ctx.state.session_factory() as db:
+            await db.execute(
+                update(CoreJob).where(CoreJob.id == ctx.job_id).values(cancel_requested=True)
+            )
+            await db.commit()
+        await ctx.check_cancelled()
+    return Result()
+
+
 async def start(app: FastAPI, user_id: str, kind: str, **kwargs: Any) -> str:
     async with system_ctx(app.state, user_id) as ctx:
         job = await enqueue(ctx, kind, Payload(name=kwargs.pop("name", kind)), **kwargs)
@@ -467,3 +492,38 @@ async def test_on_failure_runs_however_the_job_ends(
         ("died", "failed", "core.job_lease_expired"),
         ("fails again", "failed", "core.job_lease_expired"),
     ]
+
+
+async def test_a_job_asked_for_again_while_it_runs_runs_once_more(
+    app: FastAPI, make_user: MakeUser, clock: Clock
+):
+    user = await make_user()
+    ran_again.clear()
+
+    async def run(name: str) -> list[str]:
+        ran_again.clear()
+        await start(app, user.id, "test.asked_again", name=name, dedupe_key="k", again=True)
+        await app.state.jobs.run_until_idle()
+        return list(ran_again)
+
+    # Once more after it ends, succeeded or failed, with the last request's payload.
+    assert await run("ok:b,c") == ["ok:b,c", "c"]
+    assert await run("fails:d") == ["fails:d", "d"]
+    # Not after the user stopped it.
+    assert await run("cancelled:e") == ["cancelled:e"]
+    # Asked again before it started: the queued one stands for it.
+    ran_again.clear()
+    for _ in range(2):
+        await start(app, user.id, "test.asked_again", name="ok", dedupe_key="k", again=True)
+    await app.state.jobs.run_until_idle()
+    assert ran_again == ["ok"]
+
+    # Ended by the sweep after its worker died: the one asked for follows all the same.
+    ran_again.clear()
+    job_id = await start(app, user.id, "test.asked_again", name="ok", dedupe_key="k", again=True)
+    assert await JobRunner(app.state)._claim() is not None  # pyright: ignore[reportPrivateUsage]
+    await start(app, user.id, "test.asked_again", name="f", dedupe_key="k", again=True)
+    clock.advance(seconds=61)
+    await app.state.jobs.run_until_idle()
+    assert (await get(app, job_id)).status == "failed"
+    assert ran_again == ["f"]

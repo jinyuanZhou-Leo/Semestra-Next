@@ -21663,6 +21663,38 @@ export type LmsSyncMaterialRestoreResponses = {
 
 export type LmsSyncMaterialRestoreResponse = LmsSyncMaterialRestoreResponses[keyof LmsSyncMaterialRestoreResponses];
 
+export type LmsSyncMaterialRestoreAllData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/lms/sync/materials:restore';
+};
+
+export type LmsSyncMaterialRestoreAllErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsSyncMaterialRestoreAllError = LmsSyncMaterialRestoreAllErrors[keyof LmsSyncMaterialRestoreAllErrors];
+
+export type LmsSyncMaterialRestoreAllResponses = {
+    /**
+     * Successful Response
+     */
+    200: SyncStatus;
+};
+
+export type LmsSyncMaterialRestoreAllResponse = LmsSyncMaterialRestoreAllResponses[keyof LmsSyncMaterialRestoreAllResponses];
+
 export type LmsSyncStatusData = {
     body?: never;
     path: {
