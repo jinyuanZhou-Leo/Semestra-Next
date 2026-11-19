@@ -3,6 +3,28 @@
 Generated from `release-notes/*.json` by `scripts/release.mjs`; do not edit by hand.
 The same notes in Chinese are in the JSON files and on the docs site.
 
+## 2.2.0 (2026-11-18)
+
+### New
+
+- **Canvas:** Course materials from Canvas now arrive in the same folders as on Canvas; use Organize to move materials synced earlier to match.
+- **Canvas:** Course materials now offer one simple choice: read them from Canvas, or save them in Semestra so they still open after they are deleted on Canvas.
+
+### Improved
+
+- **Files:** File processing now shows as one sidebar line, listing each file with the option to stop it.
+- **Files:** Organize puts loose files into your existing folders and moves materials that changed folders on Canvas.
+- **Canvas:** Canvas sync settings are now in one place, and each course can adjust its own course materials.
+- **Canvas:** A clearer sync status, with progress when you sync now.
+
+### Fixed
+
+- **Files:** Uploading a file the course already has now asks first, including Canvas materials read online and files still uploading.
+- **Files:** Creating or renaming a folder to a name already used there shows a clear error on the name.
+- **Import:** Importing a syllabus again no longer saves a second copy to the course files.
+- **Canvas:** The announcements list and the open announcement now scroll separately, and the simplified view uses the full width of the page.
+- **Canvas:** Sync status marks new course materials that match a file you uploaded yourself.
+
 ## 2.1.0 (2026-11-18)
 
 ### New
