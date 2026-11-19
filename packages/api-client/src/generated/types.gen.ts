@@ -17752,38 +17752,6 @@ export type FilesItemListPinnedResponses = {
 
 export type FilesItemListPinnedResponse = FilesItemListPinnedResponses[keyof FilesItemListPinnedResponses];
 
-export type FilesItemMakeOwnData = {
-    body?: never;
-    path: {
-        /**
-         * Item Id
-         *
-         * File or link id, from files.item.list
-         */
-        item_id: string;
-    };
-    query?: never;
-    url: '/files/{item_id}:make-own';
-};
-
-export type FilesItemMakeOwnErrors = {
-    /**
-     * Default Response
-     */
-    default: ErrorResponse;
-};
-
-export type FilesItemMakeOwnError = FilesItemMakeOwnErrors[keyof FilesItemMakeOwnErrors];
-
-export type FilesItemMakeOwnResponses = {
-    /**
-     * Successful Response
-     */
-    200: ItemOut;
-};
-
-export type FilesItemMakeOwnResponse = FilesItemMakeOwnResponses[keyof FilesItemMakeOwnResponses];
-
 export type FilesItemMarkSeenData = {
     body?: never;
     path: {

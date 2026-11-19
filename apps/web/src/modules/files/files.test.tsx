@@ -321,10 +321,6 @@ test('a file new from the LMS is marked until opened, and shows where it is kept
       calls.push(request.url.split(':').at(-1) ?? '')
       return HttpResponse.json(items[0])
     }),
-    http.post(`${API}/files/:id\\:make-own`, ({ request }) => {
-      calls.push(request.url.split(':').at(-1) ?? '')
-      return HttpResponse.json(items[0])
-    }),
   )
   const user = userEvent.setup()
   renderWithRouter(<CourseFilesPage scope={scope} />, undefined, {
@@ -339,15 +335,15 @@ test('a file new from the LMS is marked until opened, and shows where it is kept
   const name = await screen.findByRole('button', { name: /^Week 3\.pdf/ })
   expect(within(name).getByText('New')).toBeInTheDocument()
   expect(screen.getByText('Canvas')).toBeInTheDocument()
-  expect(screen.getByText('Read online')).toBeInTheDocument()
+  expect(screen.getByText('Read from Canvas when opened')).toBeInTheDocument()
 
-  // Kept online or as a local copy; or the user's own, no longer following Canvas.
+  // Read from Canvas until the user saves it in Semestra.
   await user.click(screen.getByRole('button', { name: 'Actions for Week 3.pdf' }))
-  await user.click(await screen.findByRole('menuitem', { name: 'Keep a local copy' }))
-  await user.click(screen.getByRole('button', { name: 'Actions for Week 3.pdf' }))
-  expect(await screen.findByText('No longer updated or removed with Canvas.')).toBeInTheDocument()
-  await user.click(screen.getByRole('menuitem', { name: /^Save as my file/ }))
-  await waitFor(() => expect(calls).toEqual(['keep-copy', 'make-own']))
+  const save = await screen.findByRole('menuitemcheckbox', { name: /^Save in Semestra/ })
+  expect(save).toHaveAttribute('aria-checked', 'false')
+  expect(within(save).getByText('Still opens if deleted on Canvas.')).toBeInTheDocument()
+  await user.click(save)
+  await waitFor(() => expect(calls).toEqual(['keep-copy']))
 
   // Deleting it says what happens: no sync brings it back, and the sync status can restore it.
   await user.click(screen.getByRole('button', { name: 'Actions for Week 3.pdf' }))

@@ -439,7 +439,7 @@ test('course settings: guidance without a binding, then the switches, materials 
   // Course materials: each setting follows the global one until the course picks its own.
   const [materials] = await screen.findAllByRole('region', { name: 'Course materials' })
   if (!materials) throw new Error('no materials block')
-  expect(within(materials).getByText('Keep materials')).toBeInTheDocument()
+  expect(within(materials).getByText('Material storage')).toBeInTheDocument()
   // The first choice: whether materials come in (then scanned pages).
   const [bring] = within(materials).getAllByRole('button', { name: 'Off' })
   if (!bring) throw new Error('no materials switch')
@@ -456,11 +456,11 @@ test('course settings: guidance without a binding, then the switches, materials 
   const confirm = await screen.findByRole('alertdialog')
   // What happens to the materials, in numbers.
   expect(
-    within(confirm).getByText('With a local copy (2): saved as your own files.'),
+    within(confirm).getByText("Saved in Semestra (2): they stay in the course's files."),
   ).toBeInTheDocument()
   expect(
     within(confirm).getByText(
-      "Read online (5): removed from the course's files. They remain on Canvas.",
+      "Read from Canvas (5): removed from the course's files. They remain on Canvas.",
     ),
   ).toBeInTheDocument()
   await userEvent.click(within(confirm).getByRole('button', { name: 'Unlink' }))

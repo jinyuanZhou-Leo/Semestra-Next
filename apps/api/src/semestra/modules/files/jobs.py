@@ -35,8 +35,6 @@ class ProcessResult(BaseModel):
 
 class KeepPayload(BaseModel):
     item_ids: list[str]
-    # Then the file becomes the user's own (`sources.make_own`).
-    own: bool = False
 
 
 class KeepResult(BaseModel):
@@ -90,11 +88,10 @@ async def process_synced(ctx: JobCtx, payload: ProcessPayload) -> ProcessResult:
 
 @job_handler("files.store_copy", stages=[("storing", 1)], max_attempts=1)
 async def store_copy(ctx: JobCtx, payload: KeepPayload) -> KeepResult:
-    """A local copy the user asked for (or one to make their own); a failure shows in the status
-    bar."""
+    """A copy the user asked for; a failure shows in the status bar."""
     for item_id in payload.item_ids:
         await ctx.stage("storing")
-        await sources.store_from_source(ctx, item_id, quiet=False, own=payload.own)
+        await sources.store_from_source(ctx, item_id, quiet=False)
     return KeepResult(kept=len(payload.item_ids), left=0)
 
 

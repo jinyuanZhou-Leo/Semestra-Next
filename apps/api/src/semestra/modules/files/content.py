@@ -43,7 +43,7 @@ def remote(row: FilesItem) -> bool:
 
 def follows_source(row: FilesItem) -> bool:
     """A file its source keeps in step (updates, removes), with a local copy or not: not one
-    the user made their own (`sources.make_own`)."""
+    handed to the user (`sources.detach_from_source`)."""
     return row.kind == "file" and _source(row) is not None
 
 

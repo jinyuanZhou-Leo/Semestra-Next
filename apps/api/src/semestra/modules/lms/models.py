@@ -170,7 +170,7 @@ class LmsMaterial(Base, OwnedMixin):
     - `gone`: deleted on the platform, so its item (read online) was removed; it comes in again
       if the platform shows it again;
     - `handed_over`: its item became the user's own file (`item_id` still names it): it had a
-      local copy when the platform deleted it, or the user asked. Not brought in again.
+      local copy when the platform deleted it. Not brought in again.
 
     Items never seen have no row."""
 

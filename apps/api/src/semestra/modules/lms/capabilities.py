@@ -672,7 +672,7 @@ async def file_preview(ctx: Ctx, inp: FileInput) -> FilePreview:
 
 @capability(
     name="lms.file.save_to_course",
-    summary="Keep a local copy of a file of a linked course on the {lms} in the course's files.",
+    summary="Save a file of a linked course on the {lms} in Semestra (the course's files).",
     description="""Takes its ref (`file:<id>`) from lms.content.search or lms.course.outline.
 Only when the user asks to keep a copy, so it opens after the course closes on the LMS: the
 course files usually have the file already, and reading it does not need a copy. A file the

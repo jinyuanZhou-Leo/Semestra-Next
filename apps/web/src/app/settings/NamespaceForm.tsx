@@ -200,7 +200,7 @@ function Form({
         ? {
             following,
             from: LEVEL_NAMES[from](),
-            valueText: valueText(namespace, field, inherited.value),
+            valueText: valueText(namespace, field, inherited.value, texts),
             follow: () => void follow(field.key),
           }
         : undefined

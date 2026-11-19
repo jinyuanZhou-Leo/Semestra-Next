@@ -38,10 +38,15 @@ export type Inheritance = {
 }
 
 /** A value in the words the control shows for it. */
-export function valueText(namespace: string, field: FieldDescriptor, value: unknown): string {
+export function valueText(
+  namespace: string,
+  field: FieldDescriptor,
+  value: unknown,
+  params?: TextParams,
+): string {
   if (field.control === 'switch')
     return value === true ? m.settings_switch_on() : m.settings_switch_off()
-  if (field.options.length > 0) return optionLabel(namespace, field.key, value)
+  if (field.options.length > 0) return optionLabel(namespace, field.key, value, params)
   if (value == null || value === '') return m.settings_value_empty()
   if (field.control === 'time' && typeof value === 'string') return value.slice(0, 5)
   return String(value)
@@ -200,7 +205,7 @@ function PlainControl(props: ControlProps & { follow?: FollowChoice }) {
     case 'select': {
       const options = field.options.map((o) => ({
         value: String(o),
-        label: optionLabel(namespace, field.key, o),
+        label: optionLabel(namespace, field.key, o, params),
         hint: optionHint(namespace, field.key, o, params),
       }))
       return (
