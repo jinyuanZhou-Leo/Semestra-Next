@@ -63,6 +63,12 @@ export default function ProcessingPanel({ onClose }: { onClose: () => void }) {
       setSeen([...new Set([...ids, ...seen])].slice(0, SEEN_KEPT))
     }
   })
+  // Rows that arrive once the panel is up unfold; the first ones are just there.
+  const [settled, setSettled] = useState(false)
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setSettled(true))
+    return () => cancelAnimationFrame(frame)
+  }, [])
   useEffect(() => {
     setPanelOpen(true)
     return () => {
@@ -114,6 +120,7 @@ export default function ProcessingPanel({ onClose }: { onClose: () => void }) {
     <FileRow
       key={file.job.id}
       section={section}
+      appear={settled}
       file={file}
       retrying={retrying.includes(file.job.id)}
       onRetry={() => void retry(file)}
@@ -216,12 +223,14 @@ export default function ProcessingPanel({ onClose }: { onClose: () => void }) {
 function FileRow({
   file,
   section,
+  appear,
   retrying,
   onRetry,
   onOpen,
 }: {
   file: ProcessingFile
   section: Section
+  appear: boolean
   retrying: boolean
   onRetry: () => void
   onOpen: () => void
@@ -243,7 +252,7 @@ function FileRow({
             ? errorMessage({ error: { code: code ?? 'files.parse_failed' } })
             : m.files_processing_done()
   return (
-    <PanelFold leaving={SECTION_OF[status] !== section}>
+    <PanelFold leaving={SECTION_OF[status] !== section} appear={appear}>
       <PanelRow
         icon={fileIcon({ kind: 'file', mime_type: file.mime_type })}
         spin={status === 'running' && !live.waiting}

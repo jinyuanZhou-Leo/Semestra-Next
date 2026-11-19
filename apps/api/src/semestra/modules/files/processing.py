@@ -9,10 +9,11 @@ from pydantic import BaseModel, Field
 from sqlalchemy import case, false, func, not_, or_, select
 
 from semestra.core.context import Ctx
-from semestra.core.errors import AppError
+from semestra.core.events import events
 from semestra.core.jobs import CoreJob, JobOut, JobRef, job_cancel
 from semestra.modules.academics import service as academics
 from semestra.modules.academics.models import AcademicsCourse
+from semestra.modules.files import content, service
 from semestra.modules.files.models import FilesItem
 from semestra.modules.files.schemas import Id
 from semestra.modules.files.service import PROCESS_KINDS
@@ -224,15 +225,25 @@ async def cancel_all(ctx: Ctx) -> CancelledAll:
 
 
 async def retry(ctx: Ctx, inp: RetryInput) -> Retried:
-    """Each listed file is read again (as `files.item.reprocess`); files that were deleted
-    meanwhile or can't be read are skipped."""
-    from semestra.modules.files import items
-
+    """Each listed file is queued to be read again. Unlike `files.item.reprocess` the bytes are
+    not read here (the job tells the type again in its first stage), so a few hundred files cost
+    one short write; files deleted meanwhile, links, and files that are being read are skipped."""
+    ids = list(dict.fromkeys(inp.item_ids))
+    rows = (
+        await ctx.db.scalars(
+            select(FilesItem).where(FilesItem.user_id == ctx.user_id, FilesItem.id.in_(ids))
+        )
+    ).all()
     retried = 0
-    for item_id in dict.fromkeys(inp.item_ids):
-        try:
-            await items.reprocess(ctx, item_id)
-        except AppError:
+    for row in rows:
+        if not content.has_content(row) or row.doc_status in ("pending", "processing"):
             continue
+        row.doc_status, row.doc_error_code = "pending", None
+        row.updated_at = ctx.now
+        await service.enqueue_processing(ctx, row)
+        await events.publish(
+            ctx, "files.item.updated", {"item_id": row.id, "course_id": row.course_id}
+        )
         retried += 1
+    await ctx.db.flush()
     return Retried(retried=retried)

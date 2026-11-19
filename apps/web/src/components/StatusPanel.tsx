@@ -248,12 +248,22 @@ export function PanelMoreList({
 }
 
 /** A row that folds away (200 ms, in height) once answered. */
-export function PanelFold({ leaving, children }: { leaving: boolean; children: ReactNode }) {
+export function PanelFold({
+  leaving,
+  appear = false,
+  children,
+}: {
+  leaving: boolean
+  /** Unfold when it first shows (a row arriving in an open panel; not the panel's first rows). */
+  appear?: boolean
+  children: ReactNode
+}) {
   return (
     <div
       inert={leaving}
       className={cn(
         'grid transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none',
+        appear && 'starting:grid-rows-[0fr] starting:opacity-0',
         leaving ? 'grid-rows-[0fr] opacity-0' : 'grid-rows-[1fr] opacity-100',
       )}
     >
