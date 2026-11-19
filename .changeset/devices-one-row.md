@@ -1,9 +1,9 @@
 ---
-"@semestra/web": patch
+"@semestra/api": patch
 ---
 
 <!-- area: account -->
 <!-- en -->
-Signed-in devices no longer repeat: sign-ins from the same browser show as one device.
+Signing in again in the same browser no longer leaves an extra entry under signed-in devices.
 <!-- zh -->
-登录设备不再重复显示，同一浏览器的多次登录合并为一台设备。
+在同一浏览器重新登录时，登录设备里不再多出一条旧记录。

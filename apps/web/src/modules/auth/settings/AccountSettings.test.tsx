@@ -40,14 +40,12 @@ function mount(signOut: () => Promise<void> = async () => {}) {
   )
 }
 
-test('signing out the current device also ends its earlier sign-ins', async () => {
+test('signing out the current device goes through the normal sign-out flow', async () => {
   const revoked = vi.fn<(id: string) => void>()
   const signOut = vi.fn<() => Promise<void>>(async () => {})
   server.use(
     http.get(`${API}/account/sessions`, () =>
-      HttpResponse.json({
-        items: [session({ id: 's1', current: true }), session({ id: 's0' })],
-      }),
+      HttpResponse.json({ items: [session({ id: 's1', current: true })] }),
     ),
     http.delete(`${API}/account/sessions/:id`, ({ params }) => {
       revoked(String(params.id))
@@ -60,16 +58,12 @@ test('signing out the current device also ends its earlier sign-ins', async () =
   await userEvent.click(await screen.findByRole('menuitem', { name: 'Sign out' }))
   const dialog = await screen.findByRole('alertdialog')
   await userEvent.click(within(dialog).getByRole('button', { name: 'Sign out' }))
-  await waitFor(() => expect(signOut).toHaveBeenCalledTimes(1))
-  expect(revoked.mock.calls).toEqual([['s0']])
+  expect(signOut).toHaveBeenCalledTimes(1)
+  expect(revoked).not.toHaveBeenCalled()
 })
 
-test('lists each device once and signs out all of its sign-ins after confirmation', async () => {
-  let sessions = [
-    session({ id: 's1', current: true }),
-    session({ id: 's2', kind: 'native' }),
-    session({ id: 's3', kind: 'native' }),
-  ]
+test('lists devices and signs one out after confirmation', async () => {
+  let sessions = [session({ id: 's1', current: true }), session({ id: 's2', kind: 'native' })]
   const revoked = vi.fn<(id: string) => void>()
   server.use(
     http.get(`${API}/account/sessions`, () => HttpResponse.json({ items: sessions })),
@@ -90,7 +84,7 @@ test('lists each device once and signs out all of its sign-ins after confirmatio
   const dialog = await screen.findByRole('alertdialog')
   await userEvent.click(within(dialog).getByRole('button', { name: 'Sign out' }))
 
-  await waitFor(() => expect(revoked.mock.calls).toEqual([['s2'], ['s3']]))
+  await waitFor(() => expect(revoked).toHaveBeenCalledWith('s2'))
   await waitFor(() =>
     expect(screen.getAllByRole('button', { name: /Actions for Chrome/ })).toHaveLength(1),
   )
