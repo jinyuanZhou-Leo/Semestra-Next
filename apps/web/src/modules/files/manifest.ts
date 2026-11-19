@@ -8,6 +8,7 @@ import {
 } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
 import { useOrganizeLine } from './organize-line'
+import { PROCESSING_LINE, useProcessingLine } from './processing-line'
 import { organizeLink } from './organizing'
 import { prefetchFilesPage } from './queries'
 
@@ -38,7 +39,17 @@ const ofItem =
 // A plan leaves out the files moved or deleted since, and names the folders they would go in.
 const ORGANIZE = ['filesOrganizationGet', 'filesOrganizationList']
 
+const PROCESS_KINDS = new Set(['files.process', 'files.process_synced'])
+
 const INVALIDATIONS = {
+  // The list of files being read changes when one is queued, starts or ends; progress within a
+  // file comes through the job's own query (`useJob`).
+  'core.job.progress': [
+    (data: Readonly<Record<string, unknown>>) =>
+      PROCESS_KINDS.has(data.kind as string) && (data.status !== 'running' || data.progress === 0)
+        ? ['filesProcessingList']
+        : [],
+  ],
   'files.organization.updated': ORGANIZE,
   'files.item.created': [courseList, 'filesItemSearch', 'filesUsageGet', 'filesDocumentSearch'],
   // Keeping or removing a local copy changes the storage used.
@@ -149,12 +160,14 @@ export default defineModule({
     },
   ],
   jobKinds: [
-    { kind: 'files.process', title: m.files_job_process },
     { kind: 'files.store_copy', title: m.files_job_store_copy },
     { kind: 'files.reindex_vectors', title: m.files_job_reindex },
     { kind: 'files.organize', title: m.files_job_organize, to: (job) => organizeLink(job.result) },
   ],
-  statusItems: [{ id: 'files.organize', order: 35, useStatus: useOrganizeLine }],
+  statusItems: [
+    { id: PROCESSING_LINE, order: 30, useStatus: useProcessingLine },
+    { id: 'files.organize', order: 35, useStatus: useOrganizeLine },
+  ],
   uiPrefPrefixes: ['files.'],
   realtimeInvalidations: INVALIDATIONS,
 })

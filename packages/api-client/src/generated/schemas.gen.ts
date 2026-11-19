@@ -3433,6 +3433,20 @@ export const CalendarWeekSchema = {
     title: 'CalendarWeek'
 } as const;
 
+export const CancelledAllSchema = {
+    properties: {
+        cancelled: {
+            type: 'integer',
+            title: 'Cancelled'
+        }
+    },
+    type: 'object',
+    required: [
+        'cancelled'
+    ],
+    title: 'CancelledAll'
+} as const;
+
 export const CardAddInputBodySchema = {
     properties: {
         card_id: {
@@ -15373,6 +15387,125 @@ export const PreferencesUpdateInputBodySchema = {
     title: 'PreferencesUpdateInputBody'
 } as const;
 
+export const ProcessingFileSchema = {
+    properties: {
+        job: {
+            $ref: '#/components/schemas/JobOut',
+            description: 'The file\'s latest processing job'
+        },
+        item_id: {
+            type: 'string',
+            title: 'Item Id'
+        },
+        name: {
+            type: 'string',
+            title: 'Name'
+        },
+        mime_type: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Mime Type'
+        },
+        course_id: {
+            type: 'string',
+            title: 'Course Id'
+        },
+        folder_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Folder Id'
+        },
+        program_id: {
+            type: 'string',
+            title: 'Program Id'
+        },
+        course_code: {
+            type: 'string',
+            title: 'Course Code',
+            description: 'The course\'s code, or its title when it has none'
+        },
+        course_color: {
+            type: 'string',
+            title: 'Course Color'
+        },
+        synced: {
+            type: 'boolean',
+            title: 'Synced',
+            description: 'Kept in step with its source (M09\'s course materials)'
+        }
+    },
+    type: 'object',
+    required: [
+        'job',
+        'item_id',
+        'name',
+        'mime_type',
+        'course_id',
+        'folder_id',
+        'program_id',
+        'course_code',
+        'course_color',
+        'synced'
+    ],
+    title: 'ProcessingFile'
+} as const;
+
+export const ProcessingListSchema = {
+    properties: {
+        files: {
+            items: {
+                $ref: '#/components/schemas/ProcessingFile'
+            },
+            type: 'array',
+            title: 'Files',
+            description: 'One row per file, with its latest job: running files, then queued ones in the order they will run (at most 100), then the files of the current round that ended, then files that failed earlier in the last 7 days'
+        },
+        active: {
+            type: 'integer',
+            title: 'Active',
+            description: 'Files running or queued, all of them'
+        },
+        done: {
+            type: 'integer',
+            title: 'Done',
+            description: 'Files of the current round that ended: with `active`, how far it is'
+        },
+        since: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date-time'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Since',
+            description: 'When the current round started (or the last one, when nothing is left): going back from now, when the queue was last empty'
+        }
+    },
+    type: 'object',
+    required: [
+        'files',
+        'active',
+        'done',
+        'since'
+    ],
+    title: 'ProcessingList'
+} as const;
+
 export const ProfileUpdateInputBodySchema = {
     properties: {
         display_name: {
@@ -16848,6 +16981,41 @@ export const ResolvedSettingsSchema = {
         'inherited'
     ],
     title: 'ResolvedSettings'
+} as const;
+
+export const RetriedSchema = {
+    properties: {
+        retried: {
+            type: 'integer',
+            title: 'Retried'
+        }
+    },
+    type: 'object',
+    required: [
+        'retried'
+    ],
+    title: 'Retried'
+} as const;
+
+export const RetryInputBodySchema = {
+    properties: {
+        item_ids: {
+            items: {
+                type: 'string',
+                maxLength: 64,
+                minLength: 1
+            },
+            type: 'array',
+            maxItems: 500,
+            title: 'Item Ids',
+            description: 'The files to process again'
+        }
+    },
+    type: 'object',
+    required: [
+        'item_ids'
+    ],
+    title: 'RetryInputBody'
 } as const;
 
 export const RevokedSchema = {

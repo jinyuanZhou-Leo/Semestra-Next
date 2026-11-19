@@ -1,11 +1,11 @@
 import type { JobOut } from '@semestra/api-client'
-import { coreJobCancel } from '@semestra/api-client'
 import { coreJobListOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import {
   CircleAlert,
   CircleCheck,
+  CircleX,
   Clock3,
   Ellipsis,
   LoaderCircle,
@@ -22,29 +22,26 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react'
-import { JobProgress } from '@/components/JobProgress'
-import { jobIsWaiting, jobStageLabel } from '@/hooks/use-job'
+import { PanelIconAction, PanelRow } from '@/components/StatusPanel'
+import { jobIsWaiting, jobStageLabel, useJob } from '@/hooks/use-job'
 import { useNow } from '@/hooks/use-now'
 import { useSmoothedProgress } from '@/hooks/use-smoothed-progress'
-import { toastError } from '@/lib/errors'
+import { errorMessage } from '@/lib/errors'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
-import { Button } from '@/ui/button'
+import { Item, ItemContent, ItemGroup, ItemSeparator, ItemTitle } from '@/ui/item'
 import {
-  Item,
-  ItemActions,
-  ItemContent,
-  ItemFooter,
-  ItemGroup,
-  ItemSeparator,
-  ItemTitle,
-} from '@/ui/item'
-import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
+  Popover,
+  PopoverContent,
+  PopoverDescription,
+  PopoverHeader,
+  PopoverTitle,
+  PopoverTrigger,
+} from '@/ui/popover'
 import { Progress } from '@/ui/progress'
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from '@/ui/sidebar'
 import { Spinner } from '@/ui/spinner'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import {
   type JobKindContribution,
   preload,
@@ -450,53 +447,48 @@ function JobRow({
   kinds: readonly JobKindContribution[]
   onNavigate: () => void
 }) {
+  // Live over SSE, seeded with the listed state.
+  const live = useJob(job.id, job)
+  const current = live.job ?? job
   const kind = kinds.find((k) => k.kind === job.kind)
-  const to = kind?.to?.(job)
-  const title = jobTitle(job, kinds)
-  const cancel = async () => {
-    try {
-      await coreJobCancel({ path: { job_id: job.id }, throwOnError: true })
-    } catch (err) {
-      toastError(err)
-    }
-  }
+  const to = kind?.to?.(current)
+  const title = jobTitle(current, kinds)
+  const running = current.status === 'running' && !live.waiting
+  const look =
+    current.status === 'failed'
+      ? ({
+          icon: CircleAlert,
+          tone: 'error',
+          detail: errorMessage({ error: { code: current.error_code ?? 'unknown' } }),
+        } as const)
+      : current.status === 'succeeded'
+        ? ({ icon: CircleCheck, tone: 'success', detail: m.ai_action_done() } as const)
+        : current.status === 'cancelled'
+          ? ({ icon: CircleX, detail: m.job_cancelled() } as const)
+          : ({ icon: running ? LoaderCircle : Clock3, detail: live.stageLabel } as const)
   return (
-    <Item render={<li />} size="xs" className="gap-1.5 px-0">
-      <ItemContent className="min-w-0">
-        <ItemTitle className="w-full">
-          {to ? (
-            <Link to={to} onClick={onNavigate} className="truncate hover:underline">
-              {title}
-            </Link>
-          ) : (
-            <span className="truncate">{title}</span>
-          )}
-        </ItemTitle>
-      </ItemContent>
-      {ACTIVE.has(job.status) ? (
-        <ItemActions>
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  aria-label={m.status_job_cancel({ name: title })}
-                  disabled={job.cancel_requested}
-                  onClick={() => void cancel()}
-                />
-              }
-            >
-              <X aria-hidden />
-            </TooltipTrigger>
-            <TooltipContent>{m.status_job_cancel({ name: title })}</TooltipContent>
-          </Tooltip>
-        </ItemActions>
+    <PanelRow
+      icon={look.icon}
+      spin={running}
+      tone={'tone' in look ? look.tone : undefined}
+      title={title}
+      detail={look.detail}
+      muted={current.status === 'cancelled'}
+      time={running ? `${live.progress}%` : undefined}
+      href={to}
+      onOpen={onNavigate}
+    >
+      {ACTIVE.has(current.status) ? (
+        <PanelIconAction
+          label={m.status_job_cancel({ name: title })}
+          disabled={live.cancelling}
+          onClick={live.cancel}
+          className="opacity-0 group-hover/item:opacity-100 focus-visible:opacity-100"
+        >
+          <X aria-hidden />
+        </PanelIconAction>
       ) : null}
-      <ItemFooter className="block">
-        <JobProgress jobId={job.id} job={job} />
-      </ItemFooter>
-    </Item>
+    </PanelRow>
   )
 }
 
@@ -603,17 +595,23 @@ function JobsLine() {
         setOpen(true)
       }}
       panel={
-        <>
-          <p className="text-xs font-medium text-muted-foreground">{m.status_jobs_title()}</p>
-          <ItemGroup className="gap-0">
-            {jobs.map((job, index) => (
-              <Fragment key={job.id}>
-                {index > 0 ? <ItemSeparator className="my-0" /> : null}
-                <JobRow job={job} kinds={kinds} onNavigate={close} />
-              </Fragment>
+        <div className="-m-4 flex max-h-[min(36rem,75vh)] flex-col">
+          <div className="border-b px-4 py-3">
+            <PopoverHeader className="gap-0">
+              <PopoverTitle className="text-sm">{m.status_jobs_title()}</PopoverTitle>
+              {item ? (
+                <PopoverDescription className="text-xs tabular-nums">
+                  {item.label}
+                </PopoverDescription>
+              ) : null}
+            </PopoverHeader>
+          </div>
+          <ItemGroup className="gap-0 overflow-y-auto p-2 has-data-[size=xs]:gap-0">
+            {jobs.map((job) => (
+              <JobRow key={job.id} job={job} kinds={kinds} onNavigate={close} />
             ))}
           </ItemGroup>
-        </>
+        </div>
       }
     />
   )

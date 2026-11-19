@@ -1902,6 +1902,16 @@ export type CalendarWeek = {
 };
 
 /**
+ * CancelledAll
+ */
+export type CancelledAll = {
+    /**
+     * Cancelled
+     */
+    cancelled: number;
+};
+
+/**
  * CardAddInputBody
  */
 export type CardAddInputBody = {
@@ -8717,6 +8727,86 @@ export type PreferencesUpdateInputBody = {
 };
 
 /**
+ * ProcessingFile
+ */
+export type ProcessingFile = {
+    /**
+     * The file's latest processing job
+     */
+    job: JobOut;
+    /**
+     * Item Id
+     */
+    item_id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Mime Type
+     */
+    mime_type: string | null;
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * Folder Id
+     */
+    folder_id: string | null;
+    /**
+     * Program Id
+     */
+    program_id: string;
+    /**
+     * Course Code
+     *
+     * The course's code, or its title when it has none
+     */
+    course_code: string;
+    /**
+     * Course Color
+     */
+    course_color: string;
+    /**
+     * Synced
+     *
+     * Kept in step with its source (M09's course materials)
+     */
+    synced: boolean;
+};
+
+/**
+ * ProcessingList
+ */
+export type ProcessingList = {
+    /**
+     * Files
+     *
+     * One row per file, with its latest job: running files, then queued ones in the order they will run (at most 100), then the files of the current round that ended, then files that failed earlier in the last 7 days
+     */
+    files: Array<ProcessingFile>;
+    /**
+     * Active
+     *
+     * Files running or queued, all of them
+     */
+    active: number;
+    /**
+     * Done
+     *
+     * Files of the current round that ended: with `active`, how far it is
+     */
+    done: number;
+    /**
+     * Since
+     *
+     * When the current round started (or the last one, when nothing is left): going back from now, when the queue was last empty
+     */
+    since: string | null;
+};
+
+/**
  * ProfileUpdateInputBody
  */
 export type ProfileUpdateInputBody = {
@@ -9503,6 +9593,28 @@ export type ResolvedSettings = {
     inherited: {
         [key: string]: InheritedValue;
     };
+};
+
+/**
+ * Retried
+ */
+export type Retried = {
+    /**
+     * Retried
+     */
+    retried: number;
+};
+
+/**
+ * RetryInputBody
+ */
+export type RetryInputBody = {
+    /**
+     * Item Ids
+     *
+     * The files to process again
+     */
+    item_ids: Array<string>;
 };
 
 /**
@@ -17979,6 +18091,81 @@ export type FilesOrganizationListResponses = {
 };
 
 export type FilesOrganizationListResponse = FilesOrganizationListResponses[keyof FilesOrganizationListResponses];
+
+export type FilesProcessingCancelAllData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/me/files/processing:cancel';
+};
+
+export type FilesProcessingCancelAllErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesProcessingCancelAllError = FilesProcessingCancelAllErrors[keyof FilesProcessingCancelAllErrors];
+
+export type FilesProcessingCancelAllResponses = {
+    /**
+     * Successful Response
+     */
+    200: CancelledAll;
+};
+
+export type FilesProcessingCancelAllResponse = FilesProcessingCancelAllResponses[keyof FilesProcessingCancelAllResponses];
+
+export type FilesProcessingListData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/me/files/processing';
+};
+
+export type FilesProcessingListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesProcessingListError = FilesProcessingListErrors[keyof FilesProcessingListErrors];
+
+export type FilesProcessingListResponses = {
+    /**
+     * Successful Response
+     */
+    200: ProcessingList;
+};
+
+export type FilesProcessingListResponse = FilesProcessingListResponses[keyof FilesProcessingListResponses];
+
+export type FilesProcessingRetryData = {
+    body: RetryInputBody;
+    path?: never;
+    query?: never;
+    url: '/me/files/processing:retry';
+};
+
+export type FilesProcessingRetryErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesProcessingRetryError = FilesProcessingRetryErrors[keyof FilesProcessingRetryErrors];
+
+export type FilesProcessingRetryResponses = {
+    /**
+     * Successful Response
+     */
+    200: Retried;
+};
+
+export type FilesProcessingRetryResponse = FilesProcessingRetryResponses[keyof FilesProcessingRetryResponses];
 
 export type FilesUsageBreakdownData = {
     body?: never;
