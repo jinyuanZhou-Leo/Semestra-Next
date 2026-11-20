@@ -1,91 +1,47 @@
-import { EditorContent, useEditor } from '@tiptap/react'
-import { type MouseEvent, useEffect, useRef } from 'react'
+import { type MouseEvent, useEffect, useRef, useState } from 'react'
 import type { CardProps } from '@/app/extensions'
-import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { toast } from 'sonner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { colorTint } from '../plugin-kit/colors'
 import { useCardSettings } from '../plugin-kit/useCardSettings'
-import { setNoteEditing, useNoteEditing } from './editing'
-import { noteExtensions } from './extensions'
+import { forgetNote, setNoteEditing, useNoteEditing, useNoteOpened } from './editing'
+import { loadEditor, preloadEditor, useEditorModule } from './editor-loader'
+import type { StartAt } from './NoteEditor'
+import { NoteView, type Toggle } from './NoteView'
 import type { StickySettings } from './schema'
-import { Toolbar } from './Toolbar'
 import './note.css'
 
 /** Inside a popup (the toolbar's link popover or table menu), which is portaled out of the card. */
 const inPopup = (target: EventTarget | null) =>
   target instanceof Element && target.closest('[data-slot$="-content"]') !== null
 
+const NO_TICKS: ReadonlyMap<number, boolean> = new Map()
+
+const isEmpty = (content: string) => /^(?:\s|&nbsp;| )*$/.test(content)
+
 /**
  * Sticky note (M14 §4). It reads like a note: links open and checklist items tick with one click.
  * The header's edit button (or a double-click on the text, or a click on an empty note) makes it
  * editable with its toolbar; clicking outside the card, Escape or the "done" button ends that.
+ * Until it is first edited the note is drawn by `NoteView`, without loading the editor.
  * Saved 800 ms after a change.
  */
 export default function StickyNoteCard({ instanceId, size, settings }: CardProps<StickySettings>) {
   const { value, update, hasUnsaved, status } = useCardSettings(instanceId, settings, 800)
   const editing = useNoteEditing(instanceId)
+  const opened = useNoteOpened(instanceId)
+  const NoteEditor = useEditorModule()?.default
   const root = useRef<HTMLDivElement>(null)
-  // The Markdown the editor last showed or wrote; anything else came from elsewhere.
-  const shown = useRef(value.content)
-  const editor = useEditor({
-    editable: false,
-    extensions: noteExtensions({
-      placeholder: m.sticky_placeholder(),
-      // One toast however many keys are refused.
-      onTooLong: () => toast.error(m.sticky_too_long(), { id: 'sticky-too-long' }),
-    }),
-    content: value.content,
-    contentType: 'markdown',
-    editorProps: {
-      attributes: { 'aria-label': m.sticky_card_title(), class: 'sticky-note' },
-      handleKeyDown: (_, event) => {
-        if (event.key !== 'Escape') return false
-        setNoteEditing(instanceId, false)
-        // Back to the button that starts editing again, not to the page.
-        root.current
-          ?.closest('[data-card]')
-          ?.querySelector<HTMLElement>('[data-sticky-edit]')
-          ?.focus()
-        return true
-      },
-    },
-    onUpdate: ({ editor: e }) => {
-      const content = e.getMarkdown()
-      shown.current = content
-      update({ content })
-    },
-  })
-
-  // The agent (or another tab) changed the note: show it, keeping the cursor where it was if
-  // the note is being edited. Not while local edits are unsaved: saving them replaces the note
-  // anyway, and the server echoing an earlier save would undo the newest keystrokes. The change
-  // is not the user's, so it stays out of their undo history (undo would revert it and save).
+  const [startAt, setStartAt] = useState<StartAt | null>(null)
+  // Ticks waiting for the editor's code, by item, shown until they are applied.
+  const [ticks, setTicks] = useState<ReadonlyMap<number, boolean>>(NO_TICKS)
+  const queue = useRef<Promise<void> | null>(null)
+  // The note each queued tick applies to: the latest content, including ticks applied before it.
+  const latest = useRef(value.content)
   useEffect(() => {
-    if (!editor || settings.content === shown.current || hasUnsaved()) return
-    shown.current = settings.content
-    const { from, to } = editor.state.selection
-    const keepCursor = editor.isFocused
-    editor
-      .chain()
-      .setMeta('addToHistory', false)
-      .setContent(settings.content, { contentType: 'markdown', emitUpdate: false })
-      .command(({ tr, commands }) => {
-        if (!keepCursor) return true
-        const end = tr.doc.content.size
-        return commands.setTextSelection({ from: Math.min(from, end), to: Math.min(to, end) })
-      })
-      .run()
-  }, [editor, settings.content, hasUnsaved])
-
-  // The editor follows the shared flag, which the header's button sets too.
-  useEffect(() => {
-    if (!editor || editor.isEditable === editing) return
-    editor.setEditable(editing, false)
-    if (!editing) editor.commands.blur()
-    else if (!editor.isFocused) editor.commands.focus('end')
-  }, [editor, editing])
+    latest.current = value.content
+  }, [value.content])
 
   // Leaving the card ends editing: a click elsewhere, or the focus moving out with the keyboard.
   // The header's buttons are in the card, and the toolbar's popups count as part of the note.
@@ -109,19 +65,55 @@ export default function StickyNoteCard({ instanceId, size, settings }: CardProps
     }
   }, [editing, instanceId])
 
-  useEffect(() => () => setNoteEditing(instanceId, false), [instanceId])
+  useEffect(() => () => forgetNote(instanceId), [instanceId])
+
+  // Editing waits for the editor's code; if it cannot load, the note stays as it reads.
+  useEffect(() => {
+    if (!opened || NoteEditor) return
+    loadEditor().catch(() => {
+      toast.error(m.sticky_open_failed(), { id: 'sticky-open-failed' })
+      forgetNote(instanceId)
+    })
+  }, [opened, NoteEditor, instanceId])
 
   /** Starts editing with the cursor where the note was clicked. */
   const editAt = (event: MouseEvent) => {
-    if (editing || !editor) return
-    const at = editor.view.posAtCoords({ left: event.clientX, top: event.clientY })
-    editor.setEditable(true, false)
-    editor
-      .chain()
-      .focus(at?.pos ?? 'end')
-      .run()
+    if (editing) return
+    setStartAt({ x: event.clientX, y: event.clientY })
     setNoteEditing(instanceId, true)
   }
+
+  // Ticking a read-only item rewrites the note by the editor's rules, so it loads the editor's
+  // code (usually already there: hovering the note started loading it) without showing it.
+  // Ticks made while it loads are applied in order, each on the note the one before it left.
+  const toggle: Toggle = (index, checked, text) => {
+    setTicks((shown) => new Map(shown).set(index, checked))
+    const run = (queue.current ?? Promise.resolve())
+      .then(async () => {
+        const { toggleTask } = await loadEditor()
+        const next = toggleTask(latest.current, index, checked, text)
+        latest.current = next
+        update({ content: next })
+      })
+      .catch(() => {
+        toast.error(m.sticky_save_failed())
+      })
+    queue.current = run
+    void run.then(() => {
+      if (queue.current !== run) return
+      queue.current = null
+      setTicks(NO_TICKS)
+    })
+  }
+
+  const view = (
+    <NoteView
+      content={value.content}
+      placeholder={m.sticky_placeholder()}
+      onToggle={toggle}
+      ticks={ticks}
+    />
+  )
 
   return (
     // oxlint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- pointer shortcuts; the header's edit button is the keyboard way in
@@ -129,28 +121,27 @@ export default function StickyNoteCard({ instanceId, size, settings }: CardProps
       ref={root}
       className="relative flex h-full flex-col"
       style={{ backgroundColor: colorTint(value.color, 22) }}
+      onPointerEnter={preloadEditor}
+      onFocus={preloadEditor}
       onDoubleClick={editAt}
       onClick={(event) => {
-        if (editor?.isEmpty) editAt(event)
+        if (isEmpty(value.content)) editAt(event)
       }}
     >
-      <EditorContent
-        editor={editor}
-        className={cn(
-          'min-h-0 flex-1 scroll-fade scrollbar-none overflow-y-auto px-4 py-3.5',
-          editing && size !== 's' && 'pb-12',
-        )}
-      />
-      {size === 's' || !editor ? null : (
-        <div
-          className={cn(
-            'absolute inset-x-0 bottom-2 flex justify-center transition-[opacity,translate] duration-150 ease-out',
-            editing ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-1 opacity-0',
-          )}
-          inert={!editing || undefined}
-        >
-          <Toolbar editor={editor} />
-        </div>
+      {opened && NoteEditor ? (
+        <NoteEditor
+          instanceId={instanceId}
+          size={size}
+          content={value.content}
+          remote={settings.content}
+          editing={editing}
+          startAt={startAt}
+          update={update}
+          hasUnsaved={hasUnsaved}
+        />
+      ) : (
+        // Until the note is first edited and the editor's code is there, it shows as it reads.
+        <div className={SCROLL}>{view}</div>
       )}
       {status === 'error' ? (
         <Tooltip>
@@ -164,3 +155,6 @@ export default function StickyNoteCard({ instanceId, size, settings }: CardProps
     </div>
   )
 }
+
+/** The note's scrolling text area; the editor's `EditorContent` has the same classes. */
+const SCROLL = 'min-h-0 flex-1 scroll-fade scrollbar-none overflow-y-auto px-4 py-3.5'

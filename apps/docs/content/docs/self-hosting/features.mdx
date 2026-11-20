@@ -58,4 +58,4 @@ On by default in the compose file: users can [sync their tasks to Apple Reminder
 SEMESTRA_CALDAV=false
 ```
 
-Devices reach the server at `SEMESTRA_PUBLIC_URL`, so it must be an address the phone can open, not `localhost`. Use `https://` if you can: over plain http, the device first warns that it cannot connect using SSL and asks before it continues.
+Devices reach the server at `SEMESTRA_PUBLIC_URL`, so it must be an address the device can open. With `localhost`, only the computer running Semestra can install the profile; for an iPhone, use an address on your network (such as the computer's local IP) or your own domain. Both `https://` and plain `http://` work; over http the password is not sent in the clear, but the tasks themselves are, so prefer `https://` outside your home network.

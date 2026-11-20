@@ -1,8 +1,21 @@
-import { Extension } from '@tiptap/core'
+import { type Editor, Extension } from '@tiptap/core'
 import type { Node } from '@tiptap/pm/model'
 import { Plugin } from '@tiptap/pm/state'
 
 type Options = { max: number; onRefuse: () => void }
+
+// A document is serialized once: the limit measures it, and saving stores the same text.
+const serialized = new WeakMap<Node, string>()
+
+/** The note's Markdown for `doc` (the editor's current document unless given). */
+export function noteMarkdown(editor: Editor, doc: Node = editor.state.doc): string {
+  let markdown = serialized.get(doc)
+  if (markdown === undefined) {
+    markdown = editor.markdown?.serialize(doc.toJSON()) ?? ''
+    serialized.set(doc, markdown)
+  }
+  return markdown
+}
 
 /**
  * Keeps the stored Markdown within `max` characters (the settings schema's limit). An edit that
@@ -14,21 +27,12 @@ export const NoteLimit = Extension.create<Options>({
   addOptions: () => ({ max: Number.POSITIVE_INFINITY, onRefuse: () => {} }),
   addProseMirrorPlugins() {
     const { editor, options } = this
-    const lengths = new WeakMap<Node, number>()
-    const length = (doc: Node) => {
-      let known = lengths.get(doc)
-      if (known === undefined) {
-        known = editor.markdown?.serialize(doc.toJSON()).length ?? 0
-        lengths.set(doc, known)
-      }
-      return known
-    }
     return [
       new Plugin({
         filterTransaction: (tr, state) => {
           if (!tr.docChanged || tr.getMeta('preventUpdate')) return true
-          const next = length(tr.doc)
-          if (next <= options.max || next <= length(state.doc)) return true
+          const next = noteMarkdown(editor, tr.doc).length
+          if (next <= options.max || next <= noteMarkdown(editor, state.doc).length) return true
           options.onRefuse()
           return false
         },
