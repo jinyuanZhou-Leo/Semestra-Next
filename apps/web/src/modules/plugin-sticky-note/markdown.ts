@@ -1,24 +1,13 @@
 import type { JSONContent } from '@tiptap/core'
 import { HardBreak } from '@tiptap/extension-hard-break'
 import { Markdown, MarkdownManager } from '@tiptap/markdown'
-import { Marked } from 'marked'
+import { noteMarked } from './note-marked'
 
 /**
- * How a note is stored (M14 §4): plain Markdown that Sem can read and write as is. GFM (tables,
- * checklists), a single line break is a line break, and no HTML: `<`, `>` and `&` are text and
- * are stored verbatim. The only tag read is `<br>`, which tables use for a break inside a cell.
+ * How a note is stored (M14 §4): plain Markdown that Sem can read and write as is, read as
+ * `note-marked.ts` says. `<`, `>` and `&` are stored verbatim.
  */
-const BREAK = /^<br\s*\/?>/i
-
-const marked = new Marked({
-  gfm: true,
-  breaks: true,
-  tokenizer: {
-    // No match makes marked read the source as text; `false` falls back to the built-in rule.
-    html: () => undefined,
-    tag: (src: string) => (BREAK.test(src) ? false : undefined),
-  },
-}) as unknown as typeof import('marked').marked // the manager takes the module or an instance
+const marked = noteMarked() as unknown as typeof import('marked').marked // the manager takes the module or an instance
 
 /** Backslashes only where a character would otherwise start formatting. */
 function escapeText(text: string): string {

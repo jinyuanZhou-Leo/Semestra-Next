@@ -3,6 +3,7 @@ import { TableCell, TableHeader, TableKit } from '@tiptap/extension-table'
 import { Placeholder } from '@tiptap/extensions'
 import { ReactNodeViewRenderer } from '@tiptap/react'
 import { StarterKit } from '@tiptap/starter-kit'
+import { isAllowedHref } from './href'
 import { NoteLimit } from './limit'
 import { OpenLinkOnModClick } from './links'
 import { NoteHardBreak, NoteMarkdown } from './markdown'
@@ -26,7 +27,12 @@ export function noteExtensions({
   return [
     StarterKit.configure({
       hardBreak: false,
-      link: { openOnClick: false, autolink: true, protocols: ['mailto'] },
+      link: {
+        openOnClick: false,
+        autolink: true,
+        // One rule for the editor and the read-only view (`href.ts`).
+        isAllowedUri: (url) => isAllowedHref(url),
+      },
       // A note is a few lines: headings, quotes and code blocks still come in from Markdown.
       trailingNode: false,
     }),
