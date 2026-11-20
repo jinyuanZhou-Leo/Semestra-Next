@@ -192,7 +192,6 @@ const columns = column.columns([
 const COLUMN_CLASS: Record<string, string> = {
   color: 'w-20',
   code: 'w-28',
-  name: 'w-full max-w-0',
   actions: 'w-10',
 }
 
@@ -256,6 +255,7 @@ function EventTypesTable({ programId, types }: { programId: string; types: Event
       </SectionAction>
       <RowContext value={handlers}>
         <SettingsTable
+          fill="name"
           label={m.schedule_settings_event_types()}
           data={types}
           columns={columns}

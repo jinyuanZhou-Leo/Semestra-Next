@@ -115,7 +115,6 @@ const eventColumns = eventColumn.columns([
 ])
 
 const EVENT_COLUMN_CLASS: Record<string, string> = {
-  title: 'w-full max-w-0',
   actions: 'w-10',
 }
 
@@ -143,6 +142,7 @@ export function EventsTable({
   return (
     <EventsContext value={{ types, timezone, onEdit, onDelete: deleting.show }}>
       <SettingsTable
+        fill="title"
         label={m.schedule_events()}
         data={sorted}
         columns={eventColumns}

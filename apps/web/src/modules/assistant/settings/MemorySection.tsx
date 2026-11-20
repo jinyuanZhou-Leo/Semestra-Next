@@ -179,7 +179,7 @@ const columns = column.columns([
   }),
 ])
 
-const COLUMN_CLASS: Record<string, string> = { memory: 'w-full max-w-0', actions: 'w-10' }
+const COLUMN_CLASS: Record<string, string> = { actions: 'w-10' }
 
 /** Account settings → AI → Memory: what Sem remembers about the user, editable (M12 记忆). */
 export function MemorySection() {
@@ -233,6 +233,7 @@ function MemoryTable({ items }: { items: MemoryOut[] }) {
     <>
       <RowContext value={handlers}>
         <SettingsTable
+          fill="memory"
           label={m.assistant_settings_memories()}
           data={items}
           columns={columns}

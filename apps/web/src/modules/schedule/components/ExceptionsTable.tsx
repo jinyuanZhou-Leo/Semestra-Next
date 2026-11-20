@@ -87,10 +87,6 @@ const exceptionColumns = exceptionColumn.columns([
   exceptionColumn.display({ id: 'actions', header: ActionsHeader, cell: ExceptionRestoreCell }),
 ])
 
-const EXCEPTION_COLUMN_CLASS: Record<string, string> = {
-  change: 'w-full max-w-0',
-}
-
 /** Cancelled and moved classes, each with a button that puts the class back. */
 export function ExceptionsTable({
   exceptions,
@@ -105,11 +101,11 @@ export function ExceptionsTable({
   return (
     <ExceptionsContext value={{ busy, onRestore }}>
       <SettingsTable
+        fill="change"
         label={m.schedule_exceptions()}
         data={exceptions}
         columns={exceptionColumns}
         getRowId={(r) => r.exc.id}
-        columnClassName={EXCEPTION_COLUMN_CLASS}
       />
     </ExceptionsContext>
   )

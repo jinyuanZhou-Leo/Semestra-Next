@@ -326,6 +326,7 @@ function BandEditor({ scale }: { scale: GradingScale }) {
           data={rows.map((row, index) => ({ index, row }))}
           columns={bandColumns}
           getRowId={(line) => String(line.index)}
+          fill={null}
           columnClassName={BAND_COLUMN_CLASS}
         />
       </BandsContext>
@@ -520,7 +521,6 @@ const templateColumns = templateColumn.columns([
 
 const TEMPLATE_COLUMN_CLASS: Record<string, string> = {
   color: 'w-20',
-  name: 'w-full max-w-0',
   actions: 'w-10',
 }
 
@@ -580,6 +580,7 @@ function DefaultCategories({
           data={items}
           columns={templateColumns}
           getRowId={(t) => t.key}
+          fill="name"
           columnClassName={TEMPLATE_COLUMN_CLASS}
           onReorder={async (keys) =>
             apply(keys.flatMap((key) => items.filter((t) => t.key === key)))

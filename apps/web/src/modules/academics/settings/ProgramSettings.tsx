@@ -210,7 +210,7 @@ const subjectColumns = subjectColumn.columns([
   }),
 ])
 
-const SUBJECT_COLUMN_CLASS: Record<string, string> = { color: 'w-20', subject: 'w-full max-w-0' }
+const SUBJECT_COLUMN_CLASS: Record<string, string> = { color: 'w-20' }
 
 function refColor(ref: ColorRef): string {
   return 'palette' in ref ? subjectColor(`subject-${ref.palette}`) : ref.hex
@@ -270,6 +270,7 @@ export function SubjectColorsSection({ scope }: SettingsSectionProps) {
             }
           >
             <SettingsTable
+              fill="subject"
               label={m.academics_settings_subject_colors()}
               data={rows}
               columns={subjectColumns}

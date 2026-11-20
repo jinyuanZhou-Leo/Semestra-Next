@@ -368,7 +368,6 @@ const columns = column.columns([
 ])
 
 const COLUMN_CLASS: Record<string, string> = {
-  name: 'w-full max-w-0',
   status: 'w-56 whitespace-nowrap',
   actions: 'w-10',
 }
@@ -469,6 +468,7 @@ export function ProvidersSection() {
               </Button>
             </SectionAction>
             <SettingsTable
+              fill="name"
               label={m.ai_settings_providers()}
               data={data.items}
               columns={columns}

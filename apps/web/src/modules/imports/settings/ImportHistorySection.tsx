@@ -70,9 +70,11 @@ function OpenButton({ sessionId }: { sessionId: string }) {
 
 function SourceCell({ session }: { session: ImportSession }) {
   const names = session.source_refs.map((r) => r.filename).filter(Boolean)
+  const kind = SOURCE_KIND_LABELS[session.source_kind]()
   return (
-    <span className="block max-w-56 truncate">
-      {SOURCE_KIND_LABELS[session.source_kind]()}
+    // The column gives way to the others, so a long name is cut short; hovering shows all of it.
+    <span className="block truncate" title={[kind, ...names].join(' · ')}>
+      {kind}
       {names.length > 0 ? (
         <span className="text-muted-foreground"> · {names.join(', ')}</span>
       ) : null}
@@ -123,6 +125,7 @@ function HistoryTable({ programId, sessions }: { programId: string; sessions: Im
         data={sessions}
         columns={columns}
         getRowId={(s) => s.id}
+        fill="source"
         columnClassName={COLUMN_CLASS}
       />
     </ProgramIdContext>

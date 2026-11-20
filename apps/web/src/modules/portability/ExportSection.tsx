@@ -77,6 +77,7 @@ export function ExportSection() {
           description={m.portability_export_recent_desc()}
         >
           <SettingsTable
+            fill="export"
             label={m.portability_export_recent()}
             data={items}
             columns={columns}
@@ -157,4 +158,4 @@ const columns = column.columns([
     cell: ({ row }) => <DownloadCell item={row.original} />,
   }),
 ])
-const COLUMN_CLASS = { export: 'w-full max-w-0', download: 'text-right' }
+const COLUMN_CLASS = { download: 'text-right' }
