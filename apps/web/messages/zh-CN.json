@@ -3510,7 +3510,7 @@
   "lms_materials_held_course": "还有 {count} 份资料，不再随 {provider} 更新。",
   "lms_materials_held_remove": "移除…",
   "lms_materials_held_confirm_title": "移除已同步的资料？",
-  "lms_materials_held_confirm_desc": "这些资料将从课程文件中删除。重新开启同步后会再次同步进来。",
+  "lms_materials_held_confirm_desc": "这些资料将从课程文件中删除，你单独保存的文件会保留。重新开启同步后会再次同步进来。",
   "lms_materials_held_confirm_local": "{count} 个保存在 Semestra 的资料会连同副本一起删除。",
   "lms_materials_held_confirm_online": "{count} 个从 {provider} 读取的资料将移除，仍可在 {provider} 上查看。",
   "lms_course_unlink_kept": "{count} 个保存在 Semestra 的资料会留在课程文件中。",

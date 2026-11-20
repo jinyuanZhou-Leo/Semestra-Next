@@ -13999,7 +13999,7 @@
           "lms"
         ],
         "summary": "Remove the course files left from materials whose sync was turned off.",
-        "description": "Local copies too. Turning the materials sync on again brings them back.",
+        "description": "Local copies too, except files the user chose to keep. Turning the materials sync\non again brings them back.",
         "operationId": "lmsMaterialRemoveLeft",
         "requestBody": {
           "content": {

@@ -3510,7 +3510,7 @@
   "lms_materials_held_course": "{count} materials no longer update from {provider}.",
   "lms_materials_held_remove": "Remove…",
   "lms_materials_held_confirm_title": "Remove synced materials?",
-  "lms_materials_held_confirm_desc": "They are deleted from the course files. Turning the sync on again brings them back.",
+  "lms_materials_held_confirm_desc": "They are deleted from the course files; files you saved yourself stay. Turning the sync on again brings them back.",
   "lms_materials_held_confirm_local": "Saved in Semestra ({count}): deleted with their copies.",
   "lms_materials_held_confirm_online": "Read from {provider} ({count}): removed. They remain on {provider}.",
   "lms_course_unlink_kept": "Saved in Semestra ({count}): they stay in the course's files.",

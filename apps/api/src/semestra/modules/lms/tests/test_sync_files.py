@@ -24,6 +24,7 @@ from semestra.core.jobs import BACKGROUND, CoreJob
 from semestra.modules.files import content, pipeline, sources
 from semestra.modules.files.models import FilesDocument, FilesDocumentPage, FilesItem
 from semestra.modules.files.tests.conftest import FakeAi, make_pdf
+from semestra.modules.lms import sync_files
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.schemas.dto import FileMeta, InternalRef, Module, ModuleItem, PageSummary
 from semestra.modules.lms.tests.conftest import Api, FakeProvider
@@ -364,6 +365,10 @@ async def test_removing_what_turning_materials_off_left(api: Api, fake: FakeProv
     program_id, course = await _course(api)
     await api.sync(program_id)
     brought = set((await _files(api, course))[1])
+    # One the user chose to keep: theirs, neither counted nor removed.
+    lecture = (await _files(api, course))[1]["Lecture 1.pdf"]
+    await api.call("POST", f"/files/{lecture['id']}:keep-copy")
+    await api.run_jobs()
     held = "/me/lms/materials/held"
     # Syncing: nothing is left over, and there is nothing to remove.
     assert await api.call("GET", held) == {"courses": 0, "local": 0, "online": 0}
@@ -372,14 +377,14 @@ async def test_removing_what_turning_materials_off_left(api: Api, fake: FakeProv
 
     # Turned off: what came in stays, counted for the account and for the course.
     await _materials_setting(api, course, sync=False)
-    want = {"courses": 1, "local": 0, "online": len(brought)}
+    want = {"courses": 1, "local": 0, "online": len(brought) - 1}
     assert await api.call("GET", held) == want
     assert await api.call("GET", held, params={"course_id": course}) == want
 
     # Removed: gone from the files, and not as the user's deletes (nothing to restore).
     left = await api.call("POST", "/me/lms/materials:remove", json={"course_id": course})
     assert left == {"courses": 0, "local": 0, "online": 0}
-    assert (await _files(api, course))[1] == {}
+    assert set((await _files(api, course))[1]) == {"Lecture 1.pdf"}
     assert (await api.sync(program_id))["removed_count"] == 0
 
     # Turned on again: they all come back.
@@ -387,6 +392,34 @@ async def test_removing_what_turning_materials_off_left(api: Api, fake: FakeProv
     clock.advance(minutes=1)
     await api.run_jobs()
     assert set((await _files(api, course))[1]) == brought
+
+
+async def test_turned_off_while_the_platform_is_read(
+    api: Api, fake: FakeProvider, clock: Clock, monkeypatch: pytest.MonkeyPatch
+):
+    """The user turns the sync off and removes what it left while a sync is reading the
+    platform: that sync does not bring it all back once it gets the write lock."""
+    _materials(fake)
+    program_id, course = await _course(api)
+    await api.sync(program_id)
+    assert (await _files(api, course))[1]
+
+    real = sync_files.hold
+
+    async def user_answers_first(ctx: Any, link: Any) -> None:
+        if link.course_id == course and not answered:
+            answered.append(True)
+            await _materials_setting(api, course, sync=False)
+            await api.call("POST", "/me/lms/materials:remove", json={"course_id": course})
+        await real(ctx, link)
+
+    answered: list[bool] = []
+    monkeypatch.setattr(sync_files, "hold", user_answers_first)
+    clock.advance(minutes=1)
+    status = await api.sync(program_id)
+    assert answered
+    assert (await _files(api, course))[1] == {}
+    assert status["materials"] == []
 
 
 async def test_following_the_platform(api: Api, fake: FakeProvider, clock: Clock):

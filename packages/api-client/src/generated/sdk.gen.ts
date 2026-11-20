@@ -5471,7 +5471,8 @@ export const lmsMaterialCountLeft = <ThrowOnError extends boolean = false>(optio
 /**
  * Remove the course files left from materials whose sync was turned off.
  *
- * Local copies too. Turning the materials sync on again brings them back.
+ * Local copies too, except files the user chose to keep. Turning the materials sync
+ * on again brings them back.
  */
 export const lmsMaterialRemoveLeft = <ThrowOnError extends boolean = false>(options: Options<LmsMaterialRemoveLeftData, ThrowOnError>): RequestResult<LmsMaterialRemoveLeftResponses, LmsMaterialRemoveLeftErrors, ThrowOnError> => (options.client ?? client).post<LmsMaterialRemoveLeftResponses, LmsMaterialRemoveLeftErrors, ThrowOnError>({
     security: [{

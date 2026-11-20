@@ -904,8 +904,9 @@ async def materials_held(ctx: Ctx, inp: MaterialsScope) -> HeldMaterials:
 @capability(
     name="lms.material.remove_left",
     summary="Remove the course files left from materials whose sync was turned off.",
-    description="""Local copies too. Turning the materials sync on again brings them back.""",
-    effect="write",
+    description="""Local copies too, except files the user chose to keep. Turning the materials sync
+on again brings them back.""",
+    effect="destructive",
     http=Http("POST", "/me/lms/materials:remove"),
     expose=HTTP_ONLY,
     tags=TAGS,
