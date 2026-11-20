@@ -5,37 +5,20 @@ preferences; settings of a Program, term or course go with that scope.
 
 Version 2 only drops settings that no longer exist: `_v1_to_v2` removes the tasks setting
 `auto_tasks_from_assessments` (assessment tasks always exist since 2.0, migration 0033). A
-namespace whose rows moved since (`register_moved`: other levels, another namespace) is read at
-import as its module reads it, the version staying (owner 2026-11-18): M09's materials settings
-were per Program, and its `display` was the Canvas tab's (`plugin.canvas-tab`). Rows that end up
-on the same scope of a namespace become one, the values the backup had there winning.
+namespace whose rows a later migration moved (other levels, another namespace) is read by that
+migration's reshape step, registered by the module that owns the namespace with `move_rows`:
+M09's materials settings were per Program, and its `display` was the Canvas tab's.
 """
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable
 from typing import Any
 
-from semestra.core.context import Ctx
 from semestra.modules.portability import Table
-from semestra.modules.portability.registry import (
-    ImportOptions,
-    OlderArchive,
-    register_portability,
-)
-from semestra.modules.portability.tables import ImportReport, TableAdapter
+from semestra.modules.portability.registry import OlderArchive, register_portability
+from semestra.modules.portability.tables import TableAdapter
 from semestra.modules.settings.models import SettingsPreferences, SettingsUiState, SettingsValue
 
 SCHEMA_VERSION = 2
-
-# Namespace → reads its rows of an older backup (each `{namespace, scope_type, scope_id, data,
-# ...}`) as the rows they are now, given the archive's other payloads and whether account-level
-# rows are imported (the user asked for preferences).
-Moved = Callable[[list[dict[str, Any]], OlderArchive, bool], list[dict[str, Any]]]
-_moved: dict[str, Moved] = {}
-
-
-def register_moved(namespace: str, read: Moved) -> None:
-    _moved[namespace] = read
-
 
 # Settings removed since version 1, by namespace.
 _REMOVED = {"tasks": ("auto_tasks_from_assessments",)}
@@ -52,17 +35,20 @@ def _v1_to_v2(payload: dict[str, Any], archive: OlderArchive) -> dict[str, Any]:
     return {**payload, "values": values}
 
 
-def _current(
-    payload: dict[str, Any], archive: OlderArchive | None, account: bool
+def move_rows(
+    payload: dict[str, Any],
+    namespace: str,
+    read: Callable[[list[dict[str, Any]]], list[dict[str, Any]]],
 ) -> dict[str, Any]:
-    if archive is None or not _moved:
-        return payload
+    """For a reshape step of a migration that moved a namespace's settings (other levels,
+    another namespace): its rows (each `{namespace, scope_type, scope_id, data, ...}`) as `read`
+    gives them now. Rows that end up on the same scope of a namespace become one, the values
+    the backup had there winning."""
     rows = [r for r in payload.get("values") or [] if isinstance(r, dict)]
-    for namespace, read in _moved.items():
-        own = [r for r in rows if r.get("namespace") == namespace]
-        if own:
-            rest = [r for r in rows if r.get("namespace") != namespace]
-            rows = [*rest, *read(own, archive, account)]
+    own = [r for r in rows if r.get("namespace") == namespace]
+    if not own:
+        return payload
+    rows = [*(r for r in rows if r.get("namespace") != namespace), *read(own)]
     merged: dict[tuple[Any, ...], dict[str, Any]] = {}
     for r in rows:
         scope = (r.get("namespace"), r.get("scope_type"), r.get("scope_id"))
@@ -74,16 +60,7 @@ def _current(
     return {**payload, "values": list(merged.values())}
 
 
-class SettingsAdapter(TableAdapter):
-    async def import_(
-        self, ctx: Ctx, payload: dict[str, Any], id_map: Mapping[str, str], options: Any
-    ) -> ImportReport:
-        opts: ImportOptions = options
-        current = _current(payload, opts.archive, opts.include_preferences)
-        return await super().import_(ctx, current, id_map, options)
-
-
-ADAPTER = SettingsAdapter(
+ADAPTER = TableAdapter(
     "settings",
     SCHEMA_VERSION,
     (

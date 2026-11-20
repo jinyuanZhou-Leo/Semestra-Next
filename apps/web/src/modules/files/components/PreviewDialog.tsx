@@ -124,9 +124,6 @@ function NoPreview({ item, programId }: { item: ItemOut; programId?: string }) {
 
 type View = 'original' | 'text'
 
-// Hooks run before the file loads; no module's action accepts this.
-const PLACEHOLDER = { kind: 'link', url: null, source_kind: null } as unknown as ItemOut
-
 /** The file itself: what it is decides how it is shown (`previewKind`). */
 function PreviewBody({
   item,
@@ -326,7 +323,7 @@ export function PreviewDialog({
   const query = useDebounced(search, 300).trim()
 
   const kind = data ? previewKind(data) : 'none'
-  const actions = useItemActions(data ?? PLACEHOLDER)
+  const actions = useItemActions(data)
   const readable = data?.doc_status === 'ready' && (kind === 'pdf' || kind === 'document')
   const outline = useQuery({
     ...filesDocumentOutlineOptions({ path: { item_id: data?.id ?? '' } }),

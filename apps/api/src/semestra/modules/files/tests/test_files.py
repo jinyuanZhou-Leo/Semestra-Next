@@ -1049,7 +1049,9 @@ async def test_reindex_starts_over_when_the_model_changes_midway(fx: Fx, fake_ai
     assert (await fx.search("midterm", mode="semantic"))["mode_used"] == "semantic"
 
 
-async def test_downloading_several_as_one_zip(fx: Fx, monkeypatch: pytest.MonkeyPatch):
+async def test_downloading_several_as_one_zip(
+    fx: Fx, monkeypatch: pytest.MonkeyPatch, make_user: MakeUser, login_as: LoginAs
+):
     import io
     import zipfile
 
@@ -1071,25 +1073,39 @@ async def test_downloading_several_as_one_zip(fx: Fx, monkeypatch: pytest.Monkey
     await fx.upload("notes.txt", b"inside", folder_id=folder["id"])
     await fx.upload("data.csv", b"1,2", folder_id=sub["id"])
     gone = await fx.upload("gone.pdf", b"x", folder_id=sub["id"])
+    later = await fx.upload("later.txt", b"later")
     link = await fx.call(
         "POST", f"/courses/{fx.course_id}/file-links", json={"url": "https://example.com"}
     )
     # A file that cannot be read when its turn comes (gone from its source) is left out, and a
-    # list in the archive, in the user's language, names it.
+    # list in the archive, in the user's language, names it. Each file is opened once: the one
+    # opened when the archive is asked for is the one written into it.
     opened = content.open_content
+    opens: list[str] = []
 
     async def open_content(ctx: Any, row: Any, **kw: Any) -> Any:
+        opens.append(row.display_name)
         if row.id == gone["id"]:
             raise not_found()
         return await opened(ctx, row, **kw)
 
     monkeypatch.setattr(content, "open_content", open_content)
-    r = await fx.client.get(
-        f"/courses/{fx.course_id}/files:download",
-        params={"item_ids": [a["id"], link["id"]], "folder_ids": [folder["id"]]},
-    )
+
+    async def ask(item_ids: list[str], folder_ids: list[str] | None = None) -> Any:
+        return await fx.client.post(
+            f"/courses/{fx.course_id}/files:download",
+            json={"item_ids": item_ids, "folder_ids": folder_ids or []},
+        )
+
+    async def download(item_ids: list[str], folder_ids: list[str] | None = None) -> Any:
+        r = await ask(item_ids, folder_ids)
+        assert r.status_code == 200, r.text
+        return await fx.client.get(f"/file-downloads/{r.json()['download_id']}")
+
+    r = await download([a["id"], link["id"]], [folder["id"]])
     assert r.status_code == 200, r.text
     assert 'filename="APS105.zip"' in r.headers["content-disposition"]
+    assert sorted(opens) == ["data.csv", "gone.pdf", "notes.txt", "notes.txt"]
     with zipfile.ZipFile(io.BytesIO(r.content)) as zf:
         # Folders are kept, empty ones too.
         assert {n: zf.read(n) for n in zf.namelist()} == {
@@ -1104,16 +1120,23 @@ async def test_downloading_several_as_one_zip(fx: Fx, monkeypatch: pytest.Monkey
                 b"so they are not in this download:\n\nLabs/Lab 1/gone.pdf\n"
             ),
         }
+    # Unreadable files before the first readable one are tried once too, and listed.
     await fx.call("PATCH", "/me/preferences", json={"locale": "zh-CN"})
-    r = await fx.client.get(
-        f"/courses/{fx.course_id}/files:download", params={"item_ids": [a["id"], gone["id"]]}
-    )
+    opens.clear()
+    r = await download([gone["id"], later["id"]])
+    assert opens == ["gone.pdf", "later.txt"]
     with zipfile.ZipFile(io.BytesIO(r.content)) as zf:
         assert zf.read("未下载的文件.txt").decode().endswith("\n\ngone.pdf\n")
+    # The id fetches the archive once, and only for the user who asked for it.
+    r = await ask([a["id"]])
+    download_id = r.json()["download_id"]
+    await login_as(fx.client, await make_user(email="other@example.com"))
+    assert (await fx.client.get(f"/file-downloads/{download_id}")).status_code == 404
+    await login_as(fx.client, fx.user)
+    assert (await fx.client.get(f"/file-downloads/{download_id}")).status_code == 200
+    assert (await fx.client.get(f"/file-downloads/{download_id}")).status_code == 404
     # None of them can be read: an error, not an empty archive.
-    r = await fx.client.get(
-        f"/courses/{fx.course_id}/files:download", params={"item_ids": [gone["id"]]}
-    )
+    r = await ask([gone["id"]])
     assert r.status_code == 502
     assert r.json()["error"]["code"] == "files.download_unavailable"
     # A file that breaks off halfway breaks the download off: no archive that looks whole.
@@ -1127,14 +1150,24 @@ async def test_downloading_several_as_one_zip(fx: Fx, monkeypatch: pytest.Monkey
 
     monkeypatch.setattr(content, "open_content", open_broken)
     with pytest.raises(RuntimeError, match="response already started"):
-        await fx.client.get(
-            f"/courses/{fx.course_id}/files:download", params={"item_ids": [a["id"]]}
-        )
+        await download([a["id"]])
     # Only links: nothing to download.
-    r = await fx.client.get(
-        f"/courses/{fx.course_id}/files:download", params={"item_ids": [link["id"]]}
+    assert (await ask([link["id"]])).status_code == 404
+
+
+async def test_an_archive_not_fetched_in_time_is_dropped(fx: Fx, monkeypatch: pytest.MonkeyPatch):
+    import asyncio
+
+    from semestra.modules.files import downloads
+
+    monkeypatch.setattr(downloads, "TTL_SECONDS", 0.01)
+    a = await fx.upload("a.txt", b"a")
+    b = await fx.upload("b.txt", b"b")
+    r = await fx.client.post(
+        f"/courses/{fx.course_id}/files:download", json={"item_ids": [a["id"], b["id"]]}
     )
-    assert r.status_code == 404
+    await asyncio.sleep(0.05)
+    assert (await fx.client.get(f"/file-downloads/{r.json()['download_id']}")).status_code == 404
 
 
 async def test_an_upload_asks_which_files_look_already_there(fx: Fx):

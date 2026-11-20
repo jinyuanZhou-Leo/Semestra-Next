@@ -121,7 +121,7 @@ export function prefetchTermCourses(
 const COURSE_INFO_ROWS_TIMEOUT_MS = 1000
 
 /**
- * Resolves once every extra row of the course info card has its data (or failed), after
+ * Resolves once every extra row of the course info card has its code and data (or failed), after
  * `COURSE_INFO_ROWS_TIMEOUT_MS` at the latest. The card renders when this query has data; the
  * board's prefetch starts the same query, so the rows load along with the card's code.
  */
@@ -134,7 +134,10 @@ export function courseInfoRowsReadyOptions(
     queryKey: ['academics', 'courseInfoRowsReady', course.courseId, rows.map((row) => row.id)],
     queryFn: () =>
       Promise.race([
-        Promise.all(rows.map((row) => row.prefetch?.(course, queryClient).catch(() => undefined))),
+        Promise.all([
+          ...rows.map((row) => row.prefetch?.(course, queryClient).catch(() => undefined)),
+          ...rows.map((row) => preload(row.component)),
+        ]),
         new Promise((resolve) => setTimeout(resolve, COURSE_INFO_ROWS_TIMEOUT_MS)),
       ]).then(() => true),
     // Only the first showing waits; afterwards each row follows its own queries.

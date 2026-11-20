@@ -12,6 +12,7 @@ from alembic import command
 from alembic.config import Config
 
 from semestra.modules.lms.tests.conftest import Api
+from semestra.modules.lms.tests.test_sync_files import made_by
 from semestra.testing import API_DIR
 
 
@@ -52,13 +53,16 @@ def test_migration_moves_the_canvas_tab_display_setting(tmp_path: Path):
 
 
 def _as_2_0(archive: bytes) -> bytes:
-    """The backup as 2.0 wrote it: the display setting in the Canvas tab's namespace."""
+    """The backup as 2.0 wrote it: the display setting in the Canvas tab's namespace (a backup
+    of 2.1 to 2.4 kept that row as it was)."""
     source = zipfile.ZipFile(io.BytesIO(archive))
     out = io.BytesIO()
     with zipfile.ZipFile(out, "w") as z:
         for name in source.namelist():
             data = source.read(name)
-            if name == "data/settings.json":
+            if name == "manifest.json":
+                data = made_by(data, "2.4.0")  # 2.1 to 2.4 kept the old row too
+            elif name == "data/settings.json":
                 payload: dict[str, Any] = json.loads(data)
                 rows: list[dict[str, Any]] = payload["values"]
                 [lms] = [r for r in rows if r["namespace"] == "lms"]

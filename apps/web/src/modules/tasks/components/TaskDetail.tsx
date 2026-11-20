@@ -1,6 +1,6 @@
 import type { Course, Task, TaskList } from '@semestra/api-client'
 import { CalendarDays, Clock2, Trash2, X } from 'lucide-react'
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import { useHotkey } from '@/app/hotkeys'
 import { useExtensions } from '@/app/registry'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
@@ -323,8 +323,11 @@ export function TaskDetail({
               </Select>
             </Field>
           )}
+          {/* Preloaded with the page (`prefetchTasksPage`); still loading, the rest shows first. */}
           {sections.map(({ id, Component }) => (
-            <Component key={id} task={task} onClose={onClose} />
+            <Suspense key={id} fallback={null}>
+              <Component task={task} onClose={onClose} />
+            </Suspense>
           ))}
           {!managed && source ? (
             <p className="text-xs text-muted-foreground">

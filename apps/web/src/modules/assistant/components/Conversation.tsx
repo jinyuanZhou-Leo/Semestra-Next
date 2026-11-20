@@ -97,40 +97,10 @@ import { Remembered } from './Remembered'
 import { ScopeChip } from './ScopeChip'
 import { SuggestionChips } from './SuggestionChips'
 import { Thinking } from './Steps'
+import { IconAction } from '@/components/IconAction'
 
 const MAX_ATTACHMENTS = 10
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
-
-function IconAction({
-  label,
-  onClick,
-  disabled,
-  children,
-}: {
-  label: string
-  onClick: () => void
-  disabled?: boolean
-  children: React.ReactNode
-}) {
-  return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={label}
-            disabled={disabled}
-            onClick={onClick}
-          />
-        }
-      >
-        {children}
-      </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
-    </Tooltip>
-  )
-}
 
 function CopyAction({ text }: { text: string }) {
   const { copied, copy } = useCopy()

@@ -1,9 +1,9 @@
 import { ChevronLeft, ChevronRight, Minus, Plus } from 'lucide-react'
-import { type ReactNode, useState } from 'react'
+import { useState } from 'react'
 import { m } from '@/paraglide/messages'
-import { Button } from '@/ui/button'
 import { Separator } from '@/ui/separator'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
+import { IconAction } from '@/components/IconAction'
 
 /** Zoom steps of the PDF viewer's buttons, as a share of the width that fits the window. */
 export const ZOOM_STEPS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4] as const
@@ -21,38 +21,6 @@ function stepFrom(zoom: number, direction: 1 | -1) {
   return direction > 0
     ? ZOOM_STEPS.find((z) => z > zoom + eps)
     : ZOOM_STEPS.findLast((z) => z < zoom - eps)
-}
-
-function IconButton({
-  label,
-  disabled,
-  onClick,
-  children,
-}: {
-  label: string
-  disabled?: boolean
-  onClick: () => void
-  children: ReactNode
-}) {
-  return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="rounded-full"
-            aria-label={label}
-            disabled={disabled}
-            onClick={onClick}
-          />
-        }
-      >
-        {children}
-      </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
-    </Tooltip>
-  )
 }
 
 /**
@@ -86,13 +54,14 @@ export function PageControls({
   const larger = zoom === undefined ? undefined : stepFrom(zoom, 1)
   return (
     <div className="absolute bottom-5 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1 rounded-full bg-popover p-1 shadow-lg ring-1 ring-foreground/10 animate-in duration-200 fade-in-0 slide-in-from-bottom-2">
-      <IconButton
+      <IconAction
+        className="rounded-full"
         label={m.files_preview_previous_page()}
         disabled={page <= 1}
         onClick={() => onPage(page - 1)}
       >
         <ChevronLeft aria-hidden />
-      </IconButton>
+      </IconAction>
       <form
         className="flex items-center gap-1"
         onSubmit={(event) => {
@@ -118,26 +87,28 @@ export function PageControls({
           {m.files_preview_page_of({ total: total || '…' })}
         </span>
       </form>
-      <IconButton
+      <IconAction
+        className="rounded-full"
         label={m.files_preview_next_page()}
         disabled={total === 0 || page >= total}
         onClick={() => onPage(page + 1)}
       >
         <ChevronRight aria-hidden />
-      </IconButton>
+      </IconAction>
       {zoom !== undefined && onZoom ? (
         <>
           <Separator
             orientation="vertical"
             className="mx-1 data-vertical:h-5 data-vertical:self-center"
           />
-          <IconButton
+          <IconAction
+            className="rounded-full"
             label={m.files_preview_zoom_out()}
             disabled={smaller === undefined}
             onClick={() => onZoom(smaller ?? zoom)}
           >
             <Minus aria-hidden />
-          </IconButton>
+          </IconAction>
           <Tooltip>
             <form
               onSubmit={(event) => {
@@ -164,13 +135,14 @@ export function PageControls({
             </form>
             <TooltipContent>{m.files_preview_zoom_hint()}</TooltipContent>
           </Tooltip>
-          <IconButton
+          <IconAction
+            className="rounded-full"
             label={m.files_preview_zoom_in()}
             disabled={larger === undefined}
             onClick={() => onZoom(larger ?? zoom)}
           >
             <Plus aria-hidden />
-          </IconButton>
+          </IconAction>
         </>
       ) : null}
     </div>

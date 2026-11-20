@@ -32,6 +32,7 @@ function post(id: string, overrides: Partial<CourseAnnouncement> = {}): CourseAn
     web_url: `https://q.utoronto.ca/courses/101/discussion_topics/${id}`,
     title: `Post ${id}`,
     html: `<p>Body of ${id}</p>`,
+    text: `Body of ${id}`,
     author: 'Prof. Lee',
     posted_at: '2026-02-10T15:00:00Z',
     updated_at: null,
@@ -46,6 +47,7 @@ const COURSE_POSTS = [
   post('1', {
     title: 'Midterm room change',
     html: '<p>We moved to <b>BA1160</b>.</p>',
+    text: 'We moved to BA1160.',
     unread: true,
   }),
   post('2', { title: 'Welcome', posted_at: '2026-01-06T15:00:00Z' }),
@@ -322,8 +324,16 @@ test('the display follows the account setting and a pick stays for the next anno
   mockApi({
     display: 'original',
     posts: [
-      post('1', { title: 'First', html: '<p style="color: rgb(0, 42, 92)">One</p>' }),
-      post('2', { title: 'Second', html: '<p style="color: rgb(0, 42, 92)">Two</p>' }),
+      post('1', {
+        title: 'First',
+        html: '<p style="color: rgb(0, 42, 92)">One</p>',
+        text: 'One',
+      }),
+      post('2', {
+        title: 'Second',
+        html: '<p style="color: rgb(0, 42, 92)">Two</p>',
+        text: 'Two',
+      }),
     ],
   })
   renderPage(COURSE, '/?post=c1:1')

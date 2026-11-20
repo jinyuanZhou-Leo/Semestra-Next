@@ -117,6 +117,9 @@ class FakeProvider:
         self.deleted_files: set[str] = set()
         # What a file holds, by id; any other file reads "hello".
         self.file_bytes: dict[str, bytes] = {}
+        # Downloads started and those whose connection was closed (ended, or closed early).
+        self.downloads_open: list[str] = []
+        self.downloads_closed: list[str] = []
 
     def normalize_config(self, raw: dict[str, Any], settings: Settings) -> BaseModel:
         url = str(raw.get("base_url") or "").rstrip("/")
@@ -294,11 +297,15 @@ class FakeProvider:
             raise lms_error("lms.forbidden")
         if self.fail_downloads:
             raise lms_error("lms.unreachable")
-        if file.external_id in self.file_bytes:
-            yield self.file_bytes[file.external_id]
-            return
-        yield b"he"
-        yield b"llo"
+        self.downloads_open.append(file.external_id)
+        try:
+            if file.external_id in self.file_bytes:
+                yield self.file_bytes[file.external_id]
+                return
+            yield b"he"
+            yield b"llo"
+        finally:
+            self.downloads_closed.append(file.external_id)
 
     async def submission(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, assignment_id: str

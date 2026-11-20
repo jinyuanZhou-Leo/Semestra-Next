@@ -262,6 +262,27 @@ class UploadResult(BaseModel):
     items: list[ItemOut]
 
 
+# A sanity bound only: the ids travel in the body, not in an address.
+MAX_DOWNLOAD_ENTRIES = 10_000
+
+
+class DownloadInput(BaseModel):
+    item_ids: list[Id] = Field(
+        default_factory=list, max_length=MAX_DOWNLOAD_ENTRIES, description="Files to put in it"
+    )
+    folder_ids: list[Id] = Field(
+        default_factory=list,
+        max_length=MAX_DOWNLOAD_ENTRIES,
+        description="Folders to put in it, whole",
+    )
+
+
+class DownloadPrepared(BaseModel):
+    download_id: str = Field(
+        description="Fetch the archive once, within a minute, at GET /file-downloads/{download_id}"
+    )
+
+
 # --- documents ------------------------------------------------------------------------------
 
 

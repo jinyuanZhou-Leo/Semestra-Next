@@ -31,7 +31,7 @@ from semestra.core.context import Ctx, run_as_system
 from semestra.core.errors import AppError
 from semestra.core.events import events, spawn
 from semestra.modules.files import sources as files
-from semestra.modules.lms import service
+from semestra.modules.lms import html, service
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.models import (
     LmsAnnouncement,
@@ -295,6 +295,7 @@ async def _out(
                 web_url=r.web_url,
                 title=r.title,
                 html=r.html,
+                text=" ".join((html.to_text(r.html) or "").split()),
                 author=r.author,
                 posted_at=r.posted_at,
                 updated_at=r.updated_at,

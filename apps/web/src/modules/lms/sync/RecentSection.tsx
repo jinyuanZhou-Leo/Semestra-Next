@@ -1,6 +1,7 @@
 import type { SyncChange, SyncMaterialChange } from '@semestra/api-client'
 import { MessageSquareText, Redo2, Undo2 } from 'lucide-react'
-import { PanelHeading, PanelIconAction, PanelRow } from '@/components/StatusPanel'
+import { IconAction } from '@/components/IconAction'
+import { PanelHeading, PanelRow } from '@/components/StatusPanel'
 import { formatTimeAgo } from '@/lib/format'
 import { filePath } from '@/modules/files/location'
 import { m } from '@/paraglide/messages'
@@ -113,14 +114,14 @@ export function RecentSection({
                 }}
               >
                 {change.toggleable ? (
-                  <PanelIconAction
+                  <IconAction
                     label={change.reverted ? m.lms_sync_redo() : m.lms_sync_undo()}
                     disabled={answers.busy}
                     onClick={() => void answers.toggle(change)}
-                    className="opacity-0 group-hover/item:opacity-100 focus-visible:opacity-100"
+                    className="text-muted-foreground opacity-0 group-hover/item:opacity-100 focus-visible:opacity-100"
                   >
                     {change.reverted ? <Redo2 aria-hidden /> : <Undo2 aria-hidden />}
-                  </PanelIconAction>
+                  </IconAction>
                 ) : null}
               </PanelRow>
             ),

@@ -53,6 +53,21 @@ export function preload(component: unknown): Promise<void> {
   return load ? load().catch(() => undefined) : Promise.resolve()
 }
 
+/**
+ * Starts loading the `preloadable` components the modules contribute to extension point `point`
+ * (any field of a contribution); resolves when they have loaded or failed. The page, card or
+ * form that shows the point calls it before it renders them, as `preloadPage` does for pages.
+ */
+export function preloadExtensions(
+  modules: readonly ModuleManifest[],
+  point: string,
+): Promise<void> {
+  const contributions = modules.flatMap((module) => module.extensions?.[point] ?? [])
+  return Promise.all(
+    contributions.flatMap((c) => (c && typeof c === 'object' ? Object.values(c).map(preload) : [])),
+  ).then(() => undefined)
+}
+
 export type PageProps = { scope: Scope }
 
 export type PageContribution = {

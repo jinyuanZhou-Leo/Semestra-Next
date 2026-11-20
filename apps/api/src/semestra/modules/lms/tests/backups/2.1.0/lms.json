@@ -1,0 +1,132 @@
+{
+ "announcements": [
+  {
+   "attachments": [],
+   "author": null,
+   "external_id": "n101",
+   "html": "<p>Hi <a data-lms-kind=\"page\" data-lms-ref=\"intro\" href=\"https://fake/courses/101/pages/intro\" target=\"_blank\" rel=\"noopener noreferrer\">intro</a><img data-lms-kind=\"file\" data-lms-ref=\"77\" src=\"https://fake/courses/101/files/77/preview\" alt=\"x\"></p>",
+   "link_id": "01a1fa82-bcdc-751e-a271-316e837d4d3e",
+   "posted_at": null,
+   "read_at": "2026-01-15T12:00:00Z",
+   "title": "Welcome",
+   "updated_at": null,
+   "web_url": null
+  }
+ ],
+ "bindings": [
+  {
+   "connection_id": "01a1fa82-bc82-701a-bc19-375ff5dc1b03",
+   "program_id": "01a1fa82-bc51-70db-bcc3-a6a0d32327d4"
+  }
+ ],
+ "connections": [
+  {
+   "account_name": "Ada Student",
+   "config": {
+    "base_url": "https://fake.example.edu"
+   },
+   "display_name": "fake.example.edu",
+   "id": "01a1fa82-bc82-701a-bc19-375ff5dc1b03",
+   "provider": "fake"
+  }
+ ],
+ "feedback": [],
+ "links": [
+  {
+   "connection_id": "01a1fa82-bc82-701a-bc19-375ff5dc1b03",
+   "course_id": "01a1fa82-bc9b-7167-8f36-fd572bbe01c3",
+   "external_code": "APS105H1 S LEC0101",
+   "external_course_id": "101",
+   "external_name": "Computer Fundamentals",
+   "external_term": "Winter 2026",
+   "id": "01a1fa82-bcdc-751e-a271-316e837d4d3e",
+   "program_id": "01a1fa82-bc51-70db-bcc3-a6a0d32327d4",
+   "sync_enabled": true,
+   "web_url": "https://fake/courses/101"
+  }
+ ],
+ "materials": [
+  {
+   "checked_at": null,
+   "external_id": "i3",
+   "imported_at": "2026-01-15T12:00:00Z",
+   "item_id": "01a1fa82-bd77-71bb-a3f4-a3823d55dd5e",
+   "kind": "link",
+   "link_id": "01a1fa82-bcdc-751e-a271-316e837d4d3e",
+   "links": [],
+   "name": "Recording xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "sorted_by_model": false,
+   "state": "synced",
+   "state_at": "2026-01-15T12:00:00Z",
+   "title": "Recording xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "type": "recordings",
+   "version": "https://media.example.edu/v/1"
+  },
+  {
+   "checked_at": null,
+   "external_id": "201",
+   "imported_at": "2026-01-15T12:00:00Z",
+   "item_id": "01a1fa82-bd93-7166-b1be-daec91677cc2",
+   "kind": "file",
+   "link_id": "01a1fa82-bcdc-751e-a271-316e837d4d3e",
+   "links": [],
+   "name": "Lecture 1.pdf",
+   "sorted_by_model": false,
+   "state": "synced",
+   "state_at": "2026-01-15T12:00:00Z",
+   "title": "Lecture 1.pdf",
+   "type": "lectures",
+   "version": "2026-01-10T00:00:00+00:00|1000"
+  },
+  {
+   "checked_at": null,
+   "external_id": "202",
+   "imported_at": "2026-01-15T12:00:00Z",
+   "item_id": "01a1fa82-bda5-728f-86bb-33be17333d4f",
+   "kind": "file",
+   "link_id": "01a1fa82-bcdc-751e-a271-316e837d4d3e",
+   "links": [],
+   "name": "Week one.pdf",
+   "sorted_by_model": false,
+   "state": "synced",
+   "state_at": "2026-01-15T12:00:00Z",
+   "title": "W1.pdf",
+   "type": "general",
+   "version": "2026-01-10T00:00:00+00:00|1000"
+  },
+  {
+   "checked_at": null,
+   "external_id": "203",
+   "imported_at": "2026-01-15T12:00:00Z",
+   "item_id": "01a1fa82-bdb4-7450-a813-709d800825f0",
+   "kind": "file",
+   "link_id": "01a1fa82-bcdc-751e-a271-316e837d4d3e",
+   "links": [],
+   "name": "Midterm.pdf",
+   "sorted_by_model": false,
+   "state": "synced",
+   "state_at": "2026-01-15T12:00:00Z",
+   "title": "Midterm.pdf",
+   "type": "exams",
+   "version": "2026-01-10T00:00:00+00:00|1000"
+  },
+  {
+   "checked_at": null,
+   "external_id": "205",
+   "imported_at": "2026-01-15T12:00:00Z",
+   "item_id": null,
+   "kind": "file",
+   "link_id": "01a1fa82-bcdc-751e-a271-316e837d4d3e",
+   "links": [],
+   "name": "data.zip",
+   "sorted_by_model": false,
+   "state": "dismissed",
+   "state_at": "2026-01-15T12:00:00Z",
+   "title": "data.zip",
+   "type": "general",
+   "version": "2026-01-10T00:00:00+00:00|1000"
+  }
+ ],
+ "refs": [],
+ "schema_version": 2
+}

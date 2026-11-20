@@ -14,7 +14,7 @@ import {
 import { useState, useSyncExternalStore } from 'react'
 import { openCommandPalette } from '@/app/commands'
 import { useCommandContext } from '@/app/commands/context'
-import type { AssistantContribution } from '@/app/extensions'
+import { type AssistantContribution, preloadExtensions } from '@/app/extensions'
 import { formatHotkey } from '@/app/hotkeys'
 import { ENTRY_ACTION_ON_HOVER, GROUP_LABEL } from '@/app/host/sidebar-classes'
 import { StatusBar } from '@/app/host/StatusBar'
@@ -58,6 +58,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { CreateProgramDialog } from '../components/CreateProgramDialog'
 import { programPath } from '../paths'
+import { PROGRAM_SETUP_FIELDS } from '../types'
 import { usePrograms } from '../queries'
 import { SidebarPins } from './SidebarPins'
 import { SidebarProgramLinks, SidebarWork } from './SidebarWork'
@@ -67,6 +68,7 @@ const ASSISTANT_PAGE = /\/assistant(\/|$)/
 /** The Program at the top: the Programs to switch between, and where a new one is created. */
 function ProgramHeader({ programs, current }: { programs: Program[]; current: Program }) {
   const [creating, setCreating] = useState(false)
+  const modules = useModules()
   const face = (
     <>
       <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
@@ -83,7 +85,12 @@ function ProgramHeader({ programs, current }: { programs: Program[]; current: Pr
   return (
     <SidebarMenu>
       <SidebarMenuItem>
-        <DropdownMenu>
+        {/* Opening the menu starts loading what the new Program form shows from other modules. */}
+        <DropdownMenu
+          onOpenChange={(open) => {
+            if (open) void preloadExtensions(modules, PROGRAM_SETUP_FIELDS)
+          }}
+        >
           <DropdownMenuTrigger
             render={
               <SidebarMenuButton

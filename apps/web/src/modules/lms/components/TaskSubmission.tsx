@@ -1,8 +1,9 @@
-import type { AssignmentOut, Task } from '@semestra/api-client'
+import type { AssignmentOut } from '@semestra/api-client'
 import { lmsAssignmentListOptions, lmsCourseLinkGetOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import { School } from 'lucide-react'
 import { formatDateTime } from '@/lib/format'
+import type { TaskDetailSectionProps } from '@/modules/tasks/types'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from '@/ui/item'
@@ -16,7 +17,7 @@ import { useProgramProviderName, useProviderName, useProviderUis } from '../prov
  * which take the panel's place. Imported as a to-do, or as the assessment the to-do belongs to;
  * other to-dos show nothing.
  */
-export default function TaskSubmission({ task, onClose }: { task: Task; onClose: () => void }) {
+export default function TaskSubmission({ task, onClose }: TaskDetailSectionProps) {
   const assignment = useAssignmentOf(task.program_id, {
     taskId: task.id,
     assessmentId: task.assessment_id,

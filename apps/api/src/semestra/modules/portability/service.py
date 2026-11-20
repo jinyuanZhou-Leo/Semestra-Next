@@ -11,7 +11,7 @@ from typing import Any
 import anyio
 import structlog
 from fastapi import UploadFile
-from sqlalchemy import delete, func, literal, select, union_all
+from sqlalchemy import delete, func, literal, select, text, union_all
 from sqlalchemy.exc import SQLAlchemyError
 from starlette.datastructures import State
 
@@ -187,6 +187,12 @@ async def list_exports(ctx: Ctx) -> list[ExportOut]:
     return [_export_out(r) for r in rows]
 
 
+async def _db_revision(ctx: Ctx) -> str | None:
+    """The database's migration (Alembic's `alembic_version`), which says the shape of what the
+    adapters export (`upgrade.revision_of`)."""
+    return await ctx.db.scalar(text("SELECT version_num FROM alembic_version"))
+
+
 async def build_export(ctx: JobCtx, archive_id: str) -> int:
     """Runs every adapter's export into a zip and stores it; returns its size."""
     row = await _own(ctx, archive_id, "export")
@@ -211,6 +217,7 @@ async def build_export(ctx: JobCtx, archive_id: str) -> int:
                 version=VERSION,
                 exported_at=ctx.now,
                 app_version=__version__,
+                db_revision=await _db_revision(ctx),
                 modules=modules,
                 include_files=row.include_files,
                 counts=counts,
@@ -345,7 +352,7 @@ async def upload(ctx: Ctx, file: UploadFile) -> ImportOut:
 
 async def _preview(ctx: Ctx, reader: ArchiveReader) -> ImportPreview:
     manifest = reader.manifest
-    payloads = Payloads(reader.payload, manifest.modules, ctx.now)
+    payloads = Payloads(reader.payload, manifest, ctx.now)
     counts: dict[str, dict[str, int]] = {}
     unknown: list[str] = []
     for module in sorted(manifest.modules):
@@ -522,14 +529,18 @@ async def run_import(ctx: JobCtx, archive_id: str, options: ImportOptions) -> No
         reader = await anyio.to_thread.run_sync(ArchiveReader, path)
         try:
             ordered = [a for a in adapters() if reader.manifest.modules.get(a.module) is not None]
-            payloads = Payloads(reader.payload, reader.manifest.modules, ctx.now)
+            payloads = Payloads(
+                reader.payload,
+                reader.manifest,
+                ctx.now,
+                preferences=options.include_preferences,
+            )
             for adapter in ordered:
                 adapter.check_version(reader.manifest.modules[adapter.module])
             staged = _StagedFiles(
                 ctx, reader, await _import_room(ctx, replacing=options.mode == "replace")
             )
             options.files = staged
-            options.archive = payloads
             id_map = IdMap()
             await ctx.db.commit()  # nothing of this job's own reads stays open while copying
             await ctx.stage("copying")

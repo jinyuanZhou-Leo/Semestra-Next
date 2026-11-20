@@ -1,0 +1,152 @@
+{
+ "announcements": [
+  {
+   "attachments": [],
+   "author": null,
+   "external_id": "n101",
+   "html": "<p>Hi <a data-lms-kind=\"page\" data-lms-ref=\"intro\" href=\"https://fake/courses/101/pages/intro\" target=\"_blank\" rel=\"noopener noreferrer\">intro</a><img data-lms-kind=\"file\" data-lms-ref=\"77\" src=\"https://fake/courses/101/files/77/preview\" alt=\"x\"></p>",
+   "link_id": "01a1fa82-311f-7352-8f03-613c08268d53",
+   "posted_at": null,
+   "read_at": "2026-01-15T12:00:00Z",
+   "title": "Welcome",
+   "updated_at": null,
+   "web_url": null
+  }
+ ],
+ "bindings": [
+  {
+   "connection_id": "01a1fa82-30c1-74a4-a205-8fd0c37e1ecc",
+   "program_id": "01a1fa82-308f-7355-8c6b-aae2f8bcb9d6"
+  }
+ ],
+ "connections": [
+  {
+   "account_name": "Ada Student",
+   "config": {
+    "base_url": "https://fake.example.edu"
+   },
+   "display_name": "fake.example.edu",
+   "id": "01a1fa82-30c1-74a4-a205-8fd0c37e1ecc",
+   "provider": "fake"
+  }
+ ],
+ "feedback": [],
+ "links": [
+  {
+   "connection_id": "01a1fa82-30c1-74a4-a205-8fd0c37e1ecc",
+   "course_id": "01a1fa82-30dc-7264-ae27-604af6c0978b",
+   "external_code": "APS105H1 S LEC0101",
+   "external_course_id": "101",
+   "external_name": "Computer Fundamentals",
+   "external_term": "Winter 2026",
+   "id": "01a1fa82-311f-7352-8f03-613c08268d53",
+   "program_id": "01a1fa82-308f-7355-8c6b-aae2f8bcb9d6",
+   "sync_enabled": true,
+   "web_url": "https://fake/courses/101"
+  }
+ ],
+ "materials": [
+  {
+   "checked_at": null,
+   "external_id": "i3",
+   "imported_at": "2026-01-15T12:00:00Z",
+   "item_id": "01a1fa82-31c5-74f4-ab69-db4d7ba08089",
+   "kind": "link",
+   "link_id": "01a1fa82-311f-7352-8f03-613c08268d53",
+   "links": [],
+   "name": "Recording xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "path": [
+    [
+     "module:m1",
+     "Week 1"
+    ]
+   ],
+   "placed_folder_id": "01a1fa82-31be-740b-9029-bd4bdaacaeda",
+   "state": "synced",
+   "state_at": "2026-01-15T12:00:00Z",
+   "title": "Recording xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "version": "https://media.example.edu/v/1"
+  },
+  {
+   "checked_at": null,
+   "external_id": "201",
+   "imported_at": "2026-01-15T12:00:00Z",
+   "item_id": "01a1fa82-31d6-7504-820f-35f51709a6fb",
+   "kind": "file",
+   "link_id": "01a1fa82-311f-7352-8f03-613c08268d53",
+   "links": [],
+   "name": "Lecture 1.pdf",
+   "path": [
+    [
+     "folder:Lectures",
+     "Lectures"
+    ]
+   ],
+   "placed_folder_id": "01a1fa82-31cf-754f-8769-ea6e56bff741",
+   "state": "synced",
+   "state_at": "2026-01-15T12:00:00Z",
+   "title": "Lecture 1.pdf",
+   "version": "2026-01-10T00:00:00+00:00|1000"
+  },
+  {
+   "checked_at": null,
+   "external_id": "202",
+   "imported_at": "2026-01-15T12:00:00Z",
+   "item_id": "01a1fa82-31e2-75fb-b497-c2abcc055e2c",
+   "kind": "file",
+   "link_id": "01a1fa82-311f-7352-8f03-613c08268d53",
+   "links": [],
+   "name": "Week one.pdf",
+   "path": [],
+   "placed_folder_id": null,
+   "state": "synced",
+   "state_at": "2026-01-15T12:00:00Z",
+   "title": "W1.pdf",
+   "version": "2026-01-10T00:00:00+00:00|1000"
+  },
+  {
+   "checked_at": null,
+   "external_id": "203",
+   "imported_at": "2026-01-15T12:00:00Z",
+   "item_id": "01a1fa82-31f2-714c-a539-323a7baab461",
+   "kind": "file",
+   "link_id": "01a1fa82-311f-7352-8f03-613c08268d53",
+   "links": [],
+   "name": "Midterm.pdf",
+   "path": [
+    [
+     "folder:Exams",
+     "Exams"
+    ]
+   ],
+   "placed_folder_id": "01a1fa82-31eb-709d-82c2-7f4f294dfbf8",
+   "state": "synced",
+   "state_at": "2026-01-15T12:00:00Z",
+   "title": "Midterm.pdf",
+   "version": "2026-01-10T00:00:00+00:00|1000"
+  },
+  {
+   "checked_at": null,
+   "external_id": "205",
+   "imported_at": "2026-01-15T12:00:00Z",
+   "item_id": null,
+   "kind": "file",
+   "link_id": "01a1fa82-311f-7352-8f03-613c08268d53",
+   "links": [],
+   "name": "data.zip",
+   "path": [
+    [
+     "folder:Misc",
+     "Misc"
+    ]
+   ],
+   "placed_folder_id": "01a1fa82-31fa-725d-971d-717ed55865c1",
+   "state": "dismissed",
+   "state_at": "2026-01-15T12:00:00Z",
+   "title": "data.zip",
+   "version": "2026-01-10T00:00:00+00:00|1000"
+  }
+ ],
+ "refs": [],
+ "schema_version": 2
+}

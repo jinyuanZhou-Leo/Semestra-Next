@@ -164,6 +164,54 @@ async def test_materials_come_into_their_platform_folders(api: Api, fake: FakePr
     assert len((await _files(api, course))[1]) == len(items)
 
 
+async def test_an_archive_of_platform_files_reads_each_once_and_lets_go(
+    api: Api, fake: FakeProvider, monkeypatch: pytest.MonkeyPatch
+):
+    """A zip of files read from the platform (M07 §5): each is downloaded once, and one opened
+    for an archive that is never fetched is let go, its connection closed, when it expires."""
+    import asyncio
+
+    from semestra.core import http
+    from semestra.modules.files import downloads
+
+    clients: list[Any] = []
+    make_client = http.safe_client
+
+    def safe_client(*args: Any, **kwargs: Any) -> Any:
+        clients.append(make_client(*args, **kwargs))
+        return clients[-1]
+
+    monkeypatch.setattr(http, "safe_client", safe_client)
+
+    _materials(fake)
+    program_id, course = await _course(api)
+    await api.sync(program_id)
+    items = (await _files(api, course))[1]
+    ids = [items["Lecture 1.pdf"]["id"], items["W1.pdf"]["id"]]
+
+    async def ask() -> str:
+        r = await api.call("POST", f"/courses/{course}/files:download", json={"item_ids": ids})
+        return r["download_id"]
+
+    fake.downloads_open.clear()
+    r = await api.client.get(f"/file-downloads/{await ask()}")
+    with zipfile.ZipFile(io.BytesIO(r.content)) as zf:
+        assert sorted(zf.namelist()) == ["Lecture 1.pdf", "W1.pdf"]
+    assert sorted(fake.downloads_open) == ["201", "202"]
+    assert sorted(fake.downloads_closed[-2:]) == ["201", "202"]
+
+    monkeypatch.setattr(downloads, "TTL_SECONDS", 0.01)
+    fake.downloads_open.clear()
+    fake.downloads_closed.clear()
+    clients.clear()
+    await ask()
+    assert fake.downloads_open == ["201"]  # the first file, opened when asked for
+    assert [c.is_closed for c in clients] == [False]
+    await asyncio.sleep(0.05)
+    assert fake.downloads_closed == ["201"]
+    assert [c.is_closed for c in clients] == [True]
+
+
 async def test_platform_names_and_addresses_files_cannot_take_as_they_are(
     api: Api, fake: FakeProvider, app: FastAPI, clock: Clock
 ):
@@ -748,6 +796,68 @@ def test_migration_dismisses_materials_whose_file_was_made_the_users_own(tmp_pat
     ]
 
 
+def test_migration_makes_files_saved_in_2_0_materials_or_the_users_own(tmp_path: Path):
+    """2.0's Canvas tab saved files with a `source_ref` of its own and no material: on the
+    course still linked through the same connection the file becomes its material's item (as
+    if saved now), unless the material has one already; elsewhere it is the user's own."""
+    path = tmp_path / "m.db"
+    cfg = Config(str(API_DIR / "alembic.ini"))
+    cfg.set_main_option("script_location", str(API_DIR / "migrations"))
+    cfg.attributes["database_url"] = f"sqlite+aiosqlite:///{path}"
+    command.upgrade(cfg, "0065")
+    db = sqlite3.connect(path)  # foreign keys are off: no user, course or connection rows needed
+    db.execute(
+        "INSERT INTO lms_course_links (id, user_id, course_id, program_id, connection_id,"
+        " external_course_id, sync_enabled, created_at, updated_at) VALUES ('l1', 'u1', 'c1',"
+        " 'p1', 'k1', '101', 1, '2026-01-10 00:00:00', '2026-01-10 00:00:00')"
+    )
+    db.execute(
+        "INSERT INTO lms_materials (id, user_id, link_id, kind, external_id, state, quiet,"
+        " links, version, name) VALUES ('m-202', 'u1', 'l1', 'file', '202', 'dismissed', 0,"
+        " '[]', 'v1', 'W1.pdf')"
+    )
+    rows = [  # as migrations 0057 and 0062 left them: the copy's hash in both versions
+        ("1", "c1", "lms:canvas:k1:file:201", "2026-01-10"),  # linked: followed
+        ("2", "c1", "lms:canvas:k1:file:201", "2026-01-11"),  # saved again: the user's
+        ("3", "c1", "lms:canvas:k1:file:202", "2026-01-10"),  # its material deleted: followed
+        ("4", "c1", "lms:canvas:k9:file:203", "2026-01-10"),  # another connection's
+        ("5", "c2", "lms:canvas:k1:file:204", "2026-01-10"),  # course unlinked since
+    ]
+    for iid, course, ref, day in rows:
+        db.execute(
+            "INSERT INTO files_items (id, user_id, course_id, kind, display_name, mime_type,"
+            " size_bytes, storage_key, source_kind, source_ref, source_version, copy_version,"
+            " source_mime, source_size, pinned, unseen, doc_status, created_at, updated_at)"
+            " VALUES (?, 'u1', ?, 'file', ?, 'application/pdf', 5, 'k', 'lms', ?, ?, ?,"
+            " 'application/pdf', 5, 0, 0, 'ready', ?, ?)",
+            (iid, course, f"f{iid}.pdf", ref, f"h{iid}", f"h{iid}", day, day),
+        )
+    db.commit()
+    db.close()
+    command.upgrade(cfg, "head")
+    db = sqlite3.connect(path)
+    items = db.execute(
+        "SELECT id, source_ref, source_name, keep_copy, sha256, source_version, copy_version"
+        " FROM files_items ORDER BY id"
+    ).fetchall()
+    materials = db.execute(
+        "SELECT link_id, external_id, state, item_id, name, version, state_at IS NOT NULL"
+        " FROM lms_materials ORDER BY external_id"
+    ).fetchall()
+    db.close()
+    assert items == [
+        ("1", "lms:file:201", "Canvas", 1, None, "h1", "h1"),
+        ("2", None, None, None, "h2", None, None),
+        ("3", "lms:file:202", "Canvas", 1, None, "h3", "h3"),
+        ("4", None, None, None, "h4", None, None),
+        ("5", None, None, None, "h5", None, None),
+    ]
+    assert materials == [  # read whole at the next sync (no version yet)
+        ("l1", "201", "synced", "1", "f1.pdf", None, 1),
+        ("l1", "202", "synced", "3", "f3.pdf", None, 1),
+    ]
+
+
 async def test_a_renamed_item_keeps_its_name_and_a_locked_one_stays(
     api: Api, fake: FakeProvider, clock: Clock
 ):
@@ -1085,18 +1195,41 @@ async def test_restored_names_with_slashes_keep_following(
     ]
 
 
-def _as_2_0_0(archive: bytes) -> bytes:
-    """The backup as 2.0.0 (and the betas before it) wrote it, before `lms_materials`, at lms
-    version 2: the materials among the refs, their state in `snapshot`."""
+def made_by(manifest: bytes, version: str, revision: str | None = None) -> bytes:
+    """The manifest of a backup made by `version`: up to 2.4 manifests named no migration
+    (`db_revision`); a build between releases is told by `revision`."""
+    out = {k: v for k, v in json.loads(manifest).items() if k != "db_revision"}
+    out["app_version"] = version
+    if revision is not None:
+        out["db_revision"] = revision
+    return json.dumps(out).encode()
+
+
+def _files_before_0062(payload: dict[str, Any]) -> None:
+    """The files as backups made before migration 0062 had them: a followed file's platform
+    version in `sha256`, no source version or copy columns."""
+    for row in payload["items"]:
+        version = row.pop("source_version")
+        del row["copy_modified_at"], row["copy_error_code"]
+        if version is not None:
+            row["sha256"] = version
+
+
+def _as_before_materials_table(archive: bytes) -> bytes:
+    """The backup as a build between 2.0.0 and 2.1.0 wrote it (2.0.0 itself synced no
+    materials), before `lms_materials`: the materials among the refs, their state in
+    `snapshot`."""
     source = zipfile.ZipFile(io.BytesIO(archive))
     out = io.BytesIO()
     with zipfile.ZipFile(out, "w") as z:
         for name in source.namelist():
             data = source.read(name)
             if name == "manifest.json":
-                manifest = json.loads(data)
-                manifest["modules"]["lms"] = 2
-                data = json.dumps(manifest).encode()
+                data = made_by(data, "2.0.0", "0055")
+            elif name == "data/files.json":
+                payload = json.loads(data)
+                _files_before_0062(payload)
+                data = json.dumps(payload).encode()
             elif name == "data/lms.json":
                 payload = json.loads(data)
                 refs = [{**r, "external_kind": "assignment"} for r in payload["refs"]]
@@ -1130,7 +1263,8 @@ async def test_a_2_0_0_backup_keeps_the_materials_in_step(api: Api, fake: FakePr
     await api.run_jobs()
     archive = (await api.client.get(f"/me/exports/{started['id']}/download")).content
     uploaded = await api.client.post(
-        "/me/imports", files={"file": ("backup.zip", _as_2_0_0(archive), "application/zip")}
+        "/me/imports",
+        files={"file": ("backup.zip", _as_before_materials_table(archive), "application/zip")},
     )
     body = {"mode": "replace", "confirmation": "Replace my data"}
     await api.call("POST", f"/me/imports/{uploaded.json()['id']}:start", json=body)
@@ -1158,7 +1292,9 @@ def _as_2_1(archive: bytes, program_id: str, folder_id: str) -> bytes:
         for name in source.namelist():
             data = source.read(name)
             payload: dict[str, Any] = json.loads(data) if name.startswith("data/") else {}
-            if name == "data/lms.json":
+            if name == "manifest.json":
+                data = made_by(data, "2.1.0")
+            elif name == "data/lms.json":
                 for m in payload["materials"]:
                     del m["path"], m["placed_folder_id"]
                     m["type"] = "lecture" if m["title"] == "Lecture 1.pdf" else "other"
@@ -1175,6 +1311,7 @@ def _as_2_1(archive: bytes, program_id: str, folder_id: str) -> bytes:
             z.writestr(name, data)
         files = json.loads(source.read("data/files.json"))
         files.pop("source_folders")
+        _files_before_0062(files)
         files["type_folders"] = [{"course_id": course, "type": "lecture", "folder_id": folder_id}]
         z.writestr("data/files.json", json.dumps(files))
     return out.getvalue()
@@ -1228,17 +1365,16 @@ def _files_as_2_1(archive: bytes, own_id: str, made_own_id: str) -> bytes:
     with zipfile.ZipFile(out, "w") as z:
         for name in source.namelist():
             data = source.read(name)
-            if name == "data/files.json":
+            if name == "manifest.json":
+                data = made_by(data, "2.1.0")
+            elif name == "data/files.json":
                 payload = json.loads(data)
+                _files_before_0062(payload)
                 for row in payload["items"]:
-                    version = row.pop("source_version")
-                    del row["copy_modified_at"], row["copy_error_code"]
                     if row["id"] == own_id:
                         row |= {"source_kind": "agent", "source_ref": "att-1"}
                     elif row["id"] == made_own_id:  # made the user's own in 2.1.0
                         row |= {"source_ref": None, "source_name": None}
-                    elif version is not None:
-                        row["sha256"] = version
                 data = json.dumps(payload).encode()
             z.writestr(name, data)
     return out.getvalue()
@@ -1655,12 +1791,15 @@ def test_migration_to_four_states_and_names_the_sync_gave(tmp_path: Path):
         ("3", "restored", None, "Syllabus", None, "v1"),
         ("4", "handed_over", "i4", "Midterm.pdf", "Midterm.pdf", "v1"),
         ("5", "gone", None, "Old.pdf", None, None),
+        # A link was named in full, its title uncut.
+        ("6", "synced", "i6", "Recording " + "x" * 300, "Recording " + "x" * 300, "v1"),
     ]
     for mid, state, item, title, name, version in rows:
+        kind = "link" if mid == "6" else "file"
         db.execute(
             "INSERT INTO lms_materials (id, user_id, link_id, kind, external_id, state, item_id,"
-            " title, name, version, links) VALUES (?, 'u1', 'l1', 'file', ?, ?, ?, ?, ?, ?, '[]')",
-            (mid, mid, state, item, title, name, version),
+            " title, name, version, links) VALUES (?, 'u1', 'l1', ?, ?, ?, ?, ?, ?, ?, '[]')",
+            (mid, kind, mid, state, item, title, name, version),
         )
     db.commit()
     db.close()
@@ -1676,6 +1815,7 @@ def test_migration_to_four_states_and_names_the_sync_gave(tmp_path: Path):
         ("absent", 1, None, None, None),  # read whole when it comes in
         ("absent", 0, "i4", None, None),  # still names the user's own file
         ("absent", 0, None, None, None),
+        ("synced", 0, "i6", "Recording " + "x" * 300, "v1"),
     ]
 
 

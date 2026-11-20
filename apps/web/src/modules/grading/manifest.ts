@@ -8,9 +8,8 @@ import {
 import { m } from '@/paraglide/messages'
 import { TASK_DETAIL_SECTIONS, type TaskDetailSection } from '@/modules/tasks/types'
 import { courseColumns } from './extensions/columns'
-import TaskGradebook from './extensions/TaskGradebook'
 import { prefetchGradesPage, settingsPrefetch } from './queries'
-import { ScalePresetField, applyScalePreset } from './extensions/SetupField'
+import { applyScalePreset } from './extensions/scale-preset'
 
 /** Queries that show grades; any change to grades or to the courses behind them refetches them. */
 const GRADING_QUERIES = [
@@ -44,7 +43,7 @@ const settings = () => import('./settings/sections')
 const setupField: ProgramSetupField = {
   id: 'grading_scale_preset',
   order: 10,
-  component: ScalePresetField,
+  component: preloadable(() => import('./extensions/SetupField')),
   apply: applyScalePreset,
 }
 
@@ -157,7 +156,10 @@ export default defineModule({
     [COURSE_COLUMNS]: courseColumns,
     [PROGRAM_SETUP_FIELDS]: [setupField],
     [TASK_DETAIL_SECTIONS]: [
-      { id: 'grading.assessment', Component: TaskGradebook },
+      {
+        id: 'grading.assessment',
+        Component: preloadable(() => import('./extensions/TaskGradebook')),
+      },
     ] satisfies TaskDetailSection[],
   },
   uiPrefPrefixes: ['grading.'],

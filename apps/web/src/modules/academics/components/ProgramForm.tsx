@@ -1,5 +1,5 @@
 import type { JsonValue, ProgramCreateInputBody } from '@semestra/api-client'
-import { type FormEvent, type ReactNode, useId, useState } from 'react'
+import { type FormEvent, type ReactNode, Suspense, useId, useState } from 'react'
 import { useExtensions } from '@/app/registry'
 import { SettingRow, SettingsGroup } from '@/app/settings/rows'
 import { m } from '@/paraglide/messages'
@@ -114,12 +114,14 @@ export function ProgramForm({
             ) : null}
           </div>
         </SettingRow>
+        {/* Preloaded before the form opens (`preloadExtensions`); still loading, the rest shows. */}
         {setupFields.map((field) => (
-          <field.component
-            key={field.id}
-            value={setup[field.id]}
-            onChange={(value) => setSetup((current) => ({ ...current, [field.id]: value }))}
-          />
+          <Suspense key={field.id} fallback={null}>
+            <field.component
+              value={setup[field.id]}
+              onChange={(value) => setSetup((current) => ({ ...current, [field.id]: value }))}
+            />
+          </Suspense>
         ))}
       </SettingsGroup>
       {footer}

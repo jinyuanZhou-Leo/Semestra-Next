@@ -8,7 +8,7 @@ import { externalLabel } from '../external'
 import { useProviderName } from '../providers'
 
 /** On the course info card of a linked course: one line with the platform and its course, linked. */
-export function CourseInfoLms({ courseId, Row }: CourseInfoRowProps) {
+export default function CourseInfoLms({ courseId, Row }: CourseInfoRowProps) {
   const link = useQuery(courseLinkOptions(courseId)).data?.link
   const providerName = useProviderName(link?.provider)
   if (!link) return null

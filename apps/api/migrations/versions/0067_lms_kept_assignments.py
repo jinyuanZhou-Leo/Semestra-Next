@@ -1,7 +1,7 @@
 """lms: kept assignments (description, submission; to-dos too)
 
-Revision ID: 0066
-Revises: 0065
+Revision ID: 0067
+Revises: 0066
 Create Date: 2026-11-20 20:48:58.510637
 
 """
@@ -14,8 +14,8 @@ from alembic import op
 import semestra.core.db
 
 # revision identifiers, used by Alembic.
-revision: str = "0066"
-down_revision: str | Sequence[str] | None = "0065"
+revision: str = "0067"
+down_revision: str | Sequence[str] | None = "0066"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

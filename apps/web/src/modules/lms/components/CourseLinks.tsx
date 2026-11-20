@@ -10,7 +10,7 @@ import { courseLinkOptions, courseOverviewOptions, externalTools } from '../cour
  * opened in a new tab after the usual question about leaving for another site. Read from the
  * course's LMS menu; no row when there are none.
  */
-export function CourseLinks({ courseId, Row }: CourseInfoRowProps) {
+export default function CourseLinks({ courseId, Row }: CourseInfoRowProps) {
   const linked = Boolean(useQuery(courseLinkOptions(courseId)).data?.link)
   const tools = useQuery({
     ...courseOverviewOptions(courseId),
