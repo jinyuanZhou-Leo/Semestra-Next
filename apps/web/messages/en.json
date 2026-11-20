@@ -289,6 +289,7 @@
   "sticky_done": "Done editing",
   "sticky_task_label": "Done: {text}",
   "sticky_save_failed": "Couldn't save the note",
+  "sticky_open_failed": "Couldn't open the editor. Try again.",
   "sticky_format_bold": "Bold",
   "sticky_format_italic": "Italic",
   "sticky_format_list": "Bulleted list",

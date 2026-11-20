@@ -4,6 +4,7 @@ import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { setNoteEditing, useNoteEditing } from './editing'
+import { preloadEditor } from './editor-loader'
 import type { StickySettings } from './schema'
 
 /** The note's "edit" / "done" button in the card header (M14 §4). */
@@ -24,6 +25,9 @@ export default function StickyHeaderActions({ instanceId }: CardProps<StickySett
             // Keeps the editor's focus, so "done" is not first undone by the editor losing it.
             onMouseDown={(event) => event.preventDefault()}
             onClick={() => setNoteEditing(instanceId, !editing)}
+            // The editor's code starts loading before the click.
+            onPointerEnter={preloadEditor}
+            onFocus={preloadEditor}
             className="text-muted-foreground"
           />
         }

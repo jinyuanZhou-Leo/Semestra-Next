@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import { QueryClientProvider } from '@tanstack/react-query'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
@@ -60,13 +60,25 @@ function note(content = '', size: 's' | 'm' | 'l' | 'xl' = 'm') {
   }
 }
 
+/** The note's text area: the editor once it has loaded, until then the read-only view. */
+const text = () => screen.getByLabelText('Sticky note')
+
+/** Waits for the note to be editable (the editor loads on demand), returning the editor. */
+async function editable() {
+  // Testing Library's `waitFor` lets React retry the render that waited for the editor's code,
+  // whose first load takes a while under test.
+  await waitFor(() => expect(text()).toHaveAttribute('contenteditable', 'true'), {
+    timeout: 5000,
+  })
+  const editor = text()
+  await vi.waitFor(() => expect(editor).toHaveFocus())
+  return editor
+}
+
 /** Starts editing with the header's button, returning the editor. */
 async function edit() {
   await userEvent.click(await screen.findByRole('button', { name: 'Edit note' }))
-  const editor = screen.getByLabelText('Sticky note')
-  expect(editor).toHaveAttribute('contenteditable', 'true')
-  await vi.waitFor(() => expect(editor).toHaveFocus())
-  return editor
+  return editable()
 }
 
 const savedContent = () => (saved.at(-1) as { content: string }).content
@@ -83,22 +95,42 @@ test('a note shows its Markdown formatted, tables included', async () => {
   expect(within(table).getByText('done').closest('td')).not.toBeNull()
 })
 
-test('a note is read-only, with working links, until editing starts', async () => {
+test('a note is read-only, with working links and no editor, until editing starts', async () => {
   note('See [syllabus](https://example.com/s)')
-  const editor = await screen.findByLabelText('Sticky note')
-  expect(editor).toHaveAttribute('contenteditable', 'false')
+  expect(await screen.findByLabelText('Sticky note')).toHaveAttribute('contenteditable', 'false')
   expect(screen.getByRole('link', { name: 'syllabus' })).toHaveAttribute(
     'href',
     'https://example.com/s',
   )
-  const bold = screen.getByRole('button', { name: 'Bold' })
-  expect(bold.closest('[inert]')).not.toBeNull()
+  expect(screen.queryByRole('button', { name: 'Bold' })).toBeNull()
 
-  await edit()
-  expect(bold.closest('[inert]')).toBeNull()
+  const editor = await edit()
+  expect(screen.getByRole('button', { name: 'Bold' }).closest('[inert]')).toBeNull()
   await userEvent.keyboard('{Escape}')
   expect(editor).toHaveAttribute('contenteditable', 'false')
+  expect(screen.getByRole('button', { name: 'Bold' }).closest('[inert]')).not.toBeNull()
   expect(screen.getByRole('button', { name: 'Edit note' })).toHaveFocus()
+})
+
+test('double-clicking the text starts editing', async () => {
+  note('hello')
+  await userEvent.dblClick(await screen.findByText('hello'))
+  expect(await editable()).toHaveTextContent('hello')
+})
+
+test('a change made elsewhere shows on a read-only note', async () => {
+  const { rerender } = note('old')
+  expect(await screen.findByText('old')).toBeInTheDocument()
+  rerender('**from Sem**')
+  expect(await screen.findByText('from Sem')).toHaveProperty('tagName', 'STRONG')
+  expect(text()).toHaveAttribute('contenteditable', 'false')
+})
+
+test('an empty note shows what it is for', async () => {
+  note('')
+  expect(await screen.findByLabelText('Sticky note')).toContainHTML(
+    'data-placeholder="Write a note…"',
+  )
 })
 
 test('clicking outside the card ends editing', async () => {
@@ -111,14 +143,16 @@ test('clicking outside the card ends editing', async () => {
 test('an empty note starts editing when clicked', async () => {
   note('')
   await userEvent.click(await screen.findByText('', { selector: '.sticky-note p' }))
-  expect(screen.getByLabelText('Sticky note')).toHaveAttribute('contenteditable', 'true')
+  expect(await editable()).toHaveTextContent('')
 })
 
-test('ticking a checklist item saves the note', async () => {
-  note('- [ ] review notes')
-  await userEvent.click(await screen.findByRole('checkbox', { name: 'Done: review notes' }))
+test('ticking a checklist item saves the note, without opening the editor', async () => {
+  note('- [ ] review notes\n- [ ] read *chapter 2*\n  - [ ] exercises')
+  await userEvent.click(await screen.findByRole('checkbox', { name: 'Done: exercises' }))
+  expect(screen.getByRole('checkbox', { name: 'Done: exercises' })).toBeChecked()
   await waitForSave()
-  expect(savedContent()).toBe('- [x] review notes')
+  expect(savedContent()).toBe('- [ ] review notes\n- [ ] read *chapter 2*\n  - [x] exercises')
+  expect(text()).toHaveAttribute('contenteditable', 'false')
 })
 
 test('an edit is saved as Markdown, merged into the settings the host gave', async () => {
