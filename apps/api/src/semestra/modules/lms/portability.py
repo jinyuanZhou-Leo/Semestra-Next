@@ -12,20 +12,8 @@ with M13's `register_portability`.
 
 Version 2 imports a platform item once (one ref per item); `_v1_to_v2` keeps the assessment's ref
 where a version 1 backup (up to 1.15) has both an assessment and a to-do for the same item, as
-migration 0035 did. Later changes kept version 2 (owner 2026-11-18) and are read at import by
-`_current`: a 2.0.0 backup keeps the materials among the refs (`external_kind`
-file, page or link), moved into `materials` as migration 0056 did; materials without a `state`
-(before migration 0057) take it from `deleted_at`, and pages that only list others are left
-out, as are materials no longer in the files (`handed_over` of backups made before migration
-0061: their file is the user's own, and the material comes in again if the platform shows it);
-a followed one is named as the sync named it (`_named_by_sync`), so a name the user gave it
-reads as theirs.
-The course's materials settings left the link for M11 (`lms.materials`), which the settings' own
-backup carries. Materials of backups made before their places were kept (`path`,
-`placed_folder_id`) get their place from the next sync; those the sync had filed by type were
-put in their course's type folder (the files backup's `type_folders`), as migration 0060 reads.
-The settings' backup of 2.0 has the display of platform HTML as the Canvas tab's
-(`plugin.canvas-tab`): read as `lms.display` (`_display_moved`), as migration 0064 moves it.
+migration 0035 did. Later changes kept version 2 (owner 2026-11-18): backups made before them are
+read as their migrations changed the tables (`older_backups.py`).
 """
 
 from collections.abc import Mapping
@@ -38,7 +26,6 @@ from sqlalchemy import delete, select
 
 from semestra.core.context import Ctx
 from semestra.core.db import new_id
-from semestra.modules.files.service import name_from_source, safe_name
 from semestra.modules.lms.models import (
     LmsAnnouncement,
     LmsCache,
@@ -51,10 +38,8 @@ from semestra.modules.lms.models import (
     LmsSyncChange,
 )
 from semestra.modules.lms.schemas.dto import RubricCriterion, RubricScore, SubmissionComment
-from semestra.modules.lms.settings import materials_from_programs
 from semestra.modules.portability import register_portability
 from semestra.modules.portability.registry import OlderArchive
-from semestra.modules.settings.portability import register_moved
 
 SCHEMA_VERSION = 2
 
@@ -69,121 +54,6 @@ def _v1_to_v2(payload: dict[str, Any], archive: OlderArchive) -> dict[str, Any]:
     graded = {item(r) for r in refs if r.get("target_kind") == "assessment"}
     kept = [r for r in refs if r.get("target_kind") == "assessment" or item(r) not in graded]
     return {**payload, "refs": kept}
-
-
-def _material_row(ref: dict[str, Any]) -> dict[str, Any]:
-    """A material ref of a 2.0.0 backup (its state in `snapshot`) as a row of `lms_materials`,
-    as migration 0056 moves it."""
-    snap = ref.get("snapshot") or {}
-    checked = snap.get("checked")
-    return {
-        "link_id": ref.get("link_id"),
-        "kind": ref.get("external_kind"),
-        "external_id": ref.get("external_id"),
-        "item_id": ref.get("target_id"),
-        "title": snap.get("title"),
-        "version": snap.get("version"),
-        "name": snap.get("name"),
-        "is_list": bool(snap.get("list")),
-        "links": snap.get("links") or [],
-        "checked_at": datetime.fromisoformat(checked) if isinstance(checked, str) else None,
-        "imported_at": ref.get("imported_at"),
-        "deleted_at": ref.get("dismissed_at"),
-    }
-
-
-def _current(data: dict[str, Any], files: dict[str, Any] | None = None) -> dict[str, Any]:
-    """An older shape of version 2 as it is now (see the module docstring); `files`: the files
-    payload of the same backup."""
-    refs = [r for r in data.get("refs") or [] if isinstance(r, dict)]
-    moved = [_material_row(r) for r in refs if r.get("external_kind") in ("file", "page", "link")]
-    kept = [
-        {k: v for k, v in r.items() if k != "external_kind"}
-        for r in refs
-        if r.get("external_kind", "assignment") == "assignment"
-    ]
-    materials = [
-        r
-        if "state" in r
-        else {
-            **{k: v for k, v in r.items() if k not in ("deleted_at", "is_list")},
-            "state": "dismissed" if r.get("deleted_at") else "synced",
-            "state_at": r.get("deleted_at"),
-        }
-        for r in [*(data.get("materials") or []), *moved]
-        if isinstance(r, dict)
-        and not r.get("is_list")
-        and r.get("state", "synced") in ("synced", "dismissed")
-    ]
-    materials = _named_by_sync(materials, files)
-    materials = _made_own(materials, files)
-    return {**data, "refs": kept, "materials": _placed_by_type(data, materials, files)}
-
-
-def _named_by_sync(
-    materials: list[dict[str, Any]], files: dict[str, Any] | None
-) -> list[dict[str, Any]]:
-    """A followed material's `name` is the name the sync gave its item, so that a name the user
-    gave it reads as theirs (backups made before migration 0061 have the item's name, whoever
-    gave it). The item's name is the sync's when it is the title as a sync names it: in full
-    now (`name_from_source`), cut at its last slash up to 2.4 (`safe_name`); any other name
-    is the user's, and the material then gets the older spelling, as migration 0061 does."""
-    shown = {
-        i.get("id"): i.get("display_name")
-        for i in (files or {}).get("items") or []
-        if isinstance(i, dict)
-    }
-    out: list[dict[str, Any]] = []
-    for r in materials:
-        title = r.get("title")
-        if r.get("state", "synced") == "synced" and isinstance(title, str):
-            given = (safe_name(title), name_from_source(title, "file"))
-            name = shown.get(r.get("item_id"))
-            r = {**r, "name": name if name in given else given[0]}
-        out.append(r)
-    return out
-
-
-def _made_own(
-    materials: list[dict[str, Any]], files: dict[str, Any] | None
-) -> list[dict[str, Any]]:
-    """A file made the user's own in 2.1.0 (its `source_ref` cleared) while its material stayed
-    `synced`: the user's now, and the platform's not brought in beside it, as if deleted
-    (`dismissed`, listed so it can be restored), as migration 0063 reads it."""
-    own = {
-        i.get("id"): i.get("updated_at")
-        for i in (files or {}).get("items") or []
-        if isinstance(i, dict) and i.get("kind") == "file" and i.get("source_ref") is None
-    }
-    return [
-        {**r, "state": "dismissed", "state_at": own[r["item_id"]], "item_id": None}
-        if r.get("state", "synced") == "synced" and r.get("item_id") in own
-        else r
-        for r in materials
-    ]
-
-
-def _placed_by_type(
-    data: dict[str, Any], materials: list[dict[str, Any]], files: dict[str, Any] | None
-) -> list[dict[str, Any]]:
-    """Materials of a backup made while the sync filed them by type: the type folder of their
-    course is where the sync put them (`placed_folder_id`), as migration 0060 reads it."""
-    folders = {
-        (f.get("course_id"), f.get("type")): f.get("folder_id")
-        for f in (files or {}).get("type_folders") or []
-        if isinstance(f, dict)
-    }
-    courses = {
-        k.get("id"): k.get("course_id") for k in data.get("links") or [] if isinstance(k, dict)
-    }
-    out: list[dict[str, Any]] = []
-    for r in materials:
-        kind = r.get("type")
-        r = {k: v for k, v in r.items() if k != "type"}
-        if r.get("placed_folder_id") is None and kind is not None:
-            r["placed_folder_id"] = folders.get((courses.get(r.get("link_id")), kind))
-        out.append(r)
-    return out
 
 
 class Writer(Protocol):
@@ -381,9 +251,8 @@ async def import_(
 ) -> ImportReport:
     """Adds the archive's connections (without credentials) and, where their Programs, courses
     and targets came along (`id_map`), the bindings, links and imported refs."""
-    archive = getattr(options, "archive", None)
-    files = archive.payload("files") if archive is not None else None
-    data = LmsPayload.model_validate(_current(payload, files))
+    del options
+    data = LmsPayload.model_validate(payload)
     report = ImportReport(
         {
             "connections": 0,
@@ -537,7 +406,7 @@ async def import_(
 
 
 async def preview(payload: dict[str, Any]) -> dict[str, int]:
-    data = LmsPayload.model_validate(_current(payload))
+    data = LmsPayload.model_validate(payload)
     return {
         "connections": len(data.connections),
         "bindings": len(data.bindings),
@@ -586,80 +455,3 @@ register_portability(
         LmsCache.__tablename__,
     ),
 )
-
-
-def _materials_levels(
-    rows: list[dict[str, Any]], archive: OlderArchive, account: bool
-) -> list[dict[str, Any]]:
-    """The materials settings of a backup made while they were set per Program, as they are
-    now (`materials_from_programs`, as migration 0060 moves them): what every Program had alike
-    as the account's (its courses' when the account's are not imported), the rest on courses."""
-    programs_rows = [r for r in rows if r.get("scope_type") == "program"]
-    if not programs_rows:
-        return rows
-    academics = archive.payload("academics") or {}
-    set_ = {str(r.get("scope_id")): dict(r.get("data") or {}) for r in programs_rows}
-    programs = {
-        str(p.get("id")): set_.get(str(p.get("id")), {})
-        for p in academics.get("programs") or []
-        if isinstance(p, dict)
-    }
-    courses: dict[str, list[str]] = {}
-    for c in academics.get("courses") or []:
-        if isinstance(c, dict):
-            courses.setdefault(str(c.get("program_id")), []).append(str(c.get("id")))
-    kept = [r for r in rows if r.get("scope_type") != "program"]
-    own = {
-        str(r.get("scope_id")): dict(r.get("data") or {})
-        for r in kept
-        if r.get("scope_type") == "course"
-    }
-    found, per_course = materials_from_programs(programs, courses, own)
-    if found and not account:
-        for program_courses in courses.values():
-            for course_id in program_courses:
-                missing = {k: v for k, v in found.items() if k not in own.get(course_id, {})}
-                if missing:
-                    per_course[course_id] = {**missing, **per_course.get(course_id, {})}
-        found = {}
-    template = programs_rows[0]
-    out = [
-        {**r, "data": {**per_course.pop(str(r.get("scope_id")), {}), **(r.get("data") or {})}}
-        if r.get("scope_type") == "course"
-        else r
-        for r in kept
-    ]
-    made = [("course", course_id, values) for course_id, values in per_course.items()]
-    if found:
-        made.append(("account", "", found))
-    for scope_type, scope_id, values in made:
-        out.append(
-            {
-                **{k: v for k, v in template.items() if k != "id"},
-                "id": f"{template.get('id')}:{scope_type}:{scope_id}",
-                "scope_type": scope_type,
-                "scope_id": scope_id,
-                "data": values,
-            }
-        )
-    return out
-
-
-register_moved("lms.materials", _materials_levels)
-
-
-def _display_moved(
-    rows: list[dict[str, Any]], archive: OlderArchive, account: bool
-) -> list[dict[str, Any]]:
-    """The Canvas tab's display setting of a 2.0 backup as `lms.display`, as migration 0064
-    moves it (the backup's own `lms` rows win)."""
-    del archive, account
-    return [
-        {**r, "namespace": "lms", "data": {"display": display}}
-        for r in rows
-        if r.get("scope_type") == "account"
-        and (display := (r.get("data") or {}).get("display")) is not None
-    ]
-
-
-register_moved("plugin.canvas-tab", _display_moved)

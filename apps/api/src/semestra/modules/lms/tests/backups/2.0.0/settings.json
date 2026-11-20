@@ -1,0 +1,18 @@
+{
+ "preferences": [],
+ "schema_version": 2,
+ "ui_state": [],
+ "values": [
+  {
+   "created_at": "2026-11-20T20:19:14.209031+00:00",
+   "data": {
+    "display": "original"
+   },
+   "id": "01a1fa9c-faa1-7054-823d-b2e2811b39a3",
+   "namespace": "plugin.canvas-tab",
+   "scope_id": "",
+   "scope_type": "account",
+   "updated_at": "2026-11-20T20:19:14.209035+00:00"
+  }
+ ]
+}

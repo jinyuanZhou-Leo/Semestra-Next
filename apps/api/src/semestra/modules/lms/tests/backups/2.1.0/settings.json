@@ -1,0 +1,18 @@
+{
+ "preferences": [],
+ "schema_version": 2,
+ "ui_state": [],
+ "values": [
+  {
+   "created_at": "2026-11-20T19:50:34.480211+00:00",
+   "data": {
+    "store": "local"
+   },
+   "id": "01a1fa82-bcf0-7404-bc0a-eaae915d9271",
+   "namespace": "lms.materials",
+   "scope_id": "01a1fa82-bc51-70db-bcc3-a6a0d32327d4",
+   "scope_type": "program",
+   "updated_at": "2026-11-20T19:50:34.480215+00:00"
+  }
+ ]
+}

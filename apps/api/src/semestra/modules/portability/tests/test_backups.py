@@ -10,6 +10,8 @@ from typing import Any
 
 import anyio
 import pytest
+from alembic.config import Config
+from alembic.script import ScriptDirectory
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import Table, func, select, text, update
@@ -36,7 +38,7 @@ from semestra.modules.portability.tests.dataset import (
 )
 from semestra.modules.settings.models import SettingsPreferences
 from semestra.modules.tasks.models import TasksItem
-from semestra.testing import TEST_ORIGIN, Clock, MakeUser, UserHandle
+from semestra.testing import API_DIR, TEST_ORIGIN, Clock, MakeUser, UserHandle
 
 LoginAs = Callable[[AsyncClient, UserHandle], Awaitable[str]]
 RunJobs = Callable[[], Awaitable[None]]
@@ -116,6 +118,18 @@ def _normalize(archive: bytes) -> dict[str, Any]:
     return out
 
 
+def _migrations() -> ScriptDirectory:
+    cfg = Config(str(API_DIR / "alembic.ini"))
+    cfg.set_main_option("script_location", str(API_DIR / "migrations"))
+    return ScriptDirectory.from_config(cfg)
+
+
+def test_reshape_steps_are_named_by_their_migrations() -> None:
+    """A step runs for backups made before its migration: it must name one."""
+    known = {s.revision for s in _migrations().walk_revisions()}
+    assert set(registry.reshapes()) <= known
+
+
 async def test_every_user_table_has_an_adapter_and_purge_empties_it(
     app: FastAPI, make_user: MakeUser
 ) -> None:
@@ -158,6 +172,7 @@ async def test_round_trip_into_another_account(
     assert manifest["format"] == "semestra-backup"
     assert manifest["version"] == 1
     assert manifest["app_version"] == __version__ != "0.0.0"
+    assert manifest["db_revision"] == _migrations().get_current_head()
     assert manifest["counts"]["academics.programs"] == 1
     assert {"academics", "grading", "schedule", "plugins_builtin"} <= set(manifest["modules"])
     # No secrets in the backup.

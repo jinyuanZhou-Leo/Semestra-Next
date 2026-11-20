@@ -21,6 +21,7 @@ from semestra.modules.lms import (  # noqa: F401  (registers on import)
     imports,
     labels,
     models,
+    older_backups,
     portability,
     reads,
     subscribers,

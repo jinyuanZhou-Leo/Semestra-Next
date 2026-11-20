@@ -1,0 +1,60 @@
+{
+ "course_terms": [
+  {
+   "course_id": "01a1fa83-0370-70fe-b3a8-db698b86279d",
+   "term_id": "01a1fa83-033a-7370-8093-2830995d9aef"
+  }
+ ],
+ "courses": [
+  {
+   "alias": null,
+   "code": "APS105H1",
+   "color": null,
+   "created_at": "2026-01-15T12:00:00+00:00",
+   "credits": 0.5,
+   "description": null,
+   "id": "01a1fa83-0370-70fe-b3a8-db698b86279d",
+   "include_in_gpa": true,
+   "instructors": [],
+   "planned_terms": 1,
+   "program_id": "01a1fa83-0322-7043-ac03-5d4fdc01e796",
+   "sort_order": 0,
+   "subject_code": "APS",
+   "title": "Computer Fundamentals",
+   "updated_at": "2026-01-15T12:00:00+00:00",
+   "website_url": null
+  }
+ ],
+ "programs": [
+  {
+   "created_at": "2026-01-15T12:00:00+00:00",
+   "credit_requirement": null,
+   "default_course_credits": 0.5,
+   "id": "01a1fa83-0322-7043-ac03-5d4fdc01e796",
+   "institution": null,
+   "name": "BASc",
+   "sort_order": 0,
+   "subject_colors": {
+    "APS": {
+     "palette": 1
+    }
+   },
+   "timezone": "America/Toronto",
+   "updated_at": "2026-11-20T19:50:52.530801+00:00"
+  }
+ ],
+ "schema_version": 1,
+ "terms": [
+  {
+   "breaks": [],
+   "count_break_weeks": false,
+   "created_at": "2026-01-15T12:00:00+00:00",
+   "end_date": "2026-04-24",
+   "id": "01a1fa83-033a-7370-8093-2830995d9aef",
+   "name": "Winter 2026",
+   "program_id": "01a1fa83-0322-7043-ac03-5d4fdc01e796",
+   "start_date": "2026-01-05",
+   "updated_at": "2026-01-15T12:00:00+00:00"
+  }
+ ]
+}

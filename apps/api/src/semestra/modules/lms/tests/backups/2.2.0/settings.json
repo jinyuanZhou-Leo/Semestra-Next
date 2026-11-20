@@ -1,0 +1,18 @@
+{
+ "preferences": [],
+ "schema_version": 2,
+ "ui_state": [],
+ "values": [
+  {
+   "created_at": "2026-11-20T19:49:58.712729+00:00",
+   "data": {
+    "store": "local"
+   },
+   "id": "01a1fa82-3138-74b7-8410-650e6349e095",
+   "namespace": "lms.materials",
+   "scope_id": "01a1fa82-30dc-7264-ae27-604af6c0978b",
+   "scope_type": "course",
+   "updated_at": "2026-11-20T19:49:58.712734+00:00"
+  }
+ ]
+}
