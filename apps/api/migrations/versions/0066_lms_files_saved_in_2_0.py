@@ -12,8 +12,8 @@ sync's since 2.1); then, as on any other course, it is the user's own file, its 
 taken back from `source_version` (where migration 0062 put it). The material's version stays
 unknown, so the next sync reads the platform's file again.
 
-Revision ID: 0065
-Revises: 0064
+Revision ID: 0066
+Revises: 0065
 Create Date: 2026-11-20 21:00:00
 
 """
@@ -25,8 +25,8 @@ from datetime import UTC, datetime
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "0065"
-down_revision: str | Sequence[str] | None = "0064"
+revision: str = "0066"
+down_revision: str | Sequence[str] | None = "0065"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

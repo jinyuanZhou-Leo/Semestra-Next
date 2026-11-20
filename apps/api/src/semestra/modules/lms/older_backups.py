@@ -148,13 +148,13 @@ def _0063(lms: Row, archive: OlderArchive) -> Row:
     return {**lms, "materials": materials}
 
 
-# The providers' names at 0065 (`LmsProvider.display_name`).
+# The providers' names at 0066 (`LmsProvider.display_name`).
 _PROVIDER_NAMES = {"canvas": "Canvas"}
 
 
 def _saved_in_2_0(files: Row | None, lms: Row | None) -> dict[str, tuple[str, Row | None]]:
     """The files 2.0's Canvas tab saved (`lms:<provider>:<connection>:file:<id>`, no material),
-    as migration 0065 reads them: each file's id → its provider and the link whose material it
+    as migration 0066 reads them: each file's id → its provider and the link whose material it
     becomes (oldest first; None: it is the user's own)."""
     links = {(r.get("course_id"), r.get("connection_id")): r for r in _rows(lms, "links")}
     taken = {
@@ -181,7 +181,7 @@ def _saved_in_2_0(files: Row | None, lms: Row | None) -> dict[str, tuple[str, Ro
     return found
 
 
-def _0065(lms: Row, archive: OlderArchive) -> Row:
+def _0066(lms: Row, archive: OlderArchive) -> Row:
     """A file 2.0's Canvas tab saved is its material's item, as if saved now, on the course
     still linked through the same connection (unless the material has an item already)."""
     files = {str(r.get("id")): r for r in _rows(archive.payload("files"), "items")}
@@ -217,8 +217,8 @@ def _0065(lms: Row, archive: OlderArchive) -> Row:
     return {**lms, "materials": materials}
 
 
-def _files_0065(files: Row, archive: OlderArchive) -> Row:
-    """The files 2.0's Canvas tab saved: followed as their material's item (`_0065`), else the
+def _files_0066(files: Row, archive: OlderArchive) -> Row:
+    """The files 2.0's Canvas tab saved: followed as their material's item (`_0066`), else the
     user's own (their copy's hash back from `source_version`, where 0062 put it)."""
     saved = _saved_in_2_0(files, archive.payload("lms"))
     items: list[Row] = []
@@ -360,7 +360,7 @@ register_reshape("0057", "lms", _0057)
 register_reshape("0060", "lms", _0060)
 register_reshape("0061", "lms", _0061)
 register_reshape("0063", "lms", _0063)
-register_reshape("0065", "lms", _0065)
-register_reshape("0065", "files", _files_0065)
+register_reshape("0066", "lms", _0066)
+register_reshape("0066", "files", _files_0066)
 register_reshape("0060", "settings", _settings_0060)
 register_reshape("0064", "settings", _settings_0064)

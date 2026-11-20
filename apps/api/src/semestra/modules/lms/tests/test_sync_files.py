@@ -756,7 +756,7 @@ def test_migration_makes_files_saved_in_2_0_materials_or_the_users_own(tmp_path:
     cfg = Config(str(API_DIR / "alembic.ini"))
     cfg.set_main_option("script_location", str(API_DIR / "migrations"))
     cfg.attributes["database_url"] = f"sqlite+aiosqlite:///{path}"
-    command.upgrade(cfg, "0064")
+    command.upgrade(cfg, "0065")
     db = sqlite3.connect(path)  # foreign keys are off: no user, course or connection rows needed
     db.execute(
         "INSERT INTO lms_course_links (id, user_id, course_id, program_id, connection_id,"
