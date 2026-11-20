@@ -38,7 +38,8 @@ export function noteExtensions({
     TableKit.configure({ table: { resizable: false }, tableCell: false, tableHeader: false }),
     TableCell.extend({ content: 'paragraph' }),
     TableHeader.extend({ content: 'paragraph' }),
-    Placeholder.configure({ placeholder }),
+    // An empty note says what it is for while read-only too; a click on it starts editing.
+    Placeholder.configure({ placeholder, showOnlyWhenEditable: false }),
     NoteMarkdown,
     MarkdownInput,
     OpenLinkOnModClick,
