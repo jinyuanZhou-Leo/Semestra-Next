@@ -3,6 +3,12 @@
 Generated from `release-notes/*.json` by `scripts/release.mjs`; do not edit by hand.
 The same notes in Chinese are in the JSON files and on the docs site.
 
+## 2.5.0 (2026-11-20)
+
+### New
+
+- **Canvas:** Assignment details: open any Canvas assignment where you see it (Canvas tab, gradebook, tasks, calendar, announcements, notifications) to read its instructions, your submission and your instructor's feedback. Imported assignments stay readable when Canvas can't be reached.
+
 ## 2.4.1 (2026-11-20)
 
 ### Fixed
