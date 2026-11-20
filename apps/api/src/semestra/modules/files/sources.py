@@ -23,11 +23,13 @@ from collections.abc import AsyncIterator, Awaitable, Callable, Mapping, Sequenc
 from dataclasses import dataclass
 from datetime import datetime
 
+from sqlalchemy import select
+
 from semestra.core.context import Ctx, run_as_system
 from semestra.core.db import new_id
 from semestra.core.errors import AppError
 from semestra.core.events import events
-from semestra.core.jobs import enqueue
+from semestra.core.jobs import CoreJob, enqueue, withdraw
 from semestra.core.storage import (
     charge,
     delete_after_commit,
@@ -337,12 +339,14 @@ async def apply_copies(
 
     cap = ctx.settings.files_max_upload_bytes
     left = await remaining_quota(ctx)
+    unwanted: list[str] = []
     for row in rows:
         if not content.follows_source(row):
             continue
         error = row.copy_error_code
         want = row.keep_copy if row.keep_copy is not None else local
         if not want:
+            unwanted.append(_copy_key(row.id))
             row.copy_error_code = None  # not wanted: nothing failed, copy kept or not
             released = release and await _release(ctx, row)
             if released or row.copy_error_code != error:
@@ -363,11 +367,36 @@ async def apply_copies(
                 ctx,
                 "files.store_synced_copies",
                 KeepPayload(item_ids=[row.id]),
-                dedupe_key=f"files.store_synced_copies:{row.id}",
+                dedupe_key=_copy_key(row.id),
                 again=True,
             )
         if row.copy_error_code != error:
             await _updated(ctx, row)
+    await _drop_queued_copies(ctx, unwanted)
+
+
+def _copy_key(item_id: str) -> str:
+    return f"files.store_synced_copies:{item_id}"
+
+
+async def _drop_queued_copies(ctx: Ctx, keys: Sequence[str]) -> None:
+    """Copies queued for files that no longer want one (the course reads from its source again
+    before they ran) are not stored: one not started is withdrawn, one storing now is not run
+    again. A course sync runs before the copy jobs, so this comes before they do."""
+    if not keys:
+        return
+    found = (
+        await ctx.db.scalars(
+            select(CoreJob).where(
+                CoreJob.user_id == ctx.user_id,
+                CoreJob.dedupe_key.in_(list(keys)),
+                CoreJob.status.in_(("pending", "running")),
+            )
+        )
+    ).all()
+    for job in found:
+        job.next_payload = None
+    await withdraw(ctx, [job.id for job in found if job.status == "pending"])
 
 
 async def store_from_source(ctx: Ctx, item_id: str, *, quiet: bool) -> bool:

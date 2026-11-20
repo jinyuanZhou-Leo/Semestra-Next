@@ -1345,6 +1345,23 @@ async def test_local_copies_are_stored_one_file_at_a_time(
     assert (await _files(api, course))[1]["Lecture 10.pdf"]["stored"] is True
 
 
+async def test_copies_still_waiting_are_dropped_when_the_course_reads_online_again(
+    api: Api, fake: FakeProvider, app: FastAPI
+):
+    """The user switches back to reading from the platform before the copies are stored: none
+    is stored afterwards."""
+    _materials(fake)
+    program_id, course = await _course(api)
+    await api.sync(program_id)
+    await _materials_setting(api, course, store="local")
+    assert await _pending(app, "files.store_synced_copies") > 0
+    await _materials_setting(api, course, store="online")
+    await api.run_jobs()
+    _, items = await _files(api, course)
+    assert not [name for name, item in items.items() if item.get("stored")]
+    assert await _pending(app, "files.store_synced_copies") == 0
+
+
 async def test_sem_looks_at_a_platform_file_through_the_course_files(
     api: Api, fake: FakeProvider, app: FastAPI
 ):
