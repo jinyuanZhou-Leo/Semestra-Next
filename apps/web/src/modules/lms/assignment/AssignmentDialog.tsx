@@ -1,4 +1,6 @@
-import { Lock, X } from 'lucide-react'
+import { FileText, Lock, X } from 'lucide-react'
+
+import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { useState } from 'react'
 import { courseColor, courseLabel } from '@/modules/academics/color'
 import { HideGrades } from '@/modules/grading/components/GradeValue'
@@ -170,7 +172,10 @@ function Details({ target, onClose }: { target: AssignmentTarget; onClose: () =>
             </TabsList>
             {tab === 'details' && a.html ? <DisplayMenu /> : null}
           </div>
-          <TabsContent value="details" className="min-h-0 space-y-4 overflow-y-auto px-7 py-5">
+          <TabsContent
+            value="details"
+            className="flex min-h-0 flex-col gap-4 overflow-y-auto px-7 py-5"
+          >
             <KeptNote detail={detail} provider={provider} />
             {a.locked ? (
               <p className="flex items-start gap-2 rounded-xl bg-muted px-3 py-2 text-sm">
@@ -181,7 +186,14 @@ function Details({ target, onClose }: { target: AssignmentTarget; onClose: () =>
             {a.html ? (
               <LmsHtml html={a.html} />
             ) : (
-              <p className="text-sm text-muted-foreground">{m.lms_assignment_no_description()}</p>
+              <Empty className="border-0">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <FileText />
+                  </EmptyMedia>
+                  <EmptyTitle>{m.lms_assignment_no_description()}</EmptyTitle>
+                </EmptyHeader>
+              </Empty>
             )}
           </TabsContent>
           <TabsContent value="feedback" className="min-h-0 space-y-6 overflow-y-auto px-7 py-5">

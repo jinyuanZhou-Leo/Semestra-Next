@@ -1,4 +1,6 @@
-import { Lock } from 'lucide-react'
+import { FileText, Lock } from 'lucide-react'
+
+import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { useState } from 'react'
 import { SEGMENT, SEGMENTED } from '@/lib/segmented'
 import { courseLabel } from '@/modules/academics/color'
@@ -118,7 +120,14 @@ function Details({ target, onClose }: { target: AssignmentTarget; onClose: () =>
               {a.html ? (
                 <LmsHtml html={a.html} />
               ) : (
-                <p className="text-sm text-muted-foreground">{m.lms_assignment_no_description()}</p>
+                <Empty className="border-0">
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                      <FileText />
+                    </EmptyMedia>
+                    <EmptyTitle>{m.lms_assignment_no_description()}</EmptyTitle>
+                  </EmptyHeader>
+                </Empty>
               )}
             </div>
           ) : d.partial ? (

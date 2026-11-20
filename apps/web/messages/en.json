@@ -2736,7 +2736,7 @@
   "lms_assignment_view": "View assignment",
   "lms_assignment_tab_description": "Description",
   "lms_assignment_tab_feedback": "Submission and feedback",
-  "lms_assignment_no_description": "This assignment has no description.",
+  "lms_assignment_no_description": "This assignment has no description",
   "lms_assignment_locked": "Locked in {provider}",
   "lms_assignment_graded": "Graded",
   "lms_assignment_excused": "Excused",

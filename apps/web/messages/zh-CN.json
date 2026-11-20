@@ -2736,7 +2736,7 @@
   "lms_assignment_view": "查看作业",
   "lms_assignment_tab_description": "说明",
   "lms_assignment_tab_feedback": "提交与反馈",
-  "lms_assignment_no_description": "这份作业没有说明。",
+  "lms_assignment_no_description": "这份作业没有说明",
   "lms_assignment_locked": "在 {provider} 中已锁定",
   "lms_assignment_graded": "已评分",
   "lms_assignment_excused": "免评",
