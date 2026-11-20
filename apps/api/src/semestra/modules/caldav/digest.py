@@ -3,7 +3,7 @@
 Apple devices refuse to send a Basic password over http ("Cancelling authentication challenge
 for insecure connection using basic authentication"), so a self-hosted server without https
 offers Digest too. Nonces are stateless: the time they were made, signed with the server key;
-an old one, or a request counter already used with it (a replay), is answered with
+an old one, or a cnonce and counter already used with it (a replay), is answered with
 `stale=true` and the device retries without asking the user.
 """
 
@@ -63,7 +63,7 @@ def parse(value: str) -> Credentials | None:
         return None
     if fields.get("realm") != REALM or fields.get("algorithm", "MD5").upper() != "MD5":
         return None
-    # qop=auth is required: its request counter (`nc`) is what stops replays (`routes._replayed`).
+    # qop=auth is required: its `cnonce` and `nc` are what stops replays (`routes._replayed`).
     qop = fields.get("qop")
     if qop != "auth" or not fields.get("nc") or not fields.get("cnonce"):
         return None

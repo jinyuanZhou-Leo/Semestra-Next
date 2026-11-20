@@ -49,16 +49,21 @@ REQUESTS_PER_HOUR = 1200
 _requests = TTLCache[str, list[int], float](maxsize=10_000, ttl=3600)
 
 
-# The Digest request counters each device has used with each nonce: a counter seen again is a
-# replay (someone who overheard a request on plain http). Kept as long as a nonce is good.
-_counters = TTLCache[tuple[str, str], set[str], float](maxsize=10_000, ttl=digest.NONCE_SECONDS)
+# The Digest requests each device has signed with each nonce, as (cnonce, nc): one seen again is
+# a replay (someone who overheard a request on plain http). Apple devices start every request
+# at nc=1 with a new cnonce, so the counter alone would refuse them. Kept as long as a nonce is
+# good.
+_signed = TTLCache[tuple[str, str], set[tuple[str, str]], float](
+    maxsize=10_000, ttl=digest.NONCE_SECONDS
+)
 
 
 def _replayed(connection_id: str, credentials: digest.Credentials) -> bool:
-    seen = _counters.setdefault((connection_id, credentials.nonce), set())
-    if credentials.nc in seen:
+    seen = _signed.setdefault((connection_id, credentials.nonce), set())
+    request = (credentials.cnonce, credentials.nc)
+    if request in seen:
         return True
-    seen.add(credentials.nc)
+    seen.add(request)
     return False
 
 

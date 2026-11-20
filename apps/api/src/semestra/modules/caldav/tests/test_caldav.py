@@ -2,6 +2,7 @@
 PROPFIND of the home and lists, multiget, PUT/DELETE of VTODOs."""
 
 import base64
+import hashlib
 import plistlib
 import xml.etree.ElementTree as ET
 from collections.abc import Awaitable, Callable
@@ -439,6 +440,25 @@ async def test_setup_profile(
     assert (await Device(app, reset["password"]).request("PROPFIND", "/caldav/")).status_code == 207
 
 
+def _md5(text: str) -> str:
+    return hashlib.md5(text.encode(), usedforsecurity=False).hexdigest()
+
+
+def nonce_of(header: str) -> str:
+    return header.split('nonce="', 1)[1].split('"', 1)[0]
+
+
+def apple_digest(account: dict[str, Any], method: str, uri: str, nonce: str, cnonce: str) -> str:
+    """`Authorization: Digest …` the way Apple's CFNetwork signs a request (RFC 7616, MD5)."""
+    user, password = account["CalDAVUsername"], account["CalDAVPassword"]
+    ha1 = _md5(f"{user}:Semestra:{password}")
+    response = _md5(f"{ha1}:{nonce}:00000001:{cnonce}:auth:{_md5(f'{method}:{uri}')}")
+    return (
+        f'Digest username="{user}", realm="Semestra", nonce="{nonce}", uri="{uri}", '
+        f'qop=auth, nc=00000001, cnonce="{cnonce}", response="{response}", algorithm=MD5'
+    )
+
+
 async def test_plain_http_signs_in_with_digest(
     app: FastAPI, client: AsyncClient, user: UserHandle, clock: Clock, caldav_on: None
 ):
@@ -487,6 +507,16 @@ async def test_plain_http_signs_in_with_digest(
         auth=httpx.DigestAuth(account["CalDAVUsername"], "not-the-password"),
     )
     assert (await wrong.request("PROPFIND", "/caldav/principal/")).status_code == 401
+
+    # Apple devices reuse the nonce for every request, each at nc=1 with a new cnonce.
+    first = await anonymous.request("PROPFIND", "/caldav/principal/")
+    nonce = nonce_of(first.headers.get_list("www-authenticate")[0])
+    for cnonce in ("a1", "b2"):
+        apple = apple_digest(account, "PROPFIND", "/caldav/principal/", nonce, cnonce)
+        r = await anonymous.request(
+            "PROPFIND", "/caldav/principal/", content=principal, headers={"Authorization": apple}
+        )
+        assert r.status_code == 207
 
     # An overheard request cannot be sent again: the device just signs in afresh.
     replay = await anonymous.request(
