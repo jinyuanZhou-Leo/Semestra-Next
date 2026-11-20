@@ -159,10 +159,14 @@ async def test_skills_reach_the_client_as_prompts_tool_and_extension(app: FastAP
         # The model can load one itself: the catalog is in the tool's description.
         load = next(t for t in (await mcp.list_tools()).tools if t.name == "load_skill")
         assert "- grade-planning: Use when" in (load.description or "")
+        # It says what Semestra is and when to turn to it, for a model that sees only tools.
+        assert (load.description or "").startswith("Semestra is the user's own study planner.")
         assert "record-grades" not in (load.description or "")
         loaded = await mcp.call_tool("load_skill", {"name": "answer-schedule-questions"})
         assert "Answering schedule questions" in _text(loaded.content[0])
         assert "calendar__occurrence__list" in _text(loaded.content[0])
+        # This surface's rules come with it: a client may not give the model the instructions.
+        assert "wait for them to agree" in _text(loaded.content[0])
         missing = await mcp.call_tool("load_skill", {"name": "record-grades"})
         assert missing.is_error
 
@@ -195,6 +199,8 @@ async def test_skills_reach_the_client_as_prompts_tool_and_extension(app: FastAP
         assert got.root["skill"] == entry
         assert entry["frontmatter"]["name"] == "grade-planning"
         assert "record-grades" not in {s["frontmatter"]["name"] for s in listed["skills"]}
+        # Readable by URI, but not listed: it would show up twice beside the prompts.
+        assert (await mcp.list_resources()).resources == []
         read = await mcp.read_resource("skill://grade-planning/SKILL.md")
         text = _text(read.contents[0])
         assert text.startswith("---\nname: grade-planning\n")

@@ -30,7 +30,7 @@ from semestra.core.config import Settings
 from semestra.core.context import AuthInfo, Ctx, Identity
 from semestra.core.errors import AppError
 from semestra.modules.agent import outcome, service, skills, tools
-from semestra.modules.agent.context import instructions
+from semestra.modules.agent.context import instructions, prompt
 from semestra.modules.agent.runtime import agent_ctx
 
 _IDENTITY = "semestra_mcp_identity"
@@ -133,15 +133,17 @@ async def _list_tools(ctx: Any, params: Any) -> types.ListToolsResult:
 
 
 def _load_skill_tool(found: list[skills.Skill]) -> types.Tool:
-    """Loads a skill, as `load_capability` does for Sem. The catalog is in the description: a
-    client may not show the server's instructions to the model, but it always shows tools."""
+    """Loads a skill, as `load_capability` does for Sem. What Semestra is, when to use it
+    (`prompts/about.md`) and the catalog are in the description: a client may not show the
+    server's instructions to the model, but it always shows tools (and a client that searches
+    its tools finds this one by those words)."""
     catalog = "\n".join(f"- {s.name}: {tools.for_model(s.description)}" for s in found)
     return types.Tool(
         name=LOAD_SKILL,
         description=(
-            "Load one of Semestra's skills: a step-by-step workflow for a common task, with the "
-            "tools it uses. Load the one that covers the user's request before you start it.\n\n"
-            f"Skills:\n{catalog}"
+            f"{prompt('about')}\n\nThis tool loads one of Semestra's skills: a step-by-step "
+            "workflow for a common task, with the tools it uses. Load the one that covers the "
+            f"user's request before you start it.\n\nSkills:\n{catalog}"
         ),
         input_schema={
             "type": "object",
@@ -154,9 +156,16 @@ def _load_skill_tool(found: list[skills.Skill]) -> types.Tool:
 
 
 def _workflow(skill: skills.Skill) -> str:
-    """A skill as the model reads it: the body, then the tools it uses."""
+    """A skill as the model reads it over MCP: what Semestra is and this surface's rules
+    (`prompts/about.md`, `prompts/mcp-rules.md`: no review step in Semestra, so ask before
+    deleting or committing an import; where the Program and term come from), then the body and
+    the tools it uses. The rules come with every skill because a client may not give the model
+    the server's instructions, and the bodies leave them out."""
     names = ", ".join(tools.tool_name(t) for t in skill.tools)
-    return f"{tools.for_model(skill.body)}\n\nTools this workflow uses: {names}"
+    return tools.for_model(
+        f"{prompt('about')}\n\nWorking in Semestra over MCP:\n{prompt('mcp-rules')}\n\n---\n\n"
+        f"{skill.body}\n\nTools this workflow uses: {names}"
+    )
 
 
 def _text(payload: Any, *, error: bool = False) -> types.CallToolResult:
@@ -228,8 +237,10 @@ def _skill_uri(skill: skills.Skill) -> str:
 
 
 def _skill_file(skill: skills.Skill) -> str:
-    """`SKILL.md` as clients read it: terms expanded, capabilities named as their tools."""
-    return tools.for_model(skill.text)
+    """`SKILL.md` as clients read it: the frontmatter (terms expanded, capabilities named as
+    their tools), then the same text `load_skill` returns."""
+    end = skill.text.index("\n---", 3) + len("\n---")
+    return f"{tools.for_model(skill.text[:end])}\n\n{_workflow(skill)}\n"
 
 
 class SkillFile(MCPModel):
@@ -292,20 +303,10 @@ async def _get_skill(ctx: Any, params: GetSkillParams) -> GetSkillResult:
 
 
 async def _list_resources(ctx: Any, params: Any) -> types.ListResourcesResult:
-    """Each skill's `SKILL.md`: clients without the Skills extension can still show them."""
-    state, ident = _identity(ctx)
-    return types.ListResourcesResult(
-        resources=[
-            types.Resource(
-                uri=_skill_uri(s),
-                name=s.name,
-                title=s.title.get("en"),
-                description=tools.for_model(s.description),
-                mime_type="text/markdown",
-            )
-            for s in await _skill_list(state, ident)
-        ]
-    )
+    """Empty: skills are found with `skills/list` (or as prompts); listing their files here
+    too would show each one twice in a client's attach menu. `skill://` URIs are still read
+    with `resources/read`, which the Skills extension needs."""
+    return types.ListResourcesResult(resources=[])
 
 
 async def _read_resource(
