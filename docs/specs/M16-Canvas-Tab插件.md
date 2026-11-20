@@ -90,7 +90,7 @@ defineModule({
 - 外部工具与未知页签的链接：Canvas Tab 对象的 `html_url` 是相对路径，M09 按连接的 `base_url` 补成绝对地址。
 
 **视图**
-- 共享组件 `components/SafeHtml.tsx`（DOMPurify 3）：后端已用 nh3 清洗，前端再净化一次，禁止 style/表单元素；图片 `loading=lazy`，表格横向滚动，链接新标签页打开；带 `data-lms-kind`/`data-lms-ref` 的链接在插件内跳转（page/assignment/quiz/module/announcement 切换视图，file 打开预览，discussion 仍去 Canvas）。 2026-11-18 起标题行（`ViewHeader`/`DetailHeader`）、显示方式菜单、`LmsHtml`（含课程文件图片走文件代理）、`IconAction` 与「在 {provider} 中打开」移到 M09 的 `modules/lms/content/`，与「公告」页共用；插件经 `LmsContentContext` 提供显示方式与链接处理，链接仍在插件内跳转。
+- 共享组件 `components/SafeHtml.tsx`（DOMPurify 3）：后端已用 nh3 清洗，前端再净化一次，禁止 style/表单元素；图片 `loading=lazy`，表格横向滚动，链接新标签页打开；带 `data-lms-kind`/`data-lms-ref` 的链接在插件内跳转（page/assignment/quiz/module/announcement 切换视图，file 打开预览，discussion 仍去 Canvas）。 2026-11-18 起标题行（`ViewHeader`/`DetailHeader`）、显示方式菜单、`LmsHtml`（含课程文件图片走文件代理）、「在 {provider} 中打开」移到 M09 的 `modules/lms/content/`（`IconAction` 2026-11-20 起在 `components/IconAction.tsx`，各处带提示的图标按钮共用），与「公告」页共用；插件经 `LmsContentContext` 提供显示方式与链接处理，链接仍在插件内跳转。
 - 公告列表的未读点是 Semestra 自己的已读状态（2026-11-18 起，M09 §4.3）：在这里或「公告」页读过就消失；允许修改平台时，同步也会带来 Canvas 上的已读。
 - 作业表（TanStack Table）按作业组分组、可折叠，组标题显示数量与权重；工具栏常驻（不会因勾选改变高度），"导入到成绩簿"/"导入到待办"调用 `lms.assignment.import`（`as_kind`）后用 `openImport({ source: 'session' })` 进入 M08 审核；已导入的行不能勾选（Base UI 的勾选框是 span，生成样式里的 `disabled:` 匹配不到，所以调用方加 `data-disabled:` 让它变淡）。点击行在下方展开描述，`ref` 指向的行会展开并滚动到可见处。表格用 `table-fixed` 和固定列宽（名称列占剩余宽度），展开描述或折叠分组时列不移动。
 - 成绩页顶部 `Alert` 引导到成绩簿（`grades` Page）。测验表每行"在 Canvas 中打开"。
