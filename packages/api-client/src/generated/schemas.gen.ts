@@ -6762,6 +6762,50 @@ export const DoneSchema = {
     title: 'Done'
 } as const;
 
+export const DownloadInputSchema = {
+    properties: {
+        item_ids: {
+            items: {
+                type: 'string',
+                maxLength: 64,
+                minLength: 1
+            },
+            type: 'array',
+            maxItems: 10000,
+            title: 'Item Ids',
+            description: 'Files to put in it'
+        },
+        folder_ids: {
+            items: {
+                type: 'string',
+                maxLength: 64,
+                minLength: 1
+            },
+            type: 'array',
+            maxItems: 10000,
+            title: 'Folder Ids',
+            description: 'Folders to put in it, whole'
+        }
+    },
+    type: 'object',
+    title: 'DownloadInput'
+} as const;
+
+export const DownloadPreparedSchema = {
+    properties: {
+        download_id: {
+            type: 'string',
+            title: 'Download Id',
+            description: 'Fetch the archive once, within a minute, at GET /file-downloads/{download_id}'
+        }
+    },
+    type: 'object',
+    required: [
+        'download_id'
+    ],
+    title: 'DownloadPrepared'
+} as const;
+
 export const DuplicateCheckSchema = {
     properties: {
         duplicates: {

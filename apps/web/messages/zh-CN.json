@@ -2061,7 +2061,6 @@
   "files_delete_item_description": "文件将被删除，无法撤销。",
   "files_delete_folder_description": "将删除这个空文件夹。",
   "files_delete_folder_with_files_description": "文件夹及其中的 {count} 个文件将被删除，无法撤销。",
-  "files_download_too_many": "一次最多下载 {max} 项。",
   "files_download": "下载",
   "files_drop_here": "松开即可上传到 {folder}",
   "files_duplicate_title": "部分文件已存在",

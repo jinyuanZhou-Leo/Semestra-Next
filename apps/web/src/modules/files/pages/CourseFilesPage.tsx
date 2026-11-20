@@ -1,4 +1,3 @@
-import { toast } from 'sonner'
 import { useMutation } from '@tanstack/react-query'
 import type { FilesItemList, ItemOut } from '@semestra/api-client'
 import {
@@ -67,7 +66,7 @@ import { searchTerms } from '../highlight'
 import { useDebounced } from '@/hooks/use-debounced'
 import { useFileDrop } from '../hooks'
 import { useFilesLocation, usePreviewLocation } from '../location'
-import { DOWNLOAD_MAX, downloadUrl, useCourseFiles } from '../queries'
+import { downloadTarget, useCourseFiles } from '../queries'
 import { downloadArchive } from '../download'
 
 /** The `files` page of a course (M07 §6.1). */
@@ -167,8 +166,7 @@ export function CourseFiles({
   const selected = shown.filter((t) => checked.has(targetKey(t)))
   const clearSelection = selection.clear
   const selecting = selected.length > 0 && !searching
-  const download = downloadUrl(courseId, selected)
-  const tooMany = selected.length > DOWNLOAD_MAX
+  const download = downloadTarget(courseId, selected)
   const archive = useMutation({ mutationFn: downloadArchive, onError: toastError })
 
   const needle = search.trim().toLowerCase()
@@ -200,21 +198,12 @@ export function CourseFiles({
               onClear={clearSelection}
               actions={
                 <>
-                  {download && tooMany ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => toast.error(m.files_download_too_many({ max: DOWNLOAD_MAX }))}
-                    >
-                      <Download aria-hidden />
-                      {m.files_download()}
-                    </Button>
-                  ) : download?.archive ? (
+                  {download?.archive ? (
                     <Button
                       variant="outline"
                       size="sm"
                       disabled={archive.isPending}
-                      onClick={() => archive.mutate(download.url)}
+                      onClick={() => archive.mutate(download)}
                     >
                       {archive.isPending ? <Spinner /> : <Download aria-hidden />}
                       {m.files_download()}

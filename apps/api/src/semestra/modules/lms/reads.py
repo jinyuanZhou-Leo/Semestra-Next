@@ -3,7 +3,7 @@ agent use. Every read needs a linked course and the provider's feature; HTML is 
 it is cached, so cache hits are clean too."""
 
 import asyncio
-from collections.abc import AsyncIterator, Collection, Sequence
+from collections.abc import AsyncGenerator, AsyncIterator, Collection, Sequence
 from datetime import UTC, datetime, timedelta, tzinfo
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -642,7 +642,7 @@ async def open_file(
         await client.aclose()
         raise
 
-    async def chunks() -> AsyncIterator[bytes]:
+    async def chunks() -> AsyncGenerator[bytes]:
         try:
             if first:
                 yield first
@@ -652,7 +652,35 @@ async def open_file(
             await stream.aclose()  # pyright: ignore[reportAttributeAccessIssue]
             await client.aclose()
 
-    return meta, chunks()
+    return meta, _Download(chunks(), stream, client)
+
+
+class _Download:
+    """The bytes of a file being downloaded (`chunks` in `open_file`). An async generator that
+    has not started skips its `finally` on `aclose()`, so closing one never read (an archive asked
+    for and never fetched, M07 §5) closes the provider's stream and the HTTP client here."""
+
+    def __init__(self, chunks: AsyncGenerator[bytes], stream: AsyncIterator[bytes], client: Any):
+        self._chunks = chunks
+        self._stream = stream
+        self._client = client
+        self._started = False
+
+    def __aiter__(self) -> _Download:
+        return self
+
+    async def __anext__(self) -> bytes:
+        self._started = True
+        return await anext(self._chunks)
+
+    async def aclose(self) -> None:
+        await self._chunks.aclose()
+        if not self._started:
+            self._started = True
+            try:
+                await self._stream.aclose()  # pyright: ignore[reportAttributeAccessIssue]
+            finally:
+                await self._client.aclose()
 
 
 async def submission(

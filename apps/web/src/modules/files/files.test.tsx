@@ -750,29 +750,28 @@ test('chosen files and folders download together as one archive, links left out,
   await user.click(
     screen.getByRole('button', { name: 'Labs' }).closest('tr')!.querySelector('[role=checkbox]')!,
   )
-  // More than one: an archive. The server is asked first (so a refusal can be shown), then the
-  // browser downloads it.
+  // More than one: an archive. The choice is posted first (so a refusal can be shown), then the
+  // browser downloads the archive at the short address the server answered with.
   const saved: string[] = []
   vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
     this: HTMLAnchorElement,
   ) {
     saved.push(this.href)
   })
-  const asked: string[] = []
+  const asked: unknown[] = []
   server.use(
-    http.get(`${API}/courses/c1/files:download`, ({ request }) => {
-      asked.push(new URL(request.url).search)
-      return new HttpResponse('PK', { headers: { 'content-type': 'application/zip' } })
+    http.post(`${API}/courses/c1/files:download`, async ({ request }) => {
+      asked.push(await request.json())
+      return HttpResponse.json({ download_id: 'd1' })
     }),
   )
-  const archive = `${API}/courses/c1/files:download?item_ids=i1&folder_ids=f1`
   await user.click(screen.getByRole('button', { name: 'Download' }))
-  await waitFor(() => expect(saved).toEqual([archive]))
-  expect(asked).toEqual(['?item_ids=i1&folder_ids=f1'])
+  await waitFor(() => expect(saved).toEqual([`${API}/file-downloads/d1`]))
+  expect(asked).toEqual([{ item_ids: ['i1'], folder_ids: ['f1'] }])
 
   // None of them could be read: an error, nothing saved.
   server.use(
-    http.get(`${API}/courses/c1/files:download`, () =>
+    http.post(`${API}/courses/c1/files:download`, () =>
       HttpResponse.json(
         { error: { code: 'files.download_unavailable', params: {}, request_id: 'r' } },
         { status: 502 },
@@ -783,7 +782,7 @@ test('chosen files and folders download together as one archive, links left out,
   expect(
     await screen.findByText("The files couldn't be read from where they're kept. Try again later."),
   ).toBeInTheDocument()
-  expect(saved).toEqual([archive])
+  expect(saved).toEqual([`${API}/file-downloads/d1`])
 })
 
 const job = (status: string, step: string | null) => ({
