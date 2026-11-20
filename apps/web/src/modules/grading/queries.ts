@@ -76,6 +76,7 @@ export function useProgramGrades(programId: string) {
 export function useGradingScale(programId: string) {
   return useQuery({
     ...gradingScaleGetOptions({ path: { program_id: programId } }),
+    enabled: programId !== '',
   })
 }
 

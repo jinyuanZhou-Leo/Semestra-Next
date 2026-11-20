@@ -1,6 +1,8 @@
 import type { CourseLinkList } from '@semestra/api-client'
 import { ExternalLink, School } from 'lucide-react'
 import { defineModule, type Scope, preloadable } from '@/app/extensions'
+import { coursePath } from '@/modules/academics/paths'
+import { LMS_LINK_OPENERS, type LmsLinkOpener } from '@/modules/lms/types'
 import { m } from '@/paraglide/messages'
 import { openLinkedCourse, programLinksOptions } from './open-in-canvas'
 
@@ -48,5 +50,19 @@ export default defineModule({
         scope?.kind === 'course' ? openLinkedCourse(queryClient, scope.courseId) : undefined,
     },
   ],
+  extensions: {
+    // Links to pages and modules in an assignment's description open here.
+    [LMS_LINK_OPENERS]: [
+      {
+        id: 'canvas-tab',
+        path: (link, { programId, courseId }) => {
+          const tab = link.kind === 'page' ? 'pages' : link.kind === 'module' ? 'modules' : null
+          return tab
+            ? `${coursePath(programId, courseId, 'canvas')}?tab=${tab}&ref=${encodeURIComponent(link.ref)}`
+            : null
+        },
+      },
+    ] satisfies LmsLinkOpener[],
+  },
   uiPrefPrefixes: ['canvas-tab.'],
 })

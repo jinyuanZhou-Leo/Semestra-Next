@@ -323,6 +323,9 @@ export function OccurrenceDetails({
             <OpenIcon aria-hidden />
           </Button>
         ) : null}
+        {source?.More ? (
+          <source.More programId={programId} occurrence={o} close={() => onOpenChange(false)} />
+        ) : null}
       </PopoverContent>
     </Popover>
   )

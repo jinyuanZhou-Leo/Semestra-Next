@@ -164,7 +164,9 @@ async def _log(ctx: Ctx, ref: LmsImportedRef, name: str, old: Any, new: Any, tit
     )
     ctx.db.add(change)
     await ctx.db.flush()
-    return Applied(change_id=change.id, ref_id=ref.id, name=title, field=name)
+    return Applied(
+        change_id=change.id, ref_id=ref.id, name=title, field=name, external_id=ref.external_id
+    )
 
 
 async def _follow(
@@ -360,7 +362,7 @@ async def answer(ctx: Ctx, ref_id: str, name: str, choice: str) -> str:
 
 async def toggleable(ctx: Ctx, changes: list[tuple[LmsSyncChange, LmsImportedRef]]) -> set[str]:
     """The changes that can still be put back, or applied again once put back: a field's value
-    (not new feedback, `sync_feedback`), the newest of their field, no question open about the
+    (not new feedback, `sync_kept`), the newest of their field, no question open about the
     field, and the field still holding what the change (or putting it back) left there, so no
     later sync or edit is overwritten."""
     newest: dict[tuple[str, str], LmsSyncChange] = {}

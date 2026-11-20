@@ -169,6 +169,15 @@ class Submission(BaseModel):
     late: bool = False
     missing: bool = False
     attempt: int | None = Field(default=None, description="Attempts made (quizzes, resubmissions)")
+    excused: bool = False
+
+
+class ScoreStatistics(BaseModel):
+    """How the class did, when the instructor lets students see it."""
+
+    mean: float | None = None
+    max: float | None = None
+    min: float | None = None
 
 
 class RubricRating(BaseModel):
@@ -207,7 +216,13 @@ class Assignment(Dto):
     locked: bool = False
     lock_explanation: LockText = None
     allowed_attempts: int | None = Field(default=None, description="None or -1: unlimited")
+    allowed_extensions: list[str] = Field(
+        default_factory=list, description="File types an upload takes; empty for any"
+    )
+    statistics: ScoreStatistics | None = None
     rubric: list[RubricCriterion] = Field(default_factory=list)
+    # The quiz this is the assignment of (`Quiz.external_id`), for a graded quiz.
+    quiz_id: str | None = None
 
 
 class CommentAttachment(BaseModel):
@@ -238,8 +253,19 @@ class RubricScore(BaseModel):
     comments: str | None = None
 
 
+class SubmittedFile(Dto):
+    """A file the user handed in; `external_id` is the platform's file id."""
+
+    name: str
+    mime_type: str | None = None
+    size_bytes: int | None = None
+    # Provider-internal download location; never sent to clients.
+    download_url: str | None = Field(default=None, exclude=True)
+
+
 class SubmissionDetail(Dto):
-    """The user's own submission of one assignment, with the teacher's feedback."""
+    """The user's own submission of one assignment (what they handed in last), with the
+    teacher's feedback."""
 
     assignment_id: str
     state: str | None = None
@@ -250,6 +276,13 @@ class SubmissionDetail(Dto):
     attempt: int | None = None
     late: bool = False
     missing: bool = False
+    excused: bool = False
+    seconds_late: int | None = None
+    points_deducted: float | None = Field(default=None, description="Taken off for lateness")
+    submission_type: str | None = Field(default=None, description="How it was handed in")
+    body: Html = Field(default=None, description="A text entry's text")
+    url: WebUrl = Field(default=None, description="A website submission's address")
+    files: list[SubmittedFile] = Field(default_factory=lambda: [])
     comments: list[SubmissionComment] = Field(default_factory=list)
     rubric_scores: list[RubricScore] = Field(default_factory=list)
 

@@ -2017,6 +2017,354 @@ export const AssignmentBindingSchema = {
     title: 'AssignmentBinding'
 } as const;
 
+export const AssignmentDetailSchema = {
+    properties: {
+        provider: {
+            type: 'string',
+            title: 'Provider',
+            description: 'The provider it was read from'
+        },
+        assignment: {
+            $ref: '#/components/schemas/AssignmentFacts',
+            description: 'Without `submission`: it is `submission` here'
+        },
+        submission: {
+            anyOf: [
+                {
+                    $ref: '#/components/schemas/SubmissionDetail'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            description: 'What the user handed in, with the teacher\'s feedback; null when unknown'
+        },
+        quiz: {
+            anyOf: [
+                {
+                    $ref: '#/components/schemas/QuizFacts'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            description: 'Of an assignment that is a quiz'
+        },
+        practice: {
+            type: 'boolean',
+            title: 'Practice',
+            description: 'A quiz without an assignment (a practice quiz): no submission, not importable',
+            default: false
+        },
+        kept: {
+            type: 'boolean',
+            title: 'Kept',
+            description: 'This is what the sync kept, not the platform\'s answer',
+            default: false
+        },
+        kept_at: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date-time'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Kept At',
+            description: 'When the sync read what it kept (unknown for old rows)'
+        },
+        problem: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Problem',
+            description: 'Why the platform\'s answer is missing (an error code)'
+        },
+        assessment: {
+            anyOf: [
+                {
+                    $ref: '#/components/schemas/InGradebook'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            description: 'The gradebook row it was imported as'
+        },
+        task: {
+            anyOf: [
+                {
+                    $ref: '#/components/schemas/InTasks'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            description: 'Its to-do'
+        },
+        targets: {
+            items: {
+                $ref: '#/components/schemas/LinkTarget'
+            },
+            type: 'array',
+            title: 'Targets',
+            description: 'What the description\'s links to course files are in the app',
+            default: []
+        }
+    },
+    type: 'object',
+    required: [
+        'provider',
+        'assignment',
+        'submission',
+        'assessment',
+        'task'
+    ],
+    title: 'AssignmentDetail',
+    description: 'One assignment, whole (M09 §5): as the platform has it now, or, when the platform\ncan\'t be asked, as the last sync kept it (`kept_at`).'
+} as const;
+
+export const AssignmentFactsSchema = {
+    properties: {
+        external_id: {
+            type: 'string',
+            title: 'External Id'
+        },
+        web_url: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Web Url',
+            description: 'Opens the item on the platform'
+        },
+        raw_kind: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Raw Kind',
+            description: 'The platform\'s own type (debugging)'
+        },
+        name: {
+            type: 'string',
+            title: 'Name'
+        },
+        html: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Html'
+        },
+        due_at: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date-time'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Due At'
+        },
+        unlock_at: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date-time'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Unlock At'
+        },
+        lock_at: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date-time'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Lock At'
+        },
+        points: {
+            anyOf: [
+                {
+                    type: 'number'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Points'
+        },
+        group_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Group Id'
+        },
+        group_name: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Group Name'
+        },
+        group_weight: {
+            anyOf: [
+                {
+                    type: 'number'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Group Weight'
+        },
+        submission_types: {
+            items: {
+                type: 'string'
+            },
+            type: 'array',
+            title: 'Submission Types'
+        },
+        submission: {
+            anyOf: [
+                {
+                    $ref: '#/components/schemas/Submission'
+                },
+                {
+                    type: 'null'
+                }
+            ]
+        },
+        published: {
+            type: 'boolean',
+            title: 'Published',
+            default: true
+        },
+        updated_at: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date-time'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Updated At'
+        },
+        locked: {
+            type: 'boolean',
+            title: 'Locked',
+            default: false
+        },
+        lock_explanation: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Lock Explanation',
+            description: 'Why it is locked, as the platform says'
+        },
+        allowed_attempts: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Allowed Attempts',
+            description: 'None or -1: unlimited'
+        },
+        allowed_extensions: {
+            items: {
+                type: 'string'
+            },
+            type: 'array',
+            title: 'Allowed Extensions',
+            description: 'File types an upload takes; empty for any'
+        },
+        statistics: {
+            anyOf: [
+                {
+                    $ref: '#/components/schemas/ScoreStatistics'
+                },
+                {
+                    type: 'null'
+                }
+            ]
+        },
+        rubric: {
+            items: {
+                $ref: '#/components/schemas/RubricCriterion'
+            },
+            type: 'array',
+            title: 'Rubric'
+        },
+        quiz_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Quiz Id'
+        }
+    },
+    type: 'object',
+    required: [
+        'external_id',
+        'name'
+    ],
+    title: 'AssignmentFacts',
+    description: 'The assignment as `AssignmentDetail` gives it (its own name in the API: the AI module has\nan `Assignment` too).'
+} as const;
+
 export const AssignmentImportInputBodySchema = {
     properties: {
         external_ids: {
@@ -2237,12 +2585,41 @@ export const AssignmentOutSchema = {
             title: 'Allowed Attempts',
             description: 'None or -1: unlimited'
         },
+        allowed_extensions: {
+            items: {
+                type: 'string'
+            },
+            type: 'array',
+            title: 'Allowed Extensions',
+            description: 'File types an upload takes; empty for any'
+        },
+        statistics: {
+            anyOf: [
+                {
+                    $ref: '#/components/schemas/ScoreStatistics'
+                },
+                {
+                    type: 'null'
+                }
+            ]
+        },
         rubric: {
             items: {
                 $ref: '#/components/schemas/RubricCriterion'
             },
             type: 'array',
             title: 'Rubric'
+        },
+        quiz_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Quiz Id'
         },
         ref: {
             type: 'string',
@@ -2297,6 +2674,67 @@ export const AssignmentParamsInputBodySchema = {
         'params'
     ],
     title: 'AssignmentParamsInputBody'
+} as const;
+
+export const AssignmentTargetSchema = {
+    properties: {
+        course_id: {
+            type: 'string',
+            title: 'Course Id'
+        },
+        assignment_id: {
+            type: 'string',
+            title: 'Assignment Id',
+            description: 'The assignment\'s external id'
+        },
+        assessment_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Assessment Id'
+        },
+        task_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Task Id',
+            description: 'Set for an assignment imported as a to-do only'
+        }
+    },
+    type: 'object',
+    required: [
+        'course_id',
+        'assignment_id'
+    ],
+    title: 'AssignmentTarget'
+} as const;
+
+export const AssignmentTargetsSchema = {
+    properties: {
+        items: {
+            items: {
+                $ref: '#/components/schemas/AssignmentTarget'
+            },
+            type: 'array',
+            title: 'Items',
+            description: 'The Program\'s assessments and to-dos that are an assignment of the platform'
+        }
+    },
+    type: 'object',
+    required: [
+        'items'
+    ],
+    title: 'AssignmentTargets'
 } as const;
 
 export const AssignmentUpdateInputBodySchema = {
@@ -10576,6 +11014,45 @@ export const ImportTargetSchema = {
     title: 'ImportTarget'
 } as const;
 
+export const InGradebookSchema = {
+    properties: {
+        id: {
+            type: 'string',
+            title: 'Id'
+        },
+        weight: {
+            type: 'number',
+            title: 'Weight',
+            description: 'Percent of the course grade'
+        }
+    },
+    type: 'object',
+    required: [
+        'id',
+        'weight'
+    ],
+    title: 'InGradebook'
+} as const;
+
+export const InTasksSchema = {
+    properties: {
+        id: {
+            type: 'string',
+            title: 'Id'
+        },
+        completed: {
+            type: 'boolean',
+            title: 'Completed'
+        }
+    },
+    type: 'object',
+    required: [
+        'id',
+        'completed'
+    ],
+    title: 'InTasks'
+} as const;
+
 export const InheritedValueSchema = {
     properties: {
         value: {
@@ -11551,6 +12028,18 @@ export const LmsContentDetailSchema = {
             ],
             title: 'Url',
             description: 'Opens it on the LMS'
+        },
+        app_url: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'App Url',
+            description: 'Of an assignment or a quiz: opens its details in the app (a path under the app\'s address)'
         },
         date: {
             anyOf: [
@@ -16999,6 +17488,36 @@ export const QuizSchema = {
     title: 'Quiz'
 } as const;
 
+export const QuizFactsSchema = {
+    properties: {
+        question_count: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Question Count'
+        },
+        time_limit: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Time Limit',
+            description: 'Minutes; None for no limit'
+        }
+    },
+    type: 'object',
+    title: 'QuizFacts'
+} as const;
+
 export const QuizListSchema = {
     properties: {
         items: {
@@ -17709,6 +18228,47 @@ export const ScaleUpdateInputBodySchema = {
     },
     type: 'object',
     title: 'ScaleUpdateInputBody'
+} as const;
+
+export const ScoreStatisticsSchema = {
+    properties: {
+        mean: {
+            anyOf: [
+                {
+                    type: 'number'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Mean'
+        },
+        max: {
+            anyOf: [
+                {
+                    type: 'number'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Max'
+        },
+        min: {
+            anyOf: [
+                {
+                    type: 'number'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Min'
+        }
+    },
+    type: 'object',
+    title: 'ScoreStatistics',
+    description: 'How the class did, when the instructor lets students see it.'
 } as const;
 
 export const ScoreSuggestionSchema = {
@@ -19568,6 +20128,11 @@ export const SubmissionSchema = {
             ],
             title: 'Attempt',
             description: 'Attempts made (quizzes, resubmissions)'
+        },
+        excused: {
+            type: 'boolean',
+            title: 'Excused',
+            default: false
         }
     },
     type: 'object',
@@ -19745,6 +20310,77 @@ export const SubmissionDetailSchema = {
             title: 'Missing',
             default: false
         },
+        excused: {
+            type: 'boolean',
+            title: 'Excused',
+            default: false
+        },
+        seconds_late: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Seconds Late'
+        },
+        points_deducted: {
+            anyOf: [
+                {
+                    type: 'number'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Points Deducted',
+            description: 'Taken off for lateness'
+        },
+        submission_type: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Submission Type',
+            description: 'How it was handed in'
+        },
+        body: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Body',
+            description: 'A text entry\'s text'
+        },
+        url: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Url',
+            description: 'A website submission\'s address'
+        },
+        files: {
+            items: {
+                $ref: '#/components/schemas/SubmittedFile'
+            },
+            type: 'array',
+            title: 'Files'
+        },
         comments: {
             items: {
                 $ref: '#/components/schemas/SubmissionComment'
@@ -19766,7 +20402,73 @@ export const SubmissionDetailSchema = {
         'assignment_id'
     ],
     title: 'SubmissionDetail',
-    description: 'The user\'s own submission of one assignment, with the teacher\'s feedback.'
+    description: 'The user\'s own submission of one assignment (what they handed in last), with the\nteacher\'s feedback.'
+} as const;
+
+export const SubmittedFileSchema = {
+    properties: {
+        external_id: {
+            type: 'string',
+            title: 'External Id'
+        },
+        web_url: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Web Url',
+            description: 'Opens the item on the platform'
+        },
+        raw_kind: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Raw Kind',
+            description: 'The platform\'s own type (debugging)'
+        },
+        name: {
+            type: 'string',
+            title: 'Name'
+        },
+        mime_type: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Mime Type'
+        },
+        size_bytes: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Size Bytes'
+        }
+    },
+    type: 'object',
+    required: [
+        'external_id',
+        'name'
+    ],
+    title: 'SubmittedFile',
+    description: 'A file the user handed in; `external_id` is the platform\'s file id.'
 } as const;
 
 export const SuggestInputBodySchema = {
@@ -19935,6 +20637,11 @@ export const SyncChangeSchema = {
             type: 'string',
             title: 'Target Id'
         },
+        external_id: {
+            type: 'string',
+            title: 'External Id',
+            description: 'The assignment\'s id on the platform'
+        },
         at: {
             type: 'string',
             format: 'date-time',
@@ -19962,6 +20669,7 @@ export const SyncChangeSchema = {
         'new',
         'target_kind',
         'target_id',
+        'external_id',
         'at',
         'reverted',
         'toggleable'

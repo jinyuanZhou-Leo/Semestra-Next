@@ -229,10 +229,9 @@ test('links and attachments open what Semestra has, the rest go to the platform'
     'noopener,noreferrer',
   )
   opened.mockRestore()
+  // An assignment opens its details over the page.
   await userEvent.click(screen.getByRole('link', { name: 'lab' }))
-  await waitFor(() => expect(router.state.location.pathname).toBe('/p/p1/c/c1/grades'))
-  expect(router.state.location.search).toEqual({ assessment: 'a1' })
-  router.history.back()
+  await waitFor(() => expect(router.state.location.search).toMatchObject({ assignment: 'c1:5' }))
   // A link to another site asks first, as links elsewhere in the app do.
   await userEvent.click(await screen.findByRole('link', { name: 'forum' }))
   const leave = await screen.findByRole('alertdialog', { name: 'Open an external site?' })

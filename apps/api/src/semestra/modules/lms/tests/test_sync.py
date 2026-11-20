@@ -211,6 +211,7 @@ async def test_a_new_grade_is_applied_and_announced(api: Api, app: FastAPI, fake
             "ref_id": synced["applied"][0]["ref_id"],
             "name": "Lab 2",
             "field": "score",
+            "external_id": "a2",
         }
     ]
     # Told once: the next sync finds nothing to do.

@@ -414,6 +414,8 @@ async def test_student_details_are_mapped(settings: Settings, io: Io, mock: resp
              "lock_explanation": "Locked until <b>Feb 1</b>.", "allowed_attempts": -1,
              "rubric": [{"id": "_1", "description": "Code", "points": 10,
                          "ratings": [{"id": "r1", "description": "Full", "points": 10}]}],
+             "allowed_extensions": ["pdf", "c"],
+             "score_statistics": {"mean": 7.5, "max": 10, "min": 3},
              "submission": {"workflow_state": "graded", "score": 8, "attempt": 2}},
         ]}])
     )  # fmt: skip
@@ -434,7 +436,11 @@ async def test_student_details_are_mapped(settings: Settings, io: Io, mock: resp
     )  # fmt: skip
     route = mock.get(f"{API}/courses/101/assignments/11/submissions/self").mock(
         return_value=ok({"id": 70, "user_id": 3, "score": 8, "grade": "8", "attempt": 2,
-                         "workflow_state": "graded",
+                         "workflow_state": "graded", "submission_type": "online_upload",
+                         "seconds_late": 3600, "points_deducted": 1,
+                         "attachments": [{"id": 90, "display_name": "lab1.c", "size": 2048,
+                                          "content-type": "text/x-c",
+                                          "url": "https://canvas.test/files/90/download?v=1"}],
                          "submission_comments": [
                              {"author_id": 9, "author_name": "Prof", "comment": "Nice",
                               "created_at": "2026-02-10T12:00:00Z",
@@ -456,6 +462,9 @@ async def test_student_details_are_mapped(settings: Settings, io: Io, mock: resp
     assert a.submission is not None
     assert a.submission.attempt == 2
     assert [(c.id, c.points, [r.id for r in c.ratings]) for c in a.rubric] == [("_1", 10, ["r1"])]
+    assert a.allowed_extensions == ["pdf", "c"]
+    assert a.statistics is not None
+    assert (a.statistics.mean, a.statistics.max, a.statistics.min) == (7.5, 10, 3)
 
     [module] = await p.modules(io, cfg, creds, "101")
     assert (module.state, module.prerequisite_module_ids, module.require_sequential_progress) == (
@@ -471,6 +480,14 @@ async def test_student_details_are_mapped(settings: Settings, io: Io, mock: resp
 
     detail = await p.submission(io, cfg, creds, "101", "11")
     assert (detail.score, detail.attempt, detail.assignment_id) == (8, 2, "11")
+    assert (detail.submission_type, detail.seconds_late, detail.points_deducted) == (
+        "online_upload", 3600, 1
+    )  # fmt: skip
+    [handed_in] = detail.files
+    assert (handed_in.external_id, handed_in.name, handed_in.size_bytes) == ("90", "lab1.c", 2048)
+    # The address stays on the server: the file opens through the proxy.
+    assert handed_in.download_url == "https://canvas.test/files/90/download?v=1"
+    assert "download_url" not in detail.model_dump()["files"][0]
     assert [(c.author, c.comment, c.own) for c in detail.comments] == [
         ("Prof", "Nice", False), ("Prof", "", False), ("Me", "Thanks!", True)
     ]  # fmt: skip

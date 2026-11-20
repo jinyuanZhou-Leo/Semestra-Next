@@ -22,7 +22,7 @@ async def linked_course(api: Api) -> str:
 
 async def test_submission_folders_search_and_preview(api: Api, fake: FakeProvider):
     course = await linked_course(api)
-    sub = await api.call("GET", f"/courses/{course}/lms/assignments/a1/submission")
+    sub = (await api.call("GET", f"/courses/{course}/lms/assignments/a1"))["submission"]
     assert (sub["score"], sub["attempt"]) == (8, 1)
     assert sub["comments"][0]["comment"] == "Good work"
     assert sub["rubric_scores"] == [

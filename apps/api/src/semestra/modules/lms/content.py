@@ -7,7 +7,7 @@ One piece of content has one way in. A platform file or page that the course's f
 readable text (the sync keeps them there, `sync_files.py`) is searched and read there (M07), and
 cited like any file; only what they don't have (the area's sync is off, the user removed it, it
 is not read yet or can't be) is read from the platform, and the result says so. Announcements
-and the teacher's feedback are the app's own copies (`announcements.py`, `sync_feedback.py`), so
+and the teacher's feedback are the app's own copies (`announcements.py`, `sync_kept.py`), so
 they are found and read when the platform can't be reached."""
 
 import re
@@ -30,10 +30,11 @@ from semestra.modules.grading import service as grading
 from semestra.modules.lms import (
     announcements,
     files,
+    pages,
     reads,
     refs,
     service,
-    sync_feedback,
+    sync_kept,
     sync_status,
 )
 from semestra.modules.lms import search as ranking
@@ -646,8 +647,8 @@ async def _search_platform(
 
 
 async def _feedback(ctx: Ctx, course_id: str) -> list[tuple[FeedbackOut, str]]:
-    """The course's kept feedback (`sync_feedback.py`), each with its assessment's title."""
-    kept = (await sync_feedback.feedback_list(ctx, course_id)).items
+    """The course's kept feedback (`sync_kept.py`), each with its assessment's title."""
+    kept = (await sync_kept.feedback_list(ctx, course_id)).items
     titles = await grading.find_assessment_rows(ctx, [f.assessment_id for f in kept])
     return [(f, titles[f.assessment_id].title) for f in kept if f.assessment_id in titles]
 
@@ -669,6 +670,17 @@ def _dt(value: Any) -> datetime | None:
 
 
 async def read(ctx: Ctx, inp: LmsReadInput) -> LmsContentDetail:
+    detail = await _read(ctx, inp)
+    if detail.kind in ("assignment", "quiz"):
+        course = await academics.get_course_row(ctx, inp.course_id)
+        kind, item_id = refs.parse(detail.ref)
+        detail.app_url = pages.assignment_path(
+            course.program_id, course.id, item_id if kind == "assignment" else f"quiz:{item_id}"
+        )
+    return detail
+
+
+async def _read(ctx: Ctx, inp: LmsReadInput) -> LmsContentDetail:
     linked = await _linked(ctx, inp.course_id)
     if linked is None:
         return await _read_unlinked(ctx, inp)

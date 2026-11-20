@@ -9,6 +9,7 @@ itself. Announcements and materials show always: the app does not. All are held 
 
 from collections.abc import Container
 from typing import Any
+from urllib.parse import urlencode
 
 from semestra.core.context import Ctx
 from semestra.core.events import Event, events
@@ -41,6 +42,15 @@ def _items(
     return out
 
 
+def _opens(applied: list[dict[str, Any]], refs: Container[str], course_id: str) -> str:
+    """The grades page showing the one assignment the notification is about (its submission
+    and feedback, M09 §7.3); the page alone when it is about several."""
+    found = {str(a["external_id"]) for a in applied if str(a["ref_id"]) in refs}
+    if len(found) != 1:
+        return ""
+    return "?" + urlencode({"assignment": f"{course_id}:{found.pop()}", "view": "feedback"})
+
+
 @events.subscribe("lms.course.synced")
 async def on_course_synced(ctx: Ctx, event: Event) -> None:
     data = event.data
@@ -57,20 +67,23 @@ async def on_course_synced(ctx: Ctx, event: Event) -> None:
     applied: list[dict[str, Any]] = data.get("applied") or []
     graded = _items(applied, "score")
     # A grade that comes with feedback is told once, as the grade.
-    feedback = list(_items(applied, "feedback", graded).values())
-    changed = list(_items(applied, None, graded).values())
+    feedback = _items(applied, "feedback", graded)
+    changed = _items(applied, None, graded)
     messages: list[Message] = []
-    for base, names in (
-        ("lms_grades", list(graded.values())),
+    for base, told in (
+        ("lms_grades", graded),
         ("lms_feedback", feedback),
         ("lms_changes", changed),
     ):
-        if names:
+        if told:
+            names = list(told.values())
+            # A changed name or date has nothing to show under "submission and feedback".
+            opens = _opens(applied, told, course_id) if base != "lms_changes" else ""
             messages.append(
                 Message(
                     kind=_kind(base, len(names)),
                     params={"course": name, "items": texts.listing(locale, names)},
-                    url=f"{page}/grades",
+                    url=f"{page}/grades{opens}",
                     tag=f"{base}:{course_id}",
                     held=True,
                 )

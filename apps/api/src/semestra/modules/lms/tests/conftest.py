@@ -75,6 +75,7 @@ class FakeProvider:
     def __init__(self) -> None:
         self.calls: list[tuple[str, Any]] = []
         self.truncated = False  # assignment lists report a cut-off page
+        self.down = False  # the platform does not answer (assignment lists)
         self.valid_tokens = {"good-token-1", "good-token-2"}
         self.courses = [
             LmsCourse(external_id="101", name="Computer Fundamentals", code="APS105H1 S LEC0101",
@@ -83,6 +84,7 @@ class FakeProvider:
             LmsCourse(external_id="90", name="Old course", code="OLD100", term="Fall 2025",
                       is_current=False),
         ]  # fmt: skip
+        self.quiz_list = [Quiz(external_id="q1", title="Quiz 1")]
         self.course_assignments: dict[str, list[Assignment]] = {
             "101": [
                 Assignment(external_id="a1", name="Lab 1", due_at=datetime.fromisoformat(
@@ -204,6 +206,8 @@ class FakeProvider:
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> list[Assignment]:
         self.calls.append(("assignments", course_id))
+        if self.down:
+            raise lms_error("lms.unreachable")
         io.truncated |= self.truncated
         return [a.model_copy() for a in self.course_assignments.get(course_id, [])]
 
@@ -263,7 +267,7 @@ class FakeProvider:
                                "</table>")  # fmt: skip
 
     async def quizzes(self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str) -> list[Quiz]:
-        return [Quiz(external_id="q1", title="Quiz 1")]
+        return [q.model_copy() for q in self.quiz_list]
 
     async def syllabus(self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str) -> RichText:
         return RichText(html="<p>Labs 20%, midterm 80%</p>")
@@ -308,6 +312,9 @@ class FakeProvider:
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, assignment_id: str
     ) -> SubmissionDetail:
         self.calls.append(("submission", assignment_id))
+        for kept in self.course_submissions.get(course_id, []):
+            if kept.assignment_id == assignment_id:
+                return kept.model_copy(deep=True)
         return SubmissionDetail(
             external_id=f"s-{assignment_id}", assignment_id=assignment_id, score=8, attempt=1,
             comments=[SubmissionComment(author="Prof", comment="Good work")],

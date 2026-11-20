@@ -1,4 +1,6 @@
 import type { Task, TaskList } from '@semestra/api-client'
+import type { UseQueryOptions } from '@tanstack/react-query'
+import type { AnyRouter } from '@tanstack/react-router'
 import type { LucideIcon } from 'lucide-react'
 import type { ComponentType } from 'react'
 import { CalendarClock, CircleCheck, CircleDashed, Flag, ListTodo, Sun } from 'lucide-react'
@@ -89,3 +91,27 @@ export type TaskDetailSection = {
 export type TaskDetailSectionProps = { task: Task; onClose: () => void }
 
 export const TASK_DETAIL_SECTIONS = 'tasks.detailSections'
+
+/** What a task's link needs of the task (a calendar occurrence of a task has as much). */
+export type LinkedTask = Pick<Task, 'id' | 'program_id' | 'assessment_id'>
+
+/**
+ * A way from a task to what it came from (M09: the platform assignment's details), as data: the
+ * to-dos draw it where tasks are (a pill under a row's title, an item of its ⋯ menu, a button in
+ * a phone's task details and in the calendar's details of a due date).
+ */
+export type TaskLink = {
+  id: string
+  icon: LucideIcon
+  /** What it leads to, on the pill ("Assignment details"). */
+  label: () => string
+  /** What it does, on a button or a menu item ("View assignment"). */
+  action: () => string
+  /** What it reads for a Program, started with its tasks so the pills come with the rows. */
+  // oxlint-disable-next-line no-explicit-any
+  query: (ctx: { programId: string }) => UseQueryOptions<any, any, any, any>
+  /** The way there for this task, from what `query` read; null for a task it has nothing for. */
+  open: (task: LinkedTask, data: unknown, router: AnyRouter) => (() => void) | null
+}
+
+export const TASK_LINKS = 'tasks.links'

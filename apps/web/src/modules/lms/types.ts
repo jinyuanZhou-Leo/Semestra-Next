@@ -70,3 +70,18 @@ export type LmsConfigFormProps = {
 }
 
 export const LMS_PROVIDER_UI = 'lms.providerUi'
+
+/**
+ * A place in the app for platform links the core has no page for (a page, a module): contributed
+ * to `lms.linkOpeners` by a platform's plugin, asked by the assignment details (M09 §7.3) for
+ * the links of a description. `path` is where the link opens, or null when it is not its to open.
+ */
+export type LmsLinkOpener = {
+  id: string
+  path: (
+    link: { kind: string; ref: string },
+    at: { programId: string; courseId: string },
+  ) => string | null
+}
+
+export const LMS_LINK_OPENERS = 'lms.linkOpeners'

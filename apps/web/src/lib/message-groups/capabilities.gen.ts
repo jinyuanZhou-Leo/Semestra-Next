@@ -135,7 +135,6 @@ export const capabilityMessages = {
   capability_lms_program_binding_set_title: m.capability_lms_program_binding_set_title,
   capability_lms_provider_list_title: m.capability_lms_provider_list_title,
   capability_lms_quiz_list_title: m.capability_lms_quiz_list_title,
-  capability_lms_submission_get_title: m.capability_lms_submission_get_title,
   capability_lms_syllabus_get_title: m.capability_lms_syllabus_get_title,
   capability_lms_syllabus_import_title: m.capability_lms_syllabus_import_title,
   capability_plugins_catalog_list_title: m.capability_plugins_catalog_list_title,

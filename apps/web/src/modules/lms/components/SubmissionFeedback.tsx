@@ -1,5 +1,4 @@
 import type {
-  AssignmentOut,
   CommentAttachment,
   RubricCriterion,
   RubricScore,
@@ -14,90 +13,84 @@ import {
 import { AudioLines, Paperclip } from 'lucide-react'
 import { formatDateTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { Concealed } from '@/modules/grading/components/GradeValue'
 import { m } from '@/paraglide/messages'
 import { Item, ItemContent, ItemDescription, ItemGroup, ItemTitle } from '@/ui/item'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 
 /** What the feedback shows of a submission: as read from the platform, or as the sync kept it. */
-type Feedback = Pick<
-  SubmissionDetail,
-  'score' | 'grade' | 'attempt' | 'graded_at' | 'comments' | 'rubric_scores'
->
+type Feedback = Pick<SubmissionDetail, 'comments' | 'rubric_scores'>
 
 /**
- * The teacher's feedback on the user's submission of an assignment (M09 §6): the score, the
- * rubric with the rating picked per criterion, and the comments. Shown in the Canvas tab's
- * assignment detail (M16, read from the platform) and the gradebook's feedback dialog (M03, as
- * the sync kept it).
+ * The teacher's feedback on the user's submission of an assignment (M09 §7.3), two sections of
+ * the assignment details: the rubric with the rating picked per criterion, and the comments
+ * (the user's own among them, for the conversation).
  */
 export function SubmissionFeedback({
   submission: s,
-  assignment: a,
+  rubric,
 }: {
   submission: Feedback
-  assignment: Pick<AssignmentOut, 'points' | 'rubric'>
+  rubric: readonly RubricCriterion[]
 }) {
-  const score =
-    s.score == null ? null : a.points == null ? String(s.score) : `${s.score} / ${a.points}`
-  const facts = [
-    score ? m.lms_feedback_score({ score }) : m.lms_feedback_not_graded(),
-    s.grade && s.grade !== String(s.score) ? s.grade : null,
-    s.attempt ? m.lms_feedback_attempt({ attempt: s.attempt }) : null,
-    s.graded_at ? m.lms_feedback_graded_at({ time: formatDateTime(s.graded_at) }) : null,
-  ]
-    .filter(Boolean)
-    .join(' · ')
   const comments = s.comments ?? []
   return (
-    <div className="space-y-3">
-      <p className="text-sm">{facts}</p>
-      {(a.rubric ?? []).length > 0 ? <Rubric criteria={a.rubric ?? []} submission={s} /> : null}
-      {comments.length > 0 ? (
-        <ItemGroup className="gap-2">
-          {comments.map((c, i) => (
-            <Item key={`${c.created_at ?? ''}-${i}`} variant="muted" size="sm">
-              <ItemContent>
-                <ItemDescription>
-                  {[c.author, c.created_at ? formatDateTime(c.created_at) : null]
-                    .filter(Boolean)
-                    .join(' · ')}
-                </ItemDescription>
-                {c.comment ? (
-                  <ItemTitle className="font-normal break-words whitespace-pre-wrap">
-                    {c.comment}
-                  </ItemTitle>
-                ) : null}
-                {(c.attachments ?? []).length > 0 ? (
-                  <ul className="flex flex-wrap gap-x-3 gap-y-0.5 text-sm">
-                    {(c.attachments ?? []).map((f, j) => (
-                      <li key={j} className="min-w-0">
-                        {f.url ? (
-                          <a
-                            href={f.url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex max-w-full items-center gap-1 text-primary hover:underline"
-                          >
-                            <AttachmentLabel attachment={f} />
-                          </a>
-                        ) : (
-                          // Its address was left out of a backup: named, not openable.
-                          <span className="inline-flex max-w-full items-center gap-1 text-muted-foreground">
-                            <AttachmentLabel attachment={f} />
-                          </span>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-              </ItemContent>
-            </Item>
-          ))}
-        </ItemGroup>
-      ) : (
-        <p className="text-sm text-muted-foreground">{m.lms_feedback_no_comments()}</p>
-      )}
-    </div>
+    <>
+      {rubric.length > 0 ? (
+        <section className="space-y-2">
+          <h3 className="text-sm font-medium">{m.lms_assignment_rubric()}</h3>
+          <Rubric criteria={rubric} submission={s} />
+        </section>
+      ) : null}
+      <section className="space-y-2">
+        <h3 className="text-sm font-medium">{m.lms_assignment_comments()}</h3>
+        {comments.length > 0 ? (
+          <ItemGroup className="gap-2">
+            {comments.map((c, i) => (
+              <Item key={`${c.created_at ?? ''}-${i}`} variant="muted" size="sm">
+                <ItemContent>
+                  <ItemDescription>
+                    {[c.author, c.created_at ? formatDateTime(c.created_at) : null]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </ItemDescription>
+                  {c.comment ? (
+                    <ItemTitle className="font-normal break-words whitespace-pre-wrap">
+                      {c.comment}
+                    </ItemTitle>
+                  ) : null}
+                  {(c.attachments ?? []).length > 0 ? (
+                    <ul className="flex flex-wrap gap-x-3 gap-y-0.5 text-sm">
+                      {(c.attachments ?? []).map((f, j) => (
+                        <li key={j} className="min-w-0">
+                          {f.url ? (
+                            <a
+                              href={f.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex max-w-full items-center gap-1 text-primary hover:underline"
+                            >
+                              <AttachmentLabel attachment={f} />
+                            </a>
+                          ) : (
+                            // Its address was left out of a backup: named, not openable.
+                            <span className="inline-flex max-w-full items-center gap-1 text-muted-foreground">
+                              <AttachmentLabel attachment={f} />
+                            </span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </ItemContent>
+              </Item>
+            ))}
+          </ItemGroup>
+        ) : (
+          <p className="text-sm text-muted-foreground">{m.lms_feedback_no_comments()}</p>
+        )}
+      </section>
+    </>
   )
 }
 
@@ -151,7 +144,11 @@ function RubricPointsCell({ row }: RubricCell) {
   const { criterion: c, score } = row.original
   const earned = score?.points == null ? null : String(score.points)
   const text = c.points == null ? (earned ?? '—') : `${earned ?? '–'} / ${c.points}`
-  return <span className="tabular-nums">{text}</span>
+  return (
+    <Concealed>
+      <span className="tabular-nums">{text}</span>
+    </Concealed>
+  )
 }
 
 const rubricColumns = rubricColumn.columns([
@@ -173,7 +170,13 @@ const rubricColumns = rubricColumn.columns([
 ])
 
 /** The rubric with the rating the teacher picked per criterion, when it was assessed. */
-function Rubric({ criteria, submission }: { criteria: RubricCriterion[]; submission: Feedback }) {
+function Rubric({
+  criteria,
+  submission,
+}: {
+  criteria: readonly RubricCriterion[]
+  submission: Feedback
+}) {
   const scores = new Map((submission.rubric_scores ?? []).map((r) => [r.criterion_id, r]))
   const data = criteria.map((criterion) => ({ criterion, score: scores.get(criterion.id) }))
   const table = useTable({

@@ -1,5 +1,4 @@
 import type { SyncChange, SyncMaterialChange } from '@semestra/api-client'
-import { useNavigate } from '@tanstack/react-router'
 import { MessageSquareText, Redo2, Undo2 } from 'lucide-react'
 import { IconAction } from '@/components/IconAction'
 import { PanelHeading, PanelRow } from '@/components/StatusPanel'
@@ -7,7 +6,7 @@ import { formatTimeAgo } from '@/lib/format'
 import { filePath } from '@/modules/files/location'
 import { m } from '@/paraglide/messages'
 import { ItemGroup } from '@/ui/item'
-import { feedbackPath } from '../feedback'
+import { useAssignmentDetails } from '../assignment/target'
 import type { SyncAnswers } from './answers'
 import { fieldLabel } from './labels'
 import {
@@ -23,8 +22,8 @@ type Recent = (SyncChange & { type: 'field' }) | (SyncMaterialChange & { type: '
 
 /**
  * What the sync changed lately (M09 §4.1), newest first: each assignment change can be put back
- * (and that undone), new feedback opens where it is shown, and course materials that came,
- * changed or went open from here.
+ * (and that undone) and opens the assignment's details (new feedback on the submission and
+ * feedback), and course materials that came, changed or went open from here.
  */
 export function RecentSection({
   programId,
@@ -45,7 +44,7 @@ export function RecentSection({
   course: CourseOf
   onClose: () => void
 }) {
-  const navigate = useNavigate()
+  const details = useAssignmentDetails()
   const recent: Recent[] = [
     ...changes.map((change) => ({ ...change, type: 'field' as const })),
     ...materials.map((change) => ({ ...change, type: 'material' as const })),
@@ -90,9 +89,7 @@ export function RecentSection({
                 time={formatTimeAgo(change.at, now)}
                 onOpen={() => {
                   onClose()
-                  void navigate({
-                    href: feedbackPath(programId, change.course_id, change.target_id),
-                  })
+                  details.open(change.course_id, change.external_id, 'feedback')
                 }}
               />
             ) : (
@@ -111,6 +108,10 @@ export function RecentSection({
                   />
                 }
                 time={change.reverted ? m.lms_sync_undone() : formatTimeAgo(change.at, now)}
+                onOpen={() => {
+                  onClose()
+                  details.open(change.course_id, change.external_id)
+                }}
               >
                 {change.toggleable ? (
                   <IconAction

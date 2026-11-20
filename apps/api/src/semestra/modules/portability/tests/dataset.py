@@ -54,8 +54,8 @@ from semestra.modules.lms.models import (
     LmsCache,
     LmsConnection,
     LmsCourseLink,
-    LmsFeedback,
     LmsImportedRef,
+    LmsKeptAssignment,
     LmsMaterial,
     LmsProgramBinding,
     LmsSyncChange,
@@ -422,7 +422,7 @@ async def populate(
         LmsSyncChange(**u, ref_id=lms_ref.id, field="title", old="Midterm", new="Midterm 1", at=NOW)
     )
     db.add(
-        LmsFeedback(
+        LmsKeptAssignment(
             **u,
             assessment_id=assessment_id,
             course_id=course.id,

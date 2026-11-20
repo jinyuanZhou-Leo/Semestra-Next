@@ -64,9 +64,11 @@ from semestra.modules.lms.schemas.dto import (
     RubricCriterion,
     RubricRating,
     RubricScore,
+    ScoreStatistics,
     Submission,
     SubmissionComment,
     SubmissionDetail,
+    SubmittedFile,
 )
 
 MAX_PAGES = 50
@@ -180,6 +182,27 @@ def _submission(s: dict[str, Any]) -> Submission:
         late=bool(s.get("late")),
         missing=bool(s.get("missing")),
         attempt=_opt_int(s.get("attempt")),
+        excused=bool(s.get("excused")),
+    )
+
+
+def _statistics(raw: Any) -> ScoreStatistics | None:
+    """Canvas sends them only when the instructor allows and enough submissions are graded."""
+    stats = _dict(raw)
+    found = ScoreStatistics(
+        mean=_num(stats.get("mean")), max=_num(stats.get("max")), min=_num(stats.get("min"))
+    )
+    return found if found.mean is not None else None
+
+
+def _submitted_file(f: dict[str, Any]) -> SubmittedFile:
+    return SubmittedFile(
+        external_id=str(f.get("id") or ""),
+        raw_kind="file",
+        name=_text(f.get("display_name")) or _text(f.get("filename")) or str(f.get("id") or ""),
+        mime_type=_text(f.get("content-type")),
+        size_bytes=_opt_int(f.get("size")),
+        download_url=_text(f.get("url")),
     )
 
 
@@ -242,6 +265,16 @@ def _submission_detail(r: dict[str, Any], assignment_id: str) -> SubmissionDetai
         raw_kind="submission",
         assignment_id=assignment_id,
         **_submission(r).model_dump(),
+        seconds_late=_opt_int(r.get("seconds_late")) or None,
+        points_deducted=_num(r.get("points_deducted")) or None,
+        submission_type=_text(r.get("submission_type")),
+        body=_text(r.get("body")),
+        url=_text(r.get("url")),
+        files=[
+            _submitted_file(_dict(f))
+            for f in cast(list[Any], r.get("attachments") or [])
+            if _dict(f).get("id")
+        ],
         comments=[
             _comment(_dict(c), user_id) for c in cast(list[Any], r.get("submission_comments") or [])
         ],
@@ -629,7 +662,11 @@ class CanvasProvider:
                 cfg,
                 creds,
                 f"/courses/{quote(course_id)}/assignment_groups",
-                [("include[]", "assignments"), ("include[]", "submission")],
+                [
+                    ("include[]", "assignments"),
+                    ("include[]", "submission"),
+                    ("include[]", "score_statistics"),
+                ],
             ),
         )
         weighted = bool(cast(dict[str, Any], course).get("apply_assignment_group_weights"))
@@ -659,7 +696,10 @@ class CanvasProvider:
                         locked=bool(a.get("locked_for_user")),
                         lock_explanation=_text(a.get("lock_explanation")),
                         allowed_attempts=_opt_int(a.get("allowed_attempts")),
+                        allowed_extensions=[str(x) for x in a.get("allowed_extensions") or []],
+                        statistics=_statistics(a.get("score_statistics")),
                         rubric=_rubric(a.get("rubric")),
+                        quiz_id=_text(a.get("quiz_id")),
                     )
                 )
         return out

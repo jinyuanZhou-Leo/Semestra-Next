@@ -4,13 +4,11 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { Link, useCanGoBack, useNavigate, useRouter, useSearch } from '@tanstack/react-router'
 import { ArrowLeft, CircleAlert, Megaphone, SearchX } from 'lucide-react'
 import type { PageProps } from '@/app/extensions'
-import type { InternalLink } from '@/components/SafeHtml'
 import { useNow } from '@/hooks/use-now'
 import { formatBytes, formatDateTime } from '@/lib/format'
 import { toastError } from '@/lib/errors'
 import { cn } from '@/lib/utils'
 import { courseColor, courseLabel } from '@/modules/academics/color'
-import { coursePath } from '@/modules/academics/paths'
 import { FileIcon } from '@/modules/files/components/FileIcon'
 import { filePath } from '@/modules/files/location'
 import { m } from '@/paraglide/messages'
@@ -39,6 +37,7 @@ import { Spinner } from '@/ui/spinner'
 import { postedLabel, postKey } from '../announcements'
 import { type LmsContent, LmsContentContext, type LmsDisplay } from '../content/context'
 import { useLmsDisplay } from '../content/display'
+import { useLmsLinkOpener } from '../content/link-opener'
 import { fileContentUrl } from '../content/file-url'
 import { LmsHtml, ViewHeader } from '../content/LmsContent'
 import { type Post, useAnnouncements } from '../posts'
@@ -323,34 +322,15 @@ function Reading({
 }) {
   const link = useQuery(lmsCourseLinkGetOptions({ path: { course_id: course.id } })).data?.link
   const provider = useProviderName(link?.provider) ?? link?.provider ?? ''
-  const navigate = useNavigate()
   const meta = [a.author, a.posted_at ? formatDateTime(a.posted_at) : null]
     .filter(Boolean)
     .join(' · ')
-  // Platform links open what Semestra has (M09 §4.3): a course file in its preview (another file
-  // through the file proxy, in a new tab), an assignment in the gradebook or the course's to-dos,
-  // another announcement here. The rest of them go to the platform in a new tab.
-  const openLink = (target: InternalLink) => {
-    if (target.kind === 'announcement') {
-      onOpenPost(postKey(course.id, target.ref))
-      return true
-    }
-    const found = a.targets?.find((t) => t.kind === target.kind && t.ref === target.ref)?.target
-    if (!found && target.kind === 'file') {
-      // Not in the course's files: from the platform through Semestra, like an attachment.
-      window.open(fileContentUrl(course.id, target.ref), '_blank', 'noopener,noreferrer')
-      return true
-    }
-    if (!found) return false
-    const to =
-      found.kind === 'file'
-        ? filePath(course.program_id, { ...found, folder_id: found.folder_id ?? null })
-        : found.kind === 'assessment'
-          ? `${coursePath(course.program_id, found.course_id, 'grades')}?assessment=${encodeURIComponent(found.id)}`
-          : coursePath(course.program_id, found.course_id, 'tasks')
-    void navigate({ href: to })
-    return true
-  }
+  const openLink = useLmsLinkOpener({
+    programId: course.program_id,
+    courseId: course.id,
+    targets: a.targets,
+    onAnnouncement: (ref) => onOpenPost(postKey(course.id, ref)),
+  })
   const content: LmsContent = { courseId: course.id, provider, display, setDisplay, openLink }
   return (
     <LmsContentContext value={content}>

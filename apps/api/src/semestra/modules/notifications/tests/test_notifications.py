@@ -402,6 +402,7 @@ async def test_what_an_lms_sync_did_is_told_per_course_and_kind(
             {"change_id": "c5", "ref_id": "r1", "name": "Lab 1", "field": "feedback"},
             {"change_id": "c6", "ref_id": "r4", "name": "Lab 1", "field": "feedback"},
         ]
+        applied = [a | {"external_id": f"a-{a['ref_id']}"} for a in applied]
         notices = [{"kind": "announcement", "external_id": "n1", "title": "Room change"}]
         data = {"course_id": course_id, "program_id": program_id, "applied": applied,
                 "notices": notices, "pending": 0, "errors": {}, "manual": False}  # fmt: skip
@@ -416,6 +417,13 @@ async def test_what_an_lms_sync_did_is_told_per_course_and_kind(
         "New grade in APS105H1": ("Lab 1", True),
         "New feedback in APS105H1": ("Lab 1", True),
         "Assignment changed in APS105H1": ("Midterm", True),
+    }
+    # A grade or feedback of one assignment opens that assignment on the grades page.
+    grades = f"/p/{program_id}/c/{course_id}/grades"
+    assert {t: m["url"] for t, m in told.items()} == {
+        "New grade in APS105H1": f"{grades}?assignment={course_id}%3Aa-r1&view=feedback",
+        "New feedback in APS105H1": f"{grades}?assignment={course_id}%3Aa-r4&view=feedback",
+        "Assignment changed in APS105H1": grades,
     }
     await call(client, "PATCH", "/me/settings/notifications", json={"values": {"lms": "all"}})
     told = await synced()

@@ -160,6 +160,7 @@ test('a change the sync made is undone from the panel, and so is undoing it', as
     reverted: false,
     toggleable: true,
     target_kind: 'assessment' as const,
+    external_id: 'a1',
     target_id: 'as1',
   }
   const calls = vi.fn<(url: string) => void>()
@@ -290,6 +291,7 @@ const MOVED = {
   mine: { date: '2026-11-04', time: '23:59:00' },
   platform: { date: '2026-11-06', time: '23:59:00' },
   target_kind: 'assessment' as const,
+  external_id: 'a1',
   target_id: 'a3',
 }
 
@@ -341,7 +343,7 @@ test('editing an assessment puts the platform value of a field that differs into
   )
 })
 
-test('new feedback opens the assessment in the gradebook', async () => {
+test('new feedback opens the assignment on its submission and feedback', async () => {
   const change = {
     id: 'ch2',
     kind: 'feedback' as const,
@@ -355,6 +357,7 @@ test('new feedback opens the assessment in the gradebook', async () => {
     reverted: false,
     toggleable: false,
     target_kind: 'assessment' as const,
+    external_id: 'a1',
     target_id: 'as1',
   }
   server.use(...handlers(status({ recent: [change] })))
@@ -363,8 +366,10 @@ test('new feedback opens the assessment in the gradebook', async () => {
   const row = await screen.findByRole('button', { name: /^A3 feedback.*New comments/ })
   expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull()
   await userEvent.click(row)
-  await waitFor(() => expect(router.state.location.pathname).toBe('/p/p1/c/c1/grades'))
-  expect(router.state.location.search).toEqual({ feedback: 'as1' })
+  // Over the page that is on screen (M09 §7.3).
+  await waitFor(() =>
+    expect(router.state.location.search).toEqual({ assignment: 'c1:a1', view: 'feedback' }),
+  )
 })
 
 test('a sync the user asked for shows how many courses are done', async () => {

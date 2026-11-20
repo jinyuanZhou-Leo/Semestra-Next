@@ -34,6 +34,7 @@ import { HistoryLink } from '@/components/HistoryLink'
 import { errorCode, toastError } from '@/lib/errors'
 import { formatDateTime, formatPercent } from '@/lib/format'
 import { coursePath } from '@/modules/academics/paths'
+import { useAssignmentDetails } from '@/modules/lms/assignment/target'
 import { addToGradebook, importAssignments } from '@/modules/lms/import/assignments'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
@@ -50,10 +51,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { CanvasBoundary } from '../CanvasBoundary'
 import { useCanvasPage } from '../context'
-import { AssignmentDetail } from './AssignmentDetail'
 import { ViewHeader } from '@/modules/lms/content/LmsContent'
 import { ScoreText, SubmissionStatus } from './common'
-import { useScrollIntoView } from './scroll'
 
 /**
  * A row: a Canvas assignment (a graded quiz is one too, with its quiz alongside), or a practice
@@ -191,14 +190,25 @@ function KindIcon({ row }: { row: Row }) {
 }
 
 function NameCell({ row }: CellProps) {
+  const { courseId } = useTableState()
+  const details = useAssignmentDetails()
   const { assignment: a } = row.original
   const why = a.lock_explanation || m.canvas_tab_item_locked()
   return (
     <span className="flex items-center gap-2">
       <KindIcon row={row.original} />
-      <span className="min-w-0 truncate font-medium" title={a.name}>
+      {/* The row opens the details on a click; the name is its button for the keyboard. */}
+      <button
+        type="button"
+        className="min-w-0 truncate rounded-sm text-left font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+        title={a.name}
+        onClick={(event) => {
+          event.stopPropagation()
+          details.open(courseId, row.id)
+        }}
+      >
         {a.name}
-      </span>
+      </button>
       {a.locked ? (
         <Tooltip>
           <TooltipTrigger
@@ -355,8 +365,8 @@ const columns = column.columns([
   column.display({ id: 'menu', header: () => null, cell: MenuCell, enableSorting: false }),
 ])
 
-/** Fixed widths (with `table-fixed`): opening a description or folding a group doesn't move the
- * columns; the name takes the rest. */
+/** Fixed widths (with `table-fixed`): folding a group doesn't move the columns; the name takes
+ * the rest. */
 const WIDTHS: Record<string, string> = {
   select: 'w-10',
   due: 'w-44',
@@ -370,9 +380,9 @@ const WIDTHS: Record<string, string> = {
  * Canvas's assignments, quizzes and grades as one table (M16 §4): by assignment group with the
  * user's score, where each submission stands and where it is in Semestra. Ticked rows are
  * imported in one go: worth points into the gradebook (with the score Canvas has and a to-do),
- * the others as to-dos; a row opens its details.
+ * the others as to-dos; a row opens the assignment's details (M09 §7.3) over the table.
  */
-export function AssignmentsView({ selected }: { selected?: string }) {
+export function AssignmentsView() {
   const { courseId } = useCanvasPage()
   const list = useQuery({
     ...lmsAssignmentListOptions({ path: { course_id: courseId } }),
@@ -400,21 +410,9 @@ export function AssignmentsView({ selected }: { selected?: string }) {
         </Empty>
       }
     >
-      {(data) => (
-        <AssignmentTable
-          rows={rowsOf(data.items, quizzes ?? [])}
-          focused={focusedRow(selected, quizzes)}
-        />
-      )}
+      {(data) => <AssignmentTable rows={rowsOf(data.items, quizzes ?? [])} />}
     </CanvasBoundary>
   )
-}
-
-/** A quiz link (`quiz:<id>`) opens its assignment's row when it has one. */
-function focusedRow(selected: string | undefined, quizzes: readonly Quiz[] | undefined) {
-  if (!selected?.startsWith('quiz:')) return selected
-  const quiz = quizzes?.find((q) => quizRef(q.external_id) === selected)
-  return quiz?.assignment_id ?? selected
 }
 
 /** Which rows the table lists: all, the ones still to hand in, the graded ones, or the missing. */
@@ -480,8 +478,9 @@ function groupsOf(rows: readonly Row[]): Group[] {
   return [...groups.values()]
 }
 
-function AssignmentTable({ rows: data, focused }: { rows: Row[]; focused?: string }) {
-  const { programId, courseId, go, title } = useCanvasPage()
+function AssignmentTable({ rows: data }: { rows: Row[] }) {
+  const { programId, courseId, title } = useCanvasPage()
+  const details = useAssignmentDetails()
   const [sorting, setSorting] = useState<SortingState>([])
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set())
@@ -489,7 +488,6 @@ function AssignmentTable({ rows: data, focused }: { rows: Row[]; focused?: strin
   const [filter, setFilter] = useState<Filter>('all')
   const [search, setSearch] = useState('')
   const [now] = useState(Date.now)
-  const focusedRef = useScrollIntoView<HTMLTableRowElement>(focused)
   const table = useTable({
     features,
     columns,
@@ -717,52 +715,21 @@ function AssignmentTable({ rows: data, focused }: { rows: Row[]; focused?: strin
                       <TableCell colSpan={3} className="py-1.5" />
                     </TableRow>
                     {open
-                      ? group.rows.map((row) => {
-                          const expanded = focused === row.id
-                          const r = row.original
-                          return (
-                            <Fragment key={row.id}>
-                              <TableRow
-                                ref={expanded ? focusedRef : undefined}
-                                data-state={
-                                  rowSelection[row.id] || expanded ? 'selected' : undefined
-                                }
-                                aria-expanded={expanded}
-                                // One height for every row, whatever badge its status shows.
-                                className="h-10 cursor-pointer"
-                                onClick={() =>
-                                  go(
-                                    expanded
-                                      ? { tab: 'assignments' }
-                                      : { tab: 'assignments', ref: row.id },
-                                  )
-                                }
-                              >
-                                {row.getAllCells().map((cell) => (
-                                  <TableCell key={cell.id} className="py-2">
-                                    <table.FlexRender cell={cell} />
-                                  </TableCell>
-                                ))}
-                              </TableRow>
-                              {expanded ? (
-                                <TableRow className="hover:bg-transparent">
-                                  <TableCell
-                                    colSpan={columns.length}
-                                    className="bg-muted/20 whitespace-normal"
-                                  >
-                                    <div className="py-2 pr-2 pl-10">
-                                      <AssignmentDetail
-                                        assignment={r.assignment}
-                                        quiz={r.quiz}
-                                        practice={r.practice}
-                                      />
-                                    </div>
-                                  </TableCell>
-                                </TableRow>
-                              ) : null}
-                            </Fragment>
-                          )
-                        })
+                      ? group.rows.map((row) => (
+                          <TableRow
+                            key={row.id}
+                            data-state={rowSelection[row.id] ? 'selected' : undefined}
+                            // One height for every row, whatever badge its status shows.
+                            className="h-10 cursor-pointer"
+                            onClick={() => details.open(courseId, row.id)}
+                          >
+                            {row.getAllCells().map((cell) => (
+                              <TableCell key={cell.id} className="py-2">
+                                <table.FlexRender cell={cell} />
+                              </TableCell>
+                            ))}
+                          </TableRow>
+                        ))
                       : null}
                   </Fragment>
                 )

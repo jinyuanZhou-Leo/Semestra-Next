@@ -18,6 +18,7 @@ import { Textarea } from '@/ui/textarea'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import type { TaskActions } from '../actions'
 import { PRIORITY_NAMES } from '../components/priority'
+import { TaskLinks } from '../components/TaskLinks'
 import { PRIORITIES, type ShownPriority, shownPriority } from '../types'
 import { NOTES_MAX, TITLE_MAX } from '../limits'
 
@@ -201,6 +202,8 @@ export function TaskSheet({
             {managed ? (
               <p className="text-xs text-muted-foreground">{m.tasks_managed_note()}</p>
             ) : null}
+            {/* The details close for what a link opens. */}
+            <TaskLinks task={task} shape="button" className="h-11" onOpen={onClose} />
             <div className="flex gap-2">
               <Button
                 className="h-11 flex-1"

@@ -403,6 +403,11 @@ export type CalendarSourceContribution = {
    */
   open?: CalendarOpenAction
   /**
+   * More ways from an occurrence's details, under `open` (M05: a to-do's assignment). Renders
+   * nothing for occurrences it has nothing for; `close` closes the details.
+   */
+  More?: ComponentType<{ programId: string; occurrence: Occurrence; close: () => void }>
+  /**
    * Items can be checked off: a checkbox on the item and in its details (status `done` when
    * finished). Resolves once saved; the source refreshes its own queries, since the change's
    * event is an echo of this tab (M00 §4.7).
@@ -547,6 +552,12 @@ export type KeptQueries = {
   >
 }
 
+/**
+ * A component of the whole signed-in app (`overlays`). One that looks different on a phone (M17:
+ * a dialog there is a page that slides up) gives both, and the shell that is on screen picks.
+ */
+export type Overlay = ComponentType | { desktop: ComponentType; phone: ComponentType }
+
 export type ModuleManifest = {
   id: string
   /** 'core' cannot be uninstalled; 'plugin' is installed per account (M10). */
@@ -571,7 +582,7 @@ export type ModuleManifest = {
    * Components rendered once for the whole signed-in app, e.g. a dialog other modules open
    * through a function (the import review that `launch()` of an import source opens, M08).
    */
-  overlays?: readonly ComponentType[]
+  overlays?: readonly Overlay[]
   /** Contributions to other modules' extension points, keyed `'<module>.<point>'`. */
   extensions?: Readonly<Record<string, readonly unknown[]>>
   /** Cards placed on new boards of each kind, appended in registry order (M10 §2). */

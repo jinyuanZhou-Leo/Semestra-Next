@@ -39,7 +39,12 @@ import {
   type AssessmentColumn,
 } from '@/modules/grading/types'
 import { FILE_ITEM_ACTIONS, type FileItemAction } from '@/modules/files/types'
-import { TASK_DETAIL_SECTIONS, type TaskDetailSection } from '@/modules/tasks/types'
+import {
+  TASK_DETAIL_SECTIONS,
+  TASK_LINKS,
+  type TaskDetailSection,
+  type TaskLink,
+} from '@/modules/tasks/types'
 import { m } from '@/paraglide/messages'
 import {
   ANNOUNCEMENTS_PAGE,
@@ -47,11 +52,13 @@ import {
   announcementSearch,
   hasAnnouncements,
 } from './announcements'
+import { assignmentHost } from './assignment/AssignmentHost'
 import { bindAction, unbindAction } from './binding/actions'
 import { OpenInPlatform, PlatformMark } from './components/PlatformMark'
-import { AssessmentFeedbackCell, AssessmentFeedbackDialog } from './components/AssessmentFeedback'
+import { AssessmentFeedbackCell, viewAction } from './components/AssessmentFeedback'
 import { feedbackListOptions } from './feedback'
 import { prefetchCourseLink, prefetchCourseTools } from './course-info'
+import { taskAssignmentLink } from './components/TaskAssignment'
 import { assignmentSource, wizardCourseSource } from './import/sources'
 import { canvasUi } from './providers/canvas'
 import { LMS_KEPT_QUERIES, LMS_QUERIES, LMS_STATE_QUERIES, settingsPrefetch } from './queries'
@@ -73,6 +80,12 @@ const CONNECTION_EVENTS = [
 const STATE_EVENTS = ['lms.program.bound', 'lms.course.link_updated'] as const
 // Linking or unlinking also changes which courses the term announcements card reads.
 const LINK_EVENTS = ['lms.course.linked', 'lms.course.unlinked'] as const
+
+/** The assignment details (M09 §7.3): a dialog, on a phone a page that slides up. */
+const AssignmentDetails = {
+  desktop: assignmentHost(preloadable(() => import('./assignment/AssignmentDialog'))),
+  phone: assignmentHost(preloadable(() => import('./mobile/AssignmentSheet'))),
+}
 
 /** The platforms' own UI; a new platform is one more entry. */
 const PROVIDER_UIS = [canvasUi]
@@ -135,7 +148,7 @@ export default defineModule({
   name: m.lms_name,
   description: m.lms_description,
   icon: School,
-  overlays: [SyncOnOpen],
+  overlays: [SyncOnOpen, AssignmentDetails],
   pages: [
     {
       id: ANNOUNCEMENTS_PAGE,
@@ -344,7 +357,7 @@ export default defineModule({
     [ONBOARDING_STEPS]: onboardingSteps,
     [TERM_WIZARD_IMPORT_SOURCES]: [wizardCourseSource],
     [ASSESSMENT_IMPORT_SOURCES]: [assignmentSource],
-    [ASSESSMENT_ACTIONS]: [bindAction, unbindAction],
+    [ASSESSMENT_ACTIONS]: [viewAction, bindAction, unbindAction],
     // Only in a gradebook where the teacher left feedback on some assessment (kept by the sync, so
     // it goes when the assessment stops following its assignment or the course is unlinked).
     [ASSESSMENT_COLUMNS]: [
@@ -352,7 +365,6 @@ export default defineModule({
         id: 'lms.feedback',
         header: m.lms_feedback_column,
         Cell: AssessmentFeedbackCell,
-        Dialog: AssessmentFeedbackDialog,
         query: ({ courseId }) => feedbackListOptions(courseId),
         shownFor: (assessments, list) =>
           assessments.some((a) => list?.items.some((f) => f.assessment_id === a.id)),
@@ -394,6 +406,7 @@ export default defineModule({
     [TASK_DETAIL_SECTIONS]: [
       { id: 'lms.assignment', Component: preloadable(() => import('./components/TaskSubmission')) },
     ] satisfies TaskDetailSection[],
+    [TASK_LINKS]: [taskAssignmentLink] satisfies TaskLink[],
   },
   uiPrefPrefixes: ['lms.'],
   keptQueries: {
@@ -447,17 +460,23 @@ export default defineModule({
         'lmsCourseLinkList',
         { _id: 'lmsCourseLinkGet', path: { course_id: data.course_id } },
         { _id: 'lmsAssignmentList', path: { course_id: data.course_id } },
+        { _id: 'lmsAssignmentGet', path: { course_id: data.course_id } },
       ],
     ],
     // The sync kept new or changed feedback for a course's assessments.
-    'lms.feedback.updated': [
-      (data) => [{ _id: 'lmsFeedbackList', path: { course_id: data.course_id } }],
+    'lms.kept.updated': [
+      (data) => [
+        { _id: 'lmsFeedbackList', path: { course_id: data.course_id } },
+        { _id: 'lmsAssignmentGet', path: { course_id: data.course_id } },
+        'lmsAssignmentTargets',
+      ],
     ],
     // An import committed: what the course reports as new, and its assignments' "imported as".
     'lms.course.imports_recorded': [
       (data) => [
         ...LMS_STATE_QUERIES,
         { _id: 'lmsAssignmentList', path: { course_id: data.course_id } },
+        { _id: 'lmsAssignmentGet', path: { course_id: data.course_id } },
       ],
     ],
   },

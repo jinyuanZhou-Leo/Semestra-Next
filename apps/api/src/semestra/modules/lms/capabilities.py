@@ -5,14 +5,15 @@ from semestra.core.capability import Http, NoInput, capability
 from semestra.core.context import Ctx
 from semestra.modules.lms import (
     announcements,
+    assignment,
     imports,
     previews,
     reads,
     service,
     sync,
     sync_assignments,
-    sync_feedback,
     sync_files,
+    sync_kept,
     sync_status,
 )
 from semestra.modules.lms.schemas.dto import (
@@ -20,7 +21,6 @@ from semestra.modules.lms.schemas.dto import (
     FolderListing,
     PageDetail,
     RichText,
-    SubmissionDetail,
 )
 from semestra.modules.lms.schemas.io import (
     AnnouncementList,
@@ -29,10 +29,13 @@ from semestra.modules.lms.schemas.io import (
     AssessmentRef,
     AssignmentBinding,
     AssignmentBindInput,
+    AssignmentDetail,
     AssignmentImportInput,
     AssignmentList,
+    AssignmentReadInput,
     AssignmentsImportInput,
     AssignmentsInput,
+    AssignmentTargets,
     BindingSetInput,
     Connection,
     ConnectionCheck,
@@ -78,7 +81,6 @@ from semestra.modules.lms.schemas.io import (
     SavedFile,
     SignInStart,
     SignInStartInput,
-    SubmissionInput,
     TermAnnouncementList,
     TermAnnouncementsInput,
     UnreadCounts,
@@ -489,17 +491,33 @@ async def assignments_list(ctx: Ctx, inp: AssignmentsInput) -> AssignmentList:
 
 
 @capability(
-    name="lms.submission.get",
-    summary="The user's submission of one assignment on the LMS, with the teacher's feedback.",
-    description="""Score, attempts, the teacher's comments and the rubric scores (match
-`rubric_scores.criterion_id` with the assignment's `rubric` from lms.assignment.list).""",
+    name="lms.assignment.get",
+    summary="One assignment of the LMS, whole: its description, the user's submission, feedback.",
+    description="""What the assignment's details show (M09 §5): the assignment, what the user
+handed in, the teacher's comments and rubric scores (match `rubric_scores.criterion_id` with
+`assignment.rubric`), and where it is in Semestra. When the LMS can't be asked and the
+assignment was imported, the answer is what the last sync kept (`kept`).""",
     effect="read",
-    http=Http("GET", "/courses/{course_id}/lms/assignments/{assignment_id}/submission"),
+    http=Http("GET", "/courses/{course_id}/lms/assignments/{assignment_id}"),
     expose=HTTP_ONLY,
     tags=TAGS,
 )
-async def submission_get(ctx: Ctx, inp: SubmissionInput) -> SubmissionDetail:
-    return await reads.submission(ctx, inp.course_id, inp.assignment_id, inp.refresh)
+async def assignment_get(ctx: Ctx, inp: AssignmentReadInput) -> AssignmentDetail:
+    return await assignment.get(ctx, inp.course_id, inp.assignment_id, inp.refresh)
+
+
+@capability(
+    name="lms.assignment.targets",
+    summary="The Program's assessments and to-dos that are an LMS assignment.",
+    description="""Which assignment each imported assessment or to-do is (read from the
+database): what their rows open with lms.assignment.get.""",
+    effect="read",
+    http=Http("GET", "/programs/{program_id}/lms/assignment-targets"),
+    expose=HTTP_ONLY,
+    tags=TAGS,
+)
+async def assignment_targets(ctx: Ctx, inp: ProgramRef) -> AssignmentTargets:
+    return await assignment.targets(ctx, inp.program_id)
 
 
 @capability(
@@ -513,7 +531,7 @@ so it works while the LMS cannot be reached). The gradebook's feedback column.""
     tags=TAGS,
 )
 async def feedback_list(ctx: Ctx, inp: CourseRef) -> FeedbackList:
-    return await sync_feedback.feedback_list(ctx, inp.course_id)
+    return await sync_kept.feedback_list(ctx, inp.course_id)
 
 
 @capability(

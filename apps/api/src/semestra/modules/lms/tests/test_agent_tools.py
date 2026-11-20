@@ -208,6 +208,9 @@ async def test_read_an_assignment_with_score_rubric_and_feedback(api: Api, fake:
     assert out["points"] == 10
     assert "Your submission: graded, score 8/10 (B)" in out["text"]
     assert "**Prof**: Good work" in out["text"]
+    # Where an answer about it links: its details, over its course's page.
+    assert out["app_url"].startswith("/p/")
+    assert out["app_url"].endswith(f"/c/{course}?assignment={course}%3Aa1")
 
 
 async def test_read_goes_on_from_an_offset(api: Api, fake: FakeProvider):

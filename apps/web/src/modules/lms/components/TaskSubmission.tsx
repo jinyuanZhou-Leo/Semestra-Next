@@ -1,37 +1,53 @@
 import type { AssignmentOut } from '@semestra/api-client'
 import { lmsAssignmentListOptions, lmsCourseLinkGetOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
-import { ExternalLink, School } from 'lucide-react'
+import { School } from 'lucide-react'
 import { formatDateTime } from '@/lib/format'
 import type { TaskDetailSectionProps } from '@/modules/tasks/types'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from '@/ui/item'
-import { useProviderName, useProviderUis } from '../providers'
+import { useAssignmentOf } from '../assignment/queries'
+import { useAssignmentDetails } from '../assignment/target'
+import { useProgramProviderName, useProviderName, useProviderUis } from '../providers'
 
 /**
  * The platform assignment a to-do came from, in the to-do's details (contributed to
- * `tasks.detailSections`): whether it is handed in there, and a link to it. Imported as a to-do,
- * or as the assessment the to-do belongs to; other to-dos show nothing.
+ * `tasks.detailSections`): whether it is handed in there, and a way to its details (M09 §7.3),
+ * which take the panel's place. Imported as a to-do, or as the assessment the to-do belongs to;
+ * other to-dos show nothing.
  */
-export default function TaskSubmission({ task }: TaskDetailSectionProps) {
-  const courseId = task.course_id ?? ''
-  const link = useQuery({
-    ...lmsCourseLinkGetOptions({ path: { course_id: courseId } }),
-    enabled: courseId !== '',
-  }).data?.link
-  const assignments = useQuery({
+export default function TaskSubmission({ task, onClose }: TaskDetailSectionProps) {
+  const assignment = useAssignmentOf(task.program_id, {
+    taskId: task.id,
+    assessmentId: task.assessment_id,
+  })
+  if (!assignment) return null
+  return <Card programId={task.program_id} onClose={onClose} {...assignment} />
+}
+
+function Card({
+  programId,
+  courseId,
+  assignmentId,
+  onClose,
+}: {
+  programId: string
+  courseId: string
+  assignmentId: string
+  onClose: () => void
+}) {
+  const { open } = useAssignmentDetails()
+  const link = useQuery(lmsCourseLinkGetOptions({ path: { course_id: courseId } })).data?.link
+  // How it stands on the platform, while the course is linked to it.
+  const listed = useQuery({
     ...lmsAssignmentListOptions({ path: { course_id: courseId } }),
     enabled: Boolean(link),
+    select: (list) => list.items.find((a) => a.external_id === assignmentId),
   }).data
   const ui = useProviderUis().get(link?.provider ?? '')
-  const provider = useProviderName(link?.provider) ?? ''
-  const assignment = assignments?.items.find(
-    ({ imported_as: t }) =>
-      (t?.kind === 'task' && t.id === task.id) ||
-      (t?.kind === 'assessment' && t.id === task.assessment_id),
-  )
-  if (!link || !assignment) return null
+  const linked = useProviderName(link?.provider)
+  const bound = useProgramProviderName(programId)
   const Logo = ui?.logo ?? School
   return (
     <Item variant="outline" size="sm">
@@ -39,25 +55,21 @@ export default function TaskSubmission({ task }: TaskDetailSectionProps) {
         <Logo aria-hidden />
       </ItemMedia>
       <ItemContent>
-        <ItemTitle>{provider}</ItemTitle>
-        <ItemDescription>{status(assignment)}</ItemDescription>
+        <ItemTitle>{linked ?? bound ?? m.lms_platform()}</ItemTitle>
+        {listed ? <ItemDescription>{status(listed)}</ItemDescription> : null}
       </ItemContent>
-      {assignment.web_url ? (
-        <ItemActions>
-          <Button
-            variant="outline"
-            size="sm"
-            nativeButton={false}
-            render={
-              // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- labelled by the button's text
-              <a href={assignment.web_url} target="_blank" rel="noreferrer" />
-            }
-          >
-            {m.lms_open_in({ provider })}
-            <ExternalLink aria-hidden />
-          </Button>
-        </ItemActions>
-      ) : null}
+      <ItemActions>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            onClose()
+            open(courseId, assignmentId)
+          }}
+        >
+          {m.lms_assignment_view()}
+        </Button>
+      </ItemActions>
     </Item>
   )
 }
