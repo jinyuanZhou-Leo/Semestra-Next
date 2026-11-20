@@ -21,6 +21,7 @@ from semestra.core import jobs
 from semestra.core.config import Settings
 from semestra.core.context import run_as_system
 from semestra.core.jobs import BACKGROUND, CoreJob
+from semestra.modules.agent import view
 from semestra.modules.files import content, pipeline, sources
 from semestra.modules.files.models import FilesDocument, FilesDocumentPage, FilesItem
 from semestra.modules.files.tests.conftest import FakeAi, make_pdf
@@ -1309,6 +1310,59 @@ async def test_reading_the_files_waits_for_a_course_sync_queued_since(
     assert await app.state.jobs.run_one(BACKGROUND) is True
     assert await _pending(app, "lms.course.sync") == 0
     assert await _pending(app, "files.process_synced") > 0
+
+
+async def test_local_copies_are_stored_one_file_at_a_time(
+    api: Api, fake: FakeProvider, app: FastAPI, clock: Clock
+):
+    """One worker for the whole background queue (as on a small server): the copies a course
+    keeps are stored a file per job, so a sync asked for meanwhile runs between two of them,
+    and a file the platform added while copies wait is stored with them."""
+    _materials(fake)
+    program_id, course = await _course(api)
+    await _materials_setting(api, course, store="local")
+    await api.call("POST", f"/programs/{program_id}/lms/sync", json={"force": True})
+    assert await app.state.jobs.run_one(BACKGROUND) is True  # the sync
+    waiting = await _pending(app, "files.store_synced_copies")
+    assert waiting > 1
+
+    fake.course_file_list.append(_file("210", "Lecture 10.pdf", mime_type="application/pdf"))
+    clock.advance(minutes=1)
+    await api.call("POST", f"/programs/{program_id}/lms/sync", json={"force": True})
+    assert await app.state.jobs.run_one(BACKGROUND) is True  # the sync goes first
+    assert await _pending(app, "lms.course.sync") == 0
+    assert await _pending(app, "files.store_synced_copies") == waiting + 1
+
+    while await _pending(app, "files.store_synced_copies") == waiting + 1:
+        assert await app.state.jobs.run_one(BACKGROUND) is True  # a read, or one copy
+    _, items = await _files(api, course)
+    assert sum(1 for item in items.values() if item.get("stored")) == 1
+    await api.call("POST", f"/programs/{program_id}/lms/sync", json={"force": True})
+    assert await app.state.jobs.run_one(BACKGROUND) is True
+    assert await _pending(app, "lms.course.sync") == 0
+
+    await api.run_jobs()
+    assert (await _files(api, course))[1]["Lecture 10.pdf"]["stored"] is True
+
+
+async def test_sem_looks_at_a_platform_file_through_the_course_files(
+    api: Api, fake: FakeProvider, app: FastAPI
+):
+    """An LMS file the course's files have is looked at there: its local copy, without
+    downloading it from the platform again."""
+    fake.course_file_list = [_file("201", "Lecture 1.pdf", mime_type="application/pdf")]
+    fake.file_bytes["201"] = make_pdf(["one", "two"])
+    program_id, course = await _course(api)
+    await _materials_setting(api, course, store="local")
+    await api.sync(program_id)
+    assert (await _files(api, course))[1]["Lecture 1.pdf"]["stored"] is True
+
+    fake.fail_downloads = True
+    me = await api.call("GET", "/account/me")
+    args = {"course_id": course, "ref": "file:201", "page_from": 2}
+    shown = await view.view_pages(app.state, me["id"], None, args)
+    assert isinstance(shown.return_value, list)
+    assert str(shown.return_value[0]).startswith('Page 2 of "Lecture 1.pdf" (2 in all)')
 
 
 async def test_a_file_is_read_once_for_its_latest_version(

@@ -57,8 +57,6 @@ ALL_FEATURES: frozenset[LmsFeature] = frozenset(
         "mark_read",
     )
 )
-# Features that change something on the platform: used only when the user allows writes.
-WRITE_FEATURES: frozenset[LmsFeature] = frozenset(("mark_read",))
 
 NavKind = Literal[
     "home",

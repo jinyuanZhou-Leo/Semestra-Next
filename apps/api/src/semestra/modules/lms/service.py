@@ -46,7 +46,6 @@ from semestra.modules.lms.providers import (
 )
 from semestra.modules.lms.schemas.dto import (
     INTERNAL,
-    WRITE_FEATURES,
     ConnectionSummary,
     LmsFeature,
 )
@@ -70,7 +69,6 @@ from semestra.modules.lms.schemas.io import (
     SignInStart,
     SignInStartInput,
 )
-from semestra.modules.lms.settings import writes_allowed
 
 log = structlog.get_logger()
 
@@ -564,15 +562,6 @@ def _revoke_later(ctx: Ctx, provider: LmsProvider, row: LmsConnection) -> None:
 def require_feature(b: Bound, feature: LmsFeature) -> None:
     if feature not in b.provider.features:
         raise lms_error("lms.feature_unsupported", feature=feature)
-
-
-async def require_write(ctx: Ctx, b: Bound, feature: LmsFeature) -> None:
-    """Every change on the platform goes through here: the user's `lms.allow_writes` first,
-    then the provider's support. `feature` must be one of `WRITE_FEATURES`."""
-    assert feature in WRITE_FEATURES, feature
-    if not await writes_allowed(ctx):
-        raise lms_error("lms.writes_disabled")
-    require_feature(b, feature)
 
 
 async def attempt[T](ctx: Ctx, b: Bound, run: Callable[[], Awaitable[T]]) -> T:

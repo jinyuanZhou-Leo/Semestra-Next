@@ -687,7 +687,6 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
         ctx,
         followed,
         cfg.store == "local",
-        dedupe=f"lms.materials:{link.id}",
         release=found.complete,
     )
     if not settled and not result.cap_reached:
@@ -1049,7 +1048,6 @@ async def on_settings_changed(ctx: Ctx, event: Event) -> None:
                 ctx,
                 await synced_items(ctx, link.id),
                 True,
-                dedupe=f"lms.materials:{link.id}",
             )
         elif "store" in changed and cfg.sync:
             # Read from the platform again: the copies go with the next run, once it has read
