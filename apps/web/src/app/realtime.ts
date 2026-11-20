@@ -85,22 +85,35 @@ function collect(
   }
 }
 
+/** Queries that were fetching when an event changed their data, to refetch once that is done. */
+const behind = new WeakSet<Query>()
+
 function invalidate(queryClient: QueryClient, pending: Pending) {
-  // `cancelRefetch: false`: a request already on its way (a mutation's own refetch, say) is
-  // kept instead of being cancelled and sent again.
-  if (pending.all) {
-    void queryClient.invalidateQueries(undefined, { cancelRefetch: false })
-    return
+  if (!pending.all && !pending.operations.size && !pending.matches.length) return
+  const filters = pending.all
+    ? undefined
+    : {
+        predicate: (query: Query) =>
+          pending.operations.has(operationId(query.queryKey) as string) ||
+          pending.matches.some((match) => partialMatchKey(query.queryKey, [match])),
+      }
+  // A request already on its way (a mutation's own refetch, say) is kept instead of being
+  // cancelled and sent again (`cancelRefetch: false`). But it may have read the data before the
+  // change, and its answer clears the invalidation: such a query is refetched once more when it
+  // is done, or a list could stop one change short of the last event (299 of 300 files).
+  for (const query of queryClient.getQueryCache().findAll(filters)) {
+    if (query.state.fetchStatus !== 'fetching' || behind.has(query)) continue
+    behind.add(query)
+    const again = () => {
+      behind.delete(query)
+      void queryClient.invalidateQueries(
+        { queryKey: query.queryKey, exact: true },
+        { cancelRefetch: false },
+      )
+    }
+    void query.promise?.then(again, again)
   }
-  if (!pending.operations.size && !pending.matches.length) return
-  void queryClient.invalidateQueries(
-    {
-      predicate: (query) =>
-        pending.operations.has(operationId(query.queryKey) as string) ||
-        pending.matches.some((match) => partialMatchKey(query.queryKey, [match])),
-    },
-    { cancelRefetch: false },
-  )
+  void queryClient.invalidateQueries(filters, { cancelRefetch: false })
 }
 
 type Invalidations = Readonly<Record<string, readonly InvalidationTarget[]>>
