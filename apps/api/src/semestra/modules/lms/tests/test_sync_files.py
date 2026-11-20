@@ -162,6 +162,54 @@ async def test_materials_come_into_their_platform_folders(api: Api, fake: FakePr
     assert len((await _files(api, course))[1]) == len(items)
 
 
+async def test_an_archive_of_platform_files_reads_each_once_and_lets_go(
+    api: Api, fake: FakeProvider, monkeypatch: pytest.MonkeyPatch
+):
+    """A zip of files read from the platform (M07 §5): each is downloaded once, and one opened
+    for an archive that is never fetched is let go, its connection closed, when it expires."""
+    import asyncio
+
+    from semestra.core import http
+    from semestra.modules.files import downloads
+
+    clients: list[Any] = []
+    make_client = http.safe_client
+
+    def safe_client(*args: Any, **kwargs: Any) -> Any:
+        clients.append(make_client(*args, **kwargs))
+        return clients[-1]
+
+    monkeypatch.setattr(http, "safe_client", safe_client)
+
+    _materials(fake)
+    program_id, course = await _course(api)
+    await api.sync(program_id)
+    items = (await _files(api, course))[1]
+    ids = [items["Lecture 1.pdf"]["id"], items["W1.pdf"]["id"]]
+
+    async def ask() -> str:
+        r = await api.call("POST", f"/courses/{course}/files:download", json={"item_ids": ids})
+        return r["download_id"]
+
+    fake.downloads_open.clear()
+    r = await api.client.get(f"/file-downloads/{await ask()}")
+    with zipfile.ZipFile(io.BytesIO(r.content)) as zf:
+        assert sorted(zf.namelist()) == ["Lecture 1.pdf", "W1.pdf"]
+    assert sorted(fake.downloads_open) == ["201", "202"]
+    assert sorted(fake.downloads_closed[-2:]) == ["201", "202"]
+
+    monkeypatch.setattr(downloads, "TTL_SECONDS", 0.01)
+    fake.downloads_open.clear()
+    fake.downloads_closed.clear()
+    clients.clear()
+    await ask()
+    assert fake.downloads_open == ["201"]  # the first file, opened when asked for
+    assert [c.is_closed for c in clients] == [False]
+    await asyncio.sleep(0.05)
+    assert fake.downloads_closed == ["201"]
+    assert [c.is_closed for c in clients] == [True]
+
+
 async def test_the_users_changes_win(api: Api, fake: FakeProvider, clock: Clock):
     _materials(fake)
     program_id, course = await _course(api)
