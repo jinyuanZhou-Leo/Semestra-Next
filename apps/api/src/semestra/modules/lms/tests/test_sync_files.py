@@ -359,9 +359,7 @@ async def test_turning_materials_off_and_unlinking(api: Api, fake: FakeProvider,
         assert (r.status_code, r.json()["error"]["code"]) == (409, "files.not_from_source")
 
 
-async def test_removing_what_turning_materials_off_left(
-    api: Api, fake: FakeProvider, clock: Clock
-):
+async def test_removing_what_turning_materials_off_left(api: Api, fake: FakeProvider, clock: Clock):
     _materials(fake)
     program_id, course = await _course(api)
     await api.sync(program_id)
