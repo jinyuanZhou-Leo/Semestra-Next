@@ -11,7 +11,6 @@ place's new items go to the folder above it, and nothing is made again under it.
 """
 
 import json
-import re
 from collections.abc import Sequence
 
 from sqlalchemy import func, select
@@ -21,22 +20,23 @@ from semestra.core.errors import AppError
 from semestra.modules.files import folders
 from semestra.modules.files.models import FilesFolder, FilesSourceFolder
 from semestra.modules.files.schemas import MAX_FOLDER_DEPTH
+from semestra.modules.files.service import name_from_source
 
 # Longest folder name made from a source's.
 MAX_NAME = 120
-_UNSAFE = re.compile(r"[\x00-\x1f\x7f]")
 
 # A level of a place: its id on the source and its name there.
 Segment = tuple[str, str]
 
 
 def clean_place(place: Sequence[Sequence[str]]) -> list[Segment]:
-    """The levels a place makes folders for: slashes in names turned to dashes, levels without a
-    name left out, at most `MAX_FOLDER_DEPTH` (the deeper ones are left out)."""
+    """The levels a place makes folders for: named as items of a source are
+    (`name_from_source`), levels without a name left out, at most `MAX_FOLDER_DEPTH` (the deeper
+    ones are left out)."""
     levels = [
         (str(key), cleaned[:MAX_NAME].strip())
         for key, name in place
-        if (cleaned := _UNSAFE.sub("", name.replace("/", "-").replace("\\", "-")).strip())
+        if (cleaned := name_from_source(name))
     ]
     return levels[:MAX_FOLDER_DEPTH]
 

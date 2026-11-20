@@ -18,12 +18,14 @@ file, page or link), moved into `materials` as migration 0056 did; materials wit
 (before migration 0057) take it from `deleted_at`, and pages that only list others are left
 out, as are materials no longer in the files (`handed_over` of backups made before migration
 0061: their file is the user's own, and the material comes in again if the platform shows it);
-a followed one is named as the sync named it (`safe_name` of its title), as migration 0061 does,
-so a name the user gave it reads as theirs.
+a followed one is named as the sync named it (`_named_by_sync`), so a name the user gave it
+reads as theirs.
 The course's materials settings left the link for M11 (`lms.materials`), which the settings' own
 backup carries. Materials of backups made before their places were kept (`path`,
 `placed_folder_id`) get their place from the next sync; those the sync had filed by type were
 put in their course's type folder (the files backup's `type_folders`), as migration 0060 reads.
+The settings' backup of 2.0 has the display of platform HTML as the Canvas tab's
+(`plugin.canvas-tab`): read as `lms.display` (`_display_moved`), as migration 0064 moves it.
 """
 
 from collections.abc import Mapping
@@ -36,7 +38,7 @@ from sqlalchemy import delete, select
 
 from semestra.core.context import Ctx
 from semestra.core.db import new_id
-from semestra.modules.files.service import safe_name
+from semestra.modules.files.service import name_from_source, safe_name
 from semestra.modules.lms.models import (
     LmsAnnouncement,
     LmsCache,
@@ -52,7 +54,7 @@ from semestra.modules.lms.schemas.dto import RubricCriterion, RubricScore, Submi
 from semestra.modules.lms.settings import materials_from_programs
 from semestra.modules.portability import register_portability
 from semestra.modules.portability.registry import OlderArchive
-from semestra.modules.settings.portability import register_levels_moved
+from semestra.modules.settings.portability import register_moved
 
 SCHEMA_VERSION = 2
 
@@ -113,14 +115,33 @@ def _current(data: dict[str, Any], files: dict[str, Any] | None = None) -> dict[
         and not r.get("is_list")
         and r.get("state", "synced") in ("synced", "dismissed")
     ]
-    materials = [
-        {**r, "name": safe_name(r["title"])}
-        if r.get("state", "synced") == "synced" and isinstance(r.get("title"), str)
-        else r
-        for r in materials
-    ]
+    materials = _named_by_sync(materials, files)
     materials = _made_own(materials, files)
     return {**data, "refs": kept, "materials": _placed_by_type(data, materials, files)}
+
+
+def _named_by_sync(
+    materials: list[dict[str, Any]], files: dict[str, Any] | None
+) -> list[dict[str, Any]]:
+    """A followed material's `name` is the name the sync gave its item, so that a name the user
+    gave it reads as theirs (backups made before migration 0061 have the item's name, whoever
+    gave it). The item's name is the sync's when it is the title as a sync names it: in full
+    now (`name_from_source`), cut at its last slash up to 2.4 (`safe_name`); any other name
+    is the user's, and the material then gets the older spelling, as migration 0061 does."""
+    shown = {
+        i.get("id"): i.get("display_name")
+        for i in (files or {}).get("items") or []
+        if isinstance(i, dict)
+    }
+    out: list[dict[str, Any]] = []
+    for r in materials:
+        title = r.get("title")
+        if r.get("state", "synced") == "synced" and isinstance(title, str):
+            given = (safe_name(title), name_from_source(title, "file"))
+            name = shown.get(r.get("item_id"))
+            r = {**r, "name": name if name in given else given[0]}
+        out.append(r)
+    return out
 
 
 def _made_own(
@@ -624,4 +645,21 @@ def _materials_levels(
     return out
 
 
-register_levels_moved("lms.materials", _materials_levels)
+register_moved("lms.materials", _materials_levels)
+
+
+def _display_moved(
+    rows: list[dict[str, Any]], archive: OlderArchive, account: bool
+) -> list[dict[str, Any]]:
+    """The Canvas tab's display setting of a 2.0 backup as `lms.display`, as migration 0064
+    moves it (the backup's own `lms` rows win)."""
+    del archive, account
+    return [
+        {**r, "namespace": "lms", "data": {"display": display}}
+        for r in rows
+        if r.get("scope_type") == "account"
+        and (display := (r.get("data") or {}).get("display")) is not None
+    ]
+
+
+register_moved("plugin.canvas-tab", _display_moved)

@@ -268,7 +268,13 @@ async def create_link(
         course_id=course_id,
         folder_id=folder_id,
         kind="link",
-        display_name=service.clean_name(display_name) if display_name else host,
+        display_name=(
+            service.name_from_source(display_name, host)
+            if source_ref
+            else service.clean_name(display_name)
+        )
+        if display_name
+        else host,
         url=clean,
         source_kind=source_kind,
         source_ref=source_ref,

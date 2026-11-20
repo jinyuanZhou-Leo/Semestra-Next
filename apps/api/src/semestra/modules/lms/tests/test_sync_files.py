@@ -26,6 +26,7 @@ from semestra.modules.files.models import FilesDocument, FilesDocumentPage, File
 from semestra.modules.files.tests.conftest import FakeAi, make_pdf
 from semestra.modules.lms import sync_files
 from semestra.modules.lms.errors import lms_error
+from semestra.modules.lms.models import LmsMaterial
 from semestra.modules.lms.schemas.dto import FileMeta, InternalRef, Module, ModuleItem, PageSummary
 from semestra.modules.lms.tests.conftest import Api, FakeProvider
 from semestra.modules.lms.tests.test_lms import setup_program
@@ -208,6 +209,83 @@ async def test_an_archive_of_platform_files_reads_each_once_and_lets_go(
     await asyncio.sleep(0.05)
     assert fake.downloads_closed == ["201"]
     assert [c.is_closed for c in clients] == [True]
+
+
+async def test_platform_names_and_addresses_files_cannot_take_as_they_are(
+    api: Api, fake: FakeProvider, app: FastAPI, clock: Clock
+):
+    """Titles with slashes and links to addresses the files can't open come in all the same: a
+    slash reads as a dash wherever a platform name becomes a name here, and a link opens through
+    the platform's own view of it. One sync failing on them would bring in nothing at all."""
+    module = "Week 1/2: Intro"
+    fake.module_list = [
+        Module(
+            external_id="m1",
+            name=module,
+            items=[
+                ModuleItem(external_id="i1", title="Zoom / Piazza", kind="external_url",
+                           position=1, external_url="https://zoom.example.edu/j/1"),
+                ModuleItem(external_id="i2", title="Email the TA", kind="external_url",
+                           position=2, external_url="mailto:ta@example.edu",
+                           web_url="https://fake/courses/101/modules/items/i2"),
+                ModuleItem(external_id="i3", title="Notes", kind="page", position=3,
+                           target=InternalRef(kind="page", ref="notes")),
+            ],
+        )
+    ]  # fmt: skip
+    fake.course_file_list = [_file("201", "Lecture 1/2 notes.pdf", "Lectures")]
+    fake.page_list = [
+        PageSummary(external_id="p1", ref="notes", title="Week 1\\2 notes", updated_at=JAN)
+    ]
+    fake.page_texts = {"notes": ("Week 1\\2 notes", SYLLABUS)}
+    program_id, course = await _course(api)
+    status = await api.sync(program_id)
+    assert status["errors"] == []
+    folders, items = await _files(api, course)
+    assert {name: _where(folders, item) for name, item in items.items()} == {
+        "Zoom - Piazza": "Week 1-2: Intro",
+        "Email the TA": "Week 1-2: Intro",
+        "Week 1-2 notes": "Week 1-2: Intro",
+        "Lecture 1-2 notes.pdf": "Lectures",
+    }
+    assert items["Email the TA"]["url"] == "https://fake/courses/101/modules/items/i2"
+
+    # Renamed on the platform: followed under the same rule.
+    fake.module_list[0].items[0].title = "Zoom / Piazza / Ed"  # type: ignore[index]
+    clock.advance(minutes=1)
+    assert (await api.sync(program_id))["errors"] == []
+    assert (await api.call("GET", f"/files/{items['Zoom - Piazza']['id']}"))[
+        "display_name"
+    ] == "Zoom - Piazza - Ed"
+
+
+async def test_a_name_an_older_sync_cut_short_is_mended(
+    api: Api, fake: FakeProvider, app: FastAPI, clock: Clock
+):
+    """Up to 2.4 a file or page title with a slash kept only what followed it ("2 notes.pdf"):
+    the next sync names it in full, unless the user renamed it."""
+    fake.course_file_list = [
+        _file("201", "Lecture 1/2 notes.pdf"),
+        _file("202", "Lab 1/2.pdf"),
+    ]
+    program_id, course = await _course(api)
+    await api.sync(program_id)
+    items = (await _files(api, course))[1]
+    lecture, lab = items["Lecture 1-2 notes.pdf"]["id"], items["Lab 1-2.pdf"]["id"]
+    async with app.state.session_factory() as db:  # as 2.4 named them
+        for item_id, short in ((lecture, "2 notes.pdf"), (lab, "2.pdf")):
+            row = await db.get(FilesItem, item_id)
+            assert row is not None
+            row.display_name = row.original_name = short
+            mat = await db.scalar(select(LmsMaterial).where(LmsMaterial.item_id == item_id))
+            assert mat is not None
+            mat.name = short
+        await db.commit()
+    await api.call("PATCH", f"/files/{lab}", json={"display_name": "Lab handout.pdf"})
+
+    clock.advance(minutes=1)
+    await api.sync(program_id)
+    assert sorted((await _files(api, course))[1]) == ["Lab handout.pdf", "Lecture 1-2 notes.pdf"]
 
 
 async def test_the_users_changes_win(api: Api, fake: FakeProvider, clock: Clock):
@@ -992,6 +1070,66 @@ async def test_a_backup_without_files(api: Api, fake: FakeProvider, app: FastAPI
     assert lecture.doc_error_code == "files.source_unread"
     midterm_row = rows["Midterm 2025.pdf"]
     assert (midterm_row.keep_copy, midterm_row.doc_error_code) == (True, "files.source_unread")
+
+
+async def _restore(api: Api, archive: bytes) -> tuple[str, str]:
+    """Replaces the user's data with the backup and types the token again: (Program, course)."""
+    uploaded = await api.client.post(
+        "/me/imports", files={"file": ("backup.zip", archive, "application/zip")}
+    )
+    body = {"mode": "replace", "confirmation": "Replace my data"}
+    await api.call("POST", f"/me/imports/{uploaded.json()['id']}:start", json=body)
+    await api.run_jobs()
+    [connection] = (await api.call("GET", "/lms/connections"))["items"]
+    token = {"credentials": {"token": "good-token-1"}}  # not in backups: typed again
+    await api.call("PATCH", f"/lms/connections/{connection['id']}", json=token)
+    [program] = (await api.call("GET", "/programs"))["items"]
+    [course] = (await api.call("GET", f"/programs/{program['id']}/courses"))["items"]
+    return program["id"], course["id"]
+
+
+async def _backup(api: Api) -> bytes:
+    started = await api.call("POST", "/me/exports", json={"include_files": False})
+    await api.run_jobs()
+    return (await api.client.get(f"/me/exports/{started['id']}/download")).content
+
+
+async def test_restored_names_with_slashes_keep_following(
+    api: Api, fake: FakeProvider, app: FastAPI, clock: Clock
+):
+    """Restored, an item named from a title with a slash still follows the platform (its name
+    is the sync's, whichever way the sync of its time spelled it), and one the user renamed
+    keeps their name."""
+    fake.course_file_list = [
+        _file("201", "Lecture 1/2 notes.pdf"),
+        _file("202", "Lab 1/2.pdf"),
+        _file("203", "Quiz 1/2.pdf"),
+    ]
+    program_id, course = await _course(api)
+    await api.sync(program_id)
+    items = (await _files(api, course))[1]
+    async with app.state.session_factory() as db:  # the quiz as 2.4 named it
+        quiz = items["Quiz 1-2.pdf"]["id"]
+        row = await db.get(FilesItem, quiz)
+        assert row is not None
+        row.display_name = row.original_name = "2.pdf"
+        mat = await db.scalar(select(LmsMaterial).where(LmsMaterial.item_id == quiz))
+        assert mat is not None
+        mat.name = "2.pdf"
+        await db.commit()
+    await api.call("PATCH", f"/files/{items['Lab 1-2.pdf']['id']}", json={"display_name": "Lab"})
+
+    program_id, course = await _restore(api, await _backup(api))
+    files = fake.course_file_list
+    for i, name in enumerate(("Lecture 1/2 notes v2.pdf", "Lab 1/2 v2.pdf", "Quiz 1/2 v2.pdf")):
+        files[i] = files[i].model_copy(update={"name": name})
+    clock.advance(minutes=1)
+    await api.sync(program_id)
+    assert sorted((await _files(api, course))[1]) == [
+        "Lab",
+        "Lecture 1-2 notes v2.pdf",
+        "Quiz 1-2 v2.pdf",
+    ]
 
 
 def _as_2_0_0(archive: bytes) -> bytes:

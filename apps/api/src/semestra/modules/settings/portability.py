@@ -5,8 +5,10 @@ preferences; settings of a Program, term or course go with that scope.
 
 Version 2 only drops settings that no longer exist: `_v1_to_v2` removes the tasks setting
 `auto_tasks_from_assessments` (assessment tasks always exist since 2.0, migration 0033). A
-namespace whose levels changed since (`register_levels_moved`) is read at import as its module
-reads it, the version staying (owner 2026-11-18): M09's materials settings were per Program.
+namespace whose rows moved since (`register_moved`: other levels, another namespace) is read at
+import as its module reads it, the version staying (owner 2026-11-18): M09's materials settings
+were per Program, and its `display` was the Canvas tab's (`plugin.canvas-tab`). Rows that end up
+on the same scope of a namespace become one, the values the backup had there winning.
 """
 
 from collections.abc import Callable, Mapping
@@ -24,14 +26,14 @@ from semestra.modules.settings.models import SettingsPreferences, SettingsUiStat
 
 SCHEMA_VERSION = 2
 
-# Namespace → reads its rows of an older backup (each `{scope_type, scope_id, data, ...}`) as
-# the levels it has now, given the archive's other payloads and whether account-level rows are
-# imported (the user asked for preferences).
-LevelsMoved = Callable[[list[dict[str, Any]], OlderArchive, bool], list[dict[str, Any]]]
-_moved: dict[str, LevelsMoved] = {}
+# Namespace → reads its rows of an older backup (each `{namespace, scope_type, scope_id, data,
+# ...}`) as the rows they are now, given the archive's other payloads and whether account-level
+# rows are imported (the user asked for preferences).
+Moved = Callable[[list[dict[str, Any]], OlderArchive, bool], list[dict[str, Any]]]
+_moved: dict[str, Moved] = {}
 
 
-def register_levels_moved(namespace: str, read: LevelsMoved) -> None:
+def register_moved(namespace: str, read: Moved) -> None:
     _moved[namespace] = read
 
 
@@ -61,7 +63,15 @@ def _current(
         if own:
             rest = [r for r in rows if r.get("namespace") != namespace]
             rows = [*rest, *read(own, archive, account)]
-    return {**payload, "values": rows}
+    merged: dict[tuple[Any, ...], dict[str, Any]] = {}
+    for r in rows:
+        scope = (r.get("namespace"), r.get("scope_type"), r.get("scope_id"))
+        if (first := merged.get(scope)) is None:
+            merged[scope] = r
+        else:
+            data = {**(r.get("data") or {}), **(first.get("data") or {})}
+            merged[scope] = {**first, "data": data}
+    return {**payload, "values": list(merged.values())}
 
 
 class SettingsAdapter(TableAdapter):
