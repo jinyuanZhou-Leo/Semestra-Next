@@ -26,13 +26,20 @@ address (for example `https://school.instructure.com`) and the access token. Sem
 works before saving.
 
 </Step>
+<Step>
+
+Choose how course materials sync: whether Canvas files come into your course files, and whether
+they're read from Canvas or saved in Semestra (see [Course materials](/docs/lms/imports#course-materials)).
+The first sync after you link courses follows this; you can change it later in settings.
+
+</Step>
 </Steps>
 
 Access tokens are stored encrypted. If a token expires or is revoked, the sidebar asks you to
 reconnect.
 
-New users can also add a connection during onboarding, then import courses from Canvas when
-creating their first term.
+New users can also add a connection and choose how course materials sync during onboarding, then
+import courses from Canvas when creating their first term.
 
 ### Sign in with a school account
 
@@ -57,7 +64,8 @@ In program settings → **LMS**, choose the connection this program's courses us
 ## 3. Link courses
 
 Courses you [import from Canvas](./imports.mdx) are linked automatically. For an existing course,
-choose its Canvas course in course settings → **LMS**.
+choose its Canvas course in course settings → **LMS**. Before you do, you can set that course's own
+materials settings below it.
 
 To stop syncing a course, turn off **Sync this course**. It then no longer updates and its Canvas
 calendar events are hidden, but you can still read it in the Canvas tab and ask Sem about it.

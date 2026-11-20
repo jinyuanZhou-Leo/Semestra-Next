@@ -9736,6 +9736,34 @@ export const HealthSchema = {
     title: 'Health'
 } as const;
 
+export const HeldMaterialsSchema = {
+    properties: {
+        courses: {
+            type: 'integer',
+            title: 'Courses',
+            description: 'Linked courses with such files'
+        },
+        local: {
+            type: 'integer',
+            title: 'Local',
+            description: 'With a local copy'
+        },
+        online: {
+            type: 'integer',
+            title: 'Online',
+            description: 'Read online (and links)'
+        }
+    },
+    type: 'object',
+    required: [
+        'courses',
+        'local',
+        'online'
+    ],
+    title: 'HeldMaterials',
+    description: 'Course files still there from materials whose sync was turned off: they no longer follow\nthe platform.'
+} as const;
+
 export const HexColorSchema = {
     properties: {
         hex: {
@@ -12398,6 +12426,27 @@ export const MaterialCountsSchema = {
     ],
     title: 'MaterialCounts',
     description: 'The course files that follow the linked course\'s materials, by what unlinking does to\nthem.'
+} as const;
+
+export const MaterialsScopeBodySchema = {
+    properties: {
+        course_id: {
+            anyOf: [
+                {
+                    type: 'string',
+                    maxLength: 64,
+                    minLength: 1
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Course Id',
+            description: 'One course; left out: every linked course'
+        }
+    },
+    type: 'object',
+    title: 'MaterialsScopeBody'
 } as const;
 
 export const McpChangeListSchema = {

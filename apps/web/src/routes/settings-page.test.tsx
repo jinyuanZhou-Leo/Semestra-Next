@@ -81,6 +81,9 @@ beforeEach(() => {
     http.get(`${API}/agent/memories`, () => HttpResponse.json({ items: [] })),
     http.get(`${API}/lms/providers`, () => HttpResponse.json({ items: [] })),
     http.get(`${API}/lms/connections`, () => HttpResponse.json({ items: [] })),
+    http.get(`${API}/me/lms/materials/held`, () =>
+      HttpResponse.json({ courses: 0, local: 0, online: 0 }),
+    ),
     http.get(`${API}/storage/usage`, () =>
       HttpResponse.json({ used_bytes: 0, quota_bytes: 0, by_module: {} }),
     ),

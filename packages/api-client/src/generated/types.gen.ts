@@ -5588,6 +5588,33 @@ export type Health = {
 };
 
 /**
+ * HeldMaterials
+ *
+ * Course files still there from materials whose sync was turned off: they no longer follow
+ * the platform.
+ */
+export type HeldMaterials = {
+    /**
+     * Courses
+     *
+     * Linked courses with such files
+     */
+    courses: number;
+    /**
+     * Local
+     *
+     * With a local copy
+     */
+    local: number;
+    /**
+     * Online
+     *
+     * Read online (and links)
+     */
+    online: number;
+};
+
+/**
  * HexColor
  */
 export type HexColor = {
@@ -7043,6 +7070,18 @@ export type MaterialCounts = {
      * Read online (and links): they leave the course's files
      */
     online: number;
+};
+
+/**
+ * MaterialsScopeBody
+ */
+export type MaterialsScopeBody = {
+    /**
+     * Course Id
+     *
+     * One course; left out: every linked course
+     */
+    course_id?: string | null;
 };
 
 /**
@@ -21176,6 +21215,63 @@ export type LmsGradeListResponses = {
 };
 
 export type LmsGradeListResponse = LmsGradeListResponses[keyof LmsGradeListResponses];
+
+export type LmsMaterialCountLeftData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Course Id
+         *
+         * One course; left out: every linked course
+         */
+        course_id?: string | null;
+    };
+    url: '/me/lms/materials/held';
+};
+
+export type LmsMaterialCountLeftErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsMaterialCountLeftError = LmsMaterialCountLeftErrors[keyof LmsMaterialCountLeftErrors];
+
+export type LmsMaterialCountLeftResponses = {
+    /**
+     * Successful Response
+     */
+    200: HeldMaterials;
+};
+
+export type LmsMaterialCountLeftResponse = LmsMaterialCountLeftResponses[keyof LmsMaterialCountLeftResponses];
+
+export type LmsMaterialRemoveLeftData = {
+    body: MaterialsScopeBody;
+    path?: never;
+    query?: never;
+    url: '/me/lms/materials:remove';
+};
+
+export type LmsMaterialRemoveLeftErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsMaterialRemoveLeftError = LmsMaterialRemoveLeftErrors[keyof LmsMaterialRemoveLeftErrors];
+
+export type LmsMaterialRemoveLeftResponses = {
+    /**
+     * Successful Response
+     */
+    200: HeldMaterials;
+};
+
+export type LmsMaterialRemoveLeftResponse = LmsMaterialRemoveLeftResponses[keyof LmsMaterialRemoveLeftResponses];
 
 export type LmsModuleListData = {
     body?: never;

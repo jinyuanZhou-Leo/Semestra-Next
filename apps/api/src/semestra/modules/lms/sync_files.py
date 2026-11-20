@@ -63,6 +63,7 @@ from semestra.modules.lms.materials import page_shape
 from semestra.modules.lms.models import LmsCourseLink, LmsMaterial, MaterialChange, MaterialState
 from semestra.modules.lms.reads import AREA_REFUSALS, ITEM_ERRORS
 from semestra.modules.lms.schemas.dto import FileMeta, ModuleItem
+from semestra.modules.lms.schemas.io import HeldMaterials
 from semestra.modules.lms.service import Bound
 from semestra.modules.lms.settings import materials as material_settings
 from semestra.modules.lms.sync import UPDATED, Notice, StageResult, hold, register_sync_stage
@@ -900,6 +901,61 @@ async def restore_all(ctx: Ctx, program_id: str) -> None:
         restored[mat.link_id] = by_id[mat.link_id]
     if restored:
         await sync_queue(ctx, list(restored.values()), manual=True)
+
+
+async def _held_links(ctx: Ctx, course_id: str | None) -> list[LmsCourseLink]:
+    """The linked courses (one, or all) whose materials no longer sync."""
+    if course_id is None:
+        links = await service.user_links(ctx)
+    else:
+        await academics.get_course_row(ctx, course_id)  # owned, or not found
+        link = await service.link_row(ctx, course_id)
+        if link is None:
+            raise lms_error("lms.course_not_linked")
+        links = [link]
+    return [li for li in links if not (await material_settings(ctx, li.course_id)).sync]
+
+
+async def held(ctx: Ctx, course_id: str | None) -> HeldMaterials:
+    """What turning the materials sync off left in the course files (they stay, no longer
+    updated), so the user can take it out (`remove_held`)."""
+    out = HeldMaterials(courses=0, local=0, online=0)
+    for link in await _held_links(ctx, course_id):
+        rows = await synced_items(ctx, link.id)
+        if not rows:
+            continue
+        local = sum(1 for r in rows if has_copy(r))
+        out.courses += 1
+        out.local += local
+        out.online += len(rows) - local
+    return out
+
+
+async def remove_held(ctx: Ctx, course_id: str | None) -> HeldMaterials:
+    """Deletes the materials left in the course files after their sync was turned off, local
+    copies too. They are not dismissed: turning the sync on again brings them back (`absent`),
+    unlike a material the user deleted by hand."""
+    links = await _held_links(ctx, course_id)
+    if not links:
+        raise lms_error("lms.sync_nothing_to_resolve")
+    await hold(ctx, links[0])  # the database's write lock: one for every course
+    for link in links:
+        mats = list(
+            await ctx.db.scalars(
+                select(LmsMaterial)
+                .where(LmsMaterial.link_id == link.id, LmsMaterial.state == "synced")
+                .execution_options(populate_existing=True)
+            )
+        )
+        if not mats:
+            continue
+        rows = await sources.find_items(ctx, [m.item_id for m in mats if m.item_id])
+        # Before the items go, so `on_item_deleted` does not take them as the user's deletes.
+        for mat in mats:
+            enter(mat, "absent", ctx.now)
+        await sources.purge_items(ctx, list(rows))
+        await events.publish(ctx, UPDATED, {"program_id": link.program_id})
+    return await held(ctx, course_id)
 
 
 @events.subscribe("settings.values.updated", in_transaction=True)

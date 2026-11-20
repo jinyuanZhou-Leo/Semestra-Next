@@ -359,6 +359,38 @@ async def test_turning_materials_off_and_unlinking(api: Api, fake: FakeProvider,
         assert (r.status_code, r.json()["error"]["code"]) == (409, "files.not_from_source")
 
 
+async def test_removing_what_turning_materials_off_left(
+    api: Api, fake: FakeProvider, clock: Clock
+):
+    _materials(fake)
+    program_id, course = await _course(api)
+    await api.sync(program_id)
+    brought = set((await _files(api, course))[1])
+    held = "/me/lms/materials/held"
+    # Syncing: nothing is left over, and there is nothing to remove.
+    assert await api.call("GET", held) == {"courses": 0, "local": 0, "online": 0}
+    r = await api.client.post("/me/lms/materials:remove", json={})
+    assert r.json()["error"]["code"] == "lms.sync_nothing_to_resolve"
+
+    # Turned off: what came in stays, counted for the account and for the course.
+    await _materials_setting(api, course, sync=False)
+    want = {"courses": 1, "local": 0, "online": len(brought)}
+    assert await api.call("GET", held) == want
+    assert await api.call("GET", held, params={"course_id": course}) == want
+
+    # Removed: gone from the files, and not as the user's deletes (nothing to restore).
+    left = await api.call("POST", "/me/lms/materials:remove", json={"course_id": course})
+    assert left == {"courses": 0, "local": 0, "online": 0}
+    assert (await _files(api, course))[1] == {}
+    assert (await api.sync(program_id))["removed_count"] == 0
+
+    # Turned on again: they all come back.
+    await _materials_setting(api, course, sync=True)
+    clock.advance(minutes=1)
+    await api.run_jobs()
+    assert set((await _files(api, course))[1]) == brought
+
+
 async def test_following_the_platform(api: Api, fake: FakeProvider, clock: Clock):
     _materials(fake)
     fake.course_file_list[0] = fake.course_file_list[0].model_copy(update={"content_at": JAN})
