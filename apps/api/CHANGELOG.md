@@ -1,5 +1,55 @@
 # @semestra/api
 
+## 2.4.1
+
+### Patch Changes
+
+- 9c8a47f: <!-- area: data -->
+  <!-- en -->
+  Course materials restored from a backup keep following renames on the platform.
+  <!-- zh -->
+  从备份恢复的课程资料会继续跟随平台上的改名。
+- aa3da75: <!-- area: tasks -->
+  <!-- en -->
+  Apple Reminders now connects to self-hosted servers that use plain http.
+  <!-- zh -->
+  自部署的服务器未启用 https 时，现在也能连接 Apple 提醒事项。
+- c0f1057: <!-- area: canvas -->
+  <!-- en -->
+  The Canvas content display chosen in 2.0 is kept after upgrading and when restoring a 2.0 backup.
+  <!-- zh -->
+  2.0 中选择的 Canvas 内容显示方式在升级后和恢复 2.0 备份时都会保留。
+- c0f1057: <!-- area: canvas -->
+  <!-- en -->
+  Course materials sync again when a Canvas title contains a slash or a link points to an email address, and names keep their full title.
+  <!-- zh -->
+  Canvas 资料标题含斜杠或链接指向邮箱时，课程资料可以正常同步，名称也保留完整标题。
+- f1f3584: <!-- area: canvas -->
+  <!-- en -->
+  Files saved from the Canvas page in 2.0 now follow the platform like other course materials and no longer appear twice.
+  <!-- zh -->
+  2.0 中从 Canvas 页面保存的文件现在会像其它课程资料一样跟随平台，不再重复出现。
+- 532de87: <!-- area: files -->
+  <!-- en -->
+  Saving course materials in Semestra no longer holds up syncing your other courses, and the list of files being read loads faster.
+  <!-- zh -->
+  保存课程资料到 Semestra 时不再拖慢其它课程的同步，「正在读取」列表也加载得更快。
+- 8f425cc: <!-- area: files -->
+  <!-- en -->
+  Switching a course back to reading materials from the LMS now stops copies that were still waiting to be saved.
+  <!-- zh -->
+  把课程改回从 LMS 读取资料后，还在排队的副本不再继续保存。
+- 532de87: <!-- area: sem -->
+  <!-- en -->
+  Sem looks at LMS files through your course files, using the copy saved in Semestra when there is one.
+  <!-- zh -->
+  Sem 查看 LMS 文件的页面时经由课程文件，有保存在 Semestra 的副本就直接使用。
+- 1e80c49: <!-- area: files -->
+  <!-- en -->
+  Downloading several files as a zip reads each file only once, and large selections no longer hit a limit.
+  <!-- zh -->
+  多个文件打包下载时每个文件只读取一次，选中很多文件时也不再受数量限制。
+
 ## 2.4.0
 
 ### Minor Changes

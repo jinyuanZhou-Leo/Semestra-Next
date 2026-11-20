@@ -1,0 +1,97 @@
+{
+  "version": "2.4.1",
+  "date": "2026-11-20",
+  "level": "patch",
+  "items": [
+    {
+      "kind": "fixed",
+      "area": "general",
+      "en": "Lists that update live no longer stop one change short when several changes arrive in quick succession.",
+      "zh": "接连发生多处变化时，实时更新的列表不会再停在倒数第二次变化。"
+    },
+    {
+      "kind": "fixed",
+      "area": "general",
+      "en": "The sign-in page loads less code.",
+      "zh": "登录页需要加载的代码更少了。"
+    },
+    {
+      "kind": "fixed",
+      "area": "sem",
+      "en": "Sem looks at LMS files through your course files, using the copy saved in Semestra when there is one.",
+      "zh": "Sem 查看 LMS 文件的页面时经由课程文件，有保存在 Semestra 的副本就直接使用。"
+    },
+    {
+      "kind": "fixed",
+      "area": "tasks",
+      "en": "Apple Reminders now connects to self-hosted servers that use plain http.",
+      "zh": "自部署的服务器未启用 https 时，现在也能连接 Apple 提醒事项。"
+    },
+    {
+      "kind": "fixed",
+      "area": "files",
+      "en": "Saving course materials in Semestra no longer holds up syncing your other courses, and the list of files being read loads faster.",
+      "zh": "保存课程资料到 Semestra 时不再拖慢其它课程的同步，「正在读取」列表也加载得更快。"
+    },
+    {
+      "kind": "fixed",
+      "area": "files",
+      "en": "Switching a course back to reading materials from the LMS now stops copies that were still waiting to be saved.",
+      "zh": "把课程改回从 LMS 读取资料后，还在排队的副本不再继续保存。"
+    },
+    {
+      "kind": "fixed",
+      "area": "files",
+      "en": "Syncing many course materials at once puts less load on the app and server.",
+      "zh": "一次同步大量课程资料时，应用和服务器的负担更小。"
+    },
+    {
+      "kind": "fixed",
+      "area": "files",
+      "en": "Downloading several files as a zip reads each file only once, and large selections no longer hit a limit.",
+      "zh": "多个文件打包下载时每个文件只读取一次，选中很多文件时也不再受数量限制。"
+    },
+    {
+      "kind": "fixed",
+      "area": "canvas",
+      "en": "The Canvas content display chosen in 2.0 is kept after upgrading and when restoring a 2.0 backup.",
+      "zh": "2.0 中选择的 Canvas 内容显示方式在升级后和恢复 2.0 备份时都会保留。"
+    },
+    {
+      "kind": "fixed",
+      "area": "canvas",
+      "en": "Course materials sync again when a Canvas title contains a slash or a link points to an email address, and names keep their full title.",
+      "zh": "Canvas 资料标题含斜杠或链接指向邮箱时，课程资料可以正常同步，名称也保留完整标题。"
+    },
+    {
+      "kind": "fixed",
+      "area": "canvas",
+      "en": "Files saved from the Canvas page in 2.0 now follow the platform like other course materials and no longer appear twice.",
+      "zh": "2.0 中从 Canvas 页面保存的文件现在会像其它课程资料一样跟随平台，不再重复出现。"
+    },
+    {
+      "kind": "fixed",
+      "area": "canvas",
+      "en": "Announcements open with the current list and unread marks, without first showing the ones from your last visit.",
+      "zh": "打开公告时直接显示最新的列表和未读标记，不再先闪现上次看到的内容。"
+    },
+    {
+      "kind": "fixed",
+      "area": "canvas",
+      "en": "Programs linked to an LMS open with less to download in the background.",
+      "zh": "已绑定 LMS 的 Program 打开时，后台需要下载的内容更少。"
+    },
+    {
+      "kind": "fixed",
+      "area": "plugins",
+      "en": "Pages with sticky notes load faster: the editor now loads only when you start editing a note.",
+      "zh": "放有便签的页面加载更快：编辑器只在开始编辑便签时才加载。"
+    },
+    {
+      "kind": "fixed",
+      "area": "data",
+      "en": "Course materials restored from a backup keep following renames on the platform.",
+      "zh": "从备份恢复的课程资料会继续跟随平台上的改名。"
+    }
+  ]
+}

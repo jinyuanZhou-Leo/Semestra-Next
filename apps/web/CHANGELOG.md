@@ -1,5 +1,46 @@
 # @semestra/web
 
+## 2.4.1
+
+### Patch Changes
+
+- 6a500bd: <!-- area: canvas -->
+  <!-- en -->
+  Announcements open with the current list and unread marks, without first showing the ones from your last visit.
+  <!-- zh -->
+  打开公告时直接显示最新的列表和未读标记，不再先闪现上次看到的内容。
+- 6a500bd: <!-- area: general -->
+  <!-- en -->
+  Lists that update live no longer stop one change short when several changes arrive in quick succession.
+  <!-- zh -->
+  接连发生多处变化时，实时更新的列表不会再停在倒数第二次变化。
+- 6a500bd: <!-- area: general -->
+  <!-- en -->
+  The sign-in page loads less code.
+  <!-- zh -->
+  登录页需要加载的代码更少了。
+- eb21958: <!-- area: canvas -->
+  <!-- en -->
+  Programs linked to an LMS open with less to download in the background.
+  <!-- zh -->
+  已绑定 LMS 的 Program 打开时，后台需要下载的内容更少。
+- eb21958: <!-- area: files -->
+  <!-- en -->
+  Syncing many course materials at once puts less load on the app and server.
+  <!-- zh -->
+  一次同步大量课程资料时，应用和服务器的负担更小。
+- b26c9fd: <!-- area: plugins -->
+  <!-- en -->
+  Pages with sticky notes load faster: the editor now loads only when you start editing a note.
+  <!-- zh -->
+  放有便签的页面加载更快：编辑器只在开始编辑便签时才加载。
+- 1e80c49: <!-- area: files -->
+  <!-- en -->
+  Downloading several files as a zip reads each file only once, and large selections no longer hit a limit.
+  <!-- zh -->
+  多个文件打包下载时每个文件只读取一次，选中很多文件时也不再受数量限制。
+- @semestra/api-client@2.4.1
+
 ## 2.4.0
 
 ### Minor Changes
