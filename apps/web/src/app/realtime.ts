@@ -73,12 +73,13 @@ export const COALESCE_MS = 50
 type Pending = { all: boolean; operations: Set<string>; matches: QueryMatch[] }
 
 function collect(
+  queryClient: QueryClient,
   pending: Pending,
   targets: readonly InvalidationTarget[],
   data: Readonly<Record<string, unknown>>,
 ) {
   for (const target of targets) {
-    for (const item of typeof target === 'function' ? target(data) : [target]) {
+    for (const item of typeof target === 'function' ? target(data, queryClient) : [target]) {
       if (typeof item === 'string') pending.operations.add(item)
       else pending.matches.push(item)
     }
@@ -171,7 +172,7 @@ export function connectRealtime(
       }
       const targets = (message.origin === CLIENT_ID ? own : invalidations)[message.type]
       if (!targets?.length) return
-      collect(pending, targets, data)
+      collect(queryClient, pending, targets, data)
     }
     timer ??= setTimeout(flush, COALESCE_MS)
   }

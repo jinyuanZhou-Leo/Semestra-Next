@@ -1,6 +1,7 @@
 import { QueryClient, QueryObserver } from '@tanstack/react-query'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { FakeEventSource } from '@/test-event-source'
+import files from '@/modules/files/manifest'
 import { CLIENT_ID } from './api'
 import { COALESCE_MS, connectRealtime, type RealtimeConfig } from './realtime'
 
@@ -193,4 +194,18 @@ test('an event a module names drops its kept reads: they start over instead of s
   await vi.waitFor(() => expect(queryClient.getQueryData(relinked)).toBeUndefined())
   expect(queryClient.getQueryData(other)).toBe(1)
   expect(queryClient.getQueryData(unkept)).toBe(1)
+})
+
+test('a file changing refetches the organizing under way only while there is some', () => {
+  const { queryClient, source } = setup({ invalidations: files.realtimeInvalidations })
+  const list = [{ _id: 'filesOrganizationList', baseUrl: 'x', path: { program_id: 'p1' } }]
+  queryClient.setQueryData(list, { items: [] })
+  source.emit({ type: 'files.item.updated', data: { item_id: 'i1', course_id: 'c1' } })
+  vi.advanceTimersByTime(COALESCE_MS)
+  expect(queryClient.getQueryState(list)?.isInvalidated).toBe(false)
+
+  queryClient.setQueryData(list, { items: [{ course_id: 'c1', job: null, count: 3 }] })
+  source.emit({ type: 'files.item.updated', data: { item_id: 'i1', course_id: 'c1' } })
+  vi.advanceTimersByTime(COALESCE_MS)
+  expect(queryClient.getQueryState(list)?.isInvalidated).toBe(true)
 })

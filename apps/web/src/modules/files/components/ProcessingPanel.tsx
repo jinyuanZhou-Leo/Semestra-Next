@@ -7,7 +7,7 @@ import {
 } from '@semestra/api-client/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CircleStop, RotateCw, X } from 'lucide-react'
-import { useEffect, useEffectEvent, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { PanelFold, PanelHeading, PanelMoreList, PanelRow } from '@/components/StatusPanel'
 import { IconAction } from '@/components/IconAction'
@@ -20,7 +20,8 @@ import { Progress } from '@/ui/progress'
 import { Spinner } from '@/ui/spinner'
 import { fileIcon } from '../kinds'
 import { filePath } from '../location'
-import { processingOptions, setPanelOpen, shownFiles, useSeenFailures } from '../processing-line'
+import { useSeenFailures } from '@/app/host/status-lifecycle'
+import { processingOptions, shownFiles } from '../processing-line'
 
 /** The part of the panel a row is listed in. */
 type Section = 'failed' | 'running' | 'queued' | 'done'
@@ -39,37 +40,19 @@ const SECTION_OF: Record<string, Section> = {
  * (or read again). "Stop all" stops the round, after a confirmation; once nothing is left,
  * "Process all again" reads the files that failed or were stopped.
  */
-/** Failures remembered as seen: enough for a few rounds of a large sync. */
-const SEEN_KEPT = 500
-
 export default function ProcessingPanel({ onClose }: { onClose: () => void }) {
   const queryClient = useQueryClient()
   const list = useQuery(processingOptions()).data
-  const [seen, setSeen] = useSeenFailures()
+  const seen = useSeenFailures()
   const [stopping, setStopping] = useState(false)
   const [retrying, setRetrying] = useState<readonly string[]>([])
   const { active, failed, done } = shownFiles(list, seen)
 
-  // While it is open, the line keeps what it shows; what it lists that failed or was stopped
-  // counts as seen once it closes (not on open: the line would change under the user).
-  const markSeen = useEffectEvent(() => {
-    const ids = failed.map((file) => file.job.id)
-    if (ids.some((id) => !seen.includes(id))) {
-      setSeen([...new Set([...ids, ...seen])].slice(0, SEEN_KEPT))
-    }
-  })
   // Rows that arrive once the panel is up unfold; the first ones are just there.
   const [settled, setSettled] = useState(false)
   useEffect(() => {
     const frame = requestAnimationFrame(() => setSettled(true))
     return () => cancelAnimationFrame(frame)
-  }, [])
-  useEffect(() => {
-    setPanelOpen(true)
-    return () => {
-      setPanelOpen(false)
-      markSeen()
-    }
   }, [])
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: filesProcessingListQueryKey() })

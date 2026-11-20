@@ -1,3 +1,5 @@
+import type { PendingOrganizeList } from '@semestra/api-client'
+import type { QueryClient } from '@tanstack/react-query'
 import { FileClock, FileSearch, FolderOpen, Star } from 'lucide-react'
 import {
   defineModule,
@@ -34,8 +36,22 @@ const ofItem =
  * still being processed; a document's pages only change when it is switched or goes away.
  * Deleting a folder or a course takes files whose ids the event does not list.
  */
-// A plan leaves out the files moved or deleted since, and names the folders they would go in.
-const ORGANIZE = ['filesOrganizationGet', 'filesOrganizationList']
+/**
+ * A plan leaves out the files moved or deleted since, and names the folders they would go in;
+ * the list of organizing under way counts the files each plan would still move. That list stays
+ * mounted (the status line reads it) and is nearly always empty, so a change to files refetches
+ * it only while it lists some organizing: a sync adding hundreds of files does not refetch it for
+ * each. A new plan comes with its own event.
+ */
+const ORGANIZE = [
+  'filesOrganizationGet',
+  (_data: Data, queryClient: QueryClient) =>
+    queryClient
+      .getQueriesData<PendingOrganizeList>({ queryKey: [{ _id: 'filesOrganizationList' }] })
+      .some(([, list]) => list === undefined || list.items.length > 0)
+      ? ['filesOrganizationList']
+      : [],
+] as const
 
 const PROCESS_KINDS = new Set(['files.process', 'files.process_synced'])
 
@@ -48,7 +64,7 @@ const INVALIDATIONS = {
         ? ['filesProcessingList']
         : [],
   ],
-  'files.organization.updated': ORGANIZE,
+  'files.organization.updated': ['filesOrganizationGet', 'filesOrganizationList'],
   'files.item.created': [courseList, 'filesItemSearch', 'filesUsageGet', 'filesDocumentSearch'],
   // Keeping or removing a local copy changes the storage used.
   'files.item.updated': [

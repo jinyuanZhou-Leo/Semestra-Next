@@ -467,8 +467,16 @@ export type StatusItem = {
    * tone, otherwise `running`. A line keeps its rank while its state changes in place.
    */
   rank?: StatusRank
-  /** Opened in a popover from the line, instead of following `to`. */
+  /**
+   * Opened in a popover from the line, instead of following `to`. While it is open the line stays,
+   * with its panel, even if the hook returns null meanwhile (M10 §5.6).
+   */
   Panel?: ComponentType<{ onClose: () => void }>
+  /**
+   * The failures its panel lists (job ids): once the panel closes they count as seen, and
+   * `useSeenFailures()` (`app/host/status-lifecycle.ts`) returns them from then on.
+   */
+  failures?: readonly string[]
   /** Run when the line is clicked (e.g. opens a dialog where the work stands), instead of `to`. */
   onSelect?: () => void
 }
@@ -485,7 +493,8 @@ export type StatusItemContribution = {
   /**
    * Loads the line's hook, e.g. `() => import('./status-line').then((m) => m.useImportLine)`;
    * the hook returning null hides the line. The signed-in shell loads it, so the hook, its texts
-   * and icons stay out of the sign-in page.
+   * and icons stay out of the sign-in page. Its panel is loaded as soon as the line shows: keep
+   * what the line and the panel import light (`pnpm lint` checks it, `scripts/check-entry.mjs`).
    */
   load: () => Promise<() => StatusItem | null>
 }
@@ -510,10 +519,16 @@ export type QueryKeyPrefix = string
  */
 export type QueryMatch = { readonly _id: QueryKeyPrefix } & Readonly<Record<string, unknown>>
 
-/** What an SSE event refetches: whole operations, or what a function of its data names. */
+/**
+ * What an SSE event refetches: whole operations, or what a function of its data names. The
+ * function may look at the cache, e.g. to skip a list the event cannot change.
+ */
 export type InvalidationTarget =
   | QueryKeyPrefix
-  | ((data: Readonly<Record<string, unknown>>) => readonly (QueryKeyPrefix | QueryMatch)[])
+  | ((
+      data: Readonly<Record<string, unknown>>,
+      queryClient: QueryClient,
+    ) => readonly (QueryKeyPrefix | QueryMatch)[])
 
 /** Part of a query key's first element, e.g. `{ path: { course_id } }`; `{}` matches every read. */
 export type KeptQueryMatch = Readonly<Record<string, unknown>>

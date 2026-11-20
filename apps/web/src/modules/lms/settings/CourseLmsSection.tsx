@@ -70,7 +70,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { externalLabel, groupByTerm } from '../external'
 import { useProviderName, useProviderUis } from '../providers'
 import { MATERIALS, invalidateLms } from '../queries'
-import { ERROR_LABEL, LogoTile } from './ConnectionsSection'
+import { CONNECTION_ERROR_LABEL } from '../labels'
+import { LogoTile } from './ConnectionsSection'
 import { HeldMaterials } from './HeldMaterials'
 import { MATERIAL_FIELDS } from './MaterialsSection'
 import { useOpenConnections } from './ProgramLmsSection'
@@ -252,7 +253,9 @@ function LinkedCourse({
           <ItemActions className="shrink-0 gap-3">
             <span className="flex items-center gap-2 text-xs text-muted-foreground">
               {code ? (
-                <Badge variant="destructive">{ERROR_LABEL[code]?.() ?? m.lms_status_error()}</Badge>
+                <Badge variant="destructive">
+                  {CONNECTION_ERROR_LABEL[code]?.() ?? m.lms_status_error()}
+                </Badge>
               ) : (
                 <Badge variant="secondary">{m.lms_connection_ok()}</Badge>
               )}
