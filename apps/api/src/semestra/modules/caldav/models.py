@@ -8,8 +8,8 @@ from semestra.core.db import Base, OwnedMixin, UTCDateTime, new_id
 
 class CaldavConnection(Base, OwnedMixin):
     """A device that syncs a Program's to-do lists over CalDAV (Apple Reminders, ...). It signs in
-    with its own password, shown once when the connection is made and stored only as hashes: one
-    for HTTP Basic, and the Digest `HA1` (`connections.digest_ha1`) for servers on plain http,
+    with its own password, shown once when the connection is made and stored as a hash for HTTP
+    Basic and as the encrypted Digest `HA1` (`connections._set_password`) for servers on plain http,
     where Apple devices will not send a Basic password."""
 
     __tablename__ = "caldav_connections"
@@ -20,7 +20,8 @@ class CaldavConnection(Base, OwnedMixin):
     )
     token_hash: Mapped[str] = mapped_column(String, unique=True)
     # The user name the device was given (the account's email when the password was made), and
-    # MD5(username:realm:password) for HTTP Digest. Empty on connections made before Digest.
+    # MD5(username:realm:password) for HTTP Digest, encrypted (`core.security.encrypt`). Empty on
+    # connections made before Digest.
     username: Mapped[str | None] = mapped_column(String, default=None, index=True)
     digest_ha1: Mapped[str | None] = mapped_column(String, default=None)
     # What the device said it is on its first request ("ios" | "macos" | "other").

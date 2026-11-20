@@ -49,6 +49,19 @@ REQUESTS_PER_HOUR = 1200
 _requests = TTLCache[str, list[int], float](maxsize=10_000, ttl=3600)
 
 
+# The Digest request counters each device has used with each nonce: a counter seen again is a
+# replay (someone who overheard a request on plain http). Kept as long as a nonce is good.
+_counters = TTLCache[tuple[str, str], set[str], float](maxsize=10_000, ttl=digest.NONCE_SECONDS)
+
+
+def _replayed(connection_id: str, credentials: digest.Credentials) -> bool:
+    seen = _counters.setdefault((connection_id, credentials.nonce), set())
+    if credentials.nc in seen:
+        return True
+    seen.add(credentials.nc)
+    return False
+
+
 def _over_limit(connection_id: str) -> bool:
     # The entry is made once and then only mutated, so it expires an hour after the first request.
     count = _requests.setdefault(connection_id, [0])
@@ -106,6 +119,8 @@ async def setup_profile(code: str, ctx: Annotated[Ctx, Depends(get_anonymous_ctx
 async def caldav(
     path: str, request: Request, ctx: Annotated[Ctx, Depends(get_anonymous_ctx)]
 ) -> Response:
+    if not ctx.settings.caldav:
+        raise not_found()
     if request.method.upper() == "OPTIONS" and "authorization" not in request.headers:
         # What the server supports is no secret (RFC 4791 §5.1); clients ask before signing in.
         return Response(status_code=200, headers={**DAV_HEADERS, "Content-Length": "0"})
@@ -158,7 +173,9 @@ async def _sign_in(ctx: Ctx, request: Request) -> tuple[CaldavConnection | None,
             connection = await connections.authenticate_digest(
                 ctx, credentials, request.method.upper()
             )
-            if connection is not None and state == "stale":
+            if connection is not None and (
+                state == "stale" or _replayed(connection.id, credentials)
+            ):
                 return None, True
         case _:
             return None, False

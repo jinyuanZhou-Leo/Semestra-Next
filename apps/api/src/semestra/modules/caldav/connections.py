@@ -15,7 +15,7 @@ from semestra.core.db import new_id
 from semestra.core.errors import AppError, not_found
 from semestra.core.events import events
 from semestra.core.jobs import periodic
-from semestra.core.security import seal_for, unseal_within
+from semestra.core.security import decrypt, encrypt, seal_for, unseal_within
 from semestra.modules.academics import service as academics
 from semestra.modules.caldav import digest
 from semestra.modules.caldav.models import CaldavConnection
@@ -113,7 +113,8 @@ def _set_password(ctx: Ctx, row: CaldavConnection, token: str) -> None:
     assert ctx.user is not None
     row.token_hash = _hash(token)
     row.username = ctx.user.email
-    row.digest_ha1 = digest.ha1(ctx.user.email, token)
+    # Encrypted: HA1 is all Digest needs to sign in, so the database alone must not hold it.
+    row.digest_ha1 = encrypt(ctx.settings, digest.ha1(ctx.user.email, token))
     row.created_at = ctx.now
 
 
@@ -226,7 +227,13 @@ async def authenticate_digest(
         select(CaldavConnection).where(CaldavConnection.username == credentials.username)
     )
     for row in rows:
-        if row.digest_ha1 and digest.matches(credentials, row.digest_ha1, method):
+        if row.digest_ha1 is None:
+            continue
+        try:
+            ha1 = decrypt(ctx.settings, row.digest_ha1)
+        except InvalidToken:
+            continue
+        if digest.matches(credentials, ha1, method):
             return row
     return None
 

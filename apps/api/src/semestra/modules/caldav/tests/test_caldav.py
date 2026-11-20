@@ -205,6 +205,7 @@ async def test_off_unless_turned_on(app: FastAPI, client: AsyncClient, user: Use
     r = await call(client, "POST", f"/programs/{s['program']}/caldav-connections", status=404)
     assert r["error"]["code"] == "caldav.unavailable"
     assert (await client.get("/.well-known/caldav")).status_code == 404
+    assert (await client.options("/caldav/")).status_code == 404
 
 
 async def test_tasks_reach_the_device(
@@ -486,6 +487,13 @@ async def test_plain_http_signs_in_with_digest(
         auth=httpx.DigestAuth(account["CalDAVUsername"], "not-the-password"),
     )
     assert (await wrong.request("PROPFIND", "/caldav/principal/")).status_code == 401
+
+    # An overheard request cannot be sent again: the device just signs in afresh.
+    replay = await anonymous.request(
+        "PROPFIND", "/caldav/principal/", content=principal, headers={"Authorization": signed}
+    )
+    assert replay.status_code == 401
+    assert "stale=true" in replay.headers.get_list("www-authenticate")[0]
 
     # A response made for one address does not open another.
     elsewhere = await anonymous.request(

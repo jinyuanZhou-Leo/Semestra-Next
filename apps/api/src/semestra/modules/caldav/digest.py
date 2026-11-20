@@ -3,7 +3,8 @@
 Apple devices refuse to send a Basic password over http ("Cancelling authentication challenge
 for insecure connection using basic authentication"), so a self-hosted server without https
 offers Digest too. Nonces are stateless: the time they were made, signed with the server key;
-an old one is answered with `stale=true` and the device retries without asking the user.
+an old one, or a request counter already used with it (a replay), is answered with
+`stale=true` and the device retries without asking the user.
 """
 
 import hashlib
@@ -50,7 +51,7 @@ class Credentials:
     nonce: str
     uri: str
     response: str
-    qop: str | None
+    qop: str
     nc: str
     cnonce: str
 
@@ -62,8 +63,9 @@ def parse(value: str) -> Credentials | None:
         return None
     if fields.get("realm") != REALM or fields.get("algorithm", "MD5").upper() != "MD5":
         return None
+    # qop=auth is required: its request counter (`nc`) is what stops replays (`routes._replayed`).
     qop = fields.get("qop")
-    if qop not in (None, "auth") or (qop and not (fields.get("nc") and fields.get("cnonce"))):
+    if qop != "auth" or not fields.get("nc") or not fields.get("cnonce"):
         return None
     try:
         return Credentials(
@@ -72,8 +74,8 @@ def parse(value: str) -> Credentials | None:
             uri=fields["uri"],
             response=fields["response"].lower(),
             qop=qop,
-            nc=fields.get("nc", ""),
-            cnonce=fields.get("cnonce", ""),
+            nc=fields["nc"].lower(),
+            cnonce=fields["cnonce"],
         )
     except KeyError:
         return None
@@ -90,11 +92,8 @@ def nonce_state(secret: str, value: str, now: datetime) -> str:
 
 def matches(credentials: Credentials, stored_ha1: str, method: str) -> bool:
     ha2 = _md5(f"{method}:{credentials.uri}")
-    if credentials.qop is None:
-        expected = _md5(f"{stored_ha1}:{credentials.nonce}:{ha2}")
-    else:
-        expected = _md5(
-            f"{stored_ha1}:{credentials.nonce}:{credentials.nc}:{credentials.cnonce}"
-            f":{credentials.qop}:{ha2}"
-        )
+    expected = _md5(
+        f"{stored_ha1}:{credentials.nonce}:{credentials.nc}:{credentials.cnonce}"
+        f":{credentials.qop}:{ha2}"
+    )
     return hmac.compare_digest(expected, credentials.response)
