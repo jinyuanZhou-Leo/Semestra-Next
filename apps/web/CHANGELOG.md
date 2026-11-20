@@ -1,5 +1,34 @@
 # @semestra/web
 
+## 2.4.0
+
+### Minor Changes
+
+- c7b9d66: <!-- area: canvas -->
+  <!-- en -->
+  Choose how course materials sync when you connect Canvas or set up Semestra, before the first sync. Materials left after turning the sync off can be removed in one step.
+  <!-- zh -->
+  连接 Canvas 或初次设置时，可在首次同步前选好课程资料的同步方式；关闭同步后留下的资料可一次移除。
+
+### Patch Changes
+
+- fedf070: <!-- area: general -->
+  <!-- en -->
+  Long file, folder and course names no longer push dialogs wider than the window; they are shortened or wrapped instead.
+  <!-- zh -->
+  较长的文件、文件夹和课程名称不再把对话框撑出窗口，而是省略或换行显示。
+- 4365750: <!-- area: settings -->
+  <!-- en -->
+  Lists in settings, such as the import history, now fit the window: long names are shortened instead of pushing the last columns out of view.
+  <!-- zh -->
+  设置中的列表（如导入历史）不再超出窗口，较长的名称会省略显示，末尾的列不再被遮住。
+- 353ae87: <!-- area: plugins -->
+  <!-- en -->
+  Links in sticky notes open with a single click; start writing with the note's edit button or a double-click.
+  <!-- zh -->
+  便签中的链接单击即可打开；点编辑按钮或双击文字即可开始书写。
+- @semestra/api-client@2.4.0
+
 ## 2.3.0
 
 ### Minor Changes

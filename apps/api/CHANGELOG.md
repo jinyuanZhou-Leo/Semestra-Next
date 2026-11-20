@@ -1,5 +1,28 @@
 # @semestra/api
 
+## 2.4.0
+
+### Minor Changes
+
+- c7b9d66: <!-- area: canvas -->
+  <!-- en -->
+  Choose how course materials sync when you connect Canvas or set up Semestra, before the first sync. Materials left after turning the sync off can be removed in one step.
+  <!-- zh -->
+  连接 Canvas 或初次设置时，可在首次同步前选好课程资料的同步方式；关闭同步后留下的资料可一次移除。
+- e354755: <!-- area: api -->
+  <!-- en -->
+  AI tools connected over MCP now use Sem's skills and working rules, so they follow the same steps as Sem.
+  <!-- zh -->
+  通过 MCP 连接的 AI 工具现在可以使用 Sem 的技能和工作规则，按与 Sem 相同的步骤完成任务。
+
+### Patch Changes
+
+- 2ce7ebb: <!-- area: account -->
+  <!-- en -->
+  Signing in again in the same browser no longer leaves an extra entry under signed-in devices.
+  <!-- zh -->
+  在同一浏览器重新登录时，登录设备里不再多出一条旧记录。
+
 ## 2.3.0
 
 ### Minor Changes
