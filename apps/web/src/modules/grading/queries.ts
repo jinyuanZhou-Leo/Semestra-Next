@@ -6,7 +6,8 @@ import {
   gradingSummaryTermOptions,
 } from '@semestra/api-client/react-query'
 import { type QueryClient, keepPreviousData, useQuery } from '@tanstack/react-query'
-import type { ModuleManifest, Scope } from '@/app/extensions'
+import { type ModuleManifest, type Scope, preloadExtensions } from '@/app/extensions'
+import { FIELD_ORIGINS } from '@/components/field-origins'
 import {
   ASSESSMENT_ACTIONS,
   ASSESSMENT_COLUMNS,
@@ -51,6 +52,8 @@ export function prefetchGradesPage(
     void queryClient.prefetchQuery(
       gradingScaleGetOptions({ path: { program_id: scope.programId } }),
     )
+    // The buttons other modules put beside the assessment dialog's fields.
+    void preloadExtensions(modules, FIELD_ORIGINS)
     for (const point of [ASSESSMENT_COLUMNS, ASSESSMENT_ACTIONS, ASSESSMENT_IMPORT_SOURCES]) {
       for (const module of modules) {
         const contributions = (module.extensions?.[point] ?? []) as { query?: AssessmentQuery }[]

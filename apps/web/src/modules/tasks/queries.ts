@@ -8,8 +8,9 @@ import {
 import { type QueryClient, useQuery } from '@tanstack/react-query'
 import { useProgram } from '@/modules/academics/queries'
 import { todayIn } from '@/modules/schedule/time'
-import type { Scope } from '@/app/extensions'
-import type { SortKey, Selection } from './types'
+import { type ModuleManifest, type Scope, preloadExtensions } from '@/app/extensions'
+import { FIELD_ORIGINS } from '@/components/field-origins'
+import { type SortKey, type Selection, TASK_DETAIL_SECTIONS } from './types'
 
 const STALE = 15_000
 
@@ -192,4 +193,19 @@ export function useProgramTimezone(programId: string): string {
 /** Today's date in the Program's time zone. */
 export function useProgramToday(programId: string): string {
   return todayIn(useProgramTimezone(programId))
+}
+
+/**
+ * `PageContribution.prefetch` of the tasks page: what other modules show in a task's details
+ * (its sections and the buttons beside its fields), so the details open whole. Not for a
+ * hovered link, which may never be followed.
+ */
+export function prefetchTasksPage(
+  _scope: Scope,
+  _queryClient: QueryClient,
+  { preload, modules }: { preload: boolean; modules: readonly ModuleManifest[] },
+) {
+  if (preload) return
+  void preloadExtensions(modules, TASK_DETAIL_SECTIONS)
+  void preloadExtensions(modules, FIELD_ORIGINS)
 }

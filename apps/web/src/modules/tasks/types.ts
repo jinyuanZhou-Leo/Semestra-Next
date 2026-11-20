@@ -83,7 +83,9 @@ export function groupLists(lists: readonly TaskList[], termIds: readonly string[
  */
 export type TaskDetailSection = {
   id: string
-  Component: ComponentType<{ task: Task; onClose: () => void }>
+  Component: ComponentType<TaskDetailSectionProps>
 }
+
+export type TaskDetailSectionProps = { task: Task; onClose: () => void }
 
 export const TASK_DETAIL_SECTIONS = 'tasks.detailSections'

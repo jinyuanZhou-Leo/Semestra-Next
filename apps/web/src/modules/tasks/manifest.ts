@@ -8,7 +8,7 @@ import NewTaskButton from './cards/NewTaskButton'
 import { completeFromCalendar, rescheduleFromCalendar } from './calendar'
 import AssessmentTaskCell from './components/AssessmentTaskCell'
 import { CalendarOpenLabel } from './components/CalendarOpenLabel'
-import { courseTasksOptions, prefetchTodayTasks } from './queries'
+import { courseTasksOptions, prefetchTasksPage, prefetchTodayTasks } from './queries'
 
 const TASK_QUERIES = ['tasksItemQuery', 'tasksItemGet', 'tasksListList', 'tasksItemCount'] as const
 const CALENDAR_QUERIES = ['calendarOccurrenceList', 'calendarTodayGet'] as const
@@ -40,6 +40,7 @@ export default defineModule({
       title: m.tasks_name,
       icon: ListChecks,
       component: preloadable(() => import('./pages/TasksPage')),
+      prefetch: prefetchTasksPage,
       mobile: {
         component: preloadable(() => import('./mobile/TasksMobilePage')),
         tab: { order: 10 },

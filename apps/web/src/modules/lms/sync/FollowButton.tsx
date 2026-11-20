@@ -1,6 +1,6 @@
 import { CloudDownload } from 'lucide-react'
 import { useState } from 'react'
-import type { FieldOriginProps, OriginValue } from '@/components/FieldOrigins'
+import type { FieldOriginProps, OriginValue } from '@/components/field-origins'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
@@ -11,7 +11,7 @@ import { useProgramId, useSync } from './status'
  * Beside a field of an imported item whose saved value differs from the LMS's (M09 §4.1): puts
  * the LMS's value into the form, its value in the tooltip. Gone once used.
  */
-export function FollowButton({ targetId, field, onApply }: FieldOriginProps) {
+export default function FollowButton({ targetId, field, onApply }: FieldOriginProps) {
   const { status, provider } = useSync(useProgramId())
   const [used, setUsed] = useState(false)
   const differs = status?.different.find((d) => d.target_id === targetId && d.field === field)
