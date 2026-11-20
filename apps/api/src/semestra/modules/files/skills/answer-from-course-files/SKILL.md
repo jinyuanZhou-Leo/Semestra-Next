@@ -1,19 +1,20 @@
-+++
-name = "answer-from-course-files"
-title = { en = "Answer from course files", zh-CN = "根据课程文件回答" }
-command = "/files"
-description = "Use when the user asks what a course's material says (syllabus rules, lecture notes, assignment handouts) and the answer should come from their uploaded files, with citations."
-tools = [
-  "files.document.search",
-  "files.document.read",
-  "files.document.outline",
-  "files.item.list",
-  "files.item.reprocess",
-  "academics.course.find",
-  "lms.content.search",
-  "lms.content.read",
-]
-+++
+---
+name: answer-from-course-files
+description: Use when the user asks what a course's material says (syllabus rules, lecture notes, assignment handouts) and the answer should come from their uploaded files, with citations.
+metadata:
+  title: Answer from course files
+  title-zh-CN: 根据课程文件回答
+  command: /files
+  tools: >-
+    files.document.search
+    files.document.read
+    files.document.outline
+    files.item.list
+    files.item.reprocess
+    academics.course.find
+    lms.content.search
+    lms.content.read
+---
 
 # Answering from course files
 
@@ -23,15 +24,15 @@ answering. Narrow it to the course with `course_ids` when the user named one; ot
 the term (`term_id`) or the whole Program. Exact codes and names ("APS105", "Lab 3") work as
 queries too.
 
-**Cite every claim.** Each passage has a `citation_id`. Put `[[cite:<citation_id>]]` right after
-the sentence it supports. Cite only passages you got from `files.document.search` or pages from
+**Cite every claim.** Each passage has a `citation_id`. Cite it right after the sentence it
+supports, the way your instructions say to cite. Cite only passages you got from `files.document.search` or pages from
 `files.document.read`, with the id given there.
 
 **The LMS.** For a course whose `sources` (academics.course.find) include `lms`, the course files
 already hold its files and pages on the {lms}. Announcements, assignments, feedback, discussions
 and the syllabus there are not files: when the question is about those, or the files do not
 answer, search with `lms.content.search` and read a hit with `lms.content.read`. A hit with a
-`citation_id` is from the course files: cite it with `[[cite:…]]`; cite anything else by
+`citation_id` is from the course files: cite it like any course file; cite anything else by
 naming the LMS item (its title and link).
 
 **Say what is missing.**

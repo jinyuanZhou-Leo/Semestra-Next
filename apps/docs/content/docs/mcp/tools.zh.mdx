@@ -1,12 +1,14 @@
 ---
-title: 工具与 prompt
-description: MCP 服务器提供的全部工具和 prompt，由服务器自动生成。
+title: 工具与技能
+description: MCP 服务器提供的全部工具和技能，由服务器自动生成。
 ---
 
 本页由服务器的注册表生成（`packages/api-client/capabilities.json`，由 `pnpm gen:api` 更新）。某个客户端实际看到的会更少：取决于令牌权限、
 MCP 客户端的**删除数据**权限，以及账户安装了哪些插件。
 
-## Prompt
+## 技能
+
+客户端里的 AI 用 `load_skill` 工具加载它们；它们也作为 MCP prompt 列出。
 
 <McpPrompts lang="zh" />
 

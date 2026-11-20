@@ -271,21 +271,31 @@ def test_skills_that_create_something_can_also_change_it():
                     assert update in skill.tools, f"{skill.name} lists {tool} but not {update}"
 
 
-def test_frontmatter_parser():
-    meta, body = skills.parse_frontmatter(
-        '+++\nname = "x"\ntitle = { en = "A, b", zh-CN = "甲" }\ncommand = "/x"  # comment\n'
-        'tools = ["a.b", "c.d"]\ndescription = """\nLine one\nline two"""\n+++\nBody'
+def test_skill_file_format():
+    """Agent Skills format: Semestra's own fields are strings under `metadata`."""
+    skill = skills.parse_skill(
+        "---\nname: x\ndescription: 'Use when: a, b'\nmetadata:\n  title: A\n"
+        "  title-zh-CN: 甲\n  command: /x\n  tools: >-\n    a.b\n    c.d\n---\n\nBody",
+        "m",
     )
-    assert meta == {
-        "name": "x",
-        "title": {"en": "A, b", "zh-CN": "甲"},
-        "command": "/x",
-        "tools": ["a.b", "c.d"],
-        "description": "Line one\nline two",
-    }
-    assert body == "Body"
+    assert (skill.title, skill.command, skill.tools, skill.body) == (
+        {"en": "A", "zh-CN": "甲"},
+        "/x",
+        ("a.b", "c.d"),
+        "Body",
+    )
     with pytest.raises(skills.SkillFormatError):
-        skills.parse_frontmatter("+++\nname = x\n+++\nBody")
+        skills.parse_skill("---\nname: x\ndescription: d\n---\nBody", "m")  # no titles
+
+
+def test_skills_leave_confirmation_and_citation_format_to_each_surface():
+    """The same files reach Sem and MCP clients: how changes are confirmed (Sem's cards, a
+    question in an MCP client's chat) and how citations are written belong in each surface's
+    instructions (`prompts/`), never in a skill."""
+    for skill in skills.all_skills():
+        text = skill.body.lower()
+        for word in ("card", "[[cite", "load_capability", "search_tools", "ask_user"):
+            assert not re.search(rf"(?<!dis){re.escape(word)}", text), (skill.name, word)
 
 
 def test_every_agent_capability_has_a_title_in_both_languages():

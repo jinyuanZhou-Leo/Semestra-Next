@@ -1,18 +1,19 @@
-+++
-name = "record-grades"
-title = { en = "Record grades", zh-CN = "录入成绩" }
-command = "/grade"
-description = "Use when the user reports a score they got (\"I got 82 on the midterm\", \"Lab 3: 18/20\") or an official final grade, to record it on the right assessment or course."
-tools = [
-  "academics.course.find",
-  "grading.assessment.find",
-  "grading.assessment.list",
-  "grading.assessment.create_many",
-  "grading.assessment.update",
-  "grading.gradebook.get",
-  "grading.course_result.update",
-]
-+++
+---
+name: record-grades
+description: 'Use when the user reports a score they got ("I got 82 on the midterm", "Lab 3: 18/20") or an official final grade, to record it on the right assessment or course.'
+metadata:
+  title: Record grades
+  title-zh-CN: 录入成绩
+  command: /grade
+  tools: >-
+    academics.course.find
+    grading.assessment.find
+    grading.assessment.list
+    grading.assessment.create_many
+    grading.assessment.update
+    grading.gradebook.get
+    grading.course_result.update
+---
 
 # Recording grades
 
@@ -23,8 +24,8 @@ tools = [
 2. **Nothing matches?** Read the course's `grading.assessment.list`: the user may call it
    something else. If it really is missing, call `grading.assessment.create_many` (title, a category
    from the course's `grading.gradebook.get`, the weight if known, the deadline as `due_date`)
-   and then record the score on it. The cards confirm both, so do not ask first; ask only when
-   you cannot tell which course it belongs to.
+   and then record the score on it. Do not ask first; ask only when you cannot tell which
+   course it belongs to.
 3. **Record the score** with `grading.assessment.update`:
    - A percentage ("82", "82%"): `score_percentage: 82`.
    - A fraction ("18/20", "18 out of 20"): `points_earned: 18`, `points_possible: 20`. Never

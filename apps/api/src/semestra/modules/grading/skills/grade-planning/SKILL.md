@@ -1,19 +1,20 @@
-+++
-name = "grade-planning"
-title = { en = "Plan grades", zh-CN = "成绩规划" }
-command = "/plan"
-description = "Use when the user asks what they need on the rest of a course (\"what do I need on the final to get an A\", \"final grade needed\"), or asks a what-if about scores or GPA."
-tools = [
-  "academics.course.find",
-  "grading.gradebook.get",
-  "grading.scale.get",
-  "grading.simulate.course",
-  "grading.score.suggest",
-  "grading.summary.term",
-  "grading.simulate.term",
-  "grading.summary.program",
-]
-+++
+---
+name: grade-planning
+description: Use when the user asks what they need on the rest of a course ("what do I need on the final to get an A", "final grade needed"), or asks a what-if about scores or GPA.
+metadata:
+  title: Plan grades
+  title-zh-CN: 成绩规划
+  command: /plan
+  tools: >-
+    academics.course.find
+    grading.gradebook.get
+    grading.scale.get
+    grading.simulate.course
+    grading.score.suggest
+    grading.summary.term
+    grading.simulate.term
+    grading.summary.program
+---
 
 # Grade planning
 

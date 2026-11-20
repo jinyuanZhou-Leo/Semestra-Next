@@ -1,18 +1,27 @@
 """The MCP endpoint with the official SDK client over the ASGI app (M12 §5, §10)."""
 
+import hashlib
 from collections.abc import AsyncIterator, Callable
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from typing import Any
 
 import httpx2
+import mcp_types as types
+import pytest
 from fastapi import FastAPI
 from httpx import AsyncClient
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
+from mcp.shared.exceptions import MCPError
+from pydantic import RootModel
 
 from semestra.modules.agent.tests.conftest import Agent
 
 Connect = Callable[[str], AbstractAsyncContextManager[ClientSession]]
+
+
+class _Wire(RootModel[dict[str, Any]]):
+    """A result as it came over the wire, for methods the SDK client has no type for."""
 
 
 async def _token(agent: Agent, scopes: list[str]) -> str:
@@ -20,7 +29,9 @@ async def _token(agent: Agent, scopes: list[str]) -> str:
     return created["token"]
 
 
-def _connector(app: FastAPI) -> Connect:
+def _connector(app: FastAPI, *, modern: bool = False) -> Connect:
+    """`modern`: the 2026-07-28 protocol (`server/discover`), where extensions are advertised."""
+
     @asynccontextmanager
     async def connect(token: str) -> AsyncIterator[ClientSession]:
         async with (
@@ -32,7 +43,7 @@ def _connector(app: FastAPI) -> Connect:
             streamable_http_client("http://testserver/mcp", http_client=http) as streams,
             ClientSession(streams[0], streams[1]) as session,
         ):
-            await session.initialize()
+            await (session.discover() if modern else session.initialize())
             yield session
 
     return connect
@@ -133,25 +144,70 @@ async def test_changes_made_with_a_token_are_listed(app: FastAPI, agent: Agent):
         ]
 
 
-async def test_prompts_are_skills_and_resources_summarize(app: FastAPI, agent: Agent):
-    program, course, _ = await agent.course_with_lab()
+async def test_skills_reach_the_client_as_prompts_tool_and_extension(app: FastAPI, agent: Agent):
     token = await _token(agent, ["read"])
     async with _connector(app)(token) as mcp:
+        # The rules Sem works by, with tool names as this client calls them.
+        assert "must come from a tool result" in (mcp.instructions or "")
+        assert "`academics__term__list`" in (mcp.instructions or "")
         prompts = {p.name for p in (await mcp.list_prompts()).prompts}
         assert {"answer-schedule-questions", "grade-planning"} <= prompts
         assert "record-grades" not in prompts  # needs write tools this token cannot call
         prompt = await mcp.get_prompt("answer-schedule-questions")
         assert "Answering schedule questions" in _text(prompt.messages[0].content)
+
+        # The model can load one itself: the catalog is in the tool's description.
+        load = next(t for t in (await mcp.list_tools()).tools if t.name == "load_skill")
+        assert "- grade-planning: Use when" in (load.description or "")
+        assert "record-grades" not in (load.description or "")
+        loaded = await mcp.call_tool("load_skill", {"name": "answer-schedule-questions"})
+        assert "Answering schedule questions" in _text(loaded.content[0])
+        assert "calendar__occurrence__list" in _text(loaded.content[0])
+        missing = await mcp.call_tool("load_skill", {"name": "record-grades"})
+        assert missing.is_error
+
     async with _connector(app)(await _token(agent, ["read", "write"])) as mcp:
         prompt = await mcp.get_prompt("record-grades")
         assert "Recording grades" in _text(prompt.messages[0].content)
         prompts = {p.name for p in (await mcp.list_prompts()).prompts}
         assert "manage-terms-and-courses" not in prompts  # deletes are off by default
-    async with _connector(app)(token) as mcp:
-        programs = await mcp.read_resource("semestra://programs")
-        assert program["id"] in _text(programs.contents[0])
-        course_res = await mcp.read_resource(f"semestra://courses/{course['id']}")
-        assert "APS105H1" in _text(course_res.contents[0])
+    # The MCP Skills extension: SKILL.md files with the same rules on what a token sees.
+    async with _connector(app, modern=True)(token) as mcp:
+        caps = mcp.server_capabilities
+        assert caps is not None
+        assert caps.extensions == {"io.modelcontextprotocol/skills": {}}
+        listed = (
+            await mcp.send_request(
+                types.Request[types.PaginatedRequestParams, str](
+                    method="skills/list", params=types.PaginatedRequestParams()
+                ),
+                _Wire,
+            )
+        ).root
+        assert listed["resultType"] == "complete"
+        entry = next(s for s in listed["skills"] if s["uri"] == "skill://grade-planning/SKILL.md")
+        got = await mcp.send_request(
+            types.Request[dict[str, str], str](
+                method="skills/get", params={"uri": "skill://grade-planning/SKILL.md"}
+            ),
+            _Wire,
+        )
+        assert got.root["skill"] == entry
+        assert entry["frontmatter"]["name"] == "grade-planning"
+        assert "record-grades" not in {s["frontmatter"]["name"] for s in listed["skills"]}
+        read = await mcp.read_resource("skill://grade-planning/SKILL.md")
+        text = _text(read.contents[0])
+        assert text.startswith("---\nname: grade-planning\n")
+        raw = text.encode()
+        assert entry["resources"] == [
+            {
+                "uri": "skill://grade-planning/SKILL.md",
+                "digest": f"sha256:{hashlib.sha256(raw).hexdigest()}",
+                "size": len(raw),
+            }
+        ]
+        with pytest.raises(MCPError):
+            await mcp.read_resource("skill://record-grades/SKILL.md")
 
 
 async def test_cookies_and_missing_tokens_are_refused(client: AsyncClient, agent: Agent):

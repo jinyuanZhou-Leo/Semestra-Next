@@ -1,38 +1,39 @@
-+++
-name = "use-lms"
-title = { en = "Use the LMS", zh-CN = "使用 LMS" }
-command = "/lms"
-description = "Use when the user asks about anything on their {lms} courses, such as announcements, assignments, grades, feedback, modules, links or discussions there, or wants to link a course or bring LMS assignments or a syllabus into the app. What the course's files and pages say is answered from the course files (answer-from-course-files)."
-tools = [
-  "lms.content.search",
-  "lms.content.read",
-  "lms.course.outline",
-  "lms.activity.list",
-  "lms.assignment.list",
-  "lms.course.list",
-  "lms.course.link.set",
-  "lms.file.save_to_course",
-  "files.item.keep_copy",
-  "files.item.drop_copy",
-  "files.document.search",
-  "files.document.read",
-  "lms.course.import",
-  "lms.assignment.import",
-  "lms.syllabus.import",
-  "imports.session.get",
-  "imports.item.update",
-  "imports.item.decide_many",
-  "imports.session.commit",
-  "imports.session.discard",
-]
-+++
+---
+name: use-lms
+description: Use when the user asks about anything on their {lms} courses, such as announcements, assignments, grades, feedback, modules, links or discussions there, or wants to link a course or bring LMS assignments or a syllabus into the app. What the course's files and pages say is answered from the course files (answer-from-course-files).
+metadata:
+  title: Use the LMS
+  title-zh-CN: 使用 LMS
+  command: /lms
+  tools: >-
+    lms.content.search
+    lms.content.read
+    lms.course.outline
+    lms.activity.list
+    lms.assignment.list
+    lms.course.list
+    lms.course.link.set
+    lms.file.save_to_course
+    files.item.keep_copy
+    files.item.drop_copy
+    files.document.search
+    files.document.read
+    lms.course.import
+    lms.assignment.import
+    lms.syllabus.import
+    imports.session.get
+    imports.item.update
+    imports.item.decide_many
+    imports.session.commit
+    imports.session.discard
+---
 
 # Using the LMS
 
 A course whose `sources` (academics.course.find) include `lms` is linked to its course on the
 LMS. The course's files and pages there are usually in the course files here too (the sync
 keeps them, read from the LMS when opened), so the course files are where to look for what the
-material says: `files.document.search`, cited with `[[cite:…]]`. The LMS tools are for the rest:
+material says: `files.document.search`, with citations. The LMS tools are for the rest:
 announcements, assignments with the teacher's feedback, quizzes, discussions, the syllabus,
 links, the course's structure, and files or pages the course files don't have.
 
@@ -53,7 +54,7 @@ is, never build one. A link written `lms:<ref>` inside a text is a ref too; a li
 pastes from the LMS goes to `lms.content.read` as `url`.
 
 **Errors.** `lms.course_not_linked`: show the matching courses from `lms.course.list`; when one
-clearly matches, link it with `lms.course.link.set` (the card confirms it). Without a connection
+clearly matches, link it with `lms.course.link.set`. Without a connection
 (`lms.program_not_configured`) the user connects one in settings; you cannot handle tokens.
 `lms.area_hidden` and `skipped` with `hidden` mean the instructor hid that part of the course:
 its items may still be reachable through the outline. When the LMS can't be reached (`skipped`
@@ -77,5 +78,5 @@ file that follows the LMS, `lms.file.save_to_course` for a file the course files
 `files.item.drop_copy` undoes it.
 
 After starting an import, finish it like a document import: wait with `imports.session.get`
-(`wait_seconds` while it is extracting), summarise what it found and any issues, then call
-`imports.session.commit` in the same reply; the card confirms.
+(`wait_seconds` while it is extracting), summarise what it found and any issues, then commit it
+with `imports.session.commit`.

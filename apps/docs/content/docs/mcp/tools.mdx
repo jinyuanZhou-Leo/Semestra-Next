@@ -1,13 +1,15 @@
 ---
-title: Tools and prompts
-description: Every tool and prompt the MCP server offers, generated from the server.
+title: Tools and skills
+description: Every tool and skill the MCP server offers, generated from the server.
 ---
 
 Generated from the server's registry (`packages/api-client/capabilities.json`, refreshed by
 `pnpm gen:api`). What a given client sees is narrower: it depends on the token's access, the
 **Delete data** permission for MCP clients and the plugins installed on the account.
 
-## Prompts
+## Skills
+
+The client's AI loads them with the `load_skill` tool; they are also listed as MCP prompts.
 
 <McpPrompts lang="en" />
 
