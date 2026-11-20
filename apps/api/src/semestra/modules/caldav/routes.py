@@ -119,9 +119,9 @@ async def setup_profile(code: str, ctx: Annotated[Ctx, Depends(get_anonymous_ctx
 async def caldav(
     path: str, request: Request, ctx: Annotated[Ctx, Depends(get_anonymous_ctx)]
 ) -> Response:
-    if not ctx.settings.caldav:
-        raise not_found()
     if request.method.upper() == "OPTIONS" and "authorization" not in request.headers:
+        if not ctx.settings.caldav:
+            raise not_found()
         # What the server supports is no secret (RFC 4791 §5.1); clients ask before signing in.
         return Response(status_code=200, headers={**DAV_HEADERS, "Content-Length": "0"})
     connection, stale = await _sign_in(ctx, request)
