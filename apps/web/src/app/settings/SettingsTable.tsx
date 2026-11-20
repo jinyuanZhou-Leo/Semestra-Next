@@ -127,6 +127,9 @@ export function SettingsTable<T extends RowData>({
     : [...data]
   const ids = rows.map(getRowId)
   const table = useTable({ features: settingsTableFeatures, columns, data: rows, getRowId })
+  if (import.meta.env.DEV && fill && !table.getAllLeafColumns().some((c) => c.id === fill)) {
+    console.warn(`SettingsTable "${label}": no column "${fill}" to fill the width`)
+  }
 
   const reorder = (next: string[]) => {
     if (!onReorder) return
