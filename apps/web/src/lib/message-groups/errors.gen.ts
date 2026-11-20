@@ -171,7 +171,6 @@ export const errorMessages = {
   error_lms_sync_change_outdated: m.error_lms_sync_change_outdated,
   error_lms_sync_nothing_to_resolve: m.error_lms_sync_nothing_to_resolve,
   error_lms_unreachable: m.error_lms_unreachable,
-  error_lms_writes_disabled: m.error_lms_writes_disabled,
   error_network: m.error_network,
   error_notifications_invalid_subscription: m.error_notifications_invalid_subscription,
   error_notifications_session_required: m.error_notifications_session_required,

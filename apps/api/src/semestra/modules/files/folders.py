@@ -118,17 +118,6 @@ async def find_folder(ctx: Ctx, course_id: str, folder_id: str) -> FilesFolder |
     )
 
 
-async def root_folder_named(ctx: Ctx, course_id: str, name: str) -> FilesFolder | None:
-    return await ctx.db.scalar(
-        select(FilesFolder).where(
-            FilesFolder.user_id == ctx.user_id,
-            FilesFolder.course_id == course_id,
-            FilesFolder.parent_id.is_(None),
-            func.lower(FilesFolder.name) == name.lower(),
-        )
-    )
-
-
 async def folder_names(ctx: Ctx, folder_ids: Sequence[str]) -> dict[str, str]:
     """The names of the ctx user's folders with these ids (gone ones left out)."""
     if not folder_ids:
