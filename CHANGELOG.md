@@ -3,6 +3,20 @@
 Generated from `release-notes/*.json` by `scripts/release.mjs`; do not edit by hand.
 The same notes in Chinese are in the JSON files and on the docs site.
 
+## 2.4.0 (2026-11-20)
+
+### New
+
+- **Canvas:** Choose how course materials sync when you connect Canvas or set up Semestra, before the first sync. Materials left after turning the sync off can be removed in one step.
+- **API & MCP:** AI tools connected over MCP now use Sem's skills and working rules, so they follow the same steps as Sem.
+
+### Fixed
+
+- **General:** Long file, folder and course names no longer push dialogs wider than the window; they are shortened or wrapped instead.
+- **Plugins:** Links in sticky notes open with a single click; start writing with the note's edit button or a double-click.
+- **Settings:** Lists in settings, such as the import history, now fit the window: long names are shortened instead of pushing the last columns out of view.
+- **Account:** Signing in again in the same browser no longer leaves an extra entry under signed-in devices.
+
 ## 2.3.0 (2026-11-19)
 
 ### New
