@@ -46,10 +46,10 @@ import { ConfirmDialog } from '@/components/ConfirmDialog'
 import {
   PanelFold as Fold,
   PanelHeading as SectionTitle,
-  PanelIconAction as IconAction,
   PanelMoreList as MoreList,
   PanelRow as Row,
 } from '@/components/StatusPanel'
+import { IconAction } from '@/components/IconAction'
 import { useNow } from '@/hooks/use-now'
 import { useDialogTarget } from '@/lib/dialog-target'
 import { errorMessage, toastError } from '@/lib/errors'
@@ -236,6 +236,7 @@ function Panel({
         ) : (
           <div className="flex items-center gap-0.5">
             <IconAction
+              className="text-muted-foreground"
               label={m.lms_sync_now()}
               disabled={syncing}
               onClick={() =>
@@ -245,6 +246,7 @@ function Panel({
               <RefreshCw aria-hidden className={cn(syncing && 'animate-spin')} />
             </IconAction>
             <IconAction
+              className="text-muted-foreground"
               label={m.lms_sync_panel_settings()}
               onClick={() => {
                 onClose()
@@ -471,7 +473,7 @@ function Panel({
                         label={change.reverted ? m.lms_sync_redo() : m.lms_sync_undo()}
                         disabled={busy}
                         onClick={() => void toggle(change)}
-                        className="opacity-0 group-hover/item:opacity-100 focus-visible:opacity-100"
+                        className="text-muted-foreground opacity-0 group-hover/item:opacity-100 focus-visible:opacity-100"
                       >
                         {change.reverted ? <Redo2 aria-hidden /> : <Undo2 aria-hidden />}
                       </IconAction>
@@ -504,6 +506,7 @@ function Panel({
                       })}
                     >
                       <IconAction
+                        className="text-muted-foreground"
                         label={m.lms_sync_follow({ provider })}
                         disabled={busy}
                         onClick={() => resolveField(d.id, d.field, 'platform')}

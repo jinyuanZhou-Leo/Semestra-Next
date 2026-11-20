@@ -22,7 +22,8 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react'
-import { PanelIconAction, PanelRow } from '@/components/StatusPanel'
+import { IconAction } from '@/components/IconAction'
+import { PanelRow } from '@/components/StatusPanel'
 import { jobIsWaiting, jobStageLabel, useJob } from '@/hooks/use-job'
 import { useNow } from '@/hooks/use-now'
 import { useSmoothedProgress } from '@/hooks/use-smoothed-progress'
@@ -514,14 +515,14 @@ function JobRow({
       onOpen={onNavigate}
     >
       {ACTIVE.has(current.status) ? (
-        <PanelIconAction
+        <IconAction
           label={m.status_job_cancel({ name: title })}
           disabled={live.cancelling}
           onClick={live.cancel}
-          className="opacity-0 group-hover/item:opacity-100 focus-visible:opacity-100"
+          className="text-muted-foreground opacity-0 group-hover/item:opacity-100 focus-visible:opacity-100"
         >
           <X aria-hidden />
-        </PanelIconAction>
+        </IconAction>
       ) : null}
     </PanelRow>
   )

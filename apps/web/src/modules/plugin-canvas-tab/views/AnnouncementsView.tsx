@@ -3,7 +3,6 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { Megaphone } from 'lucide-react'
 import { formatDateTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import { plainText } from '@/modules/lms/announcements'
 import { useMarkRead } from '@/modules/lms/read-state'
 import { m } from '@/paraglide/messages'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
@@ -85,10 +84,8 @@ export function AnnouncementsView({ selected }: { selected?: string }) {
                     <ItemTitle className={cn('line-clamp-1', a.unread && 'font-semibold')}>
                       {a.title}
                     </ItemTitle>
-                    {a.html ? (
-                      <p className="line-clamp-1 text-sm text-muted-foreground">
-                        {plainText(a.html)}
-                      </p>
+                    {a.text ? (
+                      <p className="line-clamp-1 text-sm text-muted-foreground">{a.text}</p>
                     ) : null}
                     <ItemDescription className="text-xs">
                       {[a.author, a.posted_at ? formatDateTime(a.posted_at) : null]

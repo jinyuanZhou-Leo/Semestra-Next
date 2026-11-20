@@ -9,13 +9,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CircleStop, RotateCw, X } from 'lucide-react'
 import { useEffect, useEffectEvent, useState } from 'react'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
-import {
-  PanelFold,
-  PanelHeading,
-  PanelIconAction,
-  PanelMoreList,
-  PanelRow,
-} from '@/components/StatusPanel'
+import { PanelFold, PanelHeading, PanelMoreList, PanelRow } from '@/components/StatusPanel'
+import { IconAction } from '@/components/IconAction'
 import { useJob } from '@/hooks/use-job'
 import { errorMessage, toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
@@ -136,7 +131,8 @@ export default function ProcessingPanel({ onClose }: { onClose: () => void }) {
           <PopoverDescription className="text-xs tabular-nums">{headline}</PopoverDescription>
         </PopoverHeader>
         {list.active === 0 && failed.length > 0 ? (
-          <PanelIconAction
+          <IconAction
+            className="text-muted-foreground"
             label={m.files_processing_retry_all()}
             disabled={retryAll.isPending}
             onClick={() =>
@@ -144,15 +140,16 @@ export default function ProcessingPanel({ onClose }: { onClose: () => void }) {
             }
           >
             <RotateCw aria-hidden />
-          </PanelIconAction>
+          </IconAction>
         ) : (
-          <PanelIconAction
+          <IconAction
+            className="text-muted-foreground"
             label={m.files_processing_stop_all()}
             disabled={list.active === 0}
             onClick={() => setStopping(true)}
           >
             <CircleStop aria-hidden />
-          </PanelIconAction>
+          </IconAction>
         )}
         {list.active > 0 ? (
           <Progress
@@ -271,23 +268,23 @@ function FileRow({
         onOpen={onOpen}
       >
         {!ended ? (
-          <PanelIconAction
+          <IconAction
             label={m.files_processing_stop({ name: file.name })}
             disabled={live.cancelling}
             onClick={live.cancel}
-            className="opacity-0 group-hover/item:opacity-100 focus-visible:opacity-100"
+            className="text-muted-foreground opacity-0 group-hover/item:opacity-100 focus-visible:opacity-100"
           >
             <X aria-hidden />
-          </PanelIconAction>
+          </IconAction>
         ) : failed ? (
-          <PanelIconAction
+          <IconAction
             label={m.files_processing_retry()}
             disabled={retrying}
             onClick={onRetry}
-            className="opacity-0 group-hover/item:opacity-100 focus-visible:opacity-100"
+            className="text-muted-foreground opacity-0 group-hover/item:opacity-100 focus-visible:opacity-100"
           >
             <RotateCw aria-hidden />
-          </PanelIconAction>
+          </IconAction>
         ) : null}
       </PanelRow>
     </PanelFold>

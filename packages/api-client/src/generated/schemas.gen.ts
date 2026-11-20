@@ -4861,6 +4861,11 @@ export const CourseAnnouncementSchema = {
             ],
             title: 'Html'
         },
+        text: {
+            type: 'string',
+            title: 'Text',
+            description: '`html` as plain text on one line: list previews and search'
+        },
         author: {
             anyOf: [
                 {
@@ -4924,6 +4929,7 @@ export const CourseAnnouncementSchema = {
         'external_id',
         'course_id',
         'title',
+        'text',
         'unread'
     ],
     title: 'CourseAnnouncement'

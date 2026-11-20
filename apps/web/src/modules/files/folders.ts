@@ -132,7 +132,3 @@ export function itemsInside(
       i.folder_id && (i.folder_id === folderId || tree.ancestors.get(i.folder_id)?.has(folderId)),
   )
 }
-
-export function filesInside(folderId: string, tree: FolderTree, items: readonly ItemOut[]): number {
-  return itemsInside(folderId, tree, items).length
-}

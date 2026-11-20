@@ -14,7 +14,6 @@ import {
   ItemTitle,
 } from '@/ui/item'
 import { Spinner } from '@/ui/spinner'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 
 /*
  * The parts the status bar's panels are made of (M10 §5.6): the LMS sync panel and the files
@@ -28,41 +27,6 @@ export function PanelHeading({ count, children }: { count?: number; children: Re
       {children}
       {count ? <span className="tabular-nums text-muted-foreground/70">{count}</span> : null}
     </h3>
-  )
-}
-
-/** An icon button with a tooltip. */
-export function PanelIconAction({
-  label,
-  disabled,
-  onClick,
-  className,
-  children,
-}: {
-  label: string
-  disabled?: boolean
-  onClick: () => void
-  className?: string
-  children: ReactNode
-}) {
-  return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <Button
-            size="icon-sm"
-            variant="ghost"
-            aria-label={label}
-            disabled={disabled}
-            onClick={onClick}
-            className={cn('text-muted-foreground', className)}
-          />
-        }
-      >
-        {children}
-      </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
-    </Tooltip>
   )
 }
 

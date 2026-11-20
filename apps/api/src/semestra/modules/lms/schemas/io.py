@@ -366,6 +366,7 @@ class CourseAnnouncement(BaseModel):
     web_url: WebUrl = Field(default=None, description="Opens it on the platform")
     title: str
     html: Html = None
+    text: str = Field(description="`html` as plain text on one line: list previews and search")
     author: str | None = None
     posted_at: datetime | None = None
     updated_at: datetime | None = None
