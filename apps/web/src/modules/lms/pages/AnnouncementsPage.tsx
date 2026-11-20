@@ -36,7 +36,7 @@ import {
 } from '@/ui/select'
 import { Skeleton } from '@/ui/skeleton'
 import { Spinner } from '@/ui/spinner'
-import { plainText, postedLabel, postKey } from '../announcements'
+import { postedLabel, postKey } from '../announcements'
 import { type LmsContent, LmsContentContext, type LmsDisplay } from '../content/context'
 import { useLmsDisplay } from '../content/display'
 import { fileContentUrl } from '../content/file-url'
@@ -295,9 +295,7 @@ function PostRow({
             </span>
           ) : null}
         </div>
-        {a.html ? (
-          <p className="line-clamp-2 text-sm text-muted-foreground">{plainText(a.html)}</p>
-        ) : null}
+        {a.text ? <p className="line-clamp-2 text-sm text-muted-foreground">{a.text}</p> : null}
         {withCourse ? (
           <ItemDescription className="text-xs">
             <CourseName course={course} />

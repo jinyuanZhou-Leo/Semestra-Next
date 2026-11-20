@@ -2828,6 +2828,12 @@ export type CourseAnnouncement = {
      */
     html?: string | null;
     /**
+     * Text
+     *
+     * `html` as plain text on one line: list previews and search
+     */
+    text: string;
+    /**
      * Author
      */
     author?: string | null;

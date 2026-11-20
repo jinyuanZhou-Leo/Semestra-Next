@@ -3,9 +3,13 @@ import { useExtensions } from '@/app/registry'
 import { Button } from '@/ui/button'
 import { FILE_ITEM_ACTIONS, type FileItemAction } from '../types'
 
-/** The entries other modules add for this file (`files.itemActions`, M07 §6.1). */
-export function useItemActions(item: ItemOut): FileItemAction[] {
-  return useExtensions<FileItemAction>(FILE_ITEM_ACTIONS).filter((a) => a.accepts(item))
+/**
+ * The entries other modules add for this file (`files.itemActions`, M07 §6.1); none while it
+ * has not loaded.
+ */
+export function useItemActions(item: ItemOut | undefined): FileItemAction[] {
+  const actions = useExtensions<FileItemAction>(FILE_ITEM_ACTIONS)
+  return item ? actions.filter((a) => a.accepts(item)) : []
 }
 
 /** One of them as a button: in the preview's title bar, or in place of a preview. */

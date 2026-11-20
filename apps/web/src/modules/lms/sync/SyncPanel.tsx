@@ -4,7 +4,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { CircleAlert, RefreshCw, Settings2 } from 'lucide-react'
 import { useSettingsDialog } from '@/app/settings/use-settings-dialog'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
-import { PanelIconAction } from '@/components/StatusPanel'
+import { IconAction } from '@/components/IconAction'
 import { useNow } from '@/hooks/use-now'
 import { useDialogTarget } from '@/lib/dialog-target'
 import { errorMessage, toastError } from '@/lib/errors'
@@ -123,7 +123,8 @@ function Panel({
           </Button>
         ) : (
           <div className="flex items-center gap-0.5">
-            <PanelIconAction
+            <IconAction
+              className="text-muted-foreground"
               label={m.lms_sync_now()}
               disabled={syncing}
               onClick={() =>
@@ -131,10 +132,14 @@ function Panel({
               }
             >
               <RefreshCw aria-hidden className={cn(syncing && 'animate-spin')} />
-            </PanelIconAction>
-            <PanelIconAction label={m.lms_sync_panel_settings()} onClick={openSettings}>
+            </IconAction>
+            <IconAction
+              className="text-muted-foreground"
+              label={m.lms_sync_panel_settings()}
+              onClick={openSettings}
+            >
               <Settings2 aria-hidden />
-            </PanelIconAction>
+            </IconAction>
           </div>
         )}
         {shownRound ? (

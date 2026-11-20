@@ -19,7 +19,7 @@ import { Skeleton } from '@/ui/skeleton'
 import { CanvasBoundary } from '../CanvasBoundary'
 import { useCanvasPage } from '../context'
 import { fileContentUrl } from '@/modules/lms/content/file-url'
-import { IconAction } from '@/modules/lms/content/LmsContent'
+import { IconAction } from '@/components/IconAction'
 import { LockNote } from './common'
 
 /** What the browser shows inline; the backend streams anything else as a download (M09). */

@@ -1,6 +1,7 @@
 import { ArrowLeft, ExternalLink, type LucideIcon, Palette, Type } from 'lucide-react'
-import type { ComponentProps, ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { type InternalLink, SafeHtml } from '@/components/SafeHtml'
+import { IconAction } from '@/components/IconAction'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import {
@@ -139,25 +140,6 @@ export function LmsHtml({ html }: { html: string }) {
         link.kind === 'file' ? fileContentUrl(courseId, link.ref) : null
       }
     />
-  )
-}
-
-/** An icon button with its name in a tooltip; `tooltip` is shorter text when the name is long. */
-export function IconAction({
-  label,
-  tooltip,
-  children,
-  ...props
-}: { label: string; tooltip?: string; children: ReactNode } & ComponentProps<typeof Button>) {
-  return (
-    <Tooltip>
-      <TooltipTrigger
-        render={<Button variant="ghost" size="icon-sm" aria-label={label} {...props} />}
-      >
-        {children}
-      </TooltipTrigger>
-      <TooltipContent>{tooltip ?? label}</TooltipContent>
-    </Tooltip>
   )
 }
 

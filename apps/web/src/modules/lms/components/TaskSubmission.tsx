@@ -1,8 +1,9 @@
-import type { AssignmentOut, Task } from '@semestra/api-client'
+import type { AssignmentOut } from '@semestra/api-client'
 import { lmsAssignmentListOptions, lmsCourseLinkGetOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import { ExternalLink, School } from 'lucide-react'
 import { formatDateTime } from '@/lib/format'
+import type { TaskDetailSectionProps } from '@/modules/tasks/types'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from '@/ui/item'
@@ -13,7 +14,7 @@ import { useProviderName, useProviderUis } from '../providers'
  * `tasks.detailSections`): whether it is handed in there, and a link to it. Imported as a to-do,
  * or as the assessment the to-do belongs to; other to-dos show nothing.
  */
-export default function TaskSubmission({ task }: { task: Task }) {
+export default function TaskSubmission({ task }: TaskDetailSectionProps) {
   const courseId = task.course_id ?? ''
   const link = useQuery({
     ...lmsCourseLinkGetOptions({ path: { course_id: courseId } }),

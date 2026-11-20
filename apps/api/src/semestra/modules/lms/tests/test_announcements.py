@@ -155,6 +155,27 @@ async def test_read_here_and_on_the_platform_only_when_allowed(
     assert err["error"]["code"] == "lms.not_found"
 
 
+async def test_listed_with_its_text(api: Api, fake: FakeProvider, clock: Clock):
+    board = Board(fake)
+    program_id, term_id, course = await _course(api)
+    board.post(
+        "n1",
+        "Exam",
+        clock.now,
+        html="<h2>Room</h2><p>B&amp;C,<br>3rd   floor</p><ul><li>pens</li><li>ID</li></ul>"
+        "<script>alert(1)</script>",
+    )
+    board.post("n2", "Empty", clock.now)
+    await api.sync(program_id)
+
+    # The list shows and searches it as one line of text, without the markup.
+    listed = await _listed(api, course)
+    assert listed["n1"]["text"] == "Room B&C, 3rd floor pens ID"
+    assert listed["n2"]["text"] == ""
+    term = await api.call("GET", f"/terms/{term_id}/lms/announcements")
+    assert {a["external_id"]: a["text"] for a in term["items"]}["n1"] == listed["n1"]["text"]
+
+
 async def test_links_and_attachments_open_what_the_app_has(
     api: Api, app: FastAPI, fake: FakeProvider, clock: Clock
 ):

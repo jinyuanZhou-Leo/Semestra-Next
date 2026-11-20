@@ -1,4 +1,4 @@
-import { QueryClient } from '@tanstack/react-query'
+import { QueryClient, QueryObserver } from '@tanstack/react-query'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { FakeEventSource } from '@/test-event-source'
 import files from '@/modules/files/manifest'
@@ -47,6 +47,34 @@ test('a burst of events is one refetch that keeps requests already in flight', (
   vi.advanceTimersByTime(COALESCE_MS)
   expect(invalidate).toHaveBeenCalledTimes(1)
   expect(invalidate.mock.calls[0]?.[1]).toEqual({ cancelRefetch: false })
+})
+
+test('a query fetching when its data changed is refetched once more after that request', async () => {
+  vi.useRealTimers()
+  const { queryClient, source } = setup()
+  const answers: ((n: number) => void)[] = []
+  const queryFn = vi.fn<() => Promise<number>>(
+    () => new Promise((resolve) => answers.push(resolve)),
+  )
+  const observer = new QueryObserver(queryClient, {
+    queryKey: [{ _id: 'coreJobList', baseUrl: 'x' }],
+    queryFn,
+  })
+  const stop = observer.subscribe(() => {})
+  expect(queryFn).toHaveBeenCalledTimes(1)
+
+  // Two events while the first request is on its way: it is kept, and one more follows it.
+  source.emit({ type: 'files.changed', data: {} })
+  await new Promise((resolve) => setTimeout(resolve, COALESCE_MS + 10))
+  source.emit({ type: 'files.changed', data: {} })
+  await new Promise((resolve) => setTimeout(resolve, COALESCE_MS + 10))
+  expect(queryFn).toHaveBeenCalledTimes(1)
+  answers[0]?.(299)
+  await vi.waitFor(() => expect(queryFn).toHaveBeenCalledTimes(2))
+  answers[1]?.(300)
+  await vi.waitFor(() => expect(observer.getCurrentResult().data).toBe(300))
+  expect(queryFn).toHaveBeenCalledTimes(2)
+  stop()
 })
 
 test('a function target refetches only the queries of the ids in the event', () => {

@@ -32,15 +32,6 @@ export function postedLabel(at: string, now: number): string {
   return formatDate(date, { short: isSameYear(date, now) })
 }
 
-/** An announcement as plain text: its row in the list, and what the search looks through. */
-export function plainText(html: string | null | undefined): string {
-  if (!html) return ''
-  // Blocks and line breaks end with a space, or their words run together.
-  const spaced = html.replace(/<(br|\/p|\/div|\/li|\/h\d)\b[^>]*>/gi, '$& ')
-  const text = new DOMParser().parseFromString(spaced, 'text/html').body.textContent ?? ''
-  return text.replace(/\s+/g, ' ').trim()
-}
-
 /**
  * The links the page depends on: the Program's for a course (the sidebar asks for every course of
  * the term at once, so one request answers all of them), the term's own for a term.
@@ -102,7 +93,7 @@ export const announcementSearch: SearchProviderContribution = {
     }
     const needle = query.toLocaleLowerCase()
     return items
-      .filter((a) => `${a.title} ${plainText(a.html)}`.toLocaleLowerCase().includes(needle))
+      .filter((a) => `${a.title} ${a.text}`.toLocaleLowerCase().includes(needle))
       .slice(0, MAX_RESULTS)
       .map((a) => {
         const courseId = a.course_id

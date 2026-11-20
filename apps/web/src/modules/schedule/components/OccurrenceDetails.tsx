@@ -20,7 +20,7 @@ import {
   Users,
   X,
 } from 'lucide-react'
-import { type ComponentProps, type ReactNode, useRef } from 'react'
+import { type ReactNode, useRef } from 'react'
 import { useCalendarSources } from '@/app/registry'
 import { toastError } from '@/lib/errors'
 import { cn } from '@/lib/utils'
@@ -46,6 +46,7 @@ import { useOpenOccurrence } from '../open'
 import { isMeeting, isOneOff, occurrenceColor } from '../occurrence'
 import { invalidateSchedule } from '../queries'
 import { wallDate } from '../time'
+import { IconAction } from '@/components/IconAction'
 
 /**
  * Where the clicked item sits, relative to the positioned box `OccurrenceDetails` renders in, and
@@ -75,23 +76,6 @@ function Line({
       <Icon aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
       <div className="min-w-0">{children}</div>
     </div>
-  )
-}
-
-function IconAction({
-  label,
-  children,
-  ...props
-}: { label: string; children: ReactNode } & Omit<ComponentProps<typeof Button>, 'children'>) {
-  return (
-    <Tooltip>
-      <TooltipTrigger
-        render={<Button variant="ghost" size="icon-sm" aria-label={label} {...props} />}
-      >
-        {children}
-      </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
-    </Tooltip>
   )
 }
 

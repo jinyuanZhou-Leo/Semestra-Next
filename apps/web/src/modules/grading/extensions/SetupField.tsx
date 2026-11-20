@@ -1,14 +1,12 @@
-import { gradingScaleListPresets, gradingScaleUpdate } from '@semestra/api-client'
 import { SettingRow } from '@/app/settings/rows'
 import { ChoiceControl } from '@/app/settings/choice'
 import { m } from '@/paraglide/messages'
 import { presetOptions } from '../presets'
 import { useScalePresets } from '../queries'
-
-export const DEFAULT_PRESET = 'uoft_4_0'
+import { DEFAULT_PRESET } from './scale-preset'
 
 /** "Grade scale" on the Program form (M03 §5.4); `program.created` creates the scale from it. */
-export function ScalePresetField({
+export default function ScalePresetField({
   value,
   onChange,
 }: {
@@ -30,17 +28,4 @@ export function ScalePresetField({
       )}
     </SettingRow>
   )
-}
-
-/** A preset picked again for a Program that exists: its table replaces the Program's scale. */
-export async function applyScalePreset(programId: string, value: unknown) {
-  const id = typeof value === 'string' ? value : DEFAULT_PRESET
-  const { data } = await gradingScaleListPresets({ throwOnError: true })
-  const preset = data.items.find((p) => p.id === id)
-  if (!preset) return
-  await gradingScaleUpdate({
-    path: { program_id: programId },
-    body: { bands: preset.bands, max_points: preset.max_points },
-    throwOnError: true,
-  })
 }

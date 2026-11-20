@@ -103,6 +103,7 @@ const ANNOUNCEMENTS = {
       external_id: 'a1',
       title: 'Midterm room change',
       html: '<p>See the <a href="https://q.utoronto.ca/courses/101/pages/rooms" data-lms-kind="page" data-lms-ref="rooms">rooms page</a>.</p><script>alert(1)</script>',
+      text: 'See the rooms page.',
       author: 'Prof. Lee',
       posted_at: '2026-10-01T15:00:00Z',
       course_id: 'c1',
@@ -323,6 +324,7 @@ test('the display setting picks the look of Canvas HTML; the menu switches it on
           {
             ...ANNOUNCEMENTS.items[0],
             html: '<p style="color: rgb(0, 42, 92); position: fixed">Bring a pencil</p>',
+            text: 'Bring a pencil',
           },
         ],
       }),

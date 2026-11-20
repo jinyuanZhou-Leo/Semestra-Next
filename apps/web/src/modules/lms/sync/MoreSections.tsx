@@ -1,6 +1,7 @@
 import type { SyncItem, SyncStatus } from '@semestra/api-client'
 import { ClipboardPlus, CloudDownload, FileMinus } from 'lucide-react'
-import { PanelFold, PanelIconAction, PanelMoreList, PanelRow } from '@/components/StatusPanel'
+import { IconAction } from '@/components/IconAction'
+import { PanelFold, PanelMoreList, PanelRow } from '@/components/StatusPanel'
 import { formatTimeAgo } from '@/lib/format'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
@@ -49,13 +50,14 @@ export function MoreSections({
                   platform: formatValue(d.field, d.platform),
                 })}
               >
-                <PanelIconAction
+                <IconAction
+                  className="text-muted-foreground"
                   label={m.lms_sync_follow({ provider })}
                   disabled={busy}
                   onClick={() => answers.resolveField(d.id, d.field, 'platform')}
                 >
                   <CloudDownload aria-hidden />
-                </PanelIconAction>
+                </IconAction>
               </PanelRow>
             </PanelFold>
           ))}

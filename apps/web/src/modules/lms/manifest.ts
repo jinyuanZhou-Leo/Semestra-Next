@@ -49,12 +49,9 @@ import {
 } from './announcements'
 import { bindAction, unbindAction } from './binding/actions'
 import { OpenInPlatform, PlatformMark } from './components/PlatformMark'
-import { CourseInfoLms } from './components/CourseInfoLms'
 import { AssessmentFeedbackCell, AssessmentFeedbackDialog } from './components/AssessmentFeedback'
 import { feedbackListOptions } from './feedback'
-import { CourseLinks } from './components/CourseLinks'
 import { prefetchCourseLink, prefetchCourseTools } from './course-info'
-import TaskSubmission from './components/TaskSubmission'
 import { assignmentSource, wizardCourseSource } from './import/sources'
 import { canvasUi } from './providers/canvas'
 import { LMS_KEPT_QUERIES, LMS_QUERIES, LMS_STATE_QUERIES, settingsPrefetch } from './queries'
@@ -62,8 +59,7 @@ import { LMS_PROVIDER_UI } from './types'
 import { hiddenExcept } from '@/modules/notifications/categories'
 import { SYNC_LINE, hasSyncLine, syncStatusOptions } from './sync/status'
 import { SyncOnOpen } from './sync/SyncOnOpen'
-import { FollowButton } from './sync/FollowButton'
-import { FIELD_ORIGINS, type FieldOrigin } from '@/components/FieldOrigins'
+import { FIELD_ORIGINS, type FieldOrigin } from '@/components/field-origins'
 import { openStatusPanel } from '@/app/host/status-panel'
 import { toastError } from '@/lib/errors'
 
@@ -362,10 +358,22 @@ export default defineModule({
           assessments.some((a) => list?.items.some((f) => f.assessment_id === a.id)),
       },
     ] satisfies AssessmentColumn<FeedbackList>[],
-    [FIELD_ORIGINS]: [{ id: 'lms.sync', Button: FollowButton }] satisfies FieldOrigin[],
+    [FIELD_ORIGINS]: [
+      { id: 'lms.sync', Button: preloadable(() => import('./sync/FollowButton')) },
+    ] satisfies FieldOrigin[],
     [COURSE_INFO_ROWS]: [
-      { id: 'lms.link', order: 100, component: CourseInfoLms, prefetch: prefetchCourseLink },
-      { id: 'lms.links', order: 110, component: CourseLinks, prefetch: prefetchCourseTools },
+      {
+        id: 'lms.link',
+        order: 100,
+        component: preloadable(() => import('./components/CourseInfoLms')),
+        prefetch: prefetchCourseLink,
+      },
+      {
+        id: 'lms.links',
+        order: 110,
+        component: preloadable(() => import('./components/CourseLinks')),
+        prefetch: prefetchCourseTools,
+      },
     ],
     // What the sync brought in from the platform, opened there (pages and files, not links:
     // a link's address is already where it leads).
@@ -384,7 +392,7 @@ export default defineModule({
       },
     ] satisfies FileItemAction[],
     [TASK_DETAIL_SECTIONS]: [
-      { id: 'lms.assignment', Component: TaskSubmission },
+      { id: 'lms.assignment', Component: preloadable(() => import('./components/TaskSubmission')) },
     ] satisfies TaskDetailSection[],
   },
   uiPrefPrefixes: ['lms.'],
