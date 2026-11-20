@@ -1,5 +1,6 @@
 import type { Course, Task } from '@semestra/api-client'
 import { cn } from '@/lib/utils'
+import { useExtensions } from '@/app/registry'
 import { courseColor, courseLabel } from '@/modules/academics/color'
 import { m } from '@/paraglide/messages'
 import { Checkbox } from '@/ui/checkbox'
@@ -8,11 +9,11 @@ import { useCompleting } from '../completion'
 import { MotionLi, useRowPresence } from '../components/presence'
 import { PRIORITY_NAMES, PriorityMarks } from '../components/priority'
 import { dueLabel } from '../due'
-import { shownPriority } from '../types'
+import { shownPriority, TASK_LINKS, type TaskLink } from '../types'
 
 /**
  * A task on a phone (M17): the circle checks it off (it waits in place, as on the desktop), the
- * rest of the row opens its details.
+ * rest of the row opens its details; at its end, a way to what it came from (`tasks.links`).
  */
 export function TaskItem({
   task,
@@ -32,6 +33,7 @@ export function TaskItem({
   const due = dueLabel(task, today)
   const priority = shownPriority(task.priority)
   const presence = useRowPresence(task.id, { minHeight: 56 })
+  const links = useExtensions<TaskLink>(TASK_LINKS)
   return (
     <MotionLi
       {...presence}
@@ -89,6 +91,11 @@ export function TaskItem({
           </>
         )}
       </button>
+      <span className="-ml-3 flex shrink-0 pr-4 empty:hidden">
+        {links.map((link) => (
+          <link.Button key={link.id} task={task} as="pill" className="h-8 px-3" />
+        ))}
+      </span>
     </MotionLi>
   )
 }

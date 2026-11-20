@@ -1,4 +1,5 @@
 import type { Task, TaskList } from '@semestra/api-client'
+import type { UseQueryOptions } from '@tanstack/react-query'
 import type { LucideIcon } from 'lucide-react'
 import type { ComponentType } from 'react'
 import { CalendarClock, CircleCheck, CircleDashed, Flag, ListTodo, Sun } from 'lucide-react'
@@ -87,3 +88,32 @@ export type TaskDetailSection = {
 }
 
 export const TASK_DETAIL_SECTIONS = 'tasks.detailSections'
+
+/** What a task's link needs of the task (a calendar occurrence of a task has as much). */
+export type LinkedTask = Pick<Task, 'id' | 'program_id' | 'assessment_id'>
+
+/**
+ * A way from a task to what it came from (M09: the platform assignment's details), shown where
+ * tasks are: their rows, a phone's task details, the calendar's details of a due date. Both
+ * components render nothing for tasks they have nothing for.
+ */
+export type TaskLink = {
+  id: string
+  /**
+   * `pill`: a small labelled pill for the line under a row's title. `button`: an ordinary button
+   * that says what it opens. `onOpen` runs as it opens (what holds the button closes for it).
+   */
+  Button: ComponentType<{
+    task: LinkedTask
+    as: 'pill' | 'button'
+    className?: string
+    onOpen?: () => void
+  }>
+  /** The same way in a row's ⋯ menu. */
+  MenuItem: ComponentType<{ task: LinkedTask }>
+  /** What they read for a Program, started with its tasks so the buttons come with the rows. */
+  // oxlint-disable-next-line no-explicit-any
+  query?: (ctx: { programId: string }) => UseQueryOptions<any, any, any, any>
+}
+
+export const TASK_LINKS = 'tasks.links'

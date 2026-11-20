@@ -69,7 +69,7 @@ text, `syllabus`) or the item's address on the LMS as `url`. A page or file the 
 have is read from there, with `item_id` and a citation per page (go on with
 files.document.read); `note` says when one was read from the LMS instead. A long text comes
 in parts: call again with `next_offset`. Links in the text written `lms:<ref>` open with this
-tool.""",
+tool. An assignment or a quiz has `app_url`: in an answer about it, link its name to that.""",
     effect="read",
     http=Http("GET", "/courses/{course_id}/lms/content"),
     expose=AGENTS,

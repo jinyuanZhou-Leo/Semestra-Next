@@ -68,7 +68,8 @@ export function PanelIconAction({
 
 /**
  * One row of the panel: an icon, the title, the course (color dot + code, if any) and a detail, and on the
- * right either the time or the row's actions. A row with `href`/`onOpen` opens on click.
+ * right either the time or the row's actions. A row with `href`/`onOpen` opens on click: the
+ * whole row, or, when it has actions of its own, its title stretched over the row.
  */
 export function PanelRow({
   icon: Icon,
@@ -99,7 +100,11 @@ export function PanelRow({
   onOpen?: () => void
   children?: ReactNode
 }) {
-  const clickable = href !== undefined || (onOpen !== undefined && children === undefined)
+  const clickable = href !== undefined || onOpen !== undefined
+  const titleClass = cn(
+    'truncate outline-none after:absolute after:inset-0 after:rounded-lg',
+    muted && 'text-muted-foreground line-through',
+  )
   const body = (
     <>
       <ItemMedia
@@ -115,16 +120,18 @@ export function PanelRow({
         <ItemTitle className="w-full">
           {href && children ? (
             // The row has its own buttons: the link is the title, stretched over the row.
-            <Link
-              to={href}
-              onClick={onOpen}
-              className={cn(
-                'truncate outline-none after:absolute after:inset-0 after:rounded-lg',
-                muted && 'text-muted-foreground line-through',
-              )}
-            >
+            <Link to={href} onClick={onOpen} data-row-link className={titleClass}>
               {title}
             </Link>
+          ) : onOpen && children ? (
+            <button
+              type="button"
+              onClick={onOpen}
+              data-row-link
+              className={cn(titleClass, 'text-left')}
+            >
+              {title}
+            </button>
           ) : (
             <span className={cn('truncate', muted && 'text-muted-foreground line-through')}>
               {title}
@@ -176,13 +183,13 @@ export function PanelRow({
     </>
   )
   const className = cn('gap-3 rounded-lg px-2 py-2', clickable && 'hover:bg-muted/60')
-  if (href && children) {
+  if (clickable && children) {
     return (
       <Item
         size="xs"
         className={cn(
           className,
-          'relative has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-ring/50',
+          'relative has-[[data-row-link]:focus-visible]:ring-2 has-[[data-row-link]:focus-visible]:ring-ring/50',
         )}
       >
         {body}

@@ -1036,6 +1036,26 @@ export type AssessmentUpdateManyResult = {
 };
 
 /**
+ * Assignment
+ */
+export type Assignment = {
+    /**
+     * Purpose
+     */
+    purpose: 'chat' | 'extraction' | 'vision' | 'ocr' | 'embedding' | 'title';
+    /**
+     * Provider Id
+     */
+    provider_id: string | null;
+    /**
+     * Model
+     */
+    model: string | null;
+    params: ModelParams;
+    recommended: RecommendedModel | null;
+};
+
+/**
  * AssignmentBindInputBody
  */
 export type AssignmentBindInputBody = {
@@ -1070,7 +1090,7 @@ export type AssignmentBinding = {
 /**
  * AssignmentDetail
  *
- * One assignment, whole (M09 §5.4): as the platform has it now, or, when the platform
+ * One assignment, whole (M09 §5): as the platform has it now, or, when the platform
  * can't be asked, as the last sync kept it (`kept_at`).
  */
 export type AssignmentDetail = {
@@ -1083,7 +1103,7 @@ export type AssignmentDetail = {
     /**
      * Without `submission`: it is `submission` here
      */
-    assignment: SemestraModulesLmsSchemasDtoAssignment;
+    assignment: AssignmentFacts;
     /**
      * What the user handed in, with the teacher's feedback; null when unknown
      */
@@ -1118,6 +1138,113 @@ export type AssignmentDetail = {
      * Its to-do
      */
     task: InTasks | null;
+    /**
+     * Targets
+     *
+     * What the description's links to course files are in the app
+     */
+    targets?: Array<LinkTarget>;
+};
+
+/**
+ * AssignmentFacts
+ *
+ * The assignment as `AssignmentDetail` gives it (its own name in the API: the AI module has
+ * an `Assignment` too).
+ */
+export type AssignmentFacts = {
+    /**
+     * External Id
+     */
+    external_id: string;
+    /**
+     * Web Url
+     *
+     * Opens the item on the platform
+     */
+    web_url?: string | null;
+    /**
+     * Raw Kind
+     *
+     * The platform's own type (debugging)
+     */
+    raw_kind?: string | null;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Html
+     */
+    html?: string | null;
+    /**
+     * Due At
+     */
+    due_at?: string | null;
+    /**
+     * Unlock At
+     */
+    unlock_at?: string | null;
+    /**
+     * Lock At
+     */
+    lock_at?: string | null;
+    /**
+     * Points
+     */
+    points?: number | null;
+    /**
+     * Group Id
+     */
+    group_id?: string | null;
+    /**
+     * Group Name
+     */
+    group_name?: string | null;
+    /**
+     * Group Weight
+     */
+    group_weight?: number | null;
+    /**
+     * Submission Types
+     */
+    submission_types?: Array<string>;
+    submission?: Submission | null;
+    /**
+     * Published
+     */
+    published?: boolean;
+    /**
+     * Updated At
+     */
+    updated_at?: string | null;
+    /**
+     * Locked
+     */
+    locked?: boolean;
+    /**
+     * Lock Explanation
+     *
+     * Why it is locked, as the platform says
+     */
+    lock_explanation?: string | null;
+    /**
+     * Allowed Attempts
+     *
+     * None or -1: unlimited
+     */
+    allowed_attempts?: number | null;
+    /**
+     * Allowed Extensions
+     *
+     * File types an upload takes; empty for any
+     */
+    allowed_extensions?: Array<string>;
+    statistics?: ScoreStatistics | null;
+    /**
+     * Rubric
+     */
+    rubric?: Array<RubricCriterion>;
 };
 
 /**
@@ -6663,6 +6790,12 @@ export type LmsContentDetail = {
      * Opens it on the LMS
      */
     url?: string | null;
+    /**
+     * App Url
+     *
+     * Of an assignment or a quiz: opens its details in the app (a path under the app's address)
+     */
+    app_url?: string | null;
     /**
      * Date
      *
@@ -13799,33 +13932,13 @@ export type SemestraModulesAgentCapabilitiesDeleted = {
 };
 
 /**
- * Assignment
- */
-export type SemestraModulesAiSchemasAssignment = {
-    /**
-     * Purpose
-     */
-    purpose: 'chat' | 'extraction' | 'vision' | 'ocr' | 'embedding' | 'title';
-    /**
-     * Provider Id
-     */
-    provider_id: string | null;
-    /**
-     * Model
-     */
-    model: string | null;
-    params: ModelParams;
-    recommended: RecommendedModel | null;
-};
-
-/**
  * AssignmentList
  */
 export type SemestraModulesAiSchemasAssignmentList = {
     /**
      * Items
      */
-    items: Array<SemestraModulesAiSchemasAssignment>;
+    items: Array<Assignment>;
 };
 
 /**
@@ -13846,104 +13959,6 @@ export type SemestraModulesFilesSchemasDeleted = {
      * Deleted
      */
     deleted?: boolean;
-};
-
-/**
- * Assignment
- */
-export type SemestraModulesLmsSchemasDtoAssignment = {
-    /**
-     * External Id
-     */
-    external_id: string;
-    /**
-     * Web Url
-     *
-     * Opens the item on the platform
-     */
-    web_url?: string | null;
-    /**
-     * Raw Kind
-     *
-     * The platform's own type (debugging)
-     */
-    raw_kind?: string | null;
-    /**
-     * Name
-     */
-    name: string;
-    /**
-     * Html
-     */
-    html?: string | null;
-    /**
-     * Due At
-     */
-    due_at?: string | null;
-    /**
-     * Unlock At
-     */
-    unlock_at?: string | null;
-    /**
-     * Lock At
-     */
-    lock_at?: string | null;
-    /**
-     * Points
-     */
-    points?: number | null;
-    /**
-     * Group Id
-     */
-    group_id?: string | null;
-    /**
-     * Group Name
-     */
-    group_name?: string | null;
-    /**
-     * Group Weight
-     */
-    group_weight?: number | null;
-    /**
-     * Submission Types
-     */
-    submission_types?: Array<string>;
-    submission?: Submission | null;
-    /**
-     * Published
-     */
-    published?: boolean;
-    /**
-     * Updated At
-     */
-    updated_at?: string | null;
-    /**
-     * Locked
-     */
-    locked?: boolean;
-    /**
-     * Lock Explanation
-     *
-     * Why it is locked, as the platform says
-     */
-    lock_explanation?: string | null;
-    /**
-     * Allowed Attempts
-     *
-     * None or -1: unlimited
-     */
-    allowed_attempts?: number | null;
-    /**
-     * Allowed Extensions
-     *
-     * File types an upload takes; empty for any
-     */
-    allowed_extensions?: Array<string>;
-    statistics?: ScoreStatistics | null;
-    /**
-     * Rubric
-     */
-    rubric?: Array<RubricCriterion>;
 };
 
 /**

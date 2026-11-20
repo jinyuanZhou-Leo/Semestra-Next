@@ -1,4 +1,4 @@
-"""One assignment, whole (M09 §5.4): read from the platform, or from what the sync kept when the
+"""One assignment, whole (M09 §5): read from the platform, or from what the sync kept when the
 platform can't be asked; which assessments and to-dos are an assignment; the files handed in."""
 
 from datetime import UTC, datetime

@@ -225,15 +225,12 @@ test('the menu mirrors Canvas: native views, external tools, unknown tabs; discu
     key: 'tab:context_external_tool_7',
   })
   expect(entries.find((e) => e.label === 'Collaborations')?.kind).toBe('unknown')
-  // Grades and quizzes open the one assignments view; a quiz opens its row there.
+  // Grades and quizzes open the one assignments view.
   expect(resolveLocation({ tab: 'grades' }, entries)).toMatchObject({
     kind: 'native',
     view: 'assignments',
   })
-  expect(resolveLocation({ tab: 'quizzes', ref: '8' }, entries)).toMatchObject({
-    view: 'assignments',
-    ref: 'quiz:8',
-  })
+  expect(resolveLocation({ tab: 'quizzes' }, entries)).toMatchObject({ view: 'assignments' })
   expect(resolveLocation({ tab: 'tab:gone' }, entries)).toMatchObject({
     kind: 'native',
     view: 'home',
@@ -603,60 +600,18 @@ test('opening an unread announcement marks it read', async () => {
   expect(screen.queryByText('Unread')).toBeNull()
 })
 
-test('an opened assignment shows when and how to submit, the lock, the grade, comments and rubric', async () => {
+test('an assignment opens its details over the list', async () => {
   server.use(
     http.get(`${API}/courses/c1/lms/assignments`, () =>
       HttpResponse.json({
-        items: [
-          {
-            external_id: 'x1',
-            name: 'Essay',
-            points: 20,
-            submission_types: ['online_upload', 'online_url'],
-            allowed_attempts: 2,
-            locked: true,
-            lock_explanation: 'This assignment was locked Oct 20 at 11:59pm.',
-            rubric: [
-              {
-                id: 'c1',
-                description: 'Argument',
-                points: 10,
-                ratings: [
-                  { id: 'r1', description: 'Strong', points: 10 },
-                  { id: 'r2', description: 'Weak', points: 4 },
-                ],
-              },
-            ],
-            submission: { state: 'graded', score: 17 },
-            imported_as: null,
-          },
-        ],
+        items: [{ external_id: 'x1', name: 'Essay', points: 20, imported_as: null }],
         truncated: false,
       }),
     ),
-    http.get(`${API}/courses/c1/lms/assignments/x1/submission`, () =>
-      HttpResponse.json({
-        external_id: 's1',
-        assignment_id: 'x1',
-        state: 'graded',
-        score: 17,
-        grade: '17',
-        attempt: 1,
-        comments: [{ author: 'TA Kim', comment: 'Nice structure.' }],
-        rubric_scores: [{ criterion_id: 'c1', points: 8, rating_id: 'r1', comments: 'Clear' }],
-      }),
-    ),
   )
-  renderPage('/?tab=assignments&ref=x1')
-  expect(await screen.findByText('File upload, Website URL')).toBeInTheDocument()
-  expect(screen.getByText('2 allowed')).toBeInTheDocument()
-  expect(screen.getByText('This assignment was locked Oct 20 at 11:59pm.')).toBeInTheDocument()
-  expect(await screen.findByText('Nice structure.')).toBeInTheDocument()
-  expect(screen.getByText('Score 17 / 20 · Attempt 1')).toBeInTheDocument()
-  const rubric = screen.getByRole('row', { name: /Argument/ })
-  expect(within(rubric).getByText('Strong')).toBeInTheDocument()
-  expect(within(rubric).getByText('8 / 10')).toBeInTheDocument()
-  expect(within(rubric).getByText('Clear')).toBeInTheDocument()
+  const { router } = renderPage('/?tab=assignments')
+  await userEvent.click(await screen.findByText('Essay'))
+  expect(router.state.location.search).toEqual({ tab: 'assignments', assignment: 'c1:x1' })
 })
 
 test('modules show progress, prerequisites, locks and what finishing an item takes', async () => {

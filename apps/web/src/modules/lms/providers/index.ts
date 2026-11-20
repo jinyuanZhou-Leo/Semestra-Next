@@ -38,6 +38,9 @@ export function useProviderName(kind: string | null | undefined): string | null 
 
 /** The name of the platform the Program is bound to; null while unbound or loading. */
 export function useProgramProviderName(programId: string): string | null {
-  const binding = useQuery(lmsProgramBindingGetOptions({ path: { program_id: programId } })).data
+  const binding = useQuery({
+    ...lmsProgramBindingGetOptions({ path: { program_id: programId } }),
+    enabled: programId !== '',
+  }).data
   return useProviderName(binding?.connection?.provider)
 }

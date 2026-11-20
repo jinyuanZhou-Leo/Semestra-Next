@@ -176,6 +176,7 @@ function Panel({
           broken={Boolean(broken)}
           onImport={(items) => void importItems(items)}
           onDelete={deleting.show}
+          onClose={onClose}
         />
         <RecentSection
           {...shared}

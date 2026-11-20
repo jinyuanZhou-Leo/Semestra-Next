@@ -5,13 +5,15 @@ import { formatDate } from '@/lib/format'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { ItemGroup } from '@/ui/item'
+import { useAssignmentDetails } from '../assignment/target'
 import type { SyncAnswers } from './answers'
 import { fieldLabel, pendingCount } from './labels'
 import { type CourseOf, fieldIcon, Values } from './rows'
 
 /**
  * What waits for the user (M09 §4.1): new assignments to import or ignore, assignments deleted on
- * the platform to keep or delete (after a confirmation), and fields both sides changed.
+ * the platform to keep or delete (after a confirmation), and fields both sides changed. A row
+ * opens the assignment's details (M09 §7.3).
  */
 export function PendingSection({
   pending,
@@ -21,6 +23,7 @@ export function PendingSection({
   course,
   onImport,
   onDelete,
+  onClose,
 }: {
   pending: readonly SyncItem[]
   provider: string
@@ -30,8 +33,14 @@ export function PendingSection({
   course: CourseOf
   onImport: (items: SyncItem[]) => void
   onDelete: (item: SyncItem) => void
+  onClose: () => void
 }) {
   const { busy, leaving } = answers
+  const details = useAssignmentDetails()
+  const show = (item: SyncItem) => () => {
+    onClose()
+    details.open(item.course_id, item.external_id)
+  }
   if (pending.length === 0) return null
   return (
     <section className="flex flex-col gap-1">
@@ -49,6 +58,7 @@ export function PendingSection({
                     ? m.lms_sync_panel_new_due({ due: formatDate(item.due_at, { short: true }) })
                     : m.lms_sync_kind_new()
                 }
+                onOpen={show(item)}
               >
                 <Button
                   size="xs"
@@ -75,6 +85,7 @@ export function PendingSection({
                 title={item.title}
                 {...course(item.course_id, item.course)}
                 detail={m.lms_sync_removed({ provider })}
+                onOpen={show(item)}
               >
                 <Button
                   size="xs"
@@ -113,6 +124,7 @@ export function PendingSection({
                       {conflict.edited ? ` · ${m.lms_sync_yours_changed()}` : null}
                     </>
                   }
+                  onOpen={show(item)}
                 >
                   <Button
                     size="xs"

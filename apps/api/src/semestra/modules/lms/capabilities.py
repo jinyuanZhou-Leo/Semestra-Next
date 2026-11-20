@@ -493,7 +493,7 @@ async def assignments_list(ctx: Ctx, inp: AssignmentsInput) -> AssignmentList:
 @capability(
     name="lms.assignment.get",
     summary="One assignment of the LMS, whole: its description, the user's submission, feedback.",
-    description="""What the assignment's details show (M09 §5.4): the assignment, what the user
+    description="""What the assignment's details show (M09 §5): the assignment, what the user
 handed in, the teacher's comments and rubric scores (match `rubric_scores.criterion_id` with
 `assignment.rubric`), and where it is in Semestra. When the LMS can't be asked and the
 assignment was imported, the answer is what the last sync kept (`kept`).""",

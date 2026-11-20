@@ -102,7 +102,7 @@ defineModule({
 - **学生视角补充（2026-10-22）**：
   - "文件"页签不再隐藏（讨论仍隐藏）：按文件夹浏览（`ref` 是文件夹 id，面包屑来自 `trail`）与按文件名搜索（至少 2 个字），文件行沿用单元里的预览/下载/保存按钮，锁定的文件只显示锁。列表是 TanStack Table（名称、大小、更新时间可排序，排序记在 `useUiPref('canvas-tab.files_sort')`），文件夹按 Canvas 的顺序排在文件前面。
   - 文件预览：Word、PowerPoint、Excel、CSV、Markdown 调 `lms.file.preview` 按页显示文字（注明不含排版与图片），不是渲染原样；PDF、图片、纯文本照旧。
-  - 作业展开后显示开放/关闭时间、提交方式、可提交次数、锁定原因，以及"成绩与反馈"（`lms.submission.get`：得分、第几次提交、评分时间、老师评语、评分标准每项的评定与得分）。
+  - 点作业行就地打开 M09 的作业详情（M09 §7.3，2026-11-20 起；原来的行内展开已删除）：说明、提交与反馈、截止与提交方式等都在那里。页面和单元里指向作业或测验的链接同样打开它；插件经 `lms.linkOpeners` 接住别处（作业说明、公告）指向页面与单元的链接。
   - 单元：标题行显示进度（已完成/进行中/未解锁），展开后说明前置单元和是否需按顺序完成；条目显示截止时间、分值、锁（悬停看 Canvas 给的原因）与完成要求（圆圈/对勾，悬停看要求）。
   - 测验表新增限时、次数（已用/允许）和我的得分（通过 `assignment_id` 对上作业列表里的 submission）；锁定的测验在标题后显示锁和原因。锁定页面在空状态里显示原因。
   - 打开未读公告时标为已读（2026-11-18 起总是本地标记，允许修改平台时再写回 Canvas），列表和课程看板上的未读点随之消失（直接改查询缓存）；失败不提示。
@@ -119,7 +119,7 @@ defineModule({
   - **修复**：`FileMeta.download_url` 标了 `exclude=True`，而所有读接口都经 `service.cached()` 把 DTO 转成 JSON 再还原，下载地址因此丢失，Canvas 上的文件预览、下载和"保存到课程文件"一律报 `lms.forbidden`。缓存的 JSON 现在保留 `exclude=True` 的字段（只在服务端）：`Dto` 带一个 wrap 序列化器，序列化上下文 `dto.INTERNAL` 下补回这些字段（嵌套的 DTO 也会，如 `FolderListing.files`），对外的 schema 与输出仍不含它；测试用的假 provider 也像 Canvas 一样在没有下载地址时报错。
   - **原样显示**（2026-11-06）：页面（含首页）、公告、作业说明和课程大纲可以用“简洁”（应用排版，去掉内联样式，原来的做法）或“Canvas 样式”显示。M09 清洗时保留 `style`，但只留 `lms/html.py` 的 `STYLE_PROPERTIES`（颜色、字体、间距、边框、尺寸等；不留定位、层级、显示与背景图这类会遮挡页面或加载资源的属性），`SafeHtml` 在浏览器里按同一份清单再过滤一次（包括浏览器展开的分写属性）。Agent/MCP 拿到的是 Markdown，不受影响。`SafeHtml` 的 `original` 把内容放在浅色卡片里（`components/safe-html.css` 的 `.lms-original`：Canvas 的字体、文字色和链接色，补回 Tailwind preflight 去掉的标题、列表等默认样式），深色主题下也保持浅色，因为作者的颜色按浅色页面挑选。学校主题文件里按 class 套用的样式拿不到。默认方式原是插件设置 `plugin.canvas-tab` 的 `display`，2026-11-18 起是 LMS 的账户设置 `lms.display`（M09 §4.3，与「公告」页共用），各视图标题旁的下拉菜单（`DisplayMenu`）只改当前打开的页面，不保存。已缓存的读取在刷新或过期（五分钟）前仍是去掉样式的版本。
 - **理顺界面（2026-11-07）**：
-  - **作业与成绩合并**：Canvas 菜单里的作业、测验、成绩三项合成一项“作业与成绩”（`navigation.ts` 的 `MERGED`，放在三者中第一个的位置），`?tab=grades|quizzes` 跳到 `assignments`，测验 `ref` 变成 `quiz:<id>`。一张表：计分测验并到对应作业行（名称前有测验图标，展开后多次数、题目数、限时），练习测验单独成组放最后（不能勾选、不显示反馈）。去掉成绩页的总评卡片和引导 `Alert`，删掉 `GradesView`、`QuizzesView`。
+  - **作业与成绩合并**：Canvas 菜单里的作业、测验、成绩三项合成一项“作业与成绩”（`navigation.ts` 的 `MERGED`，放在三者中第一个的位置），`?tab=grades|quizzes` 跳到 `assignments`。一张表：计分测验并到对应作业行（名称前有测验图标，作业详情里多次数、题目数、限时），练习测验单独成组放最后（不能勾选、不显示反馈）。去掉成绩页的总评卡片和引导 `Alert`，删掉 `GradesView`、`QuizzesView`。
   - 表格用 TanStack 的排序（名称、截止、得分；空值排最后，得分按得分率）和选择（`enableRowSelection` 排除已导入与练习测验）；表头有全选，分组行有本组勾选。勾选状态经 context 传给单元格（React Compiler 会缓存 `row` 不变的单元格，直接读 `row.getIsSelected()` 不会刷新）。展开详情里评分标准表加圆角边框与表头底色，老师评语用 shadcn `Item`。评语与评分标准的渲染在 M09 的 `modules/lms/components/SubmissionFeedback.tsx`，与成绩册的“反馈”对话框共用。
   - 表格上方一行工具栏（固定 2rem 高）：左边筛选（全部 / 待完成 / 已出分 / 缺交，`lib/segmented.ts` 分段样式，与成绩页一致）和按名称搜索，右边“导入 ▾”（有勾选时写“导入 N 项”，只导入当前筛选与搜索列出的已勾选行，折叠的分组照样算）；筛选后没有结果时显示 `SearchX` 空状态与“清除筛选”。分组行：名称、数量 `Badge`、“权重 N%” outline `Badge`，得分列显示本组已评部分的得分率；没有匹配行的分组隐藏。每行名称前有类型图标（测验 `ListChecks`、讨论 `MessagesSquare`、其余作业 `FileText`，按 `submission_types` 判断）。数据行固定 `h-10`、分组行 `h-11`，不同状态徽章不会让行高变化。
   - 导入只有一个主按钮“导入 ▾”（导入到成绩簿 / 导入到待办），不再用 `AiAction`（这不是 AI 操作）；已导入的行在名称后标“已在成绩簿”或“已在待办”，不能再勾选（每个作业只导入一次）。导入到成绩簿时 Canvas 上已出的成绩一起带入（M09）。

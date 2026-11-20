@@ -20,6 +20,7 @@ import { toastError } from '@/lib/errors'
 import { formatTimeAgo } from '@/lib/format'
 import { useNow } from '@/hooks/use-now'
 import { cn } from '@/lib/utils'
+import { useAssignmentDetails } from '@/modules/lms/assignment/target'
 import { type LmsContent, LmsContentContext } from '@/modules/lms/content/context'
 import { useLmsDisplay } from '@/modules/lms/content/display'
 import { IconAction, OpenOnPlatformIcon } from '@/modules/lms/content/LmsContent'
@@ -72,7 +73,14 @@ export default function CanvasCoursePage({ scope }: PageProps) {
 
 function CanvasCourse({ programId, courseId }: { programId: string; courseId: string }) {
   const queryClient = useQueryClient()
-  const [location, go] = useCanvasLocation(courseId)
+  const [location, goTo] = useCanvasLocation(courseId)
+  const details = useAssignmentDetails()
+  // An assignment or a quiz (a link in a page, an item of a module) opens its details over the
+  // view that is on screen (M09 §7.3); the rest is a place in the tab.
+  const go = (next: CanvasLocation) => {
+    if (next.tab === 'assignments' && next.ref) details.open(courseId, next.ref)
+    else goTo(next)
+  }
   const [refreshing, setRefreshing] = useState(false)
   const file = useDialogTarget<string>()
   const overview = useQuery({
@@ -101,8 +109,9 @@ function CanvasCourse({ programId, courseId }: { programId: string; courseId: st
     openFile: file.show,
     title,
   }
-  // Platform links in Canvas HTML stay in the tab: pages, assignments, quizzes, modules and
-  // announcements switch the view, files open the preview; anything else is a normal link.
+  // Platform links in Canvas HTML stay in the tab: pages, modules and announcements switch the
+  // view, assignments and quizzes open their details, files the preview; anything else is a
+  // normal link.
   const content: LmsContent = {
     courseId,
     provider,
@@ -199,7 +208,7 @@ function View({ overview, resolved }: { overview: CourseOverview; resolved: Reso
     case 'announcements':
       return <AnnouncementsView selected={resolved.ref} />
     case 'assignments':
-      return <AssignmentsView selected={resolved.ref} />
+      return <AssignmentsView />
     case 'files':
       return <FilesView selected={resolved.ref} />
     case 'modules':

@@ -370,7 +370,7 @@ export const lmsFileContent = <ThrowOnError extends boolean = false>(options: Op
 /**
  * Submitted File Content
  *
- * A file the user handed in for an assignment (M09 §5.4).
+ * A file the user handed in for an assignment (M09 §5).
  */
 export const lmsSubmittedFileContent = <ThrowOnError extends boolean = false>(options: Options<LmsSubmittedFileContentData, ThrowOnError>): RequestResult<LmsSubmittedFileContentResponses, LmsSubmittedFileContentErrors, ThrowOnError> => (options.client ?? client).get<LmsSubmittedFileContentResponses, LmsSubmittedFileContentErrors, ThrowOnError>({
     security: [{
@@ -4794,7 +4794,7 @@ export const lmsAssignmentBind = <ThrowOnError extends boolean = false>(options:
 /**
  * One assignment of the LMS, whole: its description, the user's submission, feedback.
  *
- * What the assignment's details show (M09 §5.4): the assignment, what the user
+ * What the assignment's details show (M09 §5): the assignment, what the user
  * handed in, the teacher's comments and rubric scores (match `rubric_scores.criterion_id` with
  * `assignment.rubric`), and where it is in Semestra. When the LMS can't be asked and the
  * assignment was imported, the answer is what the last sync kept (`kept`).
@@ -5041,7 +5041,7 @@ export const lmsConnectionValidate = <ThrowOnError extends boolean = false>(opti
  * have is read from there, with `item_id` and a citation per page (go on with
  * files.document.read); `note` says when one was read from the LMS instead. A long text comes
  * in parts: call again with `next_offset`. Links in the text written `lms:<ref>` open with this
- * tool.
+ * tool. An assignment or a quiz has `app_url`: in an answer about it, link its name to that.
  */
 export const lmsContentRead = <ThrowOnError extends boolean = false>(options: Options<LmsContentReadData, ThrowOnError>): RequestResult<LmsContentReadResponses, LmsContentReadErrors, ThrowOnError> => (options.client ?? client).get<LmsContentReadResponses, LmsContentReadErrors, ThrowOnError>({
     security: [

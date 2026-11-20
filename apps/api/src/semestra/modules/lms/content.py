@@ -30,6 +30,7 @@ from semestra.modules.grading import service as grading
 from semestra.modules.lms import (
     announcements,
     files,
+    pages,
     reads,
     refs,
     service,
@@ -669,6 +670,17 @@ def _dt(value: Any) -> datetime | None:
 
 
 async def read(ctx: Ctx, inp: LmsReadInput) -> LmsContentDetail:
+    detail = await _read(ctx, inp)
+    if detail.kind in ("assignment", "quiz"):
+        course = await academics.get_course_row(ctx, inp.course_id)
+        kind, item_id = refs.parse(detail.ref)
+        detail.app_url = pages.assignment_path(
+            course.program_id, course.id, item_id if kind == "assignment" else f"quiz:{item_id}"
+        )
+    return detail
+
+
+async def _read(ctx: Ctx, inp: LmsReadInput) -> LmsContentDetail:
     linked = await _linked(ctx, inp.course_id)
     if linked is None:
         return await _read_unlinked(ctx, inp)

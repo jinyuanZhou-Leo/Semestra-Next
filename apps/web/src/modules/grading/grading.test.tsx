@@ -431,7 +431,7 @@ test("an assessment's to-do is checked off from its row", async () => {
   await waitFor(() => expect(check.getAttribute('aria-checked')).toBe('true'))
 })
 
-test("an assessment from the LMS opens the teacher's comments and rubric", async () => {
+test("an assessment from the LMS opens the assignment's details on the teacher's feedback", async () => {
   book = gradebook({
     assessments: [
       assessment({
@@ -503,20 +503,12 @@ test("an assessment from the LMS opens the teacher's comments and rubric", async
       }),
     ),
   )
-  mount()
+  const { router } = mount()
   await userEvent.click(await screen.findByRole('button', { name: 'View feedback: Lab 1' }))
   // Only assessments the teacher left feedback on have a button.
   expect(screen.queryByRole('button', { name: 'View feedback: Final exam' })).toBeNull()
-  const dialog = await screen.findByRole('dialog', { name: 'Lab 1' })
-  expect(await within(dialog).findByText('Check the edge cases.')).toBeInTheDocument()
-  expect(within(dialog).getByRole('row', { name: /Correctness/ })).toHaveTextContent(
-    'Most tests pass',
-  )
-  expect(within(dialog).getByRole('row', { name: /Correctness/ })).toHaveTextContent('8 / 10')
-  expect(within(dialog).getByRole('button', { name: 'Open in Canvas' })).toHaveAttribute(
-    'href',
-    'https://lms.example/a/91',
-  )
+  // The assignment's details open on the feedback (M09 §7.3).
+  expect(router.state.location.search).toEqual({ assignment: 'c1:91', view: 'feedback' })
 })
 
 test('a gradebook without feedback has no feedback column', async () => {

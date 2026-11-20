@@ -1,4 +1,4 @@
-"""One assignment, whole (M09 §5.4): what every place that mentions an assignment opens.
+"""One assignment, whole (M09 §5): what every place that mentions an assignment opens.
 
 The platform is asked first: the assignment (from the course's cached list), the user's own
 submission with the teacher's feedback, and for a quiz its question count and time limit. When
@@ -16,7 +16,7 @@ from semestra.core.errors import AppError
 from semestra.modules.academics import service as academics
 from semestra.modules.academics.models import AcademicsCourse
 from semestra.modules.grading import service as grading
-from semestra.modules.lms import reads, service
+from semestra.modules.lms import announcements, reads, service
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.models import LmsCourseLink, LmsFeedback, LmsImportedRef
 from semestra.modules.lms.schemas.dto import FileMeta, SubmissionDetail
@@ -171,6 +171,9 @@ async def get(ctx: Ctx, course_id: str, assignment_id: str, refresh: bool) -> As
         link = linked[0]
         answer = await _live(ctx, linked, course_id, assignment_id, refresh)
         assessment, task = await _places(ctx, link, kept, assignment_id)
+        answer["targets"] = await announcements.link_targets(
+            ctx, link, answer["assignment"].get("html")
+        )
     except AppError as exc:
         if kept is None or not exc.code.startswith("lms."):
             raise

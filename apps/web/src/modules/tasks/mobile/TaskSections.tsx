@@ -6,6 +6,7 @@ import { m } from '@/paraglide/messages'
 import { useTaskActions } from '../actions'
 import { useProgramToday, useTaskLists } from '../queries'
 import { MotionDiv, TaskListPresence, useRowPresence } from '../components/presence'
+import { useTaskLinkQueries } from '../links'
 import { TaskItem } from './TaskItem'
 import { TaskSheet } from './TaskSheet'
 import { plusDays } from '@/lib/day'
@@ -49,6 +50,7 @@ export function groupByDue(tasks: readonly Task[], today: string): TaskGroup[] {
  */
 export function TaskSections({ programId, groups }: { programId: string; groups: TaskGroup[] }) {
   const today = useProgramToday(programId)
+  useTaskLinkQueries(programId)
   const courses = useCourses(programId).data?.items ?? []
   const lists = useTaskLists(programId).data?.items ?? []
   const { actions } = useTaskActions()

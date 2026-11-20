@@ -67,25 +67,14 @@ export type AssessmentColumn<TData = any> = {
    * the course is linked to the LMS and some assessments follow an assignment there.
    */
   shownFor?: (assessments: readonly Assessment[], data: TData | undefined) => boolean
-  /**
-   * One dialog for the whole column, mounted by the gradebook while the column is shown (M09's
-   * feedback, which its cells open), so rows do not each carry one.
-   */
-  Dialog?: ComponentType<AssessmentColumnDialogProps>
-}
-
-export type AssessmentColumnDialogProps = {
-  programId: string
-  courseId: string
-  /** The course's assessments. */
-  assessments: readonly Assessment[]
 }
 
 export const ASSESSMENT_COLUMNS = 'grading.assessmentColumns'
 
 /**
  * An entry of a gradebook row's menu from another module (M09's "Bind Canvas assignment…"), with
- * the dialog it opens. The gradebook keeps the dialog, so it stays open after the menu closes.
+ * the dialog it opens, when it has one. The gradebook keeps the dialog, so it stays open after
+ * the menu closes.
  */
 export type AssessmentAction = {
   id: string
@@ -93,7 +82,7 @@ export type AssessmentAction = {
   destructive?: boolean
   /** The menu item; renders nothing when the action does not apply to this assessment. */
   Item: ComponentType<AssessmentActionItemProps>
-  Dialog: ComponentType<AssessmentActionDialogProps>
+  Dialog?: ComponentType<AssessmentActionDialogProps>
   /** What `Item` reads for a course, so the grades page starts it along with the gradebook. */
   // oxlint-disable-next-line no-explicit-any
   query?: (ctx: AssessmentImportContext) => UseQueryOptions<any, any, any, any>
@@ -102,6 +91,7 @@ export type AssessmentAction = {
 export type AssessmentActionItemProps = {
   assessment: Assessment
   programId: string
+  /** Opens the action's `Dialog` for this assessment. */
   open: () => void
 }
 

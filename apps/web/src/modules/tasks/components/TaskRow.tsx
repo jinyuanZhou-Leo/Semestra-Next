@@ -4,6 +4,7 @@ import { CSS } from '@dnd-kit/utilities'
 import type { Course, Task, TaskUpdateInputBody } from '@semestra/api-client'
 import { Flag, GripVertical, MoreHorizontal, PanelRight, Trash2 } from 'lucide-react'
 import { memo, useEffect, useEffectEvent, useRef, useState } from 'react'
+import { useExtensions } from '@/app/registry'
 import { courseColor, courseLabel } from '@/modules/academics/color'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
@@ -29,7 +30,7 @@ import { useCompleting } from '../completion'
 import { focusAt, useEditorExit } from './editor-exit'
 import { MotionLi, useRowPresence } from './presence'
 import { dueLabel } from '../due'
-import { PRIORITIES, type ShownPriority, shownPriority } from '../types'
+import { PRIORITIES, type ShownPriority, shownPriority, TASK_LINKS, type TaskLink } from '../types'
 import { PRIORITY_NAMES, PriorityMarks, TaskPriority } from './priority'
 import { CourseMenuItems, TaskChips } from './TaskChips'
 import type { VirtualRow } from './VirtualTaskList'
@@ -78,6 +79,7 @@ function RowEditor({
   const [title, setTitle] = useState(task.title)
   const [notes, setNotes] = useState(task.notes)
   const closed = useRef(false)
+  const links = useExtensions<TaskLink>(TASK_LINKS)
   const titleRef = useRef<HTMLInputElement>(null)
   const notesRef = useRef<HTMLTextAreaElement>(null)
   // As the row opens: the field and caret where the click was.
@@ -151,7 +153,7 @@ function RowEditor({
         onChange={(event) => setNotes(event.target.value)}
         onKeyDown={(event) => keys(event, false)}
       />
-      <div className="pt-1.5 pb-0.5">
+      <div className="flex flex-wrap items-center gap-1.5 pt-1.5 pb-0.5">
         <TaskChips
           task={task}
           courses={courses}
@@ -161,6 +163,9 @@ function RowEditor({
           managed={task.assessment_id !== null}
           onChange={(body) => void actions.update(task.id, body)}
         />
+        {links.map((link) => (
+          <link.Button key={link.id} task={task} as="pill" />
+        ))}
       </div>
     </>
   )
@@ -254,9 +259,10 @@ type Props = {
 }
 
 /**
- * One task (M05 §5.1): check, title, course tag, due date, priority flag and star. A click on the
- * title or the note opens the row in place (`RowEditor`); the ⋯ menu opens the side panel with
- * every field, changes the priority and deletes.
+ * One task (M05 §5.1): check, title, course tag, due date, priority flag and star, and a way to
+ * what it came from (`tasks.links`). A click on the title or the note opens the row in place
+ * (`RowEditor`); the ⋯ menu opens the side panel with every field, changes the priority and
+ * deletes.
  */
 export const TaskRow = memo(function TaskRow({
   task,
@@ -280,9 +286,8 @@ export const TaskRow = memo(function TaskRow({
   // Just checked off: shown done, still in its place until it is saved (`completion.ts`).
   const completing = useCompleting(task.id)
   const done = task.completed_at !== null || completing !== null
-  const course = courses.find((c) => c.id === task.course_id)
   const note = task.notes.split('\n')[0]?.trim()
-  const hasMeta = Boolean(note) || task.due_date !== null || (course !== undefined && !hideCourse)
+  const links = useExtensions<TaskLink>(TASK_LINKS)
   const start = (field: EditFocus['field']) => (event: React.MouseEvent) => {
     event.stopPropagation()
     onSelect(task.id)
@@ -327,7 +332,7 @@ export const TaskRow = memo(function TaskRow({
           void actions.complete(task.id, checked)
         }}
       />
-      <div className="min-w-0 flex-1 space-y-0.5">
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         {editing ? (
           <RowEditor
             task={task}
@@ -372,26 +377,28 @@ export const TaskRow = memo(function TaskRow({
                 />
               ) : null}
             </div>
-            {hasMeta ? (
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm text-muted-foreground">
-                {note ? (
-                  <button
-                    type="button"
-                    aria-label={m.tasks_edit_notes({ title: task.title })}
-                    className="max-w-full cursor-text truncate rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                    onClick={start('notes')}
-                  >
-                    {note}
-                  </button>
-                ) : null}
-                {task.due_date ? (
-                  <span className={cn('tabular-nums', task.overdue && !done && 'text-destructive')}>
-                    {dueLabel(task, today)}
-                  </span>
-                ) : null}
-                {hideCourse ? null : <CourseTag task={task} courses={courses} actions={actions} />}
-              </div>
-            ) : null}
+            {/* Gone when it has nothing to show (a link renders nothing for most tasks). */}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm text-muted-foreground empty:hidden">
+              {note ? (
+                <button
+                  type="button"
+                  aria-label={m.tasks_edit_notes({ title: task.title })}
+                  className="max-w-full cursor-text truncate rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                  onClick={start('notes')}
+                >
+                  {note}
+                </button>
+              ) : null}
+              {task.due_date ? (
+                <span className={cn('tabular-nums', task.overdue && !done && 'text-destructive')}>
+                  {dueLabel(task, today)}
+                </span>
+              ) : null}
+              {hideCourse ? null : <CourseTag task={task} courses={courses} actions={actions} />}
+              {links.map((link) => (
+                <link.Button key={link.id} task={task} as="pill" />
+              ))}
+            </div>
           </>
         )}
       </div>
@@ -445,6 +452,7 @@ function RowMenu({
   actions: TaskActions
 }) {
   const label = m.tasks_row_menu({ title: task.title })
+  const links = useExtensions<TaskLink>(TASK_LINKS)
   return (
     <DropdownMenu>
       <Tooltip>
@@ -474,6 +482,9 @@ function RowMenu({
             <PanelRight aria-hidden />
             {m.tasks_edit_details()}
           </DropdownMenuItem>
+          {links.map((link) => (
+            <link.MenuItem key={link.id} task={task} />
+          ))}
           <DropdownMenuSub>
             <DropdownMenuSubTrigger>
               <PriorityMarks level={shownPriority(task.priority)} placeholder />

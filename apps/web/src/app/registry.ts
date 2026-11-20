@@ -9,7 +9,7 @@ import {
   useContext,
   useMemo,
 } from 'react'
-import { isPhone } from './mobile/phone'
+import { isPhone, usePhone } from './mobile/phone'
 import { loadCardSettings } from './board/settings'
 import academics from '@/modules/academics/manifest'
 import ai from '@/modules/ai/manifest'
@@ -275,7 +275,10 @@ export function useStatusItems(): StatusItemContribution[] {
 }
 
 export function useOverlays(): ComponentType[] {
-  return useModules().flatMap((m) => m.overlays ?? [])
+  const phone = usePhone()
+  return useModules()
+    .flatMap((m) => m.overlays ?? [])
+    .map((overlay) => ('desktop' in overlay ? (phone ? overlay.phone : overlay.desktop) : overlay))
 }
 
 /** All contributions to an extension point another module defined, e.g. `'academics.courseColumns'`. */

@@ -7,7 +7,7 @@ import { m } from '@/paraglide/messages'
 import NewTaskButton from './cards/NewTaskButton'
 import { completeFromCalendar, rescheduleFromCalendar } from './calendar'
 import AssessmentTaskCell from './components/AssessmentTaskCell'
-import { CalendarOpenLabel } from './components/CalendarOpenLabel'
+import { CalendarOpenLabel, CalendarTaskLinks } from './components/CalendarOpen'
 import { courseTasksOptions, prefetchTodayTasks } from './queries'
 
 const TASK_QUERIES = ['tasksItemQuery', 'tasksItemGet', 'tasksListList', 'tasksItemCount'] as const
@@ -133,6 +133,7 @@ export default defineModule({
           else navigate(`/p/${programId}/tasks`)
         },
       },
+      More: CalendarTaskLinks,
       complete: completeFromCalendar,
       reschedule: rescheduleFromCalendar,
       create: {

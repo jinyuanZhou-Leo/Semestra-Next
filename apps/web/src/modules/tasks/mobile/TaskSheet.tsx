@@ -1,6 +1,7 @@
 import type { Course, Task, TaskList, TaskUpdateInputBody } from '@semestra/api-client'
 import { Clock2, Flag, Trash2 } from 'lucide-react'
 import { useState } from 'react'
+import { useExtensions } from '@/app/registry'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { SEGMENT, SEGMENTED } from '@/lib/segmented'
 import { TIME_INPUT } from '@/lib/time-input'
@@ -18,7 +19,7 @@ import { Textarea } from '@/ui/textarea'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import type { TaskActions } from '../actions'
 import { PRIORITY_NAMES } from '../components/priority'
-import { PRIORITIES, type ShownPriority, shownPriority } from '../types'
+import { PRIORITIES, type ShownPriority, shownPriority, TASK_LINKS, type TaskLink } from '../types'
 import { NOTES_MAX, TITLE_MAX } from '../limits'
 
 const NONE = ''
@@ -47,6 +48,7 @@ export function TaskSheet({
   const [title, setTitle] = useState(task.title)
   const [notes, setNotes] = useState(task.notes)
   const [deleting, setDeleting] = useState(false)
+  const links = useExtensions<TaskLink>(TASK_LINKS)
   // An assessment's task follows it: title, date and course change in the gradebook.
   const managed = task.assessment_id !== null
   const done = draft.completed_at !== null
@@ -201,6 +203,16 @@ export function TaskSheet({
             {managed ? (
               <p className="text-xs text-muted-foreground">{m.tasks_managed_note()}</p>
             ) : null}
+            {/* The details close for what a link opens. */}
+            {links.map((link) => (
+              <link.Button
+                key={link.id}
+                task={task}
+                as="button"
+                className="h-11"
+                onOpen={onClose}
+              />
+            ))}
             <div className="flex gap-2">
               <Button
                 className="h-11 flex-1"

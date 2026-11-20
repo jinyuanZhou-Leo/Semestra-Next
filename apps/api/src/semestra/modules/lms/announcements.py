@@ -320,6 +320,19 @@ def _marks(html: str | None) -> list[tuple[str, str]]:
     return [(htmllib.unescape(k), htmllib.unescape(v)) for k, v in _MARK.findall(html or "")]
 
 
+async def link_targets(ctx: Ctx, link: LmsCourseLink, html: str | None) -> list[LinkTarget]:
+    """What the platform links marked in `html` (an item of `link`'s course) are in the app."""
+    marks = _marks(html)
+    if not marks:
+        return []
+    mine = (await _targets(ctx, {link.id: link}, {link.id: set(marks)})).get(link.id, {})
+    return [
+        LinkTarget(kind=kind, ref=ref, target=mine[(kind, ref)])
+        for kind, ref in dict.fromkeys(marks)
+        if (kind, ref) in mine
+    ]
+
+
 async def _targets(
     ctx: Ctx, links: dict[str, LmsCourseLink], asked: dict[str, set[tuple[str, str]]]
 ) -> dict[str, dict[tuple[str, str], AppTarget]]:

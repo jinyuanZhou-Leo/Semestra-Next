@@ -27,6 +27,8 @@ export const LMS_STATE_QUERIES = [
   'lmsSyncStatus',
   // The feedback the sync kept for the course's assessments (stays after unbinding or unlinking).
   'lmsFeedbackList',
+  // Which assessments and to-dos are an assignment of the platform.
+  'lmsAssignmentTargets',
   'lmsAnnouncementUnread',
   // What turning the materials sync off left in the course files.
   'lmsMaterialCountLeft',
@@ -45,7 +47,7 @@ export const LMS_CONTENT_QUERIES = [
   'lmsQuizList',
   'lmsSyllabusGet',
   'lmsFileGet',
-  'lmsSubmissionGet',
+  'lmsAssignmentGet',
   'lmsFolderGet',
   'lmsFileSearch',
   'lmsFilePreview',
@@ -63,7 +65,7 @@ export const LMS_KEPT_QUERIES = [
   'lmsAnnouncementList',
   'lmsAssignmentList',
   'lmsQuizList',
-  'lmsSubmissionGet',
+  'lmsAssignmentGet',
   'lmsModuleList',
   'lmsModuleItemList',
   'lmsPageList',

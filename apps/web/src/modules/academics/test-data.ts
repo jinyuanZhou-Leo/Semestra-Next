@@ -178,6 +178,8 @@ export function academicsHandlers(world: World) {
       }),
     ),
     http.post(`${API}/programs/:id/lms/sync`, () => HttpResponse.json({ queued: 0 })),
+    // No assessment or to-do is an assignment of a platform (task rows and the gradebook ask).
+    http.get(`${API}/programs/:id/lms/assignment-targets`, () => HttpResponse.json({ items: [] })),
     http.get(`${API}/programs`, () => HttpResponse.json({ items: world.programs })),
     http.get(`${API}/programs/:id`, ({ params }) => {
       const found = world.programs.find((p) => p.id === params.id)

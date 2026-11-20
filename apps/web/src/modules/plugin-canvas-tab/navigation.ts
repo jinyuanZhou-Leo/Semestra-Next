@@ -18,8 +18,7 @@ const HIDDEN_KINDS: ReadonlySet<string> = new Set(['discussions'])
 
 /**
  * Canvas's assignments, quizzes and grades hold the same items, so they are one view here
- * ("Assignments & grades"), in the menu where the first of the three is (M16 §3). Old locations
- * (`grades`, `quizzes` with a quiz id) still open it.
+ * ("Assignments & grades"), in the menu where the first of the three is (M16 §3).
  */
 const MERGED: Readonly<Record<string, 'assignments'>> = {
   assignments: 'assignments',
@@ -75,8 +74,7 @@ export type Resolved =
  */
 export function resolveLocation(location: CanvasLocation, entries: readonly NavEntry[]): Resolved {
   if (MERGED[location.tab] && location.tab !== 'assignments') {
-    const ref = location.ref && location.tab === 'quizzes' ? `quiz:${location.ref}` : undefined
-    return resolveLocation({ tab: 'assignments', ref }, entries)
+    return resolveLocation({ tab: 'assignments' }, entries)
   }
   const entry = entries.find((e) => e.key === location.tab)
   if (isNative(location.tab))
@@ -104,8 +102,9 @@ export function homeView(defaultView: string | null | undefined): HomeView {
 }
 
 /**
- * Where a Canvas link inside HTML or a module item opens in the plugin. Files open in the
- * preview instead, and discussions stay in Canvas: both give null.
+ * Where a Canvas link inside HTML or a module item opens in the plugin: an assignment or a quiz
+ * (`quiz:<id>`) is the one the page opens the details of. Files open in the preview instead, and
+ * discussions stay in Canvas: both give null.
  */
 export function refLocation(ref: { kind: string; ref: string }): CanvasLocation | null {
   switch (ref.kind) {

@@ -44,7 +44,7 @@ def _items(
 
 def _opens(applied: list[dict[str, Any]], refs: Container[str], course_id: str) -> str:
     """The grades page showing the one assignment the notification is about (its submission
-    and feedback, M09 §6.9); the page alone when it is about several."""
+    and feedback, M09 §7.3); the page alone when it is about several."""
     found = {str(a["external_id"]) for a in applied if str(a["ref_id"]) in refs}
     if len(found) != 1:
         return ""

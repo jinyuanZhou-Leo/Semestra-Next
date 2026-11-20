@@ -42,6 +42,7 @@ import { useTaskActions } from '../actions'
 import { isCompleting } from '../completion'
 import { NewTaskRow } from '../components/NewTaskRow'
 import { TaskDetail } from '../components/TaskDetail'
+import { useTaskLinkQueries } from '../links'
 import { type EditFocus, SortableTaskRow, TaskRow } from '../components/TaskRow'
 import { TaskListsColumn, TasksViewMenu, useTaskSelection } from '../components/TaskLists'
 import { type ScrollRequest, VirtualTaskList } from '../components/VirtualTaskList'
@@ -102,6 +103,7 @@ export default function TasksPage({ scope }: PageProps) {
   const ready = selectionLoaded && viewLoaded && settingsLoaded
   const { actions, pending } = useTaskActions()
   const lists = useTaskLists(programId)
+  useTaskLinkQueries(programId)
   const counts = useTaskCounts(taskScope)
   const courses = useCourses(programId, termId).data?.items ?? []
   const completedView = selection.kind === 'smart' && selection.view === 'completed'

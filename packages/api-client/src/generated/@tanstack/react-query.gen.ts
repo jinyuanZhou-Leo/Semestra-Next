@@ -582,7 +582,7 @@ export const lmsSubmittedFileContentQueryKey = (options: Options<LmsSubmittedFil
 /**
  * Submitted File Content
  *
- * A file the user handed in for an assignment (M09 §5.4).
+ * A file the user handed in for an assignment (M09 §5).
  */
 export const lmsSubmittedFileContentOptions = (options: Options<LmsSubmittedFileContentData>) => queryOptions<unknown, LmsSubmittedFileContentError, unknown, ReturnType<typeof lmsSubmittedFileContentQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -4382,7 +4382,7 @@ export const lmsAssignmentGetQueryKey = (options: Options<LmsAssignmentGetData>)
 /**
  * One assignment of the LMS, whole: its description, the user's submission, feedback.
  *
- * What the assignment's details show (M09 §5.4): the assignment, what the user
+ * What the assignment's details show (M09 §5): the assignment, what the user
  * handed in, the teacher's comments and rubric scores (match `rubric_scores.criterion_id` with
  * `assignment.rubric`), and where it is in Semestra. When the LMS can't be asked and the
  * assignment was imported, the answer is what the last sync kept (`kept`).
@@ -4597,7 +4597,7 @@ export const lmsContentReadQueryKey = (options: Options<LmsContentReadData>) => 
  * have is read from there, with `item_id` and a citation per page (go on with
  * files.document.read); `note` says when one was read from the LMS instead. A long text comes
  * in parts: call again with `next_offset`. Links in the text written `lms:<ref>` open with this
- * tool.
+ * tool. An assignment or a quiz has `app_url`: in an answer about it, link its name to that.
  */
 export const lmsContentReadOptions = (options: Options<LmsContentReadData>) => queryOptions<LmsContentReadResponse, LmsContentReadError, LmsContentReadResponse, ReturnType<typeof lmsContentReadQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -4623,7 +4623,7 @@ export const lmsContentReadInfiniteQueryKey = (options: Options<LmsContentReadDa
  * have is read from there, with `item_id` and a citation per page (go on with
  * files.document.read); `note` says when one was read from the LMS instead. A long text comes
  * in parts: call again with `next_offset`. Links in the text written `lms:<ref>` open with this
- * tool.
+ * tool. An assignment or a quiz has `app_url`: in an answer about it, link its name to that.
  */
 export const lmsContentReadInfiniteOptions = (options: Options<LmsContentReadData>) => {
     const opts = infiniteQueryOptions<LmsContentReadResponse, LmsContentReadError, InfiniteData<LmsContentReadResponse>, QueryKey<Options<LmsContentReadData>>, number | Pick<QueryKey<Options<LmsContentReadData>>[0], 'body' | 'headers' | 'path' | 'query'>>(

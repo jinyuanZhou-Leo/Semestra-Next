@@ -595,12 +595,17 @@ class InTasks(BaseModel):
     completed: bool
 
 
+class AssignmentFacts(Assignment):
+    """The assignment as `AssignmentDetail` gives it (its own name in the API: the AI module has
+    an `Assignment` too)."""
+
+
 class AssignmentDetail(BaseModel):
-    """One assignment, whole (M09 §5.4): as the platform has it now, or, when the platform
+    """One assignment, whole (M09 §5): as the platform has it now, or, when the platform
     can't be asked, as the last sync kept it (`kept_at`)."""
 
     provider: str = Field(description="The provider it was read from")
-    assignment: Assignment = Field(description="Without `submission`: it is `submission` here")
+    assignment: AssignmentFacts = Field(description="Without `submission`: it is `submission` here")
     submission: SubmissionDetail | None = Field(
         description="What the user handed in, with the teacher's feedback; null when unknown"
     )
@@ -616,6 +621,9 @@ class AssignmentDetail(BaseModel):
     )
     assessment: InGradebook | None = Field(description="The gradebook row it was imported as")
     task: InTasks | None = Field(description="Its to-do")
+    targets: list[LinkTarget] = Field(
+        default=[], description="What the description's links to course files are in the app"
+    )
 
 
 class AssignmentTarget(BaseModel):

@@ -81,6 +81,6 @@ async def submitted_file_content(
     ctx: Annotated[Ctx, Depends(get_ctx)],
     download: Download = False,
 ) -> Response:
-    """A file the user handed in for an assignment (M09 §5.4)."""
+    """A file the user handed in for an assignment (M09 §5)."""
     meta = await assignment.submitted_file(ctx, course_id, assignment_id, file_id)
     return await _stream(ctx, course_id, meta, file_id, download, False)

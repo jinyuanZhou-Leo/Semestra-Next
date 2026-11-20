@@ -180,6 +180,11 @@ class LmsContentDetail(BaseModel):
     kind: ContentKind
     title: str
     url: str | None = Field(default=None, description="Opens it on the LMS")
+    app_url: str | None = Field(
+        default=None,
+        description="Of an assignment or a quiz: opens its details in the app (a path under the "
+        "app's address)",
+    )
     date: datetime | None = Field(default=None, description="Posted or last changed")
     due_at: datetime | None = None
     points: float | None = Field(default=None, description="Points possible")

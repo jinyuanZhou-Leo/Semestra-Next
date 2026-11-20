@@ -5,6 +5,7 @@ installed or the provider has none."""
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from urllib.parse import urlencode
 
 from semestra.core.context import Ctx
 from semestra.modules.lms import service
@@ -37,3 +38,10 @@ async def announcements_path(ctx: Ctx, course_id: str, external_id: str | None) 
     if page is None or not await plugins.is_installed(ctx, page.plugin_id):
         return None
     return page.announcements(external_id)
+
+
+def assignment_path(program_id: str, course_id: str, assignment_id: str) -> str:
+    """The app's address of an assignment's details (M09 §7.3): they open over any page, here
+    over its course's. `assignment_id` is the platform's id, or `quiz:<id>` for a quiz."""
+    opens = urlencode({"assignment": f"{course_id}:{assignment_id}"})
+    return f"/p/{program_id}/c/{course_id}?{opens}"
