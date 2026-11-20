@@ -1,5 +1,19 @@
 # @semestra/web
 
+## 2.5.0
+
+### Minor Changes
+
+- e3434d2: <!-- area: canvas -->
+  <!-- en -->
+  Assignment details: open any Canvas assignment where you see it (Canvas tab, gradebook, tasks, calendar, announcements, notifications) to read its instructions, your submission and your instructor's feedback. Imported assignments stay readable when Canvas can't be reached.
+  <!-- zh -->
+  作业详情：在 Canvas 标签页、成绩册、待办、日历、公告和通知中，都可以就地打开作业，查看作业说明、你的提交和老师的反馈。已导入的作业在 Canvas 无法访问时仍可查看。
+
+### Patch Changes
+
+- @semestra/api-client@2.5.0
+
 ## 2.4.1
 
 ### Patch Changes
