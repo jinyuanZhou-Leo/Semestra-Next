@@ -7,11 +7,11 @@
 1. 应用内助手：侧边面板（`Cmd/Ctrl+J`）与全屏页面，多会话，流式回答，Markdown 渲染，引用文件出处。
 2. 工具调用：capability 注册表中 `expose` 含 `agent` 的全部能力，按用户已安装插件过滤。
 3. **渐进式工具暴露**：常用工具直接绑定，其余通过元工具搜索后加载。
-4. **Skill**：每个模块的 `skills/*.md`，按需检索与加载；可作为斜杠命令调用。
+4. **Skill**：每个模块的 `skills/<name>/SKILL.md`（Agent Skills 格式），按需检索与加载；可作为斜杠命令调用；Sem 与 MCP 客户端用同一批文件。
 5. **写操作确认**：write/destructive 工具调用生成**提案**，用户确认后执行；可配置低风险写操作免确认。
 6. **上下文感知**：自动注入当前页面作用域（Program/学期/课程）、今天日期与周次、时区、语言。
 7. 附件：拖入文件或图片（图片直接给模型看；文档交给 M07 解析后可检索）。
-8. **MCP 服务端**：`/mcp`（Streamable HTTP），PAT 认证；tools = capability，prompts = skills。
+8. **MCP 服务端**：`/mcp`（Streamable HTTP），PAT 认证；tools = capability + `load_skill`，prompts = skills，MCP Skills 扩展；instructions = 与 Sem 共用的工作规则。
 9. 用量与安全：每轮最多工具调用次数、上下文压缩、提示注入防护。
 
 ## 2. 领域模型
@@ -54,23 +54,28 @@ agent_preferences
 - 工具执行时 `ctx.actor = 'agent'`，`ctx.scope` = 会话当前作用域。
 
 ### 3.3 Skill
-- 来源：每个模块 `modules/<m>/skills/*.md`，构建时汇总；插件 skill 只在已安装时可见。
-- 格式（`+++` 包住的 TOML frontmatter + 正文，用标准库 `tomllib` 读，2026-10-23 起取代手写的 YAML 子集）：
+- 来源：每个模块 `modules/<m>/skills/<name>/SKILL.md`，构建时汇总；插件 skill 只在已安装时可见。
+- 格式（2026-11-20 起用开放的 [Agent Skills](https://agentskills.io) 格式，取代 `+++` TOML：同一个文件直接就是一个标准 skill，MCP 的 Skills 扩展原样提供；YAML 用 PyYAML 读）：
   ```markdown
-  +++
-  name = "record-grades"
-  title = { en = "Record grades", zh-CN = "录入成绩" }
-  command = "/grade"            # 可选，斜杠命令
-  description = "Use when the user reports a score ... Do not use for ..."
-  tools = ["academics.course.find", "grading.assessment.find", "grading.assessment.update"]
-  +++
-  ## Objective / ## Use When / ## Do Not Use When / ## Workflow（步骤） / ## Output（回答格式） / ## Notes
+  ---
+  name: record-grades            # 与文件夹同名
+  description: Use when the user reports a score ... Do not use for ...
+  metadata:                      # 标准只允许字符串值
+    title: Record grades
+    title-zh-CN: 录入成绩
+    command: /grade              # 可选，斜杠命令
+    tools: >-                    # 空格分隔
+      academics.course.find
+      grading.assessment.find
+  ---
+  步骤化正文
   ```
+- 正文与界面无关：不写“卡片会确认”、`[[cite:…]]`、`load_capability` 之类某一端才有的机制（全局测试检查）；改动怎么确认、出处怎么写由各端的固定指令说明（Sem 的 `prompts/system.md`，MCP 的 `prompts/mcp.md`）。
 - `skills_read` 返回正文并自动 `tools_load` 其声明的 tools。
 - 用户在输入框输入 `/` 弹出 skill 命令列表；选择后该 skill 直接注入本轮上下文。
 - Skill 写作规范（所有模块遵守）：单一职责；description 写给路由看（Use When / Do Not Use When）；正文是步骤化流程而不是角色扮演；明确输出格式；英文书写（模型侧），`title` 双语（界面侧）。
 
-### 3.4 System prompt 要点（`agent/prompts/system.md`，英文）
+### 3.4 System prompt 要点（`agent/prompts/system.md`，英文；与 MCP 共用的工作规则在 `prompts/rules.md`，由 `context.instructions` 拼入两边）
 - 你是 Semestra 的学业助手；用用户的界面语言回答（`ctx.locale`）。
 - 当前时间、时区、当前学期（起止日期、全部假期）与周次、当前页面作用域（名称与 id；范围是另一个学期时也带它的起止日期与假期）。
 - 只通过工具读取用户数据，不臆测；涉及数字（成绩、GPA、截止时间）必须来自工具结果。
@@ -116,8 +121,12 @@ agent_preferences
 - **tools**：`registry.list(expose='mcp', user)`，PAT 作用域为 `read` 时只列出 read 工具；工具名同 3.2 规则。write 工具在 MCP 下直接执行（外部客户端自带确认机制），destructive 工具需要 PAT 同时具备 `write` 作用域且在设置中开启"允许 MCP 执行删除类操作"（`agent_preferences.mcp_allow_destructive`，默认关闭）。这条由 agent 模块用 `registry.set_token_policy` 注册（`mcp_changes.McpTokenPolicy`），在 `registry.invoke` 里对令牌的每次调用检查（令牌直接调 REST 接口也一样）；MCP 的工具列表只是按同样的规则过滤显示。
 - **修改记录**：同一个策略在令牌的每次 write/destructive 调用时，和修改同一事务写一行 `agent_mcp_changes`（令牌、当时的连接名称 `client`、能力名、对象名称 `target`）。名称用 Sem 对话步骤同一套 `display.labels`，在执行前读出（删掉的对象也有名字），再补上返回对象自己的名称；读名称失败只让这一行没有名称。保留 90 天（每日 `agent.mcp_changes.cleanup`），与令牌的生命周期无关：撤销后照常列出，令牌行 30 天后被删除时 `token_id` 置空，靠 `client` 显示名称；不随备份导出。`agent.mcp_change.list`（`GET /agent/mcp-changes`，可选 `token_id` 筛选，仅 HTTP）返回最近 100 条。设置的「客户端与 API 令牌」标题行有「最近更改」（有记录时才显示，按连接筛选，包括已撤销的连接），读写连接的「⋯ → 最近更改」打开时筛选到该连接；操作名用 `capability_<名称>_title`。
 - **连接状态**：「新建连接」最后一步每 3 秒读一次令牌列表，令牌有了 `last_used_at`（第一次请求就会写入）就显示“已连接”，否则显示“等待连接”；登录授权的应用在出现一个新的、`app` 是该应用的 `kind='oauth'` 连接时显示“已连接”。
-- **prompts**：每个 skill 作为一个 MCP prompt（name = skill name，内容为 skill 正文）。
-- **resources**：`semestra://programs`、`semestra://terms/{id}`、`semestra://courses/{id}` 只读概要。
+- **instructions**（2026-11-20）：`prompts/about.md`（Semestra 是什么、用户问到哪些学业信息时该用它）+ `prompts/rules.md`（与 Sem 共用：数字只来自工具结果、`fields`、数据有说不清的变化先停下、不可信内容）+ `prompts/mcp-rules.md`（这一端不同的地方：用 `load_skill` 加载 skill；没有工作范围，Program 与当前学期用工具查；写操作立即生效，所以删除、批量修改、提交导入前先在对话里说明并等用户同意；出处写文件名和页码）。能力名经 `tools.for_model` 换成工具名。
+- **skill**：三条路径都来自同一批 `SKILL.md`，都只列出令牌能调用其全部工具的 skill（只读令牌看不到写流程）：
+  - `load_skill` 工具（不是 capability）：描述开头是 `about.md`，然后是 skill 目录；返回 `about.md` + `mcp-rules.md` + 正文 + 它用到的工具。客户端不一定把 instructions 交给模型，所以“Semestra 是什么、什么时候用”和“删除、提交导入前先问”这两件事也放在模型一定看得到的工具描述与 skill 内容里（评审指出）。客户端都支持工具，但不一定把 instructions 交给模型（Claude 的文档没写），所以目录放在工具描述里，模型能自己加载，相当于 Sem 的 `load_capability`。
+  - prompts：每个 skill 一个 prompt，内容同 `load_skill` 的返回，供用户手动选用（Claude 的 + 菜单、Claude Code 的斜杠命令）。
+  - MCP Skills 扩展（SEP-2640，`io.modelcontextprotocol/skills`）：`skills/list`、`skills/get` 与资源 `skill://<name>/SKILL.md`（只能按 URI `resources/read`，不进 `resources/list`，否则在 Claude 的 + 菜单里与 prompts 重复；`text/markdown`，内容为 frontmatter 加 `load_skill` 返回的同一段文字，frontmatter 从中解析，`digest` 为其 sha256）。SDK 只在 2026-07-28 协议（`server/discover`）里通告 extensions，握手协议的客户端看不到声明，但方法照样可调。截至 2026-09 主流客户端还没实现这个扩展，所以 `load_skill` 是主要路径。
+- 原来的 `semestra://programs|terms|courses` 资源已删除：与工具重复，ChatGPT 也不读资源。
 - 调用同样记录 `ctx.actor='mcp'`，并通过 SSE 推送事件让网页实时刷新。
 - 设置页展示「客户端与 API 令牌」表（「新建连接」对话框）与 MCP 端点地址（见 §6.2「MCP」）；各客户端的手动步骤在文档站 `/<lang>/mcp/<客户端>`，一个客户端一页。
 
@@ -191,7 +200,7 @@ agent_preferences
 - 工作范围只到学期：会话的 `scope` 只含 `program_id` 与可选 `term_id`。旧会话里的 `course_id` 由迁移 `0041` 换成该课程的学期（年课取最晚的学期，已有学期的保留），建议问题也不再有课程一级（2026-11-08 全仓审查，2.0 前不保留兼容）。
 - 新增接口：`POST /agent/sessions/{id}/proposals:decide`（"全部批准"，一次决定多个）、`agent.skill.list`（`GET /agent/skills`，斜杠命令用）。SSE 路由不进 OpenAPI，前端用 `fetch` 读流（`modules/assistant/stream.ts`）。SSE 事件 `title` 在自动命名后发出。
 - Skill frontmatter 新增 `title: { en, zh-CN }`（必填，界面显示）与可选 `command`（如 `/grade`，全局唯一，测试会检查）。
-- MCP：官方 `mcp` SDK 的低层 `Server` + `StreamableHTTPSessionManager(stateless=True, json_response=True)`，**每个请求新建一个 manager**（放在应用 lifespan 里跨 task 会报 cancel scope 错误）。认证只认 `Bearer spat_…`；read 令牌只看到 read 工具；destructive 需要 write 令牌且开启 `mcp_allow_destructive`。prompts = skill，resources 为 `semestra://programs`、`semestra://terms/{id}`、`semestra://courses/{id}`。
+- MCP：官方 `mcp` SDK 的低层 `Server` + `StreamableHTTPSessionManager(stateless=True, json_response=True)`，**每个请求新建一个 manager**（放在应用 lifespan 里跨 task 会报 cancel scope 错误）。认证只认 `Bearer spat_…`；read 令牌只看到 read 工具；destructive 需要 write 令牌且开启 `mcp_allow_destructive`。skill 经 `load_skill`、prompts 与 Skills 扩展提供（见 §5）。
 - 揭示记录（2026-10-20 trace 评估后）：skill 与搜索揭示的工具在 Pydantic AI 里是同一请求里紧挨工具结果的 `ToolAvailabilityDeltaPart`，存 `tool` 行时随结果一起保留（`loop._reveals`）。之前只存结果，审批续跑、下一条消息和「继续」从库里还原的历史就看不到这些工具，库会拒绝已经执行过的调用（「not available yet」），模型以为没建成又建了一遍。旧会话缺这条记录时，续跑前把被恢复的卡片的工具补成已揭示（`loop._keep_callable`）；这只管审批续跑，旧会话的下一条消息或「继续」仍会让模型先碰到一次「not available yet」再重新加载，那时什么都没执行，代价只是一次重试。`FakeModel` 检查同一对话里工具列表不会变少，`tests/test_replay.py` 回放真实 trace 的调用。`semestra check-sessions [db] [--since]` 只读扫描本机库，列出执行了但模型拿到错误的卡片、被拒的调用、只执行一半的批次、没存揭示记录的历史、同名学期、同一学期里同代码的课程（不同学期同代码视为重修）、暂停，以及每条消息的调用次数和 tokens。
 - 测试：后端用 Pydantic AI 的 `FunctionModel` 脚本化（`tests/conftest.py` 的 `FakeModel`，记录每次请求的消息与工具列表），覆盖审批续跑、上限与继续、重复调用、长结果分页、搜索揭示、skill 加载、跨模型思考过滤、压缩（含换模型后摘要仍生效）；`test_wire.py` 用 respx 检查发给 Anthropic 的工具列表在找到工具前后不变；M06 的 `ai/tests/test_agent_stream.py` 覆盖流式模型的重试语义（首个事件前的 429/529 重试、之后的失败不重试、思考摘要被拒后去掉、取消记为 `ai.cancelled`）；MCP 用 SDK 客户端走 ASGI；另有一个测试检查每个 agent capability 都有中英 `capability_*_title`。`@pytest.mark.live` 的真实模型评测没有写。
 

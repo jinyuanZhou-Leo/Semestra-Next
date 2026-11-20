@@ -1,6 +1,7 @@
 """The system prompt (M12 §3.4), ordered for prompt-cache reuse: most stable first.
 
-1. `STATIC_PROMPT` (`prompts/system.md`): fixed instructions, no variables at all.
+1. `STATIC_PROMPT` (`prompts/system.md` with the shared `prompts/rules.md`): fixed instructions,
+   no variables at all.
 2. Tool definitions (core tools and `search_tools`/`load_capability`/`read_tool_result` in a fixed
    order; tools found later are only appended, see `tools.toolset` and `loop._tool_order`).
 3. `work_context`: the user's name, where the assistant works (Program or term), today's date
@@ -27,9 +28,28 @@ from semestra.modules.academics import service as academics
 from semestra.modules.academics.models import AcademicsProgram, AcademicsTerm
 from semestra.modules.ai import UNTRUSTED_NOTICE
 
-STATIC_PROMPT = Template(
-    (Path(__file__).parent / "prompts" / "system.md").read_text(encoding="utf-8")
-).substitute(untrusted=UNTRUSTED_NOTICE)
+_PROMPTS = Path(__file__).parent / "prompts"
+
+
+def prompt(name: str) -> str:
+    return (_PROMPTS / f"{name}.md").read_text(encoding="utf-8").strip()
+
+
+def instructions(name: str, untrusted: str = "") -> str:
+    """A surface's fixed instructions (`prompts/<name>.md`) with the rules every surface shares
+    (`prompts/rules.md`): Sem's system prompt, and what MCP clients get at initialization.
+    `untrusted`: how this surface marks untrusted text, when it does. A surface's own rules
+    (`prompts/<name>-rules.md`, when there is one) go where `$surface` stands."""
+    rules = Template(prompt("rules")).substitute(untrusted=f" {untrusted}" if untrusted else "")
+    own = _PROMPTS / f"{name}-rules.md"
+    surface = prompt(f"{name}-rules") if own.exists() else ""
+    return (
+        Template(prompt(name)).safe_substitute(rules=rules, surface=surface, about=prompt("about"))
+        + "\n"
+    )
+
+
+STATIC_PROMPT = instructions("system", UNTRUSTED_NOTICE)
 _LANGUAGES = {"en": "English", "zh-CN": "Simplified Chinese"}
 
 

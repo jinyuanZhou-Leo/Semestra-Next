@@ -1,10 +1,15 @@
 """MCP server (M12 §5): `/mcp`, Streamable HTTP, for a pasted API token or an OAuth access token.
 
 tools = capabilities exposed to MCP (read-only for `read` tokens; delete actions only with a
-`write` token and the user's "allow MCP to delete" preference), prompts = skills, resources =
-read-only summaries of programs, terms and courses.
+`write` token and the user's "allow MCP to delete" preference). Skills reach the client three
+ways, all from the same `SKILL.md` files and limited to those whose tools the token may call:
+the `load_skill` tool (every client supports tools, so the model can load one itself), prompts
+(for the user to start one by hand) and the MCP Skills extension (`skills/list`, `skills/get`
+and `skill://` resources, for clients that support it). The server's instructions are the rules
+Sem works by (`prompts/rules.md`) plus what differs here (`prompts/mcp.md`).
 """
 
+import hashlib
 import json
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -13,6 +18,8 @@ from typing import Any
 import mcp_types as types
 from mcp.server.lowlevel import Server
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
+from mcp.shared.exceptions import MCPError
+from mcp_types._types import MCPModel
 from starlette.datastructures import State
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
@@ -23,9 +30,12 @@ from semestra.core.config import Settings
 from semestra.core.context import AuthInfo, Ctx, Identity
 from semestra.core.errors import AppError
 from semestra.modules.agent import outcome, service, skills, tools
+from semestra.modules.agent.context import instructions, prompt
 from semestra.modules.agent.runtime import agent_ctx
 
 _IDENTITY = "semestra_mcp_identity"
+LOAD_SKILL = "load_skill"
+SKILLS_EXTENSION = "io.modelcontextprotocol/skills"
 
 
 @dataclass(frozen=True)
@@ -116,7 +126,46 @@ async def _list_tools(ctx: Any, params: Any) -> types.ListToolsResult:
         return await _tools_for(c, ident)
 
     caps: list[Capability] = await _with_ctx(state, ident, run)
-    return types.ListToolsResult(tools=[_tool(c) for c in caps])
+    found = skills.visible_skills(caps)
+    return types.ListToolsResult(
+        tools=[_tool(c) for c in caps] + ([_load_skill_tool(found)] if found else [])
+    )
+
+
+def _load_skill_tool(found: list[skills.Skill]) -> types.Tool:
+    """Loads a skill, as `load_capability` does for Sem. What Semestra is, when to use it
+    (`prompts/about.md`) and the catalog are in the description: a client may not show the
+    server's instructions to the model, but it always shows tools (and a client that searches
+    its tools finds this one by those words)."""
+    catalog = "\n".join(f"- {s.name}: {tools.for_model(s.description)}" for s in found)
+    return types.Tool(
+        name=LOAD_SKILL,
+        description=(
+            f"{prompt('about')}\n\nThis tool loads one of Semestra's skills: a step-by-step "
+            "workflow for a common task, with the tools it uses. Load the one that covers the "
+            f"user's request before you start it.\n\nSkills:\n{catalog}"
+        ),
+        input_schema={
+            "type": "object",
+            "properties": {"name": {"type": "string", "enum": [s.name for s in found]}},
+            "required": ["name"],
+            "additionalProperties": False,
+        },
+        annotations=types.ToolAnnotations(read_only_hint=True),
+    )
+
+
+def _workflow(skill: skills.Skill) -> str:
+    """A skill as the model reads it over MCP: what Semestra is and this surface's rules
+    (`prompts/about.md`, `prompts/mcp-rules.md`: no review step in Semestra, so ask before
+    deleting or committing an import; where the Program and term come from), then the body and
+    the tools it uses. The rules come with every skill because a client may not give the model
+    the server's instructions, and the bodies leave them out."""
+    names = ", ".join(tools.tool_name(t) for t in skill.tools)
+    return tools.for_model(
+        f"{prompt('about')}\n\nWorking in Semestra over MCP:\n{prompt('mcp-rules')}\n\n---\n\n"
+        f"{skill.body}\n\nTools this workflow uses: {names}"
+    )
 
 
 def _text(payload: Any, *, error: bool = False) -> types.CallToolResult:
@@ -130,6 +179,14 @@ def _text(payload: Any, *, error: bool = False) -> types.CallToolResult:
 
 async def _call_tool(ctx: Any, params: types.CallToolRequestParams) -> types.CallToolResult:
     state, ident = _identity(ctx)
+    if params.name == LOAD_SKILL:
+        wanted = (params.arguments or {}).get("name")
+        found = await _skill_list(state, ident)
+        skill = next((s for s in found if s.name == wanted), None)
+        if skill is None:
+            names = ", ".join(s.name for s in found)
+            return _text({"error": f"No skill named {wanted!r}. Skills: {names}"}, error=True)
+        return types.CallToolResult(content=[types.TextContent(type="text", text=_workflow(skill))])
     name = tools.capability_name(params.name)
     # `Registry.invoke` enforces what a token may call (scope, plugins, the delete preference),
     # the same as on REST routes; `_tools_for` only decides which tools to show.
@@ -140,18 +197,18 @@ async def _call_tool(ctx: Any, params: types.CallToolRequestParams) -> types.Cal
     return _text(result.payload, error=not result.ok)
 
 
-async def _visible_skills(ctx: Ctx, ident: McpIdentity) -> list[skills.Skill]:
+async def _skill_list(state: State, ident: McpIdentity) -> list[skills.Skill]:
     """Skills whose tools this token may all call: a read-only token sees no write workflow."""
-    return skills.visible_skills(await _tools_for(ctx, ident))
+
+    async def run(c: Ctx) -> list[skills.Skill]:
+        return skills.visible_skills(await _tools_for(c, ident))
+
+    return await _with_ctx(state, ident, run)
 
 
 async def _list_prompts(ctx: Any, params: Any) -> types.ListPromptsResult:
     state, ident = _identity(ctx)
-
-    async def run(c: Ctx) -> list[skills.Skill]:
-        return await _visible_skills(c, ident)
-
-    found: list[skills.Skill] = await _with_ctx(state, ident, run)
+    found = await _skill_list(state, ident)
     return types.ListPromptsResult(
         prompts=[
             types.Prompt(name=s.name, title=s.title.get("en"), description=s.description)
@@ -162,90 +219,94 @@ async def _list_prompts(ctx: Any, params: Any) -> types.ListPromptsResult:
 
 async def _get_prompt(ctx: Any, params: types.GetPromptRequestParams) -> types.GetPromptResult:
     state, ident = _identity(ctx)
-
-    async def run(c: Ctx) -> list[skills.Skill]:
-        return await _visible_skills(c, ident)
-
-    found: list[skills.Skill] = await _with_ctx(state, ident, run)
-    skill = next((s for s in found if s.name == params.name), None)
+    skill = next((s for s in await _skill_list(state, ident) if s.name == params.name), None)
     if skill is None:
-        raise ValueError(f"unknown prompt {params.name!r}")
-    names = ", ".join(tools.tool_name(t) for t in skill.tools)
-    text = f"{tools.for_model(skill.body)}\n\nTools this workflow uses: {names}"
+        raise MCPError(types.INVALID_PARAMS, f"unknown prompt {params.name!r}")
     return types.GetPromptResult(
         description=tools.for_model(skill.description),
         messages=[
-            types.PromptMessage(role="user", content=types.TextContent(type="text", text=text))
+            types.PromptMessage(
+                role="user", content=types.TextContent(type="text", text=_workflow(skill))
+            )
         ],
     )
 
 
-async def _list_resources(ctx: Any, params: Any) -> types.ListResourcesResult:
-    return types.ListResourcesResult(
+def _skill_uri(skill: skills.Skill) -> str:
+    return f"skill://{skill.name}/{skills.FILENAME}"
+
+
+def _skill_file(skill: skills.Skill) -> str:
+    """`SKILL.md` as clients read it: the frontmatter (terms expanded, capabilities named as
+    their tools), then the same text `load_skill` returns."""
+    end = skill.text.index("\n---", 3) + len("\n---")
+    return f"{tools.for_model(skill.text[:end])}\n\n{_workflow(skill)}\n"
+
+
+class SkillFile(MCPModel):
+    uri: str
+    digest: str
+    size: int
+
+
+class SkillEntry(MCPModel):
+    uri: str
+    frontmatter: dict[str, Any]
+    resources: list[SkillFile]
+
+
+class ListSkillsResult(types.PaginatedResult, types.CacheableResult):
+    skills: list[SkillEntry]
+    result_type: types.ResultType = "complete"
+
+
+class GetSkillParams(types.RequestParams):
+    uri: str
+
+
+class GetSkillResult(types.CacheableResult):
+    skill: SkillEntry
+    result_type: types.ResultType = "complete"
+
+
+def _entry(skill: skills.Skill) -> SkillEntry:
+    text = _skill_file(skill)
+    raw = text.encode()
+    return SkillEntry(
+        uri=_skill_uri(skill),
+        frontmatter=skills.parse_frontmatter(text)[0],
         resources=[
-            types.Resource(
-                uri="semestra://programs",
-                name="programs",
-                description="The user's programs with their terms.",
-                mime_type="application/json",
+            SkillFile(
+                uri=_skill_uri(skill),
+                digest=f"sha256:{hashlib.sha256(raw).hexdigest()}",
+                size=len(raw),
             )
-        ]
+        ],
     )
 
 
-async def _list_templates(ctx: Any, params: Any) -> types.ListResourceTemplatesResult:
-    return types.ListResourceTemplatesResult(
-        resource_templates=[
-            types.ResourceTemplate(
-                uri_template="semestra://terms/{id}",
-                name="term",
-                description="A term with its courses.",
-                mime_type="application/json",
-            ),
-            types.ResourceTemplate(
-                uri_template="semestra://courses/{id}",
-                name="course",
-                description="A course and the terms it runs in.",
-                mime_type="application/json",
-            ),
-        ]
-    )
+def _by_uri(found: list[skills.Skill], uri: str) -> skills.Skill:
+    skill = next((s for s in found if _skill_uri(s) == uri), None)
+    if skill is None:
+        raise MCPError(types.INVALID_PARAMS, f"unknown skill {uri!r}")
+    return skill
 
 
-async def _resource(c: Ctx, uri: str) -> Any:
-    from semestra.modules.academics import service as academics
-    from semestra.modules.academics.schemas import CourseListInput
+async def _list_skills(ctx: Any, params: types.PaginatedRequestParams) -> ListSkillsResult:
+    state, ident = _identity(ctx)
+    return ListSkillsResult(skills=[_entry(s) for s in await _skill_list(state, ident)])
 
-    if uri == "semestra://programs":
-        programs = await academics.list_programs(c)
-        return [
-            {
-                **p.model_dump(mode="json", include={"id", "name", "timezone"}),
-                "terms": [
-                    t.model_dump(mode="json", include={"id", "name", "start_date", "end_date"})
-                    for t in await academics.list_terms(c, p.id)
-                ],
-            }
-            for p in programs
-        ]
-    kind, _, ident = uri.removeprefix("semestra://").partition("/")
-    if kind == "terms" and ident:
-        term = await academics.term_out(c, await academics.get_term_row(c, ident))
-        courses = await academics.list_courses(
-            c, CourseListInput(program_id=term.program_id, term_id=term.id)
-        )
-        return {
-            **term.model_dump(mode="json"),
-            "courses": [
-                course.model_dump(mode="json", include={"id", "code", "title", "credits"})
-                for course in courses.items
-            ],
-        }
-    if kind == "courses" and ident:
-        return (await academics.course_out(c, await academics.get_course_row(c, ident))).model_dump(
-            mode="json"
-        )
-    raise AppError("common.not_found", 404)
+
+async def _get_skill(ctx: Any, params: GetSkillParams) -> GetSkillResult:
+    state, ident = _identity(ctx)
+    return GetSkillResult(skill=_entry(_by_uri(await _skill_list(state, ident), params.uri)))
+
+
+async def _list_resources(ctx: Any, params: Any) -> types.ListResourcesResult:
+    """Empty: skills are found with `skills/list` (or as prompts); listing their files here
+    too would show each one twice in a client's attach menu. `skill://` URIs are still read
+    with `resources/read`, which the Skills extension needs."""
+    return types.ListResourcesResult(resources=[])
 
 
 async def _read_resource(
@@ -253,37 +314,30 @@ async def _read_resource(
 ) -> types.ReadResourceResult:
     state, ident = _identity(ctx)
     uri = str(params.uri)
-
-    async def run(c: Ctx) -> Any:
-        return await _resource(c, uri)
-
-    data = await _with_ctx(state, ident, run)
+    skill = _by_uri(await _skill_list(state, ident), uri)
     return types.ReadResourceResult(
         contents=[
-            types.TextResourceContents(
-                uri=uri, mime_type="application/json", text=json.dumps(data, ensure_ascii=False)
-            )
+            types.TextResourceContents(uri=uri, mime_type="text/markdown", text=_skill_file(skill))
         ]
     )
 
 
 def make_server() -> Server[Any]:
-    return Server(
+    server = Server(
         "semestra",
         version="0.1.0",
-        instructions=(
-            "Semestra is a student's planner: programs, terms, courses, timetable, grades and "
-            "tasks. Read data with the tools; numbers you report must come from tool results. "
-            "Prompts are step-by-step workflows for common tasks."
-        ),
+        instructions=tools.for_model(instructions("mcp")),
         on_list_tools=_list_tools,
         on_call_tool=_call_tool,
         on_list_prompts=_list_prompts,
         on_get_prompt=_get_prompt,
         on_list_resources=_list_resources,
-        on_list_resource_templates=_list_templates,
         on_read_resource=_read_resource,
     )
+    server.extensions[SKILLS_EXTENSION] = {}
+    server.add_request_handler("skills/list", types.PaginatedRequestParams, _list_skills)
+    server.add_request_handler("skills/get", GetSkillParams, _get_skill)
+    return server
 
 
 def _unauthorized(settings: Settings) -> Response:

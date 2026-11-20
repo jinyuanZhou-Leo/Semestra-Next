@@ -1,22 +1,23 @@
-+++
-name = "import-from-documents"
-title = { en = "Import from documents", zh-CN = "从文档导入" }
-command = "/import"
-description = "Use when the user shares a syllabus, timetable, ICS file or screenshot and wants its courses, grading scheme, class times or dates in the app (\"import this\", \"import syllabus\", \"set up my courses from these\"), or to finish an import an LMS tool started."
-tools = [
-  "academics.course.find",
-  "academics.term.list",
-  "academics.term.create",
-  "academics.term.update",
-  "imports.session.create",
-  "imports.session.get",
-  "imports.item.update",
-  "imports.item.decide_many",
-  "imports.item.add_many",
-  "imports.session.commit",
-  "imports.session.discard",
-]
-+++
+---
+name: import-from-documents
+description: Use when the user shares a syllabus, timetable, ICS file or screenshot and wants its courses, grading scheme, class times or dates in the app ("import this", "import syllabus", "set up my courses from these"), or to finish an import an LMS tool started.
+metadata:
+  title: Import from documents
+  title-zh-CN: 从文档导入
+  command: /import
+  tools: >-
+    academics.course.find
+    academics.term.list
+    academics.term.create
+    academics.term.update
+    imports.session.create
+    imports.session.get
+    imports.item.update
+    imports.item.decide_many
+    imports.item.add_many
+    imports.session.commit
+    imports.session.discard
+---
 
 # Importing from documents
 
@@ -33,8 +34,8 @@ tools one by one.
    copied into arguments: files attached to this conversation go in `attachment_ids` (the `id`
    of their `<attachment>` block), course files in `file_item_ids`. `source_kind` is `ics` for a
    calendar file (read exactly, with cancelled dates, without AI), `syllabus` for course
-   documents, `timetable_image` for a screenshot of a timetable, `text` only for text the user
-   pasted. Mixed files: one import per kind. `ai.not_configured`: tell the user AI needs a model
+   documents, `timetable_image` for a screenshot of a timetable, `text` only for text that is in no
+   file Semestra has (text the user pasted). Mixed files: one import per kind. `ai.not_configured`: tell the user AI needs a model
    in the settings; ICS files work without one.
 3. **Wait until it is ready.** AI sources start as `extracting` (`waiting_files` while course
    files are still being processed): call `imports.session.get` once with `wait_seconds` (up to
@@ -53,9 +54,9 @@ tools one by one.
    `import.course_ref_missing`, `import.term_unresolved`, `import.outside_term`,
    `import.no_teaching_weeks`. Fix them from what you know, reject the item, or ask the user
    about them and stop. The others (`import.duplicate_*`, `import.date_outside_term`: most often a
-   wrong year, weights that do not add up) only need mentioning. Then, in the same reply,
-   say what the commit will write (courses, class times, assessments per term, and what you left
-   out) and call `imports.session.commit`; the user confirms on its card. Report `created`, `updated` and `failed`; for failed items say why
+   wrong year, weights that do not add up) only need mentioning. Then say what the commit
+   will write (courses, class times, assessments per term, and what you left out) and call
+   `imports.session.commit`. Report `created`, `updated` and `failed`; for failed items say why
    (`result.error_code`) and offer to fix and commit again (only the failed items are retried).
 6. **Your own findings.** Only for what no importer reads (the user's own words, a format the
    importers refuse): create an import with `source_kind: "agent"`, add items with

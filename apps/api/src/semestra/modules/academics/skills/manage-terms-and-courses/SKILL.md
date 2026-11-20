@@ -1,28 +1,29 @@
-+++
-name = "manage-terms-and-courses"
-title = { en = "Manage terms and courses", zh-CN = "管理学期与课程" }
-command = "/terms"
-description = "Use when the user wants to add, rename, re-date or delete a semester or course, set reading weeks and holidays, or make a course year-long."
-tools = [
-  "academics.program.get",
-  "academics.program.update",
-  "academics.program.set_subject_color",
-  "academics.term.list",
-  "academics.term.get",
-  "academics.term.get_weeks",
-  "academics.term.create",
-  "academics.term.update",
-  "academics.term.preview_delete",
-  "academics.term.delete",
-  "academics.course.find",
-  "academics.course.list",
-  "academics.course.get",
-  "academics.course.create_many",
-  "academics.course.set_terms",
-  "academics.course.update",
-  "academics.course.delete",
-]
-+++
+---
+name: manage-terms-and-courses
+description: Use when the user wants to add, rename, re-date or delete a semester or course, set reading weeks and holidays, or make a course year-long.
+metadata:
+  title: Manage terms and courses
+  title-zh-CN: 管理学期与课程
+  command: /terms
+  tools: >-
+    academics.program.get
+    academics.program.update
+    academics.program.set_subject_color
+    academics.term.list
+    academics.term.get
+    academics.term.get_weeks
+    academics.term.create
+    academics.term.update
+    academics.term.preview_delete
+    academics.term.delete
+    academics.course.find
+    academics.course.list
+    academics.course.get
+    academics.course.create_many
+    academics.course.set_terms
+    academics.course.update
+    academics.course.delete
+---
 
 # Managing terms and courses
 
@@ -58,7 +59,6 @@ returns every term with its dates and breaks and marks the current one (`is_curr
 - Make a course year-long or move it: `academics.course.set_terms` with all its terms, which must
   be consecutive terms of the Program.
 
-**Deleting** (cannot be undone). Say in one sentence what goes with it, then call the delete
-tool in the same reply; the user confirms on the card. For a term, get the counts from
-`academics.term.preview_delete` first (courses deleted, year-long courses kept). Deleting a
+**Deleting** (cannot be undone). Tell the user in one sentence what goes with it. For a term,
+get the counts from `academics.term.preview_delete` first (courses deleted, year-long courses kept). Deleting a
 course or Program also deletes its grades, files and schedule.

@@ -212,12 +212,15 @@ migration of the plugin's tables.
 
 ### 4.5 Agent skill
 
-`<plugin package>/skills/<name>.md`. The frontmatter is TOML between `+++` lines: `name`, `title = { en = "…", zh-CN = "…" }`
-(the name shown in the app), `description` (starts with "Use when …" and says when to load it;
-the model sees only this line in its catalog) and `tools` (every capability the body uses; the
-skill appears only when all of them are available, and a test checks this), plus an optional
-`command` (a slash command such as `/note`, unique across the app). The body says which
-capabilities to call in which order for which requests (see `hello-note.md` in the template).
+`<plugin package>/skills/<name>/SKILL.md`, in the [Agent Skills](https://agentskills.io) format,
+so the same file serves Sem and MCP clients. The YAML frontmatter has `name` (the folder's name)
+and `description` (starts with "Use when …" and says when to load it; the model sees only this
+line in its catalog), and under `metadata`: `title` and `title-zh-CN` (the name shown in the
+app), `tools` (every capability the body uses, separated by spaces; the skill appears only when
+all of them are available, and a test checks this) and an optional `command` (a slash command
+such as `/note`, unique across the app). The body says which capabilities to call in which order
+for which requests (see `hello-note/SKILL.md` in the template). It does not say how changes are
+confirmed or how citations are written: Sem and MCP clients each have their own rules for that.
 Every capability whose `expose` includes the agent needs `capability_<name with underscores>_title`
 in `messages/*.json`; a backend test checks it.
 
