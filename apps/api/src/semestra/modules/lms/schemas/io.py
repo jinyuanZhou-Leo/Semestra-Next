@@ -24,6 +24,7 @@ from semestra.modules.lms.schemas.dto import (
     RubricCriterion,
     RubricScore,
     SubmissionComment,
+    SubmissionDetail,
     WebUrl,
 )
 
@@ -538,12 +539,6 @@ class FileInput(CourseReadInput):
     file_id: FileId = Field(description=FILE_ID)
 
 
-class SubmissionInput(CourseReadInput):
-    assignment_id: AssignmentId = Field(
-        description="External assignment id (`external_id` of lms.assignment.list)"
-    )
-
-
 class FeedbackOut(BaseModel):
     """The teacher's feedback on an assessment, as the last sync kept it (M09 §4.4)."""
 
@@ -566,6 +561,75 @@ class FeedbackOut(BaseModel):
 class FeedbackList(BaseModel):
     items: list[FeedbackOut] = Field(
         description="Assessments of the course with comments or rubric scores"
+    )
+
+
+class AssignmentReadInput(BaseModel):
+    course_id: Id = Field(description="Course id")
+    assignment_id: AssignmentId = Field(
+        description="External assignment id (`external_id` of lms.assignment.list)"
+    )
+    refresh: bool = Field(default=False, description="Skip the 5-minute cache and ask again")
+
+
+# What the sync keeps of an imported assignment and of the user's submission, next to the
+# feedback (`LmsFeedback.details` and `.work`): the rest has columns of its own.
+KEPT_ASSIGNMENT = frozenset(Assignment.model_fields) - {"submission", "rubric", "web_url", "points"}
+KEPT_SUBMISSION = frozenset(SubmissionDetail.model_fields) - {
+    "score", "grade", "attempt", "graded_at", "comments", "rubric_scores",
+}  # fmt: skip
+
+
+class QuizFacts(BaseModel):
+    question_count: int | None = None
+    time_limit: int | None = Field(default=None, description="Minutes; None for no limit")
+
+
+class InGradebook(BaseModel):
+    id: str
+    weight: float = Field(description="Percent of the course grade")
+
+
+class InTasks(BaseModel):
+    id: str
+    completed: bool
+
+
+class AssignmentDetail(BaseModel):
+    """One assignment, whole (M09 §5.4): as the platform has it now, or, when the platform
+    can't be asked, as the last sync kept it (`kept_at`)."""
+
+    provider: str = Field(description="The provider it was read from")
+    assignment: Assignment = Field(description="Without `submission`: it is `submission` here")
+    submission: SubmissionDetail | None = Field(
+        description="What the user handed in, with the teacher's feedback; null when unknown"
+    )
+    quiz: QuizFacts | None = Field(default=None, description="Of an assignment that is a quiz")
+    kept: bool = Field(
+        default=False, description="This is what the sync kept, not the platform's answer"
+    )
+    kept_at: datetime | None = Field(
+        default=None, description="When the sync read what it kept (unknown for old rows)"
+    )
+    problem: str | None = Field(
+        default=None, description="Why the platform's answer is missing (an error code)"
+    )
+    assessment: InGradebook | None = Field(description="The gradebook row it was imported as")
+    task: InTasks | None = Field(description="Its to-do")
+
+
+class AssignmentTarget(BaseModel):
+    course_id: str
+    assignment_id: str = Field(description="The assignment's external id")
+    assessment_id: str | None = None
+    task_id: str | None = Field(
+        default=None, description="Set for an assignment imported as a to-do only"
+    )
+
+
+class AssignmentTargets(BaseModel):
+    items: list[AssignmentTarget] = Field(
+        description="The Program's assessments and to-dos that are an assignment of the platform"
     )
 
 

@@ -217,9 +217,11 @@ class LinkRow(BaseModel):
 
 
 class FeedbackRow(BaseModel):
-    """The teacher's feedback kept for an assessment (`LmsFeedback`)."""
+    """An imported assignment as the sync kept it (`LmsFeedback`), of an assessment or a to-do.
+    Backups made before descriptions and submissions were kept have the feedback only."""
 
-    assessment_id: str
+    assessment_id: str | None = None
+    task_id: str | None = None
     course_id: str
     provider: str
     assignment_id: str
@@ -232,10 +234,13 @@ class FeedbackRow(BaseModel):
     comments: list[SubmissionComment] = []
     rubric: list[RubricCriterion] = []
     rubric_scores: list[RubricScore] = []
+    details: dict[str, Any] | None = None
+    work: dict[str, Any] | None = None
+    read_at: datetime | None = None
 
 
 # The JSON columns of `LmsFeedback`, kept as JSON (the others keep their Python types).
-FEEDBACK_JSON = {"comments", "rubric", "rubric_scores"}
+FEEDBACK_JSON = {"comments", "rubric", "rubric_scores", "details", "work"}
 
 
 class RefRow(BaseModel):
@@ -495,16 +500,18 @@ async def import_(
         ctx.db.add(ref)
         report.imported["refs"] += 1
     for f in data.feedback:
-        assessment_id, course_id = id_map.get(f.assessment_id), id_map.get(f.course_id)
-        if assessment_id is None or course_id is None:
-            skip("feedback", f.assessment_id, f.course_id)
+        owner = f.assessment_id or f.task_id or ""
+        target, course_id = id_map.get(owner), id_map.get(f.course_id)
+        if target is None or course_id is None:
+            skip("feedback", owner, f.course_id)
             continue
         ctx.db.add(
             LmsFeedback(
-                **f.model_dump(exclude={"assessment_id", "course_id", *FEEDBACK_JSON}),
+                **f.model_dump(exclude={"assessment_id", "task_id", "course_id", *FEEDBACK_JSON}),
                 **f.model_dump(mode="json", include=FEEDBACK_JSON),
                 user_id=ctx.user_id,
-                assessment_id=assessment_id,
+                assessment_id=target if f.assessment_id else None,
+                task_id=None if f.assessment_id else target,
                 course_id=course_id,
             )
         )

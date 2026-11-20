@@ -1366,6 +1366,80 @@
         }
       }
     },
+    "/courses/{course_id}/lms/assignments/{assignment_id}/submission/files/{file_id}/content": {
+      "get": {
+        "tags": [
+          "lms"
+        ],
+        "summary": "Submitted File Content",
+        "description": "A file the user handed in for an assignment (M09 §5.4).",
+        "operationId": "lmsSubmittedFileContent",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Course Id"
+            }
+          },
+          {
+            "name": "assignment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Assignment Id"
+            }
+          },
+          {
+            "name": "file_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "File Id"
+            }
+          },
+          {
+            "name": "download",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Send as an attachment",
+              "default": false,
+              "title": "Download"
+            },
+            "description": "Send as an attachment"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/agent/attachments": {
       "post": {
         "tags": [
@@ -11967,6 +12041,82 @@
         }
       }
     },
+    "/courses/{course_id}/lms/assignments/{assignment_id}": {
+      "get": {
+        "tags": [
+          "lms"
+        ],
+        "summary": "One assignment of the LMS, whole: its description, the user's submission, feedback.",
+        "description": "What the assignment's details show (M09 §5.4): the assignment, what the user\nhanded in, the teacher's comments and rubric scores (match `rubric_scores.criterion_id` with\n`assignment.rubric`), and where it is in Semestra. When the LMS can't be asked and the\nassignment was imported, the answer is what the last sync kept (`kept`).",
+        "operationId": "lmsAssignmentGet",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Course id",
+              "title": "Course Id"
+            },
+            "description": "Course id"
+          },
+          {
+            "name": "assignment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "External assignment id (`external_id` of lms.assignment.list)",
+              "title": "Assignment Id"
+            },
+            "description": "External assignment id (`external_id` of lms.assignment.list)"
+          },
+          {
+            "name": "refresh",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Skip the 5-minute cache and ask again",
+              "default": false,
+              "title": "Refresh"
+            },
+            "description": "Skip the 5-minute cache and ask again"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentDetail"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/courses/{course_id}/lms/imports:assignments": {
       "post": {
         "tags": [
@@ -12200,6 +12350,59 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/semestra__modules__lms__schemas__io__AssignmentList"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/programs/{program_id}/lms/assignment-targets": {
+      "get": {
+        "tags": [
+          "lms"
+        ],
+        "summary": "The Program's assessments and to-dos that are an LMS assignment.",
+        "description": "Which assignment each imported assessment or to-do is (read from the\ndatabase): what their rows open with lms.assignment.get.",
+        "operationId": "lmsAssignmentTargets",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "program_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Program id",
+              "title": "Program Id"
+            },
+            "description": "Program id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentTargets"
                 }
               }
             }
@@ -14614,82 +14817,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/QuizList"
-                }
-              }
-            }
-          },
-          "default": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Default Response"
-          }
-        }
-      }
-    },
-    "/courses/{course_id}/lms/assignments/{assignment_id}/submission": {
-      "get": {
-        "tags": [
-          "lms"
-        ],
-        "summary": "The user's submission of one assignment on the LMS, with the teacher's feedback.",
-        "description": "Score, attempts, the teacher's comments and the rubric scores (match\n`rubric_scores.criterion_id` with the assignment's `rubric` from lms.assignment.list).",
-        "operationId": "lmsSubmissionGet",
-        "security": [
-          {
-            "sessionCookie": []
-          },
-          {
-            "accessToken": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "course_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "Course id (must be linked)",
-              "title": "Course Id"
-            },
-            "description": "Course id (must be linked)"
-          },
-          {
-            "name": "assignment_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "External assignment id (`external_id` of lms.assignment.list)",
-              "title": "Assignment Id"
-            },
-            "description": "External assignment id (`external_id` of lms.assignment.list)"
-          },
-          {
-            "name": "refresh",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "description": "Skip the 5-minute cache and ask again",
-              "default": false,
-              "title": "Refresh"
-            },
-            "description": "Skip the 5-minute cache and ask again"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SubmissionDetail"
                 }
               }
             }
@@ -21755,66 +21882,6 @@
         ],
         "title": "AssessmentUpdateManyResult"
       },
-      "Assignment": {
-        "properties": {
-          "purpose": {
-            "type": "string",
-            "enum": [
-              "chat",
-              "extraction",
-              "vision",
-              "ocr",
-              "embedding",
-              "title"
-            ],
-            "title": "Purpose"
-          },
-          "provider_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Provider Id"
-          },
-          "model": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Model"
-          },
-          "params": {
-            "$ref": "#/components/schemas/ModelParams"
-          },
-          "recommended": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/RecommendedModel"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "type": "object",
-        "required": [
-          "purpose",
-          "provider_id",
-          "model",
-          "params",
-          "recommended"
-        ],
-        "title": "Assignment"
-      },
       "AssignmentBindInputBody": {
         "properties": {
           "assignment_id": {
@@ -21861,6 +21928,104 @@
           "assignment_id"
         ],
         "title": "AssignmentBinding"
+      },
+      "AssignmentDetail": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "title": "Provider",
+            "description": "The provider it was read from"
+          },
+          "assignment": {
+            "$ref": "#/components/schemas/semestra__modules__lms__schemas__dto__Assignment",
+            "description": "Without `submission`: it is `submission` here"
+          },
+          "submission": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SubmissionDetail"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What the user handed in, with the teacher's feedback; null when unknown"
+          },
+          "quiz": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QuizFacts"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Of an assignment that is a quiz"
+          },
+          "kept": {
+            "type": "boolean",
+            "title": "Kept",
+            "description": "This is what the sync kept, not the platform's answer",
+            "default": false
+          },
+          "kept_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kept At",
+            "description": "When the sync read what it kept (unknown for old rows)"
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Problem",
+            "description": "Why the platform's answer is missing (an error code)"
+          },
+          "assessment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InGradebook"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The gradebook row it was imported as"
+          },
+          "task": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InTasks"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Its to-do"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider",
+          "assignment",
+          "submission",
+          "assessment",
+          "task"
+        ],
+        "title": "AssignmentDetail",
+        "description": "One assignment, whole (M09 §5.4): as the platform has it now, or, when the platform\ncan't be asked, as the last sync kept it (`kept_at`)."
       },
       "AssignmentImportInputBody": {
         "properties": {
@@ -22081,6 +22246,24 @@
             "title": "Allowed Attempts",
             "description": "None or -1: unlimited"
           },
+          "allowed_extensions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Allowed Extensions",
+            "description": "File types an upload takes; empty for any"
+          },
+          "statistics": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScoreStatistics"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "rubric": {
             "items": {
               "$ref": "#/components/schemas/RubricCriterion"
@@ -22140,6 +22323,65 @@
           "params"
         ],
         "title": "AssignmentParamsInputBody"
+      },
+      "AssignmentTarget": {
+        "properties": {
+          "course_id": {
+            "type": "string",
+            "title": "Course Id"
+          },
+          "assignment_id": {
+            "type": "string",
+            "title": "Assignment Id",
+            "description": "The assignment's external id"
+          },
+          "assessment_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assessment Id"
+          },
+          "task_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Id",
+            "description": "Set for an assignment imported as a to-do only"
+          }
+        },
+        "type": "object",
+        "required": [
+          "course_id",
+          "assignment_id"
+        ],
+        "title": "AssignmentTarget"
+      },
+      "AssignmentTargets": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AssignmentTarget"
+            },
+            "type": "array",
+            "title": "Items",
+            "description": "The Program's assessments and to-dos that are an assignment of the platform"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "AssignmentTargets"
       },
       "AssignmentUpdateInputBody": {
         "properties": {
@@ -30231,6 +30473,43 @@
         ],
         "title": "ImportTarget"
       },
+      "InGradebook": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "weight": {
+            "type": "number",
+            "title": "Weight",
+            "description": "Percent of the course grade"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "weight"
+        ],
+        "title": "InGradebook"
+      },
+      "InTasks": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "completed": {
+            "type": "boolean",
+            "title": "Completed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "completed"
+        ],
+        "title": "InTasks"
+      },
       "InheritedValue": {
         "properties": {
           "value": {
@@ -36550,6 +36829,35 @@
         ],
         "title": "Quiz"
       },
+      "QuizFacts": {
+        "properties": {
+          "question_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Question Count"
+          },
+          "time_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time Limit",
+            "description": "Minutes; None for no limit"
+          }
+        },
+        "type": "object",
+        "title": "QuizFacts"
+      },
       "QuizList": {
         "properties": {
           "items": {
@@ -37237,6 +37545,46 @@
         },
         "type": "object",
         "title": "ScaleUpdateInputBody"
+      },
+      "ScoreStatistics": {
+        "properties": {
+          "mean": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean"
+          },
+          "max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max"
+          },
+          "min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min"
+          }
+        },
+        "type": "object",
+        "title": "ScoreStatistics",
+        "description": "How the class did, when the instructor lets students see it."
       },
       "ScoreSuggestion": {
         "properties": {
@@ -39064,6 +39412,11 @@
             ],
             "title": "Attempt",
             "description": "Attempts made (quizzes, resubmissions)"
+          },
+          "excused": {
+            "type": "boolean",
+            "title": "Excused",
+            "default": false
           }
         },
         "type": "object",
@@ -39239,6 +39592,77 @@
             "title": "Missing",
             "default": false
           },
+          "excused": {
+            "type": "boolean",
+            "title": "Excused",
+            "default": false
+          },
+          "seconds_late": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seconds Late"
+          },
+          "points_deducted": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Points Deducted",
+            "description": "Taken off for lateness"
+          },
+          "submission_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submission Type",
+            "description": "How it was handed in"
+          },
+          "body": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Body",
+            "description": "A text entry's text"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url",
+            "description": "A website submission's address"
+          },
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/SubmittedFile"
+            },
+            "type": "array",
+            "title": "Files"
+          },
           "comments": {
             "items": {
               "$ref": "#/components/schemas/SubmissionComment"
@@ -39260,7 +39684,72 @@
           "assignment_id"
         ],
         "title": "SubmissionDetail",
-        "description": "The user's own submission of one assignment, with the teacher's feedback."
+        "description": "The user's own submission of one assignment (what they handed in last), with the\nteacher's feedback."
+      },
+      "SubmittedFile": {
+        "properties": {
+          "external_id": {
+            "type": "string",
+            "title": "External Id"
+          },
+          "web_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Web Url",
+            "description": "Opens the item on the platform"
+          },
+          "raw_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw Kind",
+            "description": "The platform's own type (debugging)"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "mime_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mime Type"
+          },
+          "size_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size Bytes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "external_id",
+          "name"
+        ],
+        "title": "SubmittedFile",
+        "description": "A file the user handed in; `external_id` is the platform's file id."
       },
       "SuggestInputBody": {
         "properties": {
@@ -39424,6 +39913,11 @@
             "type": "string",
             "title": "Target Id"
           },
+          "external_id": {
+            "type": "string",
+            "title": "External Id",
+            "description": "The assignment's id on the platform"
+          },
           "at": {
             "type": "string",
             "format": "date-time",
@@ -39451,6 +39945,7 @@
           "new",
           "target_kind",
           "target_id",
+          "external_id",
           "at",
           "reverted",
           "toggleable"
@@ -43173,11 +43668,71 @@
         ],
         "title": "Deleted"
       },
+      "semestra__modules__ai__schemas__Assignment": {
+        "properties": {
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "chat",
+              "extraction",
+              "vision",
+              "ocr",
+              "embedding",
+              "title"
+            ],
+            "title": "Purpose"
+          },
+          "provider_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Id"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "params": {
+            "$ref": "#/components/schemas/ModelParams"
+          },
+          "recommended": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecommendedModel"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "purpose",
+          "provider_id",
+          "model",
+          "params",
+          "recommended"
+        ],
+        "title": "Assignment"
+      },
       "semestra__modules__ai__schemas__AssignmentList": {
         "properties": {
           "items": {
             "items": {
-              "$ref": "#/components/schemas/Assignment"
+              "$ref": "#/components/schemas/semestra__modules__ai__schemas__Assignment"
             },
             "type": "array",
             "title": "Items"
@@ -43215,6 +43770,227 @@
         },
         "type": "object",
         "title": "Deleted"
+      },
+      "semestra__modules__lms__schemas__dto__Assignment": {
+        "properties": {
+          "external_id": {
+            "type": "string",
+            "title": "External Id"
+          },
+          "web_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Web Url",
+            "description": "Opens the item on the platform"
+          },
+          "raw_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw Kind",
+            "description": "The platform's own type (debugging)"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "html": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Html"
+          },
+          "due_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due At"
+          },
+          "unlock_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unlock At"
+          },
+          "lock_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lock At"
+          },
+          "points": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Points"
+          },
+          "group_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Id"
+          },
+          "group_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Name"
+          },
+          "group_weight": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Weight"
+          },
+          "submission_types": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Submission Types"
+          },
+          "submission": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Submission"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "published": {
+            "type": "boolean",
+            "title": "Published",
+            "default": true
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "locked": {
+            "type": "boolean",
+            "title": "Locked",
+            "default": false
+          },
+          "lock_explanation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lock Explanation",
+            "description": "Why it is locked, as the platform says"
+          },
+          "allowed_attempts": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allowed Attempts",
+            "description": "None or -1: unlimited"
+          },
+          "allowed_extensions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Allowed Extensions",
+            "description": "File types an upload takes; empty for any"
+          },
+          "statistics": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScoreStatistics"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rubric": {
+            "items": {
+              "$ref": "#/components/schemas/RubricCriterion"
+            },
+            "type": "array",
+            "title": "Rubric"
+          }
+        },
+        "type": "object",
+        "required": [
+          "external_id",
+          "name"
+        ],
+        "title": "Assignment"
       },
       "semestra__modules__lms__schemas__io__AssignmentList": {
         "properties": {

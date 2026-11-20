@@ -70,6 +70,7 @@ class SyncChange(BaseModel):
     new: Any
     target_kind: Literal["assessment", "task"]
     target_id: str
+    external_id: str = Field(description="The assignment's id on the platform")
     at: datetime
     reverted: bool
     toggleable: bool = Field(

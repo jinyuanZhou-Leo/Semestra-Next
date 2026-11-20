@@ -73,6 +73,8 @@ class Applied:
     ref_id: str
     name: str
     field: str
+    # The assignment's id on the platform: what opens it in the app.
+    external_id: str
 
 
 @dataclass
@@ -224,7 +226,13 @@ async def sync_course(
                 "program_id": link.program_id,
                 "manual": manual,
                 "applied": [
-                    {"change_id": a.change_id, "ref_id": a.ref_id, "name": a.name, "field": a.field}
+                    {
+                        "change_id": a.change_id,
+                        "ref_id": a.ref_id,
+                        "name": a.name,
+                        "field": a.field,
+                        "external_id": a.external_id,
+                    }
                     for r in results
                     for a in r.applied
                 ],

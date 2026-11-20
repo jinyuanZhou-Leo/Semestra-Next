@@ -7,7 +7,8 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import Response, StreamingResponse
 
 from semestra.core.context import Ctx, get_ctx, run_after_commit
-from semestra.modules.lms import announcements, reads
+from semestra.modules.lms import announcements, assignment, reads
+from semestra.modules.lms.schemas.dto import FileMeta
 
 router = APIRouter(tags=["lms"])
 
@@ -15,23 +16,10 @@ router = APIRouter(tags=["lms"])
 INLINE = ("application/pdf", "image/png", "image/jpeg", "image/gif", "image/webp", "text/plain")
 
 
-@router.get(
-    "/courses/{course_id}/lms/files/{file_id}/content",
-    operation_id="lmsFileContent",
-    response_class=StreamingResponse,
-)
-async def file_content(
-    course_id: str,
-    file_id: str,
-    ctx: Annotated[Ctx, Depends(get_ctx)],
-    download: Annotated[bool, Query(description="Send as an attachment")] = False,
-    check: Annotated[
-        bool, Query(description="Only check that the file opens (204, or the same errors)")
-    ] = False,
+async def _stream(
+    ctx: Ctx, course_id: str, meta: FileMeta | None, file_id: str, download: bool, check: bool
 ) -> Response:
-    # An announcement's attachment opens from the address the announcement gave.
-    known = await announcements.attachment_meta(ctx, course_id, file_id)
-    meta, chunks = await reads.open_file(ctx, course_id, file_id, meta=known)
+    meta, chunks = await reads.open_file(ctx, course_id, file_id, meta=meta)
     if check:
         # The first chunk is already read; closing the stream stops the transfer from the LMS.
         await anext(chunks, None)
@@ -56,3 +44,43 @@ async def file_content(
     return StreamingResponse(
         chunks, media_type=mime if inline else "application/octet-stream", headers=headers
     )
+
+
+Download = Annotated[bool, Query(description="Send as an attachment")]
+Check = Annotated[
+    bool, Query(description="Only check that the file opens (204, or the same errors)")
+]
+
+
+@router.get(
+    "/courses/{course_id}/lms/files/{file_id}/content",
+    operation_id="lmsFileContent",
+    response_class=StreamingResponse,
+)
+async def file_content(
+    course_id: str,
+    file_id: str,
+    ctx: Annotated[Ctx, Depends(get_ctx)],
+    download: Download = False,
+    check: Check = False,
+) -> Response:
+    # An announcement's attachment opens from the address the announcement gave.
+    known = await announcements.attachment_meta(ctx, course_id, file_id)
+    return await _stream(ctx, course_id, known, file_id, download, check)
+
+
+@router.get(
+    "/courses/{course_id}/lms/assignments/{assignment_id}/submission/files/{file_id}/content",
+    operation_id="lmsSubmittedFileContent",
+    response_class=StreamingResponse,
+)
+async def submitted_file_content(
+    course_id: str,
+    assignment_id: str,
+    file_id: str,
+    ctx: Annotated[Ctx, Depends(get_ctx)],
+    download: Download = False,
+) -> Response:
+    """A file the user handed in for an assignment (M09 §5.4)."""
+    meta = await assignment.submitted_file(ctx, course_id, assignment_id, file_id)
+    return await _stream(ctx, course_id, meta, file_id, download, False)

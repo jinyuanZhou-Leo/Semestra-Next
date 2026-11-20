@@ -615,9 +615,9 @@ async def open_file(
     metadata (with the download address) comes from the cache unless the caller has it."""
     linked = linked or await service.require_link(ctx, course_id)
     link, b = linked
-    service.require_feature(b, "files")
     ext = link.external_course_id
     if meta is None:
+        service.require_feature(b, "files")
         # A cached address is fine: Canvas's download URL carries the file's own verifier, which
         # does not expire, and the request is sent with the user's token anyway.
         meta = await file(ctx, course_id, file_id, refresh=False, linked=linked)
@@ -659,7 +659,9 @@ async def submission(
     ctx: Ctx, course_id: str, assignment_id: str, refresh: bool
 ) -> SubmissionDetail:
     async def fetch(b: Bound, i: Any, ext: str) -> Any:
-        return await b.provider.submission(i, b.cfg, b.creds, ext, assignment_id)
+        found = await b.provider.submission(i, b.cfg, b.creds, ext, assignment_id)
+        found.body = b.clean(found.body, None, ext)
+        return found
 
     data, *_ = await _read(
         ctx,

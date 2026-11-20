@@ -199,6 +199,7 @@ async def status(ctx: Ctx, program_id: str) -> SyncStatus:
             toggleable=change.id in can_toggle,
             target_kind="assessment" if ref.target_kind == "assessment" else "task",
             target_id=str(ref.target_id),
+            external_id=ref.external_id,
         )
         for change, ref in rows
         if ref.target_id is not None

@@ -164,7 +164,9 @@ async def _log(ctx: Ctx, ref: LmsImportedRef, name: str, old: Any, new: Any, tit
     )
     ctx.db.add(change)
     await ctx.db.flush()
-    return Applied(change_id=change.id, ref_id=ref.id, name=title, field=name)
+    return Applied(
+        change_id=change.id, ref_id=ref.id, name=title, field=name, external_id=ref.external_id
+    )
 
 
 async def _follow(

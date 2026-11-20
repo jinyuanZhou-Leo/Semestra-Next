@@ -1036,26 +1036,6 @@ export type AssessmentUpdateManyResult = {
 };
 
 /**
- * Assignment
- */
-export type Assignment = {
-    /**
-     * Purpose
-     */
-    purpose: 'chat' | 'extraction' | 'vision' | 'ocr' | 'embedding' | 'title';
-    /**
-     * Provider Id
-     */
-    provider_id: string | null;
-    /**
-     * Model
-     */
-    model: string | null;
-    params: ModelParams;
-    recommended: RecommendedModel | null;
-};
-
-/**
  * AssignmentBindInputBody
  */
 export type AssignmentBindInputBody = {
@@ -1085,6 +1065,59 @@ export type AssignmentBinding = {
      * External id of the assignment it is bound to; null once unbound
      */
     assignment_id: string | null;
+};
+
+/**
+ * AssignmentDetail
+ *
+ * One assignment, whole (M09 §5.4): as the platform has it now, or, when the platform
+ * can't be asked, as the last sync kept it (`kept_at`).
+ */
+export type AssignmentDetail = {
+    /**
+     * Provider
+     *
+     * The provider it was read from
+     */
+    provider: string;
+    /**
+     * Without `submission`: it is `submission` here
+     */
+    assignment: SemestraModulesLmsSchemasDtoAssignment;
+    /**
+     * What the user handed in, with the teacher's feedback; null when unknown
+     */
+    submission: SubmissionDetail | null;
+    /**
+     * Of an assignment that is a quiz
+     */
+    quiz?: QuizFacts | null;
+    /**
+     * Kept
+     *
+     * This is what the sync kept, not the platform's answer
+     */
+    kept?: boolean;
+    /**
+     * Kept At
+     *
+     * When the sync read what it kept (unknown for old rows)
+     */
+    kept_at?: string | null;
+    /**
+     * Problem
+     *
+     * Why the platform's answer is missing (an error code)
+     */
+    problem?: string | null;
+    /**
+     * The gradebook row it was imported as
+     */
+    assessment: InGradebook | null;
+    /**
+     * Its to-do
+     */
+    task: InTasks | null;
 };
 
 /**
@@ -1191,6 +1224,13 @@ export type AssignmentOut = {
      */
     allowed_attempts?: number | null;
     /**
+     * Allowed Extensions
+     *
+     * File types an upload takes; empty for any
+     */
+    allowed_extensions?: Array<string>;
+    statistics?: ScoreStatistics | null;
+    /**
      * Rubric
      */
     rubric?: Array<RubricCriterion>;
@@ -1220,6 +1260,44 @@ export type AssignmentParamsInputBody = {
      * Its model parameters, whichever model serves it (on Auto too).
      */
     params: ModelParams;
+};
+
+/**
+ * AssignmentTarget
+ */
+export type AssignmentTarget = {
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * Assignment Id
+     *
+     * The assignment's external id
+     */
+    assignment_id: string;
+    /**
+     * Assessment Id
+     */
+    assessment_id?: string | null;
+    /**
+     * Task Id
+     *
+     * Set for an assignment imported as a to-do only
+     */
+    task_id?: string | null;
+};
+
+/**
+ * AssignmentTargets
+ */
+export type AssignmentTargets = {
+    /**
+     * Items
+     *
+     * The Program's assessments and to-dos that are an assignment of the platform
+     */
+    items: Array<AssignmentTarget>;
 };
 
 /**
@@ -6032,6 +6110,36 @@ export type ImportTarget = {
 };
 
 /**
+ * InGradebook
+ */
+export type InGradebook = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Weight
+     *
+     * Percent of the course grade
+     */
+    weight: number;
+};
+
+/**
+ * InTasks
+ */
+export type InTasks = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Completed
+     */
+    completed: boolean;
+};
+
+/**
  * InheritedValue
  */
 export type InheritedValue = {
@@ -9557,6 +9665,22 @@ export type Quiz = {
 };
 
 /**
+ * QuizFacts
+ */
+export type QuizFacts = {
+    /**
+     * Question Count
+     */
+    question_count?: number | null;
+    /**
+     * Time Limit
+     *
+     * Minutes; None for no limit
+     */
+    time_limit?: number | null;
+};
+
+/**
  * QuizList
  */
 export type QuizList = {
@@ -9980,6 +10104,26 @@ export type ScaleUpdateInputBody = {
      * Round percentages to whole numbers before reading the scale (84.6 → 85)
      */
     round_before_lookup?: boolean | null;
+};
+
+/**
+ * ScoreStatistics
+ *
+ * How the class did, when the instructor lets students see it.
+ */
+export type ScoreStatistics = {
+    /**
+     * Mean
+     */
+    mean?: number | null;
+    /**
+     * Max
+     */
+    max?: number | null;
+    /**
+     * Min
+     */
+    min?: number | null;
 };
 
 /**
@@ -11081,6 +11225,10 @@ export type Submission = {
      * Attempts made (quizzes, resubmissions)
      */
     attempt?: number | null;
+    /**
+     * Excused
+     */
+    excused?: boolean;
 };
 
 /**
@@ -11116,7 +11264,8 @@ export type SubmissionComment = {
 /**
  * SubmissionDetail
  *
- * The user's own submission of one assignment, with the teacher's feedback.
+ * The user's own submission of one assignment (what they handed in last), with the
+ * teacher's feedback.
  */
 export type SubmissionDetail = {
     /**
@@ -11172,6 +11321,42 @@ export type SubmissionDetail = {
      */
     missing?: boolean;
     /**
+     * Excused
+     */
+    excused?: boolean;
+    /**
+     * Seconds Late
+     */
+    seconds_late?: number | null;
+    /**
+     * Points Deducted
+     *
+     * Taken off for lateness
+     */
+    points_deducted?: number | null;
+    /**
+     * Submission Type
+     *
+     * How it was handed in
+     */
+    submission_type?: string | null;
+    /**
+     * Body
+     *
+     * A text entry's text
+     */
+    body?: string | null;
+    /**
+     * Url
+     *
+     * A website submission's address
+     */
+    url?: string | null;
+    /**
+     * Files
+     */
+    files?: Array<SubmittedFile>;
+    /**
      * Comments
      */
     comments?: Array<SubmissionComment>;
@@ -11179,6 +11364,42 @@ export type SubmissionDetail = {
      * Rubric Scores
      */
     rubric_scores?: Array<RubricScore>;
+};
+
+/**
+ * SubmittedFile
+ *
+ * A file the user handed in; `external_id` is the platform's file id.
+ */
+export type SubmittedFile = {
+    /**
+     * External Id
+     */
+    external_id: string;
+    /**
+     * Web Url
+     *
+     * Opens the item on the platform
+     */
+    web_url?: string | null;
+    /**
+     * Raw Kind
+     *
+     * The platform's own type (debugging)
+     */
+    raw_kind?: string | null;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Mime Type
+     */
+    mime_type?: string | null;
+    /**
+     * Size Bytes
+     */
+    size_bytes?: number | null;
 };
 
 /**
@@ -11298,6 +11519,12 @@ export type SyncChange = {
      * Target Id
      */
     target_id: string;
+    /**
+     * External Id
+     *
+     * The assignment's id on the platform
+     */
+    external_id: string;
     /**
      * At
      */
@@ -13572,13 +13799,33 @@ export type SemestraModulesAgentCapabilitiesDeleted = {
 };
 
 /**
+ * Assignment
+ */
+export type SemestraModulesAiSchemasAssignment = {
+    /**
+     * Purpose
+     */
+    purpose: 'chat' | 'extraction' | 'vision' | 'ocr' | 'embedding' | 'title';
+    /**
+     * Provider Id
+     */
+    provider_id: string | null;
+    /**
+     * Model
+     */
+    model: string | null;
+    params: ModelParams;
+    recommended: RecommendedModel | null;
+};
+
+/**
  * AssignmentList
  */
 export type SemestraModulesAiSchemasAssignmentList = {
     /**
      * Items
      */
-    items: Array<Assignment>;
+    items: Array<SemestraModulesAiSchemasAssignment>;
 };
 
 /**
@@ -13599,6 +13846,104 @@ export type SemestraModulesFilesSchemasDeleted = {
      * Deleted
      */
     deleted?: boolean;
+};
+
+/**
+ * Assignment
+ */
+export type SemestraModulesLmsSchemasDtoAssignment = {
+    /**
+     * External Id
+     */
+    external_id: string;
+    /**
+     * Web Url
+     *
+     * Opens the item on the platform
+     */
+    web_url?: string | null;
+    /**
+     * Raw Kind
+     *
+     * The platform's own type (debugging)
+     */
+    raw_kind?: string | null;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Html
+     */
+    html?: string | null;
+    /**
+     * Due At
+     */
+    due_at?: string | null;
+    /**
+     * Unlock At
+     */
+    unlock_at?: string | null;
+    /**
+     * Lock At
+     */
+    lock_at?: string | null;
+    /**
+     * Points
+     */
+    points?: number | null;
+    /**
+     * Group Id
+     */
+    group_id?: string | null;
+    /**
+     * Group Name
+     */
+    group_name?: string | null;
+    /**
+     * Group Weight
+     */
+    group_weight?: number | null;
+    /**
+     * Submission Types
+     */
+    submission_types?: Array<string>;
+    submission?: Submission | null;
+    /**
+     * Published
+     */
+    published?: boolean;
+    /**
+     * Updated At
+     */
+    updated_at?: string | null;
+    /**
+     * Locked
+     */
+    locked?: boolean;
+    /**
+     * Lock Explanation
+     *
+     * Why it is locked, as the platform says
+     */
+    lock_explanation?: string | null;
+    /**
+     * Allowed Attempts
+     *
+     * None or -1: unlimited
+     */
+    allowed_attempts?: number | null;
+    /**
+     * Allowed Extensions
+     *
+     * File types an upload takes; empty for any
+     */
+    allowed_extensions?: Array<string>;
+    statistics?: ScoreStatistics | null;
+    /**
+     * Rubric
+     */
+    rubric?: Array<RubricCriterion>;
 };
 
 /**
@@ -14577,6 +14922,49 @@ export type LmsFileContentErrors = {
 export type LmsFileContentError = LmsFileContentErrors[keyof LmsFileContentErrors];
 
 export type LmsFileContentResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type LmsSubmittedFileContentData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         */
+        course_id: string;
+        /**
+         * Assignment Id
+         */
+        assignment_id: string;
+        /**
+         * File Id
+         */
+        file_id: string;
+    };
+    query?: {
+        /**
+         * Download
+         *
+         * Send as an attachment
+         */
+        download?: boolean;
+    };
+    url: '/courses/{course_id}/lms/assignments/{assignment_id}/submission/files/{file_id}/content';
+};
+
+export type LmsSubmittedFileContentErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type LmsSubmittedFileContentError = LmsSubmittedFileContentErrors[keyof LmsSubmittedFileContentErrors];
+
+export type LmsSubmittedFileContentResponses = {
     /**
      * Successful Response
      */
@@ -20181,6 +20569,51 @@ export type LmsAssignmentBindResponses = {
 
 export type LmsAssignmentBindResponse = LmsAssignmentBindResponses[keyof LmsAssignmentBindResponses];
 
+export type LmsAssignmentGetData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+        /**
+         * Assignment Id
+         *
+         * External assignment id (`external_id` of lms.assignment.list)
+         */
+        assignment_id: string;
+    };
+    query?: {
+        /**
+         * Refresh
+         *
+         * Skip the 5-minute cache and ask again
+         */
+        refresh?: boolean;
+    };
+    url: '/courses/{course_id}/lms/assignments/{assignment_id}';
+};
+
+export type LmsAssignmentGetErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsAssignmentGetError = LmsAssignmentGetErrors[keyof LmsAssignmentGetErrors];
+
+export type LmsAssignmentGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: AssignmentDetail;
+};
+
+export type LmsAssignmentGetResponse = LmsAssignmentGetResponses[keyof LmsAssignmentGetResponses];
+
 export type LmsAssignmentImportData = {
     body: AssignmentImportInputBody;
     path: {
@@ -20281,6 +20714,38 @@ export type LmsAssignmentListResponses = {
 };
 
 export type LmsAssignmentListResponse = LmsAssignmentListResponses[keyof LmsAssignmentListResponses];
+
+export type LmsAssignmentTargetsData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/lms/assignment-targets';
+};
+
+export type LmsAssignmentTargetsErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsAssignmentTargetsError = LmsAssignmentTargetsErrors[keyof LmsAssignmentTargetsErrors];
+
+export type LmsAssignmentTargetsResponses = {
+    /**
+     * Successful Response
+     */
+    200: AssignmentTargets;
+};
+
+export type LmsAssignmentTargetsResponse = LmsAssignmentTargetsResponses[keyof LmsAssignmentTargetsResponses];
 
 export type LmsConnectionListData = {
     body?: never;
@@ -21606,51 +22071,6 @@ export type LmsQuizListResponses = {
 };
 
 export type LmsQuizListResponse = LmsQuizListResponses[keyof LmsQuizListResponses];
-
-export type LmsSubmissionGetData = {
-    body?: never;
-    path: {
-        /**
-         * Course Id
-         *
-         * Course id (must be linked)
-         */
-        course_id: string;
-        /**
-         * Assignment Id
-         *
-         * External assignment id (`external_id` of lms.assignment.list)
-         */
-        assignment_id: string;
-    };
-    query?: {
-        /**
-         * Refresh
-         *
-         * Skip the 5-minute cache and ask again
-         */
-        refresh?: boolean;
-    };
-    url: '/courses/{course_id}/lms/assignments/{assignment_id}/submission';
-};
-
-export type LmsSubmissionGetErrors = {
-    /**
-     * Default Response
-     */
-    default: ErrorResponse;
-};
-
-export type LmsSubmissionGetError = LmsSubmissionGetErrors[keyof LmsSubmissionGetErrors];
-
-export type LmsSubmissionGetResponses = {
-    /**
-     * Successful Response
-     */
-    200: SubmissionDetail;
-};
-
-export type LmsSubmissionGetResponse = LmsSubmissionGetResponses[keyof LmsSubmissionGetResponses];
 
 export type LmsSyllabusGetData = {
     body?: never;
