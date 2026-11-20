@@ -3,10 +3,11 @@
 files" line and its panel. Each job is cancelled with `core.job.cancel` and a failed file is read
 again with `files.item.reprocess`; `cancel_all` stops all of them at once."""
 
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 from pydantic import BaseModel, Field
-from sqlalchemy import case, false, func, not_, or_, select
+from sqlalchemy import or_, select
 
 from semestra.core.context import Ctx
 from semestra.core.events import events
@@ -78,89 +79,97 @@ def _mine(ctx: Ctx):
     return (CoreJob.user_id == ctx.user_id, CoreJob.kind.in_(PROCESS_KINDS))
 
 
-async def _round_start(ctx: Ctx) -> datetime | None:
+@dataclass(frozen=True)
+class _Job:
+    """What the list is worked out from, read for every job of the last 7 days in one query
+    (a sync's reads refetch it as each file starts and ends); the jobs shown are then loaded."""
+
+    id: str
+    item_id: str
+    kind: str
+    status: str
+    created_at: datetime
+    run_after: datetime
+    started_at: datetime | None
+    finished_at: datetime | None
+
+
+def _round_start(jobs: list[_Job]) -> datetime | None:
     """Going back from now, when the processing queue was last empty: jobs whose times overlap
     are one round (a job queued while another ran joins its round)."""
-    recent = or_(CoreJob.status.in_(ACTIVE), CoreJob.finished_at >= ctx.now - ENDED_WITHIN)
-    active_start = await ctx.db.scalar(
-        select(func.min(CoreJob.created_at)).where(*_mine(ctx), CoreJob.status.in_(ACTIVE))
-    )
-    ended = (
-        await ctx.db.execute(
-            select(CoreJob.created_at, CoreJob.finished_at)
-            .where(*_mine(ctx), recent, CoreJob.status.in_(ENDED))
-            .order_by(CoreJob.finished_at.desc())
-        )
-    ).all()
-    start = active_start
-    for created_at, finished_at in ended:
+    start = min((j.created_at for j in jobs if j.status in ACTIVE), default=None)
+    ended = [j for j in jobs if j.status in ENDED]
+    ended.sort(key=lambda j: j.finished_at or j.created_at, reverse=True)
+    for job in ended:
         if start is None:
-            start = created_at  # nothing left to do: the last round
-        elif finished_at is not None and finished_at >= start:
-            start = min(start, created_at)
+            start = job.created_at  # nothing left to do: the last round
+        elif job.finished_at is not None and job.finished_at >= start:
+            start = min(start, job.created_at)
         else:
             break  # the queue was empty between this job and the round
     return start
 
 
-def _latest():
-    """Each file's latest processing job (a file read again has several)."""
-    item = CoreJob.payload["item_id"].as_string()
-    rank = (
-        func.row_number()
-        .over(partition_by=item, order_by=(CoreJob.created_at.desc(), CoreJob.id.desc()))
-        .label("rank")
-    )
-    return select(CoreJob.id, rank)
-
-
 async def list_processing(ctx: Ctx) -> ProcessingList:
-    since = await _round_start(ctx)
-    ranked = (
-        _latest()
-        .where(
+    found = await ctx.db.execute(
+        select(
+            CoreJob.id,
+            CoreJob.payload["item_id"].as_string(),
+            CoreJob.kind,
+            CoreJob.status,
+            CoreJob.created_at,
+            CoreJob.run_after,
+            CoreJob.started_at,
+            CoreJob.finished_at,
+        ).where(
             *_mine(ctx),
             or_(CoreJob.status.in_(ACTIVE), CoreJob.finished_at >= ctx.now - ENDED_WITHIN),
         )
-        .subquery()
     )
-    latest = select(CoreJob).join(ranked, ranked.c.id == CoreJob.id).where(ranked.c.rank == 1)
+    jobs = [_Job(*row) for row in found.all()]
+    since = _round_start(jobs)
+    # Each file's latest job (a file read again has several).
+    latest: dict[str, _Job] = {}
+    for job in jobs:
+        if (seen := latest.get(job.item_id)) is None or (job.created_at, job.id) > (
+            seen.created_at,
+            seen.id,
+        ):
+            latest[job.item_id] = job
 
-    async def rows(query) -> list[CoreJob]:
-        return list((await ctx.db.scalars(query)).all())
+    def of(*statuses: str, round_: bool | None = None) -> list[_Job]:
+        return [
+            j
+            for j in latest.values()
+            if j.status in statuses
+            and (round_ is None or (since is not None and j.created_at >= since) == round_)
+        ]
 
-    running = await rows(latest.where(CoreJob.status == "running").order_by(CoreJob.started_at))
+    def newest(rows: list[_Job], limit: int) -> list[_Job]:
+        return sorted(rows, key=lambda j: j.finished_at or j.created_at, reverse=True)[:limit]
+
+    running = sorted(of("running"), key=lambda j: (j.started_at or j.created_at, j.id))
     # The order the runner takes them in: the user's own files before synced ones.
-    queued = await rows(
-        latest.where(CoreJob.status == "pending")
-        .order_by(case((CoreJob.kind == PROCESS_KINDS[0], 0), else_=1), CoreJob.run_after)
-        .limit(QUEUED_SHOWN)
+    queued = sorted(of("pending"), key=lambda j: (j.kind != PROCESS_KINDS[0], j.run_after, j.id))
+    shown = [
+        *running,
+        *queued[:QUEUED_SHOWN],
+        *newest(of("failed", "cancelled", round_=True), ROUND_FAILED_SHOWN),
+        *newest(of("succeeded", round_=True), ROUND_DONE_SHOWN),
+        *newest(of("failed", round_=False), EARLIER_FAILED_SHOWN),
+    ]
+    rows = {
+        row.id: row
+        for row in await ctx.db.scalars(
+            select(CoreJob).where(CoreJob.id.in_([j.id for j in shown]))
+        )
+    }
+    return ProcessingList(
+        files=await _files(ctx, [rows[j.id] for j in shown if j.id in rows]),
+        active=len(running) + len(queued),
+        done=len(of(*ENDED, round_=True)),
+        since=since,
     )
-    newest = CoreJob.finished_at.desc()
-    in_round = CoreJob.created_at >= since if since is not None else false()
-    round_failed = await rows(
-        latest.where(CoreJob.status.in_(("failed", "cancelled")), in_round)
-        .order_by(newest)
-        .limit(ROUND_FAILED_SHOWN)
-    )
-    round_done = await rows(
-        latest.where(CoreJob.status == "succeeded", in_round)
-        .order_by(newest)
-        .limit(ROUND_DONE_SHOWN)
-    )
-    earlier_failed = await rows(
-        latest.where(CoreJob.status == "failed", not_(in_round))
-        .order_by(newest)
-        .limit(EARLIER_FAILED_SHOWN)
-    )
-    pending = latest.where(CoreJob.status.in_(ACTIVE)).subquery()
-    active = int(await ctx.db.scalar(select(func.count()).select_from(pending)) or 0)
-    done = 0
-    if since is not None:
-        ended = latest.where(CoreJob.status.in_(ENDED), CoreJob.created_at >= since).subquery()
-        done = int(await ctx.db.scalar(select(func.count()).select_from(ended)) or 0)
-    jobs = [*running, *queued, *round_failed, *round_done, *earlier_failed]
-    return ProcessingList(files=await _files(ctx, jobs), active=active, done=done, since=since)
 
 
 async def _files(ctx: Ctx, jobs: list[CoreJob]) -> list[ProcessingFile]:

@@ -40,8 +40,6 @@ STATUS = {
     # The field changed again since that sync change (another sync, the user): undoing it would
     # overwrite the newer value.
     "lms.sync_change_outdated": 409,
-    # The account setting `lms.allow_writes` is off: nothing is changed on the platform.
-    "lms.writes_disabled": 409,
     "lms.file_too_large": 413,
     # Signing in on the platform's page (self-hosting): off on this server, not offered for the
     # address (Canvas does not know the school), a plain-http address (the exchange sends secrets),
@@ -81,8 +79,6 @@ agent_hints(
         "lms.course_already_linked": "That LMS course is linked to another course here; the user "
         "unlinks that one in its course settings first.",
         "lms.feature_unsupported": "This platform or course does not offer that; tell the user.",
-        "lms.writes_disabled": "Changing things on the LMS is off in the user's settings; tell "
-        "them.",
         "lms.invalid_credentials": "The LMS token stopped working; the user reconnects in "
         "settings.",
         "lms.forbidden": "The LMS refuses this item to the user (locked, or not published yet); "

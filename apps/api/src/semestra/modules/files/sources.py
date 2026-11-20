@@ -25,11 +25,13 @@ from dataclasses import dataclass
 from datetime import datetime
 from urllib.parse import urlsplit
 
+from sqlalchemy import select
+
 from semestra.core.context import Ctx, run_as_system
 from semestra.core.db import new_id
 from semestra.core.errors import AppError
 from semestra.core.events import events
-from semestra.core.jobs import enqueue
+from semestra.core.jobs import CoreJob, enqueue, withdraw
 from semestra.core.storage import (
     charge,
     delete_after_commit,
@@ -334,7 +336,7 @@ async def reset_copy_choices(ctx: Ctx, rows: Sequence[FilesItem]) -> None:
 
 
 async def apply_copies(
-    ctx: Ctx, rows: Sequence[FilesItem], local: bool, *, dedupe: str, release: bool = True
+    ctx: Ctx, rows: Sequence[FilesItem], local: bool, *, release: bool = True
 ) -> None:
     """Brings the files that follow their source in line with the source's setting for their
     course (`local`: keep local copies), except where the user chose for a file (`keep_copy`).
@@ -342,15 +344,18 @@ async def apply_copies(
     show it still has them: the copy may be the only one left); wanted ones are stored quietly
     in the background as far as the quota goes (by the source's sizes, so a full quota
     downloads nothing): the rest stay read from the source."""
+    from semestra.modules.files.jobs import KeepPayload
+
     cap = ctx.settings.files_max_upload_bytes
     left = await remaining_quota(ctx)
-    ids: list[str] = []
+    unwanted: list[str] = []
     for row in rows:
         if not content.follows_source(row):
             continue
         error = row.copy_error_code
         want = row.keep_copy if row.keep_copy is not None else local
         if not want:
+            unwanted.append(_copy_key(row.id))
             row.copy_error_code = None  # not wanted: nothing failed, copy kept or not
             released = release and await _release(ctx, row)
             if released or row.copy_error_code != error:
@@ -365,15 +370,42 @@ async def apply_copies(
             row.copy_error_code = "common.quota_exceeded"
         else:
             left = None if left is None else left - max(need, 0)
-            ids.append(row.id)
+            # A job per file: the one background worker takes a sync queued meanwhile between
+            # two of them, and a file added while others wait is queued with them.
+            await enqueue(
+                ctx,
+                "files.store_synced_copies",
+                KeepPayload(item_ids=[row.id]),
+                dedupe_key=_copy_key(row.id),
+                again=True,
+            )
         if row.copy_error_code != error:
             await _updated(ctx, row)
-    if ids:
-        from semestra.modules.files.jobs import KeepPayload
+    await _drop_queued_copies(ctx, unwanted)
 
-        await enqueue(
-            ctx, "files.store_synced_copies", KeepPayload(item_ids=ids), dedupe_key=dedupe
+
+def _copy_key(item_id: str) -> str:
+    return f"files.store_synced_copies:{item_id}"
+
+
+async def _drop_queued_copies(ctx: Ctx, keys: Sequence[str]) -> None:
+    """Copies queued for files that no longer want one (the course reads from its source again
+    before they ran) are not stored: one not started is withdrawn, one storing now is not run
+    again. A course sync runs before the copy jobs, so this comes before they do."""
+    if not keys:
+        return
+    found = (
+        await ctx.db.scalars(
+            select(CoreJob).where(
+                CoreJob.user_id == ctx.user_id,
+                CoreJob.dedupe_key.in_(list(keys)),
+                CoreJob.status.in_(("pending", "running")),
+            )
         )
+    ).all()
+    for job in found:
+        job.next_payload = None
+    await withdraw(ctx, [job.id for job in found if job.status == "pending"])
 
 
 async def store_from_source(ctx: Ctx, item_id: str, *, quiet: bool) -> bool:

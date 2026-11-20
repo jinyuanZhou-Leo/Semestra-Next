@@ -1,5 +1,50 @@
 /* The note's text (M14 §4): quiet, compact typography on the colored card. */
 .sticky-note {
+  /* Tiptap's own stylesheet, which the editor does not inject (`injectCSS: false`), so the
+     read-only view (NoteView) and the editor are styled alike whichever has loaded. */
+  position: relative;
+  white-space: break-spaces;
+  font-variant-ligatures: none;
+  font-feature-settings: 'liga' 0;
+  & [contenteditable='false'] {
+    white-space: normal;
+  }
+  & [contenteditable='false'] [contenteditable='true'],
+  & pre {
+    white-space: pre-wrap;
+  }
+  & img.ProseMirror-separator {
+    display: inline !important;
+    border: none !important;
+    margin: 0 !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
+  & .ProseMirror-gapcursor {
+    display: none;
+    pointer-events: none;
+    position: absolute;
+    margin: 0;
+    &::after {
+      content: '';
+      display: block;
+      position: absolute;
+      top: -2px;
+      width: 20px;
+      border-top: 1px solid var(--foreground);
+      animation: sticky-caret-blink 1.1s steps(2, start) infinite;
+    }
+  }
+  &.ProseMirror-focused .ProseMirror-gapcursor {
+    display: block;
+  }
+  &.ProseMirror-hideselection {
+    caret-color: transparent;
+    & *::selection {
+      background: transparent;
+    }
+  }
+
   font-size: var(--text-sm);
   line-height: 1.5;
   outline: none;
@@ -100,5 +145,11 @@
   }
   & .selectedCell {
     background: color-mix(in oklch, var(--primary) 15%, transparent);
+  }
+}
+
+@keyframes sticky-caret-blink {
+  to {
+    visibility: hidden;
   }
 }

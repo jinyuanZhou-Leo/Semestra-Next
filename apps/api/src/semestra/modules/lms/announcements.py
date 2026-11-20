@@ -278,10 +278,7 @@ async def _out(
     """The rows newest first, with what their links and attachments are in the app."""
     by_id = {li.id: li for li in links}
     rows = sorted(rows, key=lambda r: r.posted_at.timestamp() if r.posted_at else 0, reverse=True)
-    marks = {
-        r.id: [(htmllib.unescape(k), htmllib.unescape(v)) for k, v in _MARK.findall(r.html or "")]
-        for r in rows
-    }
+    marks = {r.id: _marks(r.html) for r in rows}
     asked: dict[str, set[tuple[str, str]]] = {}
     for r in rows:
         wanted = asked.setdefault(r.link_id, set())

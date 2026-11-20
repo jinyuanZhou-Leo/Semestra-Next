@@ -1,6 +1,7 @@
 """The CalDAV server (RFC 4791) for to-do lists, and the setup profile for Apple devices.
 
-Layout, all under one device's sign-in (HTTP Basic, the device's own password):
+Layout, all under one device's sign-in (the device's own password; HTTP Basic, and on a server
+without https also HTTP Digest, since Apple devices send no Basic password over plain http):
   /caldav/                    root: points to the principal
   /caldav/principal/          the user: points to the calendar home
   /caldav/lists/              the home: one calendar per list (`store.Store.collections`)
@@ -25,7 +26,7 @@ from semestra.core.context import Ctx, get_anonymous_ctx, run_after_commit
 from semestra.core.errors import AppError, not_found
 from semestra.modules.academics import service as academics
 from semestra.modules.auth import service as auth
-from semestra.modules.caldav import connections, dav, vtodo
+from semestra.modules.caldav import connections, dav, digest, vtodo
 from semestra.modules.caldav.connections import HOME, PRINCIPAL, ROOT
 from semestra.modules.caldav.dav import CALDAV, CS, DAV, ICAL, Resource, tag
 from semestra.modules.caldav.models import CaldavConnection
@@ -48,6 +49,24 @@ REQUESTS_PER_HOUR = 1200
 _requests = TTLCache[str, list[int], float](maxsize=10_000, ttl=3600)
 
 
+# The Digest requests each device has signed with each nonce, as (cnonce, nc): one seen again is
+# a replay (someone who overheard a request on plain http). Apple devices start every request
+# at nc=1 with a new cnonce, so the counter alone would refuse them. Kept as long as a nonce is
+# good.
+_signed = TTLCache[tuple[str, str], set[tuple[str, str]], float](
+    maxsize=10_000, ttl=digest.NONCE_SECONDS
+)
+
+
+def _replayed(connection_id: str, credentials: digest.Credentials) -> bool:
+    seen = _signed.setdefault((connection_id, credentials.nonce), set())
+    request = (credentials.cnonce, credentials.nc)
+    if request in seen:
+        return True
+    seen.add(request)
+    return False
+
+
 def _over_limit(connection_id: str) -> bool:
     # The entry is made once and then only mutated, so it expires an hour after the first request.
     count = _requests.setdefault(connection_id, [0])
@@ -61,7 +80,8 @@ METHODS += ["PROPPATCH", "MKCALENDAR", "MKCOL", "COPY"]
 ALLOW = "OPTIONS, PROPFIND, REPORT, GET, HEAD, PUT, DELETE, MOVE"
 XML = "application/xml; charset=utf-8"
 ICS = "text/calendar; charset=utf-8; component=VTODO"
-CHALLENGE = {"WWW-Authenticate": 'Basic realm="Semestra", charset="UTF-8"'}
+BASIC = f'Basic realm="{digest.REALM}", charset="UTF-8"'
+DAV_HEADERS = {"DAV": "1, 3, calendar-access", "Allow": ALLOW}
 PRIVILEGES = (
     "read",
     "write",
@@ -104,9 +124,14 @@ async def setup_profile(code: str, ctx: Annotated[Ctx, Depends(get_anonymous_ctx
 async def caldav(
     path: str, request: Request, ctx: Annotated[Ctx, Depends(get_anonymous_ctx)]
 ) -> Response:
-    connection = await _sign_in(ctx, request)
+    if request.method.upper() == "OPTIONS" and "authorization" not in request.headers:
+        if not ctx.settings.caldav:
+            raise not_found()
+        # What the server supports is no secret (RFC 4791 §5.1); clients ask before signing in.
+        return Response(status_code=200, headers={**DAV_HEADERS, "Content-Length": "0"})
+    connection, stale = await _sign_in(ctx, request)
     if connection is None:
-        return Response(status_code=401, headers=CHALLENGE)
+        return _unauthorized(ctx, stale=stale)
     if _over_limit(connection.id):
         return Response(status_code=429, headers={"Retry-After": "600"})
     program = await academics.get_program_row(ctx, connection.program_id)
@@ -132,23 +157,57 @@ async def caldav(
     return response
 
 
-async def _sign_in(ctx: Ctx, request: Request) -> CaldavConnection | None:
+async def _sign_in(ctx: Ctx, request: Request) -> tuple[CaldavConnection | None, bool]:
+    """The connection signed in with, and whether a Digest nonce was only too old."""
     scheme, _, value = request.headers.get("authorization", "").partition(" ")
-    if scheme.lower() != "basic":
-        return None
-    try:
-        _, _, password = base64.b64decode(value, validate=True).decode().partition(":")
-    except binascii.Error, UnicodeDecodeError:
-        return None
-    connection = await connections.authenticate(ctx, password)
+    connection: CaldavConnection | None = None
+    match scheme.lower():
+        case "basic":
+            try:
+                _, _, password = base64.b64decode(value, validate=True).decode().partition(":")
+            except binascii.Error, UnicodeDecodeError:
+                return None, False
+            connection = await connections.authenticate(ctx, password)
+        case "digest":
+            credentials = digest.parse(value)
+            if credentials is None or not _same_target(credentials.uri, request):
+                return None, False
+            state = digest.nonce_state(ctx.settings.secret_key, credentials.nonce, ctx.now)
+            if state == "invalid":
+                return None, False
+            connection = await connections.authenticate_digest(
+                ctx, credentials, request.method.upper()
+            )
+            if connection is not None and (
+                state == "stale" or _replayed(connection.id, credentials)
+            ):
+                return None, True
+        case _:
+            return None, False
     if connection is None:
-        return None
+        return None, False
     user = await auth.user_by_id(ctx.db, connection.user_id)
     if user is None or user.deleted_at is not None:
-        return None
+        return None, False
     ctx.user = user
     ctx.locale = user.locale or ctx.locale
-    return connection
+    return connection, False
+
+
+def _same_target(uri: str, request: Request) -> bool:
+    """The Digest `uri` names this request (else a response could be replayed elsewhere)."""
+    return unquote(urlsplit(uri).path) == request.url.path
+
+
+def _unauthorized(ctx: Ctx, *, stale: bool = False) -> Response:
+    response = Response(status_code=401)
+    if not ctx.settings.public_api_origin.startswith("https://"):
+        # The stronger scheme first.
+        response.headers.append(
+            "WWW-Authenticate", digest.challenge(ctx.settings.secret_key, ctx.now, stale=stale)
+        )
+    response.headers.append("WWW-Authenticate", BASIC)
+    return response
 
 
 class _Handler:
@@ -192,10 +251,7 @@ class _Handler:
     # --- methods --------------------------------------------------------------------------
 
     async def options(self) -> Response:
-        return Response(
-            status_code=200,
-            headers={"DAV": "1, 3, calendar-access", "Allow": ALLOW, "Content-Length": "0"},
-        )
+        return Response(status_code=200, headers={**DAV_HEADERS, "Content-Length": "0"})
 
     async def propfind(self) -> Response:
         request = dav.prop_request(dav.parse(await self.request.body()))
