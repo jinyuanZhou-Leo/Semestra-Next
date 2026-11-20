@@ -3,6 +3,26 @@
 Generated from `release-notes/*.json` by `scripts/release.mjs`; do not edit by hand.
 The same notes in Chinese are in the JSON files and on the docs site.
 
+## 2.4.1 (2026-11-20)
+
+### Fixed
+
+- **General:** Lists that update live no longer stop one change short when several changes arrive in quick succession.
+- **General:** The sign-in page loads less code.
+- **Sem:** Sem looks at LMS files through your course files, using the copy saved in Semestra when there is one.
+- **Tasks:** Apple Reminders now connects to self-hosted servers that use plain http.
+- **Files:** Saving course materials in Semestra no longer holds up syncing your other courses, and the list of files being read loads faster.
+- **Files:** Switching a course back to reading materials from the LMS now stops copies that were still waiting to be saved.
+- **Files:** Syncing many course materials at once puts less load on the app and server.
+- **Files:** Downloading several files as a zip reads each file only once, and large selections no longer hit a limit.
+- **Canvas:** The Canvas content display chosen in 2.0 is kept after upgrading and when restoring a 2.0 backup.
+- **Canvas:** Course materials sync again when a Canvas title contains a slash or a link points to an email address, and names keep their full title.
+- **Canvas:** Files saved from the Canvas page in 2.0 now follow the platform like other course materials and no longer appear twice.
+- **Canvas:** Announcements open with the current list and unread marks, without first showing the ones from your last visit.
+- **Canvas:** Programs linked to an LMS open with less to download in the background.
+- **Plugins:** Pages with sticky notes load faster: the editor now loads only when you start editing a note.
+- **Data:** Course materials restored from a backup keep following renames on the platform.
+
 ## 2.4.0 (2026-11-20)
 
 ### New
