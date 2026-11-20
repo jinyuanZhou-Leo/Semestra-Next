@@ -20,6 +20,7 @@ export default function StickyHeaderActions({ instanceId }: CardProps<StickySett
             size="icon-xs"
             aria-label={label}
             aria-pressed={editing}
+            data-sticky-edit
             // Keeps the editor's focus, so "done" is not first undone by the editor losing it.
             onMouseDown={(event) => event.preventDefault()}
             onClick={() => setNoteEditing(instanceId, !editing)}

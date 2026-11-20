@@ -98,7 +98,7 @@ test('a note is read-only, with working links, until editing starts', async () =
   expect(bold.closest('[inert]')).toBeNull()
   await userEvent.keyboard('{Escape}')
   expect(editor).toHaveAttribute('contenteditable', 'false')
-  expect(screen.getByRole('button', { name: 'Edit note' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Edit note' })).toHaveFocus()
 })
 
 test('clicking outside the card ends editing', async () => {

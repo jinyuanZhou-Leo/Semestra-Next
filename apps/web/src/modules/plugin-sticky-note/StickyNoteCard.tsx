@@ -43,6 +43,11 @@ export default function StickyNoteCard({ instanceId, size, settings }: CardProps
       handleKeyDown: (_, event) => {
         if (event.key !== 'Escape') return false
         setNoteEditing(instanceId, false)
+        // Back to the button that starts editing again, not to the page.
+        root.current
+          ?.closest('[data-card]')
+          ?.querySelector<HTMLElement>('[data-sticky-edit]')
+          ?.focus()
         return true
       },
     },
