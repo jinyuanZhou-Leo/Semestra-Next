@@ -31,8 +31,8 @@ from semestra.modules.lms.models import (
     LmsCache,
     LmsConnection,
     LmsCourseLink,
-    LmsFeedback,
     LmsImportedRef,
+    LmsKeptAssignment,
     LmsMaterial,
     LmsProgramBinding,
     LmsSyncChange,
@@ -86,9 +86,10 @@ class LinkRow(BaseModel):
     sync_enabled: bool = True
 
 
-class FeedbackRow(BaseModel):
-    """An imported assignment as the sync kept it (`LmsFeedback`), of an assessment or a to-do.
-    Backups made before descriptions and submissions were kept have the feedback only."""
+class KeptRow(BaseModel):
+    """An imported assignment as the sync kept it (`LmsKeptAssignment`), of an assessment or a
+    to-do. Backups made before descriptions and submissions were kept have the feedback only;
+    the list keeps its name in the backup (`feedback`)."""
 
     assessment_id: str | None = None
     task_id: str | None = None
@@ -109,7 +110,7 @@ class FeedbackRow(BaseModel):
     read_at: datetime | None = None
 
 
-# The JSON columns of `LmsFeedback`, kept as JSON (the others keep their Python types).
+# The JSON columns of `LmsKeptAssignment`, kept as JSON (the others keep their Python types).
 FEEDBACK_JSON = {"comments", "rubric", "rubric_scores", "details", "work"}
 
 
@@ -175,7 +176,7 @@ class LmsPayload(BaseModel):
     materials: list[MaterialRow] = []
     announcements: list[AnnouncementRow] = []
     # Left out of backups made before feedback was kept: the next sync reads it again.
-    feedback: list[FeedbackRow] = []
+    feedback: list[KeptRow] = []
 
 
 @dataclass
@@ -195,7 +196,9 @@ async def export(ctx: Ctx, writer: Writer) -> None:
             LmsImportedRef.target_id.is_not(None) | LmsImportedRef.dismissed_at.is_not(None),
         )
     )
-    feedback = await ctx.db.scalars(select(LmsFeedback).where(LmsFeedback.user_id == uid))
+    feedback = await ctx.db.scalars(
+        select(LmsKeptAssignment).where(LmsKeptAssignment.user_id == uid)
+    )
     materials = await ctx.db.scalars(
         select(LmsMaterial).where(
             LmsMaterial.user_id == uid,
@@ -239,8 +242,8 @@ async def export(ctx: Ctx, writer: Writer) -> None:
                 for r in posts
             ],
             feedback=[
-                FeedbackRow.model_validate(
-                    {k: getattr(f, k) for k in FeedbackRow.model_fields}
+                KeptRow.model_validate(
+                    {k: getattr(f, k) for k in KeptRow.model_fields}
                     # Nor are the addresses of comment attachments (they too open without
                     # signing in); the next sync brings them back.
                     | {"comments": [_comment_without_urls(c) for c in f.comments]}
@@ -375,7 +378,7 @@ async def import_(
             skip("feedback", owner, f.course_id)
             continue
         ctx.db.add(
-            LmsFeedback(
+            LmsKeptAssignment(
                 **f.model_dump(exclude={"assessment_id", "task_id", "course_id", *FEEDBACK_JSON}),
                 **f.model_dump(mode="json", include=FEEDBACK_JSON),
                 user_id=ctx.user_id,
@@ -429,7 +432,7 @@ async def purge(ctx: Ctx) -> None:
     uid = ctx.user_id
     for model in (
         LmsSyncChange,
-        LmsFeedback,
+        LmsKeptAssignment,
         LmsImportedRef,
         LmsMaterial,
         LmsAnnouncement,
@@ -455,7 +458,7 @@ register_portability(
         LmsProgramBinding.__tablename__,
         LmsCourseLink.__tablename__,
         LmsImportedRef.__tablename__,
-        LmsFeedback.__tablename__,
+        LmsKeptAssignment.__tablename__,
         LmsMaterial.__tablename__,
         LmsAnnouncement.__tablename__,
         LmsSyncChange.__tablename__,

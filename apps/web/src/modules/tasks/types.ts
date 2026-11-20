@@ -1,5 +1,6 @@
 import type { Task, TaskList } from '@semestra/api-client'
 import type { UseQueryOptions } from '@tanstack/react-query'
+import type { AnyRouter } from '@tanstack/react-router'
 import type { LucideIcon } from 'lucide-react'
 import type { ComponentType } from 'react'
 import { CalendarClock, CircleCheck, CircleDashed, Flag, ListTodo, Sun } from 'lucide-react'
@@ -95,27 +96,22 @@ export const TASK_DETAIL_SECTIONS = 'tasks.detailSections'
 export type LinkedTask = Pick<Task, 'id' | 'program_id' | 'assessment_id'>
 
 /**
- * A way from a task to what it came from (M09: the platform assignment's details), shown where
- * tasks are: their rows, a phone's task details, the calendar's details of a due date. Both
- * components render nothing for tasks they have nothing for.
+ * A way from a task to what it came from (M09: the platform assignment's details), as data: the
+ * to-dos draw it where tasks are (a pill under a row's title, an item of its ⋯ menu, a button in
+ * a phone's task details and in the calendar's details of a due date).
  */
 export type TaskLink = {
   id: string
-  /**
-   * `pill`: a small labelled pill for the line under a row's title. `button`: an ordinary button
-   * that says what it opens. `onOpen` runs as it opens (what holds the button closes for it).
-   */
-  Button: ComponentType<{
-    task: LinkedTask
-    as: 'pill' | 'button'
-    className?: string
-    onOpen?: () => void
-  }>
-  /** The same way in a row's ⋯ menu. */
-  MenuItem: ComponentType<{ task: LinkedTask }>
-  /** What they read for a Program, started with its tasks so the buttons come with the rows. */
+  icon: LucideIcon
+  /** What it leads to, on the pill ("Assignment details"). */
+  label: () => string
+  /** What it does, on a button or a menu item ("View assignment"). */
+  action: () => string
+  /** What it reads for a Program, started with its tasks so the pills come with the rows. */
   // oxlint-disable-next-line no-explicit-any
-  query?: (ctx: { programId: string }) => UseQueryOptions<any, any, any, any>
+  query: (ctx: { programId: string }) => UseQueryOptions<any, any, any, any>
+  /** The way there for this task, from what `query` read; null for a task it has nothing for. */
+  open: (task: LinkedTask, data: unknown, router: AnyRouter) => (() => void) | null
 }
 
 export const TASK_LINKS = 'tasks.links'

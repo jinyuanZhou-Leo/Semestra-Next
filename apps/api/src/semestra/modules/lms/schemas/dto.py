@@ -221,6 +221,8 @@ class Assignment(Dto):
     )
     statistics: ScoreStatistics | None = None
     rubric: list[RubricCriterion] = Field(default_factory=list)
+    # The quiz this is the assignment of (`Quiz.external_id`), for a graded quiz.
+    quiz_id: str | None = None
 
 
 class CommentAttachment(BaseModel):

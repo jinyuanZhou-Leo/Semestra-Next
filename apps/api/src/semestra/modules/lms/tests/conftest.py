@@ -84,6 +84,7 @@ class FakeProvider:
             LmsCourse(external_id="90", name="Old course", code="OLD100", term="Fall 2025",
                       is_current=False),
         ]  # fmt: skip
+        self.quiz_list = [Quiz(external_id="q1", title="Quiz 1")]
         self.course_assignments: dict[str, list[Assignment]] = {
             "101": [
                 Assignment(external_id="a1", name="Lab 1", due_at=datetime.fromisoformat(
@@ -266,7 +267,7 @@ class FakeProvider:
                                "</table>")  # fmt: skip
 
     async def quizzes(self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str) -> list[Quiz]:
-        return [Quiz(external_id="q1", title="Quiz 1")]
+        return [q.model_copy() for q in self.quiz_list]
 
     async def syllabus(self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str) -> RichText:
         return RichText(html="<p>Labs 20%, midterm 80%</p>")

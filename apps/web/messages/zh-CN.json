@@ -1568,7 +1568,6 @@
   "capability_lms_file_preview_title": "读取 LMS 文件的文字",
   "capability_lms_file_search_title": "搜索 LMS 课程文件",
   "capability_lms_folder_get_title": "浏览 LMS 课程文件夹",
-  "capability_lms_submission_get_title": "读取 LMS 作业的评分反馈",
   "capability_lms_announcement_mark_read_title": "把 LMS 公告标为已读",
   "capability_lms_file_save_to_course_title": "保存 LMS 文件",
   "capability_lms_grade_list_title": "列出 LMS 成绩",

@@ -2,17 +2,19 @@ import type { AssignmentDetail } from '@semestra/api-client'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
-import { afterAll, afterEach, beforeAll, expect, test } from 'vitest'
+import { afterAll, afterEach, beforeAll, expect, test, vi } from 'vitest'
 import { academicsHandlers, defaultWorld } from '@/modules/academics/test-data'
 import { API, renderWithRouter, server } from '@/test-utils'
 import AssignmentDialog from './AssignmentDialog'
 import { assignmentHost } from './AssignmentHost'
+import AssignmentSheet from '../mobile/AssignmentSheet'
 
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 
 const Host = assignmentHost(AssignmentDialog)
+const PhoneHost = assignmentHost(AssignmentSheet)
 
 const LAB: AssignmentDetail = {
   provider: 'canvas',
@@ -52,7 +54,7 @@ const LAB: AssignmentDetail = {
   targets: [],
 }
 
-function mount(detail: AssignmentDetail, at = '/?assignment=c1:a1') {
+function mount(detail: AssignmentDetail, at = '/?assignment=c1:a1', View = Host) {
   server.use(
     http.get(`${API}/lms/providers`, () =>
       HttpResponse.json({
@@ -80,7 +82,7 @@ function mount(detail: AssignmentDetail, at = '/?assignment=c1:a1') {
       }),
     ),
   )
-  return renderWithRouter(<Host />, undefined, { path: '/', at })
+  return renderWithRouter(<View />, undefined, { path: '/', at })
 }
 
 test('an assignment opens with its description, where the user is with it and its places in Semestra', async () => {
@@ -123,4 +125,35 @@ test('opened on the feedback, it says when what it shows was kept and closes int
   expect(within(dialog).queryByRole('button', { name: /Add to/ })).toBeNull()
   await userEvent.click(within(dialog).getByRole('button', { name: 'Close' }))
   expect(router.state.location.search).toEqual({})
+})
+
+test('on a phone, a link to a course file opens the file itself: the phone has no files page', async () => {
+  const { router } = mount(
+    {
+      ...LAB,
+      assignment: {
+        ...LAB.assignment,
+        html: '<p><a href="https://lms.example/files/77" data-lms-kind="file" data-lms-ref="77">starter code</a></p>',
+      },
+      targets: [
+        {
+          kind: 'file',
+          ref: '77',
+          target: { kind: 'file', id: 'f1', course_id: 'c1', folder_id: 'd1' },
+        },
+      ],
+    },
+    '/?assignment=c1:a1',
+    PhoneHost,
+  )
+  const opened = vi.spyOn(window, 'open').mockReturnValue(null)
+  await userEvent.click(await screen.findByRole('link', { name: 'starter code' }))
+  expect(opened).toHaveBeenCalledWith(
+    `${API}/courses/c1/lms/files/77/content`,
+    '_blank',
+    'noopener,noreferrer',
+  )
+  opened.mockRestore()
+  // The details stay open.
+  expect(router.state.location.search).toEqual({ assignment: 'c1:a1' })
 })

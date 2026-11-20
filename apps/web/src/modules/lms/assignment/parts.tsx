@@ -1,7 +1,7 @@
 import type { AssignmentDetail, SubmissionDetail } from '@semestra/api-client'
 import { client } from '@semestra/api-client'
 import { ArrowUpRight, Download, ExternalLink, FileText, GraduationCap, Link2 } from 'lucide-react'
-import { ListChecks, Plus } from 'lucide-react'
+import { CircleAlert, ListChecks, Plus } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { SafeHtml } from '@/components/SafeHtml'
 import { errorMessage } from '@/lib/errors'
@@ -9,6 +9,7 @@ import { formatBytes, formatDateTime, formatDaysUntil, formatPercent } from '@/l
 import { cn } from '@/lib/utils'
 import { Concealed } from '@/modules/grading/components/GradeValue'
 import { m } from '@/paraglide/messages'
+import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/ui/alert'
 import { Button } from '@/ui/button'
 import { Skeleton } from '@/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
@@ -297,11 +298,7 @@ export function MySubmission({
                   ? m.lms_feedback_attempt({ attempt: s.attempt })
                   : m.lms_assignment_submission()}
               </TableHead>
-              <TableHead
-                scope="col"
-                colSpan={2}
-                className="h-auto w-1/2 py-2 text-right text-muted-foreground"
-              >
+              <TableHead scope="col" className="h-auto w-1/2 py-2 text-right text-muted-foreground">
                 {when}
               </TableHead>
             </TableRow>
@@ -326,44 +323,45 @@ export function MySubmission({
                     )}
                   </span>
                 </TableCell>
-                <TableCell className="text-right text-muted-foreground tabular-nums">
-                  {f.size_bytes != null ? formatBytes(f.size_bytes) : null}
-                </TableCell>
-                <TableCell className="w-10 py-1 pl-0 text-right">
-                  {kept ? null : (
-                    <Tooltip>
-                      <TooltipTrigger
-                        render={
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            aria-label={`${m.lms_assignment_download()}: ${f.name}`}
-                            nativeButton={false}
-                            render={
-                              // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- labelled by `aria-label`
-                              <a
-                                href={submittedFileUrl(
-                                  courseId,
-                                  s.assignment_id,
-                                  f.external_id,
-                                  true,
-                                )}
-                              />
-                            }
-                          />
-                        }
-                      >
-                        <Download aria-hidden />
-                      </TooltipTrigger>
-                      <TooltipContent>{m.lms_assignment_download()}</TooltipContent>
-                    </Tooltip>
-                  )}
+                <TableCell className="py-1 text-right">
+                  {/* The size sits next to its download button. */}
+                  <span className="inline-flex items-center gap-1 text-muted-foreground tabular-nums">
+                    {f.size_bytes != null ? formatBytes(f.size_bytes) : null}
+                    {kept ? null : (
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label={`${m.lms_assignment_download()}: ${f.name}`}
+                              nativeButton={false}
+                              render={
+                                // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- labelled by `aria-label`
+                                <a
+                                  href={submittedFileUrl(
+                                    courseId,
+                                    s.assignment_id,
+                                    f.external_id,
+                                    true,
+                                  )}
+                                />
+                              }
+                            />
+                          }
+                        >
+                          <Download aria-hidden />
+                        </TooltipTrigger>
+                        <TooltipContent>{m.lms_assignment_download()}</TooltipContent>
+                      </Tooltip>
+                    )}
+                  </span>
                 </TableCell>
               </TableRow>
             ))}
             {s.url ? (
               <TableRow>
-                <TableCell colSpan={3}>
+                <TableCell colSpan={2}>
                   <a
                     href={s.url}
                     target="_blank"
@@ -378,14 +376,14 @@ export function MySubmission({
             ) : null}
             {s.body ? (
               <TableRow className="hover:bg-transparent">
-                <TableCell colSpan={3} className="whitespace-normal">
+                <TableCell colSpan={2} className="whitespace-normal">
                   <SafeHtml html={s.body} />
                 </TableCell>
               </TableRow>
             ) : null}
             {files.length === 0 && !s.url && !s.body && s.submission_type ? (
               <TableRow className="hover:bg-transparent">
-                <TableCell colSpan={3} className="text-muted-foreground">
+                <TableCell colSpan={2} className="text-muted-foreground">
                   {submissionTypeLabel(s.submission_type)}
                 </TableCell>
               </TableRow>
@@ -416,8 +414,8 @@ function Place({
       onClick={onOpen}
     >
       <Icon aria-hidden className="text-muted-foreground" />
-      <span>{name}</span>
-      <span className="min-w-0 flex-1 truncate text-left text-muted-foreground">{detail}</span>
+      <span className="min-w-0 flex-1 truncate text-left">{name}</span>
+      <span className="shrink-0 text-muted-foreground">{detail}</span>
       <ArrowUpRight aria-hidden className="text-muted-foreground" />
     </Button>
   )
@@ -500,12 +498,15 @@ export function KeptNote({ detail, provider }: { detail: AssignmentDetail; provi
 /** The read failed and nothing is kept: what went wrong, and a way to ask again. */
 export function AssignmentError({ error, onRetry }: { error: unknown; onRetry: () => void }) {
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
-      <p className="text-sm font-medium">{m.common_load_failed()}</p>
-      <p className="text-sm text-muted-foreground">{errorMessage(error)}</p>
-      <Button variant="outline" size="sm" onClick={onRetry}>
-        {m.common_retry()}
-      </Button>
-    </div>
+    <Alert variant="destructive">
+      <CircleAlert aria-hidden />
+      <AlertTitle>{m.common_load_failed()}</AlertTitle>
+      <AlertDescription>{errorMessage(error)}</AlertDescription>
+      <AlertAction>
+        <Button variant="outline" size="sm" onClick={onRetry}>
+          {m.common_retry()}
+        </Button>
+      </AlertAction>
+    </Alert>
   )
 }

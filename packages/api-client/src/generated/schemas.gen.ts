@@ -2050,6 +2050,12 @@ export const AssignmentDetailSchema = {
             ],
             description: 'Of an assignment that is a quiz'
         },
+        practice: {
+            type: 'boolean',
+            title: 'Practice',
+            description: 'A quiz without an assignment (a practice quiz): no submission, not importable',
+            default: false
+        },
         kept: {
             type: 'boolean',
             title: 'Kept',
@@ -2337,6 +2343,17 @@ export const AssignmentFactsSchema = {
             },
             type: 'array',
             title: 'Rubric'
+        },
+        quiz_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Quiz Id'
         }
     },
     type: 'object',
@@ -2592,6 +2609,17 @@ export const AssignmentOutSchema = {
             },
             type: 'array',
             title: 'Rubric'
+        },
+        quiz_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Quiz Id'
         },
         ref: {
             type: 'string',

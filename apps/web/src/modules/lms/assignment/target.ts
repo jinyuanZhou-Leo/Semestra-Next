@@ -1,4 +1,4 @@
-import { useLocation, useRouter } from '@tanstack/react-router'
+import { type AnyRouter, useLocation, useRouter } from '@tanstack/react-router'
 
 /** The tab the details open on: the description, or the submission with the feedback. */
 export type AssignmentView = 'details' | 'feedback'
@@ -37,6 +37,16 @@ export function assignmentHref(
   else params.delete(VIEW_PARAM)
   const query = params.toString()
   return `${place.pathname}${query ? `?${query}` : ''}`
+}
+
+/** Opens the details of an assignment over the page that is on screen. */
+export function openAssignmentDetails(
+  router: AnyRouter,
+  courseId: string,
+  assignmentId: string,
+  view: AssignmentView = 'details',
+) {
+  router.history.replace(assignmentHref(router.state.location, { courseId, assignmentId, view }))
 }
 
 /**

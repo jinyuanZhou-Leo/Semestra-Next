@@ -12,8 +12,8 @@ from semestra.modules.lms import (
     service,
     sync,
     sync_assignments,
-    sync_feedback,
     sync_files,
+    sync_kept,
     sync_status,
 )
 from semestra.modules.lms.schemas.dto import (
@@ -531,7 +531,7 @@ so it works while the LMS cannot be reached). The gradebook's feedback column.""
     tags=TAGS,
 )
 async def feedback_list(ctx: Ctx, inp: CourseRef) -> FeedbackList:
-    return await sync_feedback.feedback_list(ctx, inp.course_id)
+    return await sync_kept.feedback_list(ctx, inp.course_id)
 
 
 @capability(

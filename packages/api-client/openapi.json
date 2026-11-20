@@ -12106,10 +12106,10 @@
             "required": true,
             "schema": {
               "type": "string",
-              "description": "External assignment id (`external_id` of lms.assignment.list)",
+              "description": "External assignment id (`external_id` of lms.assignment.list), or `quiz:<quiz id>` for a quiz: its assignment, or the quiz itself when it has none",
               "title": "Assignment Id"
             },
-            "description": "External assignment id (`external_id` of lms.assignment.list)"
+            "description": "External assignment id (`external_id` of lms.assignment.list), or `quiz:<quiz id>` for a quiz: its assignment, or the quiz itself when it has none"
           },
           {
             "name": "refresh",
@@ -22053,6 +22053,12 @@
             ],
             "description": "Of an assignment that is a quiz"
           },
+          "practice": {
+            "type": "boolean",
+            "title": "Practice",
+            "description": "A quiz without an assignment (a practice quiz): no submission, not importable",
+            "default": false
+          },
           "kept": {
             "type": "boolean",
             "title": "Kept",
@@ -22339,6 +22345,17 @@
             },
             "type": "array",
             "title": "Rubric"
+          },
+          "quiz_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quiz Id"
           }
         },
         "type": "object",
@@ -22592,6 +22609,17 @@
             },
             "type": "array",
             "title": "Rubric"
+          },
+          "quiz_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quiz Id"
           },
           "ref": {
             "type": "string",

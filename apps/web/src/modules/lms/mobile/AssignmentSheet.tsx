@@ -48,20 +48,25 @@ export default function AssignmentSheet({ target, onClose }: AssignmentDetailsPr
   )
 }
 
+// The drawer centres its header; the page under it is left-aligned, so the header is too.
+const HEADER = 'pb-4 group-data-[swipe-axis=y]/drawer-popup:text-left'
+
 function Details({ target, onClose }: { target: AssignmentTarget; onClose: () => void }) {
   const [view, setView] = useState<AssignmentView>(target.view)
-  const d = useDetails(target, onClose)
+  const d = useDetails(target, onClose, { pages: false })
   if (!d.detail) {
     return (
       <>
-        <DrawerHeader>
+        <DrawerHeader className={HEADER}>
           <DrawerTitle>{m.lms_assignment_details()}</DrawerTitle>
           <DrawerDescription className="sr-only">{m.lms_assignment_details()}</DrawerDescription>
         </DrawerHeader>
         {d.error ? (
-          <AssignmentError error={d.error} onRetry={d.refetch} />
+          <div className="p-4">
+            <AssignmentError error={d.error} onRetry={d.refetch} />
+          </div>
         ) : (
-          <div className="space-y-3 px-4">
+          <div className="space-y-3 p-4">
             <Skeleton className="h-5 w-2/3" />
             <Skeleton className="h-32" />
           </div>
@@ -75,7 +80,7 @@ function Details({ target, onClose }: { target: AssignmentTarget; onClose: () =>
   return (
     <HideGrades hidden={d.hideGrades}>
       <LmsContentContext value={d.content}>
-        <DrawerHeader className="text-left">
+        <DrawerHeader className={HEADER}>
           <DrawerDescription>
             {[course ? courseLabel(course) : null, a.group_name].filter(Boolean).join(' · ')}
           </DrawerDescription>

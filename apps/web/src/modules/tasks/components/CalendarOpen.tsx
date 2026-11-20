@@ -1,7 +1,6 @@
 import type { Occurrence } from '@semestra/api-client'
-import { useExtensions } from '@/app/registry'
 import { m } from '@/paraglide/messages'
-import { TASK_LINKS, type TaskLink } from '../types'
+import { TaskLinks } from './TaskLinks'
 
 /**
  * "Open in gradebook" for an assessment's to-do, "Open in to-dos" for the rest: where the
@@ -24,13 +23,10 @@ export function CalendarTaskLinks({
   occurrence: Occurrence
   close: () => void
 }) {
-  const links = useExtensions<TaskLink>(TASK_LINKS)
   const task = {
     id: occurrence.ref.id,
     program_id: programId,
     assessment_id: occurrence.meta?.assessment_id ?? null,
   }
-  return links.map((link) => (
-    <link.Button key={link.id} task={task} as="button" className="mt-1 w-full" onOpen={close} />
-  ))
+  return <TaskLinks task={task} shape="button" className="mt-1 w-full" onOpen={close} />
 }

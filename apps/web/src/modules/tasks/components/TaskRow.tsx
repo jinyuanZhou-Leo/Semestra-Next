@@ -4,7 +4,6 @@ import { CSS } from '@dnd-kit/utilities'
 import type { Course, Task, TaskUpdateInputBody } from '@semestra/api-client'
 import { Flag, GripVertical, MoreHorizontal, PanelRight, Trash2 } from 'lucide-react'
 import { memo, useEffect, useEffectEvent, useRef, useState } from 'react'
-import { useExtensions } from '@/app/registry'
 import { courseColor, courseLabel } from '@/modules/academics/color'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
@@ -30,7 +29,8 @@ import { useCompleting } from '../completion'
 import { focusAt, useEditorExit } from './editor-exit'
 import { MotionLi, useRowPresence } from './presence'
 import { dueLabel } from '../due'
-import { PRIORITIES, type ShownPriority, shownPriority, TASK_LINKS, type TaskLink } from '../types'
+import { PRIORITIES, type ShownPriority, shownPriority } from '../types'
+import { TaskLinks } from './TaskLinks'
 import { PRIORITY_NAMES, PriorityMarks, TaskPriority } from './priority'
 import { CourseMenuItems, TaskChips } from './TaskChips'
 import type { VirtualRow } from './VirtualTaskList'
@@ -79,7 +79,6 @@ function RowEditor({
   const [title, setTitle] = useState(task.title)
   const [notes, setNotes] = useState(task.notes)
   const closed = useRef(false)
-  const links = useExtensions<TaskLink>(TASK_LINKS)
   const titleRef = useRef<HTMLInputElement>(null)
   const notesRef = useRef<HTMLTextAreaElement>(null)
   // As the row opens: the field and caret where the click was.
@@ -163,9 +162,7 @@ function RowEditor({
           managed={task.assessment_id !== null}
           onChange={(body) => void actions.update(task.id, body)}
         />
-        {links.map((link) => (
-          <link.Button key={link.id} task={task} as="pill" />
-        ))}
+        <TaskLinks task={task} shape="pill" />
       </div>
     </>
   )
@@ -287,7 +284,6 @@ export const TaskRow = memo(function TaskRow({
   const completing = useCompleting(task.id)
   const done = task.completed_at !== null || completing !== null
   const note = task.notes.split('\n')[0]?.trim()
-  const links = useExtensions<TaskLink>(TASK_LINKS)
   const start = (field: EditFocus['field']) => (event: React.MouseEvent) => {
     event.stopPropagation()
     onSelect(task.id)
@@ -395,9 +391,7 @@ export const TaskRow = memo(function TaskRow({
                 </span>
               ) : null}
               {hideCourse ? null : <CourseTag task={task} courses={courses} actions={actions} />}
-              {links.map((link) => (
-                <link.Button key={link.id} task={task} as="pill" />
-              ))}
+              <TaskLinks task={task} shape="pill" />
             </div>
           </>
         )}
@@ -452,7 +446,6 @@ function RowMenu({
   actions: TaskActions
 }) {
   const label = m.tasks_row_menu({ title: task.title })
-  const links = useExtensions<TaskLink>(TASK_LINKS)
   return (
     <DropdownMenu>
       <Tooltip>
@@ -482,9 +475,7 @@ function RowMenu({
             <PanelRight aria-hidden />
             {m.tasks_edit_details()}
           </DropdownMenuItem>
-          {links.map((link) => (
-            <link.MenuItem key={link.id} task={task} />
-          ))}
+          <TaskLinks task={task} shape="item" />
           <DropdownMenuSub>
             <DropdownMenuSubTrigger>
               <PriorityMarks level={shownPriority(task.priority)} placeholder />

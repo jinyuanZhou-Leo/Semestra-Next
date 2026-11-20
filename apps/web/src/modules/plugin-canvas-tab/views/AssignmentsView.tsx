@@ -190,14 +190,25 @@ function KindIcon({ row }: { row: Row }) {
 }
 
 function NameCell({ row }: CellProps) {
+  const { courseId } = useTableState()
+  const details = useAssignmentDetails()
   const { assignment: a } = row.original
   const why = a.lock_explanation || m.canvas_tab_item_locked()
   return (
     <span className="flex items-center gap-2">
       <KindIcon row={row.original} />
-      <span className="min-w-0 truncate font-medium" title={a.name}>
+      {/* The row opens the details on a click; the name is its button for the keyboard. */}
+      <button
+        type="button"
+        className="min-w-0 truncate rounded-sm text-left font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+        title={a.name}
+        onClick={(event) => {
+          event.stopPropagation()
+          details.open(courseId, row.id)
+        }}
+      >
         {a.name}
-      </span>
+      </button>
       {a.locked ? (
         <Tooltip>
           <TooltipTrigger

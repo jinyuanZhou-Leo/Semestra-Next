@@ -12,7 +12,7 @@ from semestra.core.context import Ctx
 from semestra.modules.academics import service as academics
 from semestra.modules.files import sources
 from semestra.modules.files.models import FilesItem
-from semestra.modules.lms import service, sync, sync_feedback
+from semestra.modules.lms import service, sync, sync_kept
 from semestra.modules.lms.models import (
     LmsCourseLink,
     LmsImportedRef,
@@ -187,7 +187,7 @@ async def status(ctx: Ctx, program_id: str) -> SyncStatus:
     recent = [
         SyncChange(
             id=change.id,
-            kind="feedback" if change.field == sync_feedback.FIELD else "field",
+            kind="feedback" if change.field == sync_kept.FIELD else "field",
             course_id=by_link[ref.link_id].course_id,
             course=label(by_link[ref.link_id].course_id),
             title=str(ref.snapshot.get("title") or ""),

@@ -1113,6 +1113,12 @@ export type AssignmentDetail = {
      */
     quiz?: QuizFacts | null;
     /**
+     * Practice
+     *
+     * A quiz without an assignment (a practice quiz): no submission, not importable
+     */
+    practice?: boolean;
+    /**
      * Kept
      *
      * This is what the sync kept, not the platform's answer
@@ -1245,6 +1251,10 @@ export type AssignmentFacts = {
      * Rubric
      */
     rubric?: Array<RubricCriterion>;
+    /**
+     * Quiz Id
+     */
+    quiz_id?: string | null;
 };
 
 /**
@@ -1361,6 +1371,10 @@ export type AssignmentOut = {
      * Rubric
      */
     rubric?: Array<RubricCriterion>;
+    /**
+     * Quiz Id
+     */
+    quiz_id?: string | null;
     /**
      * Ref
      *
@@ -20651,7 +20665,7 @@ export type LmsAssignmentGetData = {
         /**
          * Assignment Id
          *
-         * External assignment id (`external_id` of lms.assignment.list)
+         * External assignment id (`external_id` of lms.assignment.list), or `quiz:<quiz id>` for a quiz: its assignment, or the quiz itself when it has none
          */
         assignment_id: string;
     };

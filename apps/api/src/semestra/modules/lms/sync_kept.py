@@ -2,7 +2,7 @@
 what the gradebook reads, and what an assignment opens from when the platform can't be asked.
 
 Each sync reads the user's submissions of the whole course at once (`LmsProvider.submissions`)
-and keeps, for every imported assignment (`LmsFeedback`, one row per assessment or to-do): the
+and keeps, for every imported assignment (`LmsKeptAssignment`, one row per assessment or to-do): the
 assignment's description, dates and how to submit; what the user handed in; the comments, the
 rubric with what the teacher gave per criterion, and the score as the platform shows it.
 Comments edited or deleted on the platform are edited or deleted here. New comments, or a rubric
@@ -20,10 +20,16 @@ from typing import Any
 from sqlalchemy import select
 
 from semestra.core.context import Ctx
+from semestra.core.errors import AppError
 from semestra.core.events import events
 from semestra.modules.academics import service as academics
 from semestra.modules.lms import reads, service
-from semestra.modules.lms.models import LmsCourseLink, LmsFeedback, LmsImportedRef, LmsSyncChange
+from semestra.modules.lms.models import (
+    LmsCourseLink,
+    LmsImportedRef,
+    LmsKeptAssignment,
+    LmsSyncChange,
+)
 from semestra.modules.lms.schemas.dto import SubmissionDetail
 from semestra.modules.lms.schemas.io import (
     KEPT_ASSIGNMENT,
@@ -33,9 +39,10 @@ from semestra.modules.lms.schemas.io import (
 )
 from semestra.modules.lms.service import Bound
 from semestra.modules.lms.sync import Applied, StageResult, hold, register_sync_stage
+from semestra.modules.tasks.models import TasksItem
 
 # The gradebook's feedback refetches on it.
-UPDATED = "lms.feedback.updated"
+UPDATED = "lms.kept.updated"
 events.coalesce(UPDATED)
 # The field of the change logged for new feedback (never put back: nothing in Semestra to undo).
 FIELD = "feedback"
@@ -77,13 +84,34 @@ def _theirs(comments: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [c for c in comments if not c.get("own")]
 
 
-def news(before: LmsFeedback, after: dict[str, Any]) -> dict[str, Any] | None:
+def news(before: LmsKeptAssignment, after: dict[str, Any]) -> dict[str, Any] | None:
     """What is new for the user: someone else's comments not there before, a rubric assessed
     for the first time. None when nothing is."""
     seen = {_key(c) for c in before.comments}
     comments = sum(1 for c in _theirs(after["comments"]) if _key(c) not in seen)
     rubric = bool(after["rubric_scores"]) and not before.rubric_scores
     return {"comments": comments, "rubric": rubric} if comments or rubric else None
+
+
+async def _quiz_facts(
+    ctx: Ctx, link: LmsCourseLink, b: Bound, assignments: dict[str, dict[str, Any]]
+) -> dict[str, dict[str, Any]]:
+    """The question count and time limit of the course's quizzes, by quiz id; empty when no
+    assignment is a quiz or the quizzes can't be read (what was kept then stays)."""
+    if "quizzes" not in b.provider.features or not any(
+        a.get("quiz_id") for a in assignments.values()
+    ):
+        return {}
+    try:
+        found = await reads.quizzes(ctx, link.course_id, False)
+    except AppError as exc:
+        if not exc.code.startswith("lms."):
+            raise
+        return {}
+    return {
+        q.external_id: {"question_count": q.question_count, "time_limit": q.time_limit}
+        for q in found.items
+    }
 
 
 async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
@@ -97,6 +125,7 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
     # Read by the assignments stage just before (the in-process cache), for the rest.
     listed, cut = await reads.raw_assignments(ctx, link.course_id, False, linked=(link, b))
     assignments = {str(a["external_id"]): a for a in listed}
+    quizzes = await _quiz_facts(ctx, link, b, assignments)
     await hold(ctx, link)
     refs = list(
         await ctx.db.scalars(
@@ -109,8 +138,17 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
     )
     kept = list(
         await ctx.db.scalars(
-            select(LmsFeedback).where(
-                LmsFeedback.user_id == ctx.user_id, LmsFeedback.course_id == link.course_id
+            select(LmsKeptAssignment).where(
+                LmsKeptAssignment.user_id == ctx.user_id,
+                LmsKeptAssignment.course_id == link.course_id,
+            )
+        )
+    )
+    # A to-do deleted a moment ago still has its ref (M05 tells after the commit): skipped.
+    todos = set(
+        await ctx.db.scalars(
+            select(TasksItem.id).where(
+                TasksItem.id.in_([r.target_id for r in refs if r.target_kind != "assessment"])
             )
         )
     )
@@ -129,14 +167,20 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
         values = _values(sub, a if a is not None or not cut else None)
         values |= {"provider": b.row.provider, "assignment_id": ref.external_id}
         graded = ref.target_kind == "assessment"
+        if not graded and ref.target_id not in todos:
+            continue
         row = (of_assessment if graded else of_task).get(str(ref.target_id))
         if row is None and graded and (row := todo_rows.get(ref.external_id)) is not None:
             row.assessment_id, row.task_id = ref.target_id, None
             changed = True
+        if "details" in values and (quiz_id := (a or {}).get("quiz_id")):
+            facts = quizzes.get(str(quiz_id)) or ((row.details or {}).get("quiz") if row else None)
+            if facts:
+                values["details"]["quiz"] = facts
         if row is None:
             # What the assignment has when first read is not news.
             ctx.db.add(
-                LmsFeedback(
+                LmsKeptAssignment(
                     user_id=ctx.user_id,
                     assessment_id=ref.target_id if graded else None,
                     task_id=None if graded else ref.target_id,
@@ -177,7 +221,7 @@ async def _enabled(ctx: Ctx, link: LmsCourseLink, b: Bound) -> bool:
 
 
 # After the assignments stage (it imports and binds; its read gives the rubrics).
-register_sync_stage("feedback", run, order=30, enabled=_enabled)
+register_sync_stage("kept", run, order=30, enabled=_enabled)
 
 
 async def feedback_list(ctx: Ctx, course_id: str) -> FeedbackList:
@@ -186,8 +230,8 @@ async def feedback_list(ctx: Ctx, course_id: str) -> FeedbackList:
     the platform. The user's own comments come with it, for the conversation."""
     await academics.get_course_row(ctx, course_id)  # owned, or not found
     rows = await ctx.db.scalars(
-        select(LmsFeedback).where(
-            LmsFeedback.user_id == ctx.user_id, LmsFeedback.course_id == course_id
+        select(LmsKeptAssignment).where(
+            LmsKeptAssignment.user_id == ctx.user_id, LmsKeptAssignment.course_id == course_id
         )
     )
     return FeedbackList(

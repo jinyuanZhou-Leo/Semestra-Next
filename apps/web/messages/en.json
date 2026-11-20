@@ -1568,7 +1568,6 @@
   "capability_lms_file_preview_title": "Read the text of an LMS file",
   "capability_lms_file_search_title": "Search LMS course files",
   "capability_lms_folder_get_title": "Browse LMS course folders",
-  "capability_lms_submission_get_title": "Read LMS feedback on an assignment",
   "capability_lms_announcement_mark_read_title": "Mark an LMS announcement read",
   "capability_lms_file_save_to_course_title": "Save an LMS file",
   "capability_lms_grade_list_title": "List LMS grades",

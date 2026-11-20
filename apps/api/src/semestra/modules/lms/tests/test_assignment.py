@@ -5,15 +5,18 @@ from datetime import UTC, datetime
 from typing import Any
 
 import pytest
+from sqlalchemy import delete
 
 from semestra.modules.lms.schemas.dto import (
     Assignment,
+    Quiz,
     SubmissionComment,
     SubmissionDetail,
     SubmittedFile,
 )
 from semestra.modules.lms.tests.conftest import Api, FakeProvider
 from semestra.modules.lms.tests.test_sync import _assessments, _course
+from semestra.modules.tasks.models import TasksItem
 from semestra.testing import Clock
 
 pytestmark = pytest.mark.usefixtures("fake")
@@ -162,3 +165,52 @@ async def test_to_dos_are_kept_too_and_follow_into_the_gradebook(
     kept = await _open(api, course, "a9", refresh=True)
     assert kept["kept"]
     assert (kept["assessment"]["id"], kept["task"]["id"]) == (graded["id"], reading["id"])
+
+
+async def test_a_quiz_opens_by_its_own_id_also_from_what_was_kept(api: Api, fake: FakeProvider):
+    fake.course_assignments["101"].append(
+        Assignment(
+            external_id="a8",
+            name="Quiz A",
+            raw_kind="quiz",
+            quiz_id="q8",
+            points=5,
+            due_at=datetime(2026, 2, 9, 17, tzinfo=UTC),
+        )
+    )
+    fake.quiz_list.append(
+        Quiz(external_id="q8", title="Quiz A", question_count=10, time_limit=30, assignment_id="a8")
+    )
+    program_id, course = await _course(api, "a8")
+
+    # A link to a quiz knows the quiz's id only: it opens the quiz's assignment.
+    live = await _open(api, course, "quiz:q8")
+    assert (live["assignment"]["external_id"], live["practice"]) == ("a8", False)
+    assert live["quiz"] == {"question_count": 10, "time_limit": 30}
+    assert live["assessment"] is not None
+    # A quiz without an assignment opens as itself.
+    practice = await _open(api, course, "quiz:q1")
+    assert (practice["assignment"]["name"], practice["practice"]) == ("Quiz 1", True)
+    assert (practice["submission"], practice["assessment"]) == (None, None)
+
+    await api.sync(program_id)
+    fake.down = True
+    kept = await _open(api, course, "quiz:q8", refresh=True)
+    assert (kept["kept"], kept["assignment"]["external_id"]) == (True, "a8")
+    assert kept["quiz"] == {"question_count": 10, "time_limit": 30}
+
+
+async def test_a_to_do_deleted_a_moment_ago_does_not_fail_the_sync(
+    api: Api, fake: FakeProvider, app: Any
+):
+    fake.course_assignments["101"].append(
+        Assignment(external_id="a9", name="Reading", due_at=datetime(2026, 2, 9, 17, tzinfo=UTC))
+    )
+    program_id, _ = await _course(api, "a9")
+    # As between the delete's commit and M05 telling about it: the to-do is gone, its ref not.
+    async with app.state.session_factory() as db:
+        await db.execute(delete(TasksItem))
+        await db.commit()
+    status = await api.sync(program_id)
+    assert status["errors"] == []
+    assert (await api.call("GET", f"/programs/{program_id}/lms/assignment-targets"))["items"]

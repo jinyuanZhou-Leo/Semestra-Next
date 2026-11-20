@@ -699,6 +699,7 @@ class CanvasProvider:
                         allowed_extensions=[str(x) for x in a.get("allowed_extensions") or []],
                         statistics=_statistics(a.get("score_statistics")),
                         rubric=_rubric(a.get("rubric")),
+                        quiz_id=_text(a.get("quiz_id")),
                     )
                 )
         return out

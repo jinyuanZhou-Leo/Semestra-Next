@@ -79,25 +79,52 @@ function Details({ target, onClose }: { target: AssignmentTarget; onClose: () =>
     </DialogClose>
   )
   if (!d.detail) {
+    // The same two columns as the details, so nothing moves when they arrive.
     return (
-      <div className="flex min-w-0 flex-1 flex-col">
-        <div className="flex items-start justify-between gap-2 px-7 pt-6">
-          <DialogTitle className="font-heading text-xl font-semibold">
-            {m.lms_assignment_details()}
-          </DialogTitle>
-          {close}
+      <>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <header className="shrink-0 px-7 pt-6">
+            <DialogDescription className="sr-only">{m.lms_assignment_details()}</DialogDescription>
+            <DialogTitle className="sr-only">{m.lms_assignment_details()}</DialogTitle>
+            {d.error ? null : (
+              <>
+                <Skeleton className="h-5 w-40" />
+                <Skeleton className="mt-1 h-7 w-2/3" />
+              </>
+            )}
+          </header>
+          {d.error ? (
+            <div className="px-7 py-5">
+              <AssignmentError error={d.error} onRetry={d.refetch} />
+            </div>
+          ) : (
+            <>
+              <div className="mt-2 h-11 shrink-0 border-b" />
+              <div className="space-y-3 px-7 py-5">
+                <Skeleton className="h-5 w-full" />
+                <Skeleton className="h-5 w-5/6" />
+                <Skeleton className="h-5 w-2/3" />
+              </div>
+            </>
+          )}
         </div>
-        <DialogDescription className="sr-only">{m.lms_assignment_details()}</DialogDescription>
-        {d.error ? (
-          <AssignmentError error={d.error} onRetry={d.refetch} />
-        ) : (
-          <div className="space-y-3 px-7 py-5">
-            <Skeleton className="h-5 w-2/3" />
-            <Skeleton className="h-5 w-1/2" />
-            <Skeleton className="h-32" />
+        <aside className="flex w-80 shrink-0 flex-col border-l bg-muted/30">
+          <div className="space-y-3 p-5">
+            <div className="flex items-start justify-between gap-2">
+              {d.error ? <span /> : <Skeleton className="h-7 w-32" />}
+              {close}
+            </div>
+            {d.error ? null : <Skeleton className="h-9 w-full" />}
           </div>
-        )}
-      </div>
+          {d.error ? null : (
+            <div className="space-y-3 border-t px-5 py-4">
+              <Skeleton className="h-5 w-full" />
+              <Skeleton className="h-5 w-full" />
+              <Skeleton className="h-5 w-2/3" />
+            </div>
+          )}
+        </aside>
+      </>
     )
   }
   const { detail, course, provider, practice } = d

@@ -568,13 +568,14 @@ class FeedbackList(BaseModel):
 class AssignmentReadInput(BaseModel):
     course_id: Id = Field(description="Course id")
     assignment_id: AssignmentId = Field(
-        description="External assignment id (`external_id` of lms.assignment.list)"
+        description="External assignment id (`external_id` of lms.assignment.list), or "
+        "`quiz:<quiz id>` for a quiz: its assignment, or the quiz itself when it has none"
     )
     refresh: bool = Field(default=False, description="Skip the 5-minute cache and ask again")
 
 
 # What the sync keeps of an imported assignment and of the user's submission, next to the
-# feedback (`LmsFeedback.details` and `.work`): the rest has columns of its own.
+# feedback (`LmsKeptAssignment.details` and `.work`): the rest has columns of its own.
 KEPT_ASSIGNMENT = frozenset(Assignment.model_fields) - {"submission", "rubric", "web_url", "points"}
 KEPT_SUBMISSION = frozenset(SubmissionDetail.model_fields) - {
     "score", "grade", "attempt", "graded_at", "comments", "rubric_scores",
@@ -611,6 +612,10 @@ class AssignmentDetail(BaseModel):
         description="What the user handed in, with the teacher's feedback; null when unknown"
     )
     quiz: QuizFacts | None = Field(default=None, description="Of an assignment that is a quiz")
+    practice: bool = Field(
+        default=False,
+        description="A quiz without an assignment (a practice quiz): no submission, not importable",
+    )
     kept: bool = Field(
         default=False, description="This is what the sync kept, not the platform's answer"
     )

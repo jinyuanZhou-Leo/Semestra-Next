@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any, Literal
 
-from sqlalchemy import JSON, Boolean, ForeignKey, Index, String, UniqueConstraint
+from sqlalchemy import JSON, Boolean, CheckConstraint, ForeignKey, Index, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from semestra.core.db import Base, OwnedMixin, TimestampMixin, new_id
@@ -117,8 +117,8 @@ class LmsImportedRef(Base, OwnedMixin):
     dismissed_at: Mapped[datetime | None] = mapped_column(default=None)
 
 
-class LmsFeedback(Base, OwnedMixin):
-    """An imported assignment as the sync last read it (`sync_feedback.py`): its description and
+class LmsKeptAssignment(Base, OwnedMixin):
+    """An imported assignment as the sync last read it (`sync_kept.py`): its description and
     dates, what the user handed in, and the teacher's feedback. Kept here so the assignment
     opens without asking the platform, after the course closes there, and in backups. One row
     per assessment or to-do the assignment was imported as, once the sync read it. It belongs to
@@ -126,7 +126,12 @@ class LmsFeedback(Base, OwnedMixin):
     course keeps the row as it was (it no longer follows the platform); deleting the assessment
     or to-do deletes it."""
 
-    __tablename__ = "lms_feedback"
+    __tablename__ = "lms_kept_assignments"
+    __table_args__ = (
+        CheckConstraint(
+            "(assessment_id IS NULL) <> (task_id IS NULL)", name="ck_lms_kept_assignments_owner"
+        ),
+    )
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
     # Exactly one of the two: what the assignment was imported as.
@@ -157,7 +162,8 @@ class LmsFeedback(Base, OwnedMixin):
     rubric: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
     rubric_scores: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
     # The rest of the assignment (an `Assignment` without its rubric and submission: name,
-    # cleaned description, dates, how to submit) and of the user's submission (a
+    # cleaned description, dates, how to submit; for a quiz also its `QuizFacts` under `quiz`)
+    # and of the user's submission (a
     # `SubmissionDetail` without the columns above: when, what was handed in; files by name,
     # without an address). None on rows kept before these were read.
     details: Mapped[dict[str, Any] | None] = mapped_column(JSON, default=None)

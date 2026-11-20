@@ -464,7 +464,7 @@ export default defineModule({
       ],
     ],
     // The sync kept new or changed feedback for a course's assessments.
-    'lms.feedback.updated': [
+    'lms.kept.updated': [
       (data) => [
         { _id: 'lmsFeedbackList', path: { course_id: data.course_id } },
         { _id: 'lmsAssignmentGet', path: { course_id: data.course_id } },

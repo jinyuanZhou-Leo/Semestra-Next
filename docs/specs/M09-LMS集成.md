@@ -115,7 +115,7 @@ lms_materials                        # 课程资料（文件、页面、链接�
   imported_at?, change? ('added'|'duplicate'|'updated'|'gone'|'handed_over'), changed_at?  # 最近一次平台带来的变化（面板，保留 14 天）
   UNIQUE(link_id, kind, external_id)
 
-lms_feedback                         # 已导入作业保存在 Semestra 里的内容（§4.4）：说明、我的提交、老师反馈；每个考核或待办一行
+lms_kept_assignments                 # 已导入作业保存在 Semestra 里的内容（§4.4）：说明、我的提交、老师反馈；每个考核或待办一行（`assessment_id` 与 `task_id` 恰好一个非空，库里有检查约束）
   id, user_id, assessment_id → grading_assessments (CASCADE, unique),
   course_id → academics_courses (CASCADE), provider, assignment_id（读自哪个平台的哪份作业）,
   web_url?, points?, score?, grade?, attempt?, graded_at?,
@@ -160,11 +160,11 @@ lms_cache  key, user_id, connection_id, scope, payload, expires_at
 - **偏离计划**：同步写入不经过 M08 导入会话（原计划生成更新 session 再审核）。自动跟随的字段直接写，留下可撤销的变更记录；需要用户决定的在状态行面板里逐项回答，不打开导入审核。M08 的 `assessment_patch`/`task_patch` 随之删除。
 
 ### 4.4 已导入作业保存在 Semestra 里（2026-11-18，迁移 0059；2026-11-20 加上说明与提交，迁移 0067）
-- **保存**：同步阶段 `feedback`（`sync_feedback.py`，order 30，provider 有 `assignments` 与 `submissions` 时）把每个已导入或已绑定的考核在平台上的老师反馈存进 `lms_feedback`：评语、评分细则本身（作业的 `rubric`，含各项名称、分值与等级，离线也能完整显示）和每项得分，以及平台上的得分、提交次数、评分时间、作业地址与分值。评语是平台给的纯文本，按文本显示，不渲染 HTML。评语的附件和录音录像评语只存名称与平台上的地址（`SubmissionComment.attachments`，`media` 区分音视频），对话框里显示成链接，到平台上打开。学生本人在自己提交下写的评论标为 `own`（Canvas：评论的 `author_id` 等于提交的 `user_id`），对话框照常显示以保留来回的上下文，但不算反馈：不让成绩册出现反馈图标，也不算新评语。2026-11-20 起同一行还保存作业本身（`details`：说明的 HTML、截止与开放关闭时间、提交方式、可提交次数、作业组等）和我的提交（`work`：提交时间、迟交、提交方式、文本、网址、文件名），导入成待办的作业也保存（`task_id`，与 `assessment_id` 二选一）；待办移进成绩册后，这一行跟着改指向考核。提交的文件只存名称，文件本身不下载。作业列表被截断时保留原来保存的作业内容。
+- **保存**：同步阶段 `kept`（`sync_kept.py`，order 30，provider 有 `assignments` 与 `submissions` 时）把每个已导入或已绑定的考核在平台上的老师反馈存进 `lms_kept_assignments`（2026-11-20 由 `lms_feedback` 改名，事件是 `lms.kept.updated`；备份里的键仍是 `feedback`，格式不变）：评语、评分细则本身（作业的 `rubric`，含各项名称、分值与等级，离线也能完整显示）和每项得分，以及平台上的得分、提交次数、评分时间、作业地址与分值。评语是平台给的纯文本，按文本显示，不渲染 HTML。评语的附件和录音录像评语只存名称与平台上的地址（`SubmissionComment.attachments`，`media` 区分音视频），对话框里显示成链接，到平台上打开。学生本人在自己提交下写的评论标为 `own`（Canvas：评论的 `author_id` 等于提交的 `user_id`），对话框照常显示以保留来回的上下文，但不算反馈：不让成绩册出现反馈图标，也不算新评语。2026-11-20 起同一行还保存作业本身（`details`：说明的 HTML、截止与开放关闭时间、提交方式、可提交次数、作业组等）和我的提交（`work`：提交时间、迟交、提交方式、文本、网址、文件名），导入成待办的作业也保存（`task_id`，与 `assessment_id` 二选一）；待办移进成绩册后，这一行跟着改指向考核。提交的文件只存名称，文件本身不下载。作业列表被截断时保留原来保存的作业内容。作业是测验时（`Assignment.quiz_id`）连同测验的事实（题数、时限、可答次数等，`details.quiz`）一起保存，读不到测验列表时保留上次的；待办在同步期间被删掉的那一行直接跳过，不让整门课的这一阶段失败。
 - **省请求**：每次同步对整门课只读一次提交（provider 契约 `submissions(course_id)`，Canvas 是 `GET /courses/:id/students/submissions?include[]=submission_comments&include[]=rubric_assessment`，不带 `student_ids` 就是本人的），不按作业逐个读。评分细则取自同一次同步里 `assignments` 阶段读过的作业列表（进程内缓存）。提交列表被截断时，没出现的作业保留原来的反馈。
 - **跟随**：每次同步都用平台的当前内容覆盖，平台上改了或删了评语，本地也跟着改或删。
 - **最近更新**：有别人写的新评语（按评语 id 判断；平台没有 id 时按时间与内容），或评分细则第一次有得分时，记一条 `lms_sync_changes`（`field = feedback`，状态里的 `SyncChange.kind` 为 `feedback`，字段改动为 `field`，前端按 `kind` 区分，`new = {comments: 新评语条数, rubric: 是否第一次按评分细则评分}`），出现在状态行面板的“最近更新”里，点开就地打开作业详情的“提交与反馈”（§7.3）。它不能撤销（`toggleable` 恒为假）；通知见 M18 §4.4。第一次读到某个考核时（新导入、新绑定、迁移后的第一次同步）已有的反馈不报。
-- **读取**：成绩册读 `lms.feedback.list`（`GET /courses/{course_id}/lms/feedback`，只读库，只开放 HTTP），只返回有别人写的评语或评分细则得分的考核（本人的评论随之返回）；它只用来决定“反馈”列和按钮是否出现；内容由作业详情读 `lms.assignment.get`（§7.3）：先问平台，问不到（连不上、课程不再关联、作业在平台上没了）且作业导入过时，返回这里保存的内容，并标明 `kept`、保存时间 `kept_at` 与原因 `problem`。`lms.submission.get` 已删除。数据变化时发 `lms.feedback.updated {course_id}`（可合并）。
+- **读取**：成绩册读 `lms.feedback.list`（`GET /courses/{course_id}/lms/feedback`，只读库，只开放 HTTP），只返回有别人写的评语或评分细则得分的考核（本人的评论随之返回）；它只用来决定“反馈”列和按钮是否出现；内容由作业详情读 `lms.assignment.get`（§7.3）：先问平台，问不到（连不上、课程不再关联、作业在平台上没了）且作业导入过时，返回这里保存的内容，并标明 `kept`、保存时间 `kept_at` 与原因 `problem`。`lms.submission.get` 已删除。数据变化时发 `lms.kept.updated {course_id}`（可合并）。
 - **解绑与取消关联**（owner 2026-11-18：评语是解释成绩的，成绩留下评语也留下）：反馈属于考核，不属于它与平台的对应关系（`lms_imported_refs`）。解绑、取消关联、更换关联的课程或删除使用中的连接后，评语保持最后一次读到的样子，不再随平台更新（同步已经找不到它）；对话框的平台名与“在 {平台} 中打开”用行里存的 `provider` 与 `web_url`，不依赖关联。考核删除时反馈随之删除（外键级联）。绑定到另一份作业时（`assignment_id` 变了），下次同步按第一次读取处理，悄悄换成新作业的反馈，不报新评语。这几处确认文字都写明保存的老师评语会保留，文档同样说明。
 - **导出**：反馈单独一个列表（`LmsPayload.feedback`，按考核与课程的 id 映射，没跟过来的跳过；可省略；评语、评分细则与得分用与接口相同的模型校验，格式不对的备份在导入时就被拒绝），备份格式版本不变；没有这一项的备份导入后，下次同步再读回来。
 
@@ -262,7 +262,7 @@ lms_cache  key, user_id, connection_id, scope, payload, expires_at
   - `academics.courseInfo`：已关联课程显示 provider 徽章、外部代码，以及"在 <provider> 中打开"。
   - Card `lms.announcements`（course/term 作用域，m/l 尺寸）：最近公告；term 作用域时汇总本学期所有已关联课程。
   - Page `announcements`「公告」（course/term 作用域，见 §7 实现说明）与命令面板搜索 `searchProviders: lms.announcements`。
-  - `tasks.links`（M05）：是平台作业的待办显示“作业详情”；`grading.assessmentActions`：成绩册行菜单“查看作业”；manifest `overlays`：作业详情（§7.3）。
+  - `tasks.links`（M05）：是平台作业的待办显示“作业详情”（只给数据：`query` 是 `lms.assignment.targets`，`open` 返回打开详情的函数，按钮由 M05 画）；`grading.assessmentActions`：成绩册行菜单“查看作业”；manifest `overlays`：作业详情（§7.3）。
 - 本模块定义的前端扩展点：`lms.providerUi`（见 2.1）；`lms.linkOpeners`（`{ path(link, { programId, courseId }) }`：平台内容里的链接由谁显示，Canvas Tab 用它接住页面与单元的链接，§7.3）。
 
 ## 7. 前端
@@ -284,11 +284,12 @@ lms_cache  key, user_id, connection_id, scope, payload, expires_at
 
 ### 7.3 作业详情（2026-11-20）
 应用里显示一份平台作业的唯一地方：任何提到作业的地方点开都是它，就地打开，不换页面，也不必去平台看。提交仍在平台上完成。
-- **打开方式**：地址参数 `?assignment=<课程 id>:<作业 id>`（练习测验是 `quiz:<测验 id>`），加 `&view=feedback` 直接到“提交与反馈”。任何页面都认（manifest `overlays` 里的 `AssignmentHost`），所以链接、通知和刷新都能回到它；打开和关闭都替换当前历史记录。代码在 `modules/lms/assignment/`：`target.ts`（`useAssignmentDetails().open/close`）、`queries.ts`、`use-details.ts`、`parts.tsx`、`AssignmentDialog.tsx`，手机是 `mobile/AssignmentSheet.tsx`（M17）。
+- **打开方式**：地址参数 `?assignment=<课程 id>:<作业 id>`（测验也可以写 `quiz:<测验 id>`，由后端的 `lms.assignment.get` 认：对应作业的测验给出那份作业，练习测验给出 `practice: true` 的一份；平台连不上时从保存的内容里按 `details.quiz_id` 找），加 `&view=feedback` 直接到“提交与反馈”。任何页面都认（manifest `overlays` 里的 `AssignmentHost`），所以链接、通知和刷新都能回到它；打开和关闭都替换当前历史记录。代码在 `modules/lms/assignment/`：`target.ts`（`useAssignmentDetails().open/close`）、`queries.ts`、`use-details.ts`、`parts.tsx`、`../content/link-opener.ts`、`AssignmentDialog.tsx`，手机是 `mobile/AssignmentSheet.tsx`（M17）。
 - **入口**：Canvas Tab 的作业行、页面与单元里的作业和测验链接；成绩册的“反馈”按钮（到“提交与反馈”）与行菜单“查看作业”；待办行、编辑面板与 ⋯ 菜单的“作业详情”（一直显示的胶囊按钮，不靠悬停）；日历条目详情；公告和作业说明里的作业链接；同步面板“最近更新”与“待处理”的行；学习平台通知（M18）；Sem 的 `lms.content.read` 对作业与测验返回 `app_url`。
 - **桌面对话框**：固定高度的两栏。左栏是课程与作业组、标题，下面两个页签：“说明”（清洗后的 HTML，可切换显示方式；锁定原因）和“提交与反馈”（“我的提交”与评分细则同样式的表格：第几次提交、时间与迟交、交的文件/文本/网址；老师评语；评分细则每项的评定与得分）。右栏是状态（未提交 · N 天后截止、已提交、得分与百分比、缺交等，遵守“隐藏成绩”）、“在 {平台} 中提交/打开”、各项事实（截止、分值、班级分布、作业组与权重、开放与关闭、提交方式、次数、测验题数与限时；没有值的不显示）和“在 Semestra 中”（成绩册里的考核与权重、待办及是否完成，点了过去；还没导入时是“加入成绩册和待办”，走导入审核）。只有左栏正文滚动，切页签和数据到达时不跳动。
 - **数据**：`lms.assignment.get` 一次读全。从已读过作业列表的地方打开时先用列表里的内容显示标题、说明与事实，提交与反馈到了再补上。问不到平台时显示保存的内容，并在正文顶上写明原因和保存时间（§4.4）；没导入过的作业没有保存内容，显示错误与“重试”。
-- **说明里的链接**：别的作业或测验就地换成那一份；课程文件里有的文件开预览，其余文件经文件代理在新标签页打开；公告到课程的公告页；页面与单元交给 `lms.linkOpeners`（装了 Canvas Tab 时在那里打开）；都接不住的到平台。
+- **平台内容里的链接**（`useLmsLinkOpener`，作业详情与公告页共用一份）：别的作业或测验就地打开那一份的详情；课程文件里有的文件开预览，其余文件经文件代理在新标签页打开；公告到课程的公告页（公告页里就地换成那一条）；页面与单元交给 `lms.linkOpeners`（装了 Canvas Tab 时在那里打开）；都接不住的到平台。手机上没有这些页面（`pages: false`）：作业与测验照常就地打开，文件一律经文件代理在新标签页打开，其余到平台，详情不关。
+- **加载与出错**：读取中和读不到时对话框保持同样的两栏和大小（左栏骨架或 `Alert` + 重试，右栏保留关闭按钮），内容到了不跳。
 - 原来成绩册里的反馈对话框（`FeedbackDialog`、`?feedback=`）和 Canvas Tab 的行内展开都并入这里。
 
 ## 8. Agent 集成
@@ -313,7 +314,7 @@ Agent 与 MCP 只看到 11 个按任务设计的工具，而不是每个平台�
 - **课程来源**：academics 新增扩展点 `register_course_source(name, linked)`，`academics.course.find` 的结果带 `sources`，本模块对已关联课程贡献 `lms`，让 Sem 知道课程资料还有 LMS 这一处。
 - 讨论：provider 契约新增 `discussions`、`discussion`（功能标志 `discussions`），Canvas 的公告也按讨论读取（带回复，最多 100 条）。
 - **一份内容一条路径**（2026-11-18，`content.py`）：按「这份内容在不在课程文件里」这一个事实分流。资料同步（§4.2）带进课程文件、状态为 `synced` 且已有可读文本（M07 `active_document_id`）的平台文件和页面，`lms.content.search` 用 M07 的检索（`files.search.search`，限定这些条目）搜正文，命中带 `item_id`、`citation_id`，结果的 `citations` 与 `files.document.search` 相同；`lms.content.read` 直接返回 `files.documents.read_document` 的前几页（`text` 按页拼接、`citations` 每页一条，后续页 `files.document.read`）；`lms.course.outline` 的条目和页面带 `item_id`。不再实时抓这些页面的正文，也不再重新下载解析这些文件。课程文件里没有的（同步关着、用户移除了、还没读完、读不了的类型）才走平台，`note` 写明（“Not in the course files…”或“…not readable there (<doc_status>)…”）。
-- **公告与评语读本地**：公告搜索与阅读用 `lms_announcements`（回复不保存，阅读时尽量从平台取，取不到在 `note` 里说明；本地没有的旧公告仍按讨论从平台读）；评语来自 `lms_feedback`（`sync_feedback.feedback_list`），作为作业文本的一部分可搜：作业本身也命中时合并成一条（`where` 用平台的位置），只有评语命中时 `where: "Feedback"`；标题用平台上的作业名，`lms.content.read(assignment:…)` 用保存的评语，没有保存的才实时读提交；平台读不到作业时，有保存评语就返回它（`note` 说明来自上次同步）。平台不可达（`lms.unreachable`、`lms.rate_limited`、`lms.forbidden`、`lms.not_found` 与连接类错误）时搜索不失败，只在 `skipped` 里记一条（`reason` 为错误码），本地内容照常返回。连接本身坏了（`lms.invalid_credentials`、`lms.credentials_missing` 等 `BROKEN_ON_READ`）与暂时连不上分开：前者在 `skipped[].hint` 与阅读的 `note` 里写明请用户到设置里重新连接 LMS，后者只说稍后再试。取消关联后保存的评语仍属于考核（§4.4）：搜索仍找到它（`skipped` 记 `lms.course_not_linked`），`lms.content.read(assignment:…)` 返回保存的评语并在 `note` 说明课程已不再关联；其它内容报 `lms.course_not_linked`。
+- **公告与评语读本地**：公告搜索与阅读用 `lms_announcements`（回复不保存，阅读时尽量从平台取，取不到在 `note` 里说明；本地没有的旧公告仍按讨论从平台读）；评语来自 `lms_kept_assignments`（`sync_kept.feedback_list`），作为作业文本的一部分可搜：作业本身也命中时合并成一条（`where` 用平台的位置），只有评语命中时 `where: "Feedback"`；标题用平台上的作业名，`lms.content.read(assignment:…)` 用保存的评语，没有保存的才实时读提交；平台读不到作业时，有保存评语就返回它（`note` 说明来自上次同步）。平台不可达（`lms.unreachable`、`lms.rate_limited`、`lms.forbidden`、`lms.not_found` 与连接类错误）时搜索不失败，只在 `skipped` 里记一条（`reason` 为错误码），本地内容照常返回。连接本身坏了（`lms.invalid_credentials`、`lms.credentials_missing` 等 `BROKEN_ON_READ`）与暂时连不上分开：前者在 `skipped[].hint` 与阅读的 `note` 里写明请用户到设置里重新连接 LMS，后者只说稍后再试。取消关联后保存的评语仍属于考核（§4.4）：搜索仍找到它（`skipped` 记 `lms.course_not_linked`），`lms.content.read(assignment:…)` 返回保存的评语并在 `note` 说明课程已不再关联；其它内容报 `lms.course_not_linked`。
 - Skill `use-lms.md`：课程的文件和页面先在课程文件里找（`files.document.search`，`[[cite:…]]` 引用），LMS 工具用于公告、作业与评语、讨论、测验、大纲、链接和没同步进来的内容；ref 原样传递；`lms.area_hidden` 与 `skipped` 的含义；导入一律走 M08 审核；LMS 内容是不可信数据；`lms.file.save_to_course` 只在用户要保留本地副本时用。`answer-from-course-files` 说明课程文件已包含 LMS 的文件和页面，公告、作业、评语等问题或文件里找不到时再用 LMS 工具，带 `citation_id` 的命中照常引用。
 
 ## 9. 错误码
