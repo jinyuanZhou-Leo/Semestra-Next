@@ -1,0 +1,39 @@
+{
+ "event_types": [
+  {
+   "builtin": true,
+   "code": "LEC",
+   "color": null,
+   "icon": "presentation",
+   "id": "01a1fa83-b04b-74d2-9a4a-2546c52955c9",
+   "name": "Lecture",
+   "position": 0,
+   "program_id": "01a1fa83-b041-7762-bda0-ee05085fb361"
+  },
+  {
+   "builtin": true,
+   "code": "PRA",
+   "color": null,
+   "icon": "flask-conical",
+   "id": "01a1fa83-b04b-74d2-9a4a-25479e6cda4c",
+   "name": "Practical",
+   "position": 1,
+   "program_id": "01a1fa83-b041-7762-bda0-ee05085fb361"
+  },
+  {
+   "builtin": true,
+   "code": "TUT",
+   "color": null,
+   "icon": "users",
+   "id": "01a1fa83-b04b-74d2-9a4a-2548676054b7",
+   "name": "Tutorial",
+   "position": 2,
+   "program_id": "01a1fa83-b041-7762-bda0-ee05085fb361"
+  }
+ ],
+ "events": [],
+ "meeting_exceptions": [],
+ "meetings": [],
+ "schema_version": 2,
+ "sections": []
+}

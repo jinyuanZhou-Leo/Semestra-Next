@@ -5,8 +5,8 @@
   was applied from the platform is forgotten for all of them, so they are read whole when they
   come in (a restored page unchanged on the platform used to be skipped). A file handed over
   keeps naming the user's own file (`item_id`), no longer followed.
-- `lms_materials.name` is again what the sync named the item (`safe_name` of the platform title
-  it last applied): the sync used to write the item's current name back every run, so a name
+- `lms_materials.name` is again what the sync named the item (the platform title
+  it last applied, as the sync spelled it): the sync used to write the item's current name back every run, so a name
   the user gave it read as the sync's and the next content update took it away.
 - `core_jobs.next_payload`: a job asked for again while it ran (`enqueue(..., again=True)`)
   runs once more after it ends.
@@ -17,17 +17,29 @@ Create Date: 2026-11-19 16:30:00
 
 """
 
+import re
 from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
 
-from semestra.modules.files.service import safe_name
-
 revision: str = "0061"
 down_revision: str | Sequence[str] | None = "0060"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
+
+
+_UNSAFE_NAME = re.compile(r"[\x00-\x1f\x7f]")
+
+
+def synced_name(kind: str, title: str) -> str:
+    """How the sync named an item then (M07's `safe_name` of 2.2 for a file or page, its
+    `clean_name` for a link), kept here so this migration names as it did whatever the code
+    does later."""
+    if kind == "link":
+        return _UNSAFE_NAME.sub("", title).strip()
+    name = _UNSAFE_NAME.sub("", title.replace("\\", "/").rsplit("/", 1)[-1]).strip()
+    return name[:255] or "file"
 
 
 def upgrade() -> None:
@@ -44,12 +56,14 @@ def upgrade() -> None:
     )
     bind = op.get_bind()
     named = bind.execute(
-        sa.text("SELECT id, title FROM lms_materials WHERE state = 'synced' AND title IS NOT NULL")
+        sa.text(
+            "SELECT id, kind, title FROM lms_materials WHERE state = 'synced' AND title IS NOT NULL"
+        )
     ).all()
-    for material_id, title in named:
+    for material_id, kind, title in named:
         bind.execute(
             sa.text("UPDATE lms_materials SET name = :name WHERE id = :id"),
-            {"name": safe_name(title), "id": material_id},
+            {"name": synced_name(kind, title), "id": material_id},
         )
 
 

@@ -196,7 +196,7 @@ lms_cache  key, user_id, connection_id, scope, payload, expires_at
 - **附件**：provider 契约的 `Announcement.attachments`（`Attachment`：外部 id、名称、mime、大小），Canvas 取公告的 `attachments`。输出时每个附件带 `file`：课程资料同步（§4.2）已带进课程文件的，给出文件项（`AppTarget`），界面在文件预览中打开；没有的经文件内容代理（`/courses/{id}/lms/files/{file_id}/content`）在新标签页打开，仍然留在 Semestra 里，不跳到平台。附件带 provider 给的下载地址（`Attachment.download_url`，Canvas 的带 verifier，不发给客户端、不进备份），代理遇到已保存公告的附件时直接用它，不再查文件元数据（课程隐藏了「文件」页时学生查不到附件文件）。尚未用真实 Canvas 账户验证。
 - **链接**：清洗后的 HTML 里平台内链带 `data-lms-kind`/`data-lms-ref`（§2.1）。输出时 `targets` 给出其中在 Semestra 里有对应的：课程文件与页面（`lms_materials` 的项）→ 文件项，已导入的作业 → 考核或待办。对应关系在读取时计算，所以之后才同步或导入的也能打开。界面里文件与页面打开文件预览，考核打开成绩页上的那一行（`grades?assessment=`），待办打开课程的待办页，同一门课的另一条公告在「公告」页打开；正文里指向不在课程文件中的平台文件的链接与附件一样经文件代理在新标签页打开；其余没有对应的链接仍是平台地址，在新标签页打开。
 - **图片**：平台上课程文件的图片地址要平台的登录会话（Canvas 的 `/courses/:id/files/:id/preview` 未登录时跳到登录页），所以带标记的图片改由文件内容代理加载，失败时退回原地址（`SafeHtml` 的 `imageSrc`，与 Canvas Tab 共用）。
-- **显示方式**：账户设置 `lms.display`（`simplified`/`original`，全局设置 LMS 组「内容显示」）是「公告」页与 Canvas Tab 的默认显示方式（2026-11-18 从插件命名空间 `plugin.canvas-tab` 移来，不保留旧命名空间；2.0 里选过的值由迁移 0064 移过来，`lms` 里已经选过的为准，旧行删除；2.0 备份的导入由 `lms/portability._display_moved` 经 M11 的 `register_moved` 读成 `lms.display`）。页面上的显示方式菜单只改当前页面，在页面打开期间对之后打开的每一项都保留，不保存（`modules/lms/content/display.ts` 的 `useLmsDisplay`）。
+- **显示方式**：账户设置 `lms.display`（`simplified`/`original`，全局设置 LMS 组「内容显示」）是「公告」页与 Canvas Tab 的默认显示方式（2026-11-18 从插件命名空间 `plugin.canvas-tab` 移来，不保留旧命名空间；2.0 里选过的值由迁移 0064 移过来，`lms` 里已经选过的为准，旧行删除；2.4 及更早的备份由 0064 的 reshape step（`lms/older_backups.py`）读成 `lms.display`）。页面上的显示方式菜单只改当前页面，在页面打开期间对之后打开的每一项都保留，不保存（`modules/lms/content/display.ts` 的 `useLmsDisplay`）。
 
 ## 5. Capabilities
 | name | effect | http | 说明 |
@@ -342,7 +342,7 @@ Agent 与 MCP 只看到 11 个按任务设计的工具，而不是每个平台�
 - 订阅改为 `tasks.item.deleted`（提交后）而不是 `tasks.task.deleting`，因为 M05 发的是这个事件；删除导入记录后同一作业可以再次导入。
 - `lms.file.save_to_course` 通过 `importlib` 调 M07 的 `save_bytes_as_file`，M07 还没合并时返回 `lms.feature_unsupported`（feature `save_to_course`）。
 - 日历源 `lms.events`：描述只显示纯文本（`meta.note`），"渲染 HTML 描述"开关没有做；`meta.url` 指向平台上的原事件。
-- M13 适配器在 `lms/portability.py`（导出连接但不含凭证，导入后状态为 `lms.credentials_missing`；绑定、关联、导入记录按 id 映射；缓存不导出），在文件底部用 M13 的 `register_portability` 注册。
+- M13 适配器在 `lms/portability.py`（导出连接但不含凭证，导入后状态为 `lms.credentials_missing`；绑定、关联、导入记录按 id 映射；缓存不导出），在文件底部用 M13 的 `register_portability` 注册。lms 与它在 M11 的设置停在 v2：改了导出形状的迁移在 `lms/older_backups.py` 补同号的 reshape step（M13 §11），只对更早的备份执行；step 用到的旧规则（2.2 及以前同步给项起名的方式、资料设置当时的默认值）复制在那里和对应迁移里，不引用会变的代码。
 
 **前端**
 - 全局设置"学习平台"组下的"LMS 连接"沿用 AI 服务商分区的列表行样式（`Item` 行 + 行内按钮），没有用表格；手机端仍是对话框，没有做抽屉。删除正在使用的连接时确认框说明会解除多少关联，确认后以 `detach_all=true` 删除。

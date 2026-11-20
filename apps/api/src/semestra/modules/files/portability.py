@@ -4,6 +4,9 @@ Parsed documents, pages, chunks and the search index are derived: they are not e
 imported file is processed again. The file contents travel in the archive only when the export
 includes files; a file item without its contents is not imported (a link always is), unless
 another module keeps its contents (`content.py`, an LMS file): it is read from there again.
+
+The version stayed 1 since 2.0 (owner 2026-11-18): backups made before a migration that changed
+what is exported are read as it changed the tables, by the step of the same number below.
 """
 
 from typing import Any
@@ -25,47 +28,78 @@ from semestra.modules.files.models import (
     FilesSourceFolder,
 )
 from semestra.modules.portability import IdMap, ImportOptions, ImportReport, Table
-from semestra.modules.portability.registry import Writer, register_portability
+from semestra.modules.portability.registry import (
+    OlderArchive,
+    Writer,
+    register_portability,
+    register_reshape,
+)
 from semestra.modules.portability.tables import TableAdapter
 
 SCHEMA_VERSION = 1
 
 
-def _current(payload: dict[str, Any]) -> dict[str, Any]:
-    """Backups up to 2.0 had copies the user kept that no longer followed their source
-    (`kept_offline`); they follow it now, with the local copy the user asked for. Their LMS
-    type folders (`type_folders`) are left out: synced materials go to their platform folders
-    now (`source_folders`), and the folders themselves come as any folder. Read as such at the
-    same version (owner 2026-11-18: the backup versions stay)."""
+def _0057(files: dict[str, Any], archive: OlderArchive) -> dict[str, Any]:
+    """A copy the user kept (`kept_offline`) no longer stops following its source: it follows
+    it with the local copy the user asked for (`keep_copy`). A followed file's copy holds the
+    version its source last had (then in `sha256`)."""
+    del archive
     items = [
-        _two_sides({**{k: v for k, v in raw.items() if k != "kept_offline"}, "keep_copy": True})
-        if raw.get("kept_offline")
-        else _two_sides({k: v for k, v in raw.items() if k != "kept_offline"})
-        for raw in payload.get("items") or []
-        if isinstance(raw, dict)
+        {
+            **{k: v for k, v in raw.items() if k != "kept_offline"},
+            **({"keep_copy": True} if raw.get("kept_offline") else {}),
+            **(
+                {"copy_version": raw.get("sha256")}
+                if _followed(raw) and raw.get("copy_version") is None
+                else {}
+            ),
+        }
+        for raw in _items(files)
     ]
-    payload = {k: v for k, v in payload.items() if k != "type_folders"}
-    return {**payload, "items": items}
+    return {**files, "items": items}
 
 
-def _two_sides(raw: dict[str, Any]) -> dict[str, Any]:
-    """Backups up to 2.1 kept a followed file's source version in `sha256`, and the source's type
-    and size only while its copy was older: read as the source's side and the copy's, as
-    migration 0062 does (the copy's hash is taken again when it is handed over)."""
-    followed = raw.get("kind") == "file" and content.is_source_ref(raw.get("source_ref"))
-    if not followed or "source_version" in raw:
-        return raw
-    source = {
-        "source_version": raw.get("sha256"),
-        "source_mime": raw.get("source_mime") or raw.get("mime_type"),
-        "source_size": raw.get("source_size")
-        if raw.get("source_size") is not None
-        else raw.get("size_bytes"),
-        "sha256": None,
-    }
-    if raw.get("copy_version") is not None and raw.get("copy_version") == raw.get("sha256"):
-        source["copy_modified_at"] = raw.get("source_modified_at")
-    return {**raw, **source}
+def _0060(files: dict[str, Any], archive: OlderArchive) -> dict[str, Any]:
+    """Synced materials go to their platform folders (`source_folders`), not to type folders
+    (`type_folders`); the folders themselves stay as any folder."""
+    del archive
+    return {k: v for k, v in files.items() if k != "type_folders"}
+
+
+def _0062(files: dict[str, Any], archive: OlderArchive) -> dict[str, Any]:
+    """A followed file's source version moves from `sha256` to `source_version`, and the source's
+    type and size are kept whatever its copy holds: the source's side and the copy's (the copy's
+    hash is taken again when it is handed over)."""
+    del archive
+    items: list[dict[str, Any]] = []
+    for raw in _items(files):
+        if _followed(raw):
+            source = {
+                "source_version": raw.get("sha256"),
+                "source_mime": raw.get("source_mime") or raw.get("mime_type"),
+                "source_size": raw.get("source_size")
+                if raw.get("source_size") is not None
+                else raw.get("size_bytes"),
+                "sha256": None,
+            }
+            if raw.get("copy_version") is not None and raw.get("copy_version") == raw.get("sha256"):
+                source["copy_modified_at"] = raw.get("source_modified_at")
+            raw = {**raw, **source}
+        items.append(raw)
+    return {**files, "items": items}
+
+
+def _items(files: dict[str, Any]) -> list[dict[str, Any]]:
+    return [r for r in files.get("items") or [] if isinstance(r, dict)]
+
+
+def _followed(raw: dict[str, Any]) -> bool:
+    return raw.get("kind") == "file" and content.is_source_ref(raw.get("source_ref"))
+
+
+register_reshape("0057", "files", _0057)
+register_reshape("0060", "files", _0060)
+register_reshape("0062", "files", _0062)
 
 
 class FilesAdapter(TableAdapter):
@@ -113,7 +147,6 @@ class FilesAdapter(TableAdapter):
     ) -> ImportReport:
         assert isinstance(id_map, IdMap)
         opts: ImportOptions = options
-        payload = _current(payload)
         report = await super().import_(ctx, payload, id_map, opts)
         assert ctx.user_id
         for old_id, _ in self._file_items(payload):
@@ -137,8 +170,6 @@ class FilesAdapter(TableAdapter):
                 continue
             row.size_bytes = size
             row.storage_key = key
-            if content.follows_source(row) and row.copy_version is None:
-                row.copy_version = row.source_version  # a backup from before copies had versions
             if row.doc_status != "unsupported":
                 await service.request_read(ctx, row, "restore")
         await ctx.db.flush()

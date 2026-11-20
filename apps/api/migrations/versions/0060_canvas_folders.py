@@ -18,14 +18,14 @@ Create Date: 2026-11-18 22:10:00
 """
 
 import json
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
+from typing import Any
 
 import sqlalchemy as sa
 from alembic import op
 
 from semestra.core.db import new_id
-from semestra.modules.lms.settings import materials_from_programs
 
 revision: str = "0060"
 down_revision: str | Sequence[str] | None = "0059"
@@ -33,10 +33,43 @@ branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 
+# The materials settings and their defaults then, kept here so this migration moves them as it
+# did whatever the code does later.
+MATERIAL_DEFAULTS: dict[str, Any] = {"sync": True, "store": "online"}
+
+
+def materials_from_programs(
+    programs: Mapping[str, Mapping[str, Any]],
+    courses: Mapping[str, Sequence[str]],
+    own: Mapping[str, Mapping[str, Any]],
+) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
+    """The settings set per Program (`programs`: each Program → its values, `{}` when it set
+    none) as account and course values: what every Program had alike goes to the account; what
+    they had apart goes to their courses (`courses`: Program → its courses) that do not set it
+    themselves (`own`). Returns the account's values and each course's values to add."""
+    keys = {k for values in programs.values() for k in values if k in MATERIAL_DEFAULTS}
+    account: dict[str, Any] = {}
+    per_course: dict[str, dict[str, Any]] = {}
+    for key in sorted(keys):
+        seen = {p: values.get(key, MATERIAL_DEFAULTS[key]) for p, values in programs.items()}
+        if len({json.dumps(v) for v in seen.values()}) == 1:
+            value = next(iter(seen.values()))
+            if value != MATERIAL_DEFAULTS[key]:
+                account[key] = value
+            continue
+        for program_id, value in seen.items():
+            if value == MATERIAL_DEFAULTS[key]:
+                continue
+            for course_id in courses.get(program_id, ()):
+                if key not in own.get(course_id, {}):
+                    per_course.setdefault(course_id, {})[key] = value
+    return account, per_course
+
+
 def _move_materials_settings(conn: sa.Connection) -> None:
     """The materials settings move from the Program to the account and the course: what every
     Program of a user had alike becomes the account's, what they had apart goes to their courses
-    (`materials_from_programs`, shared with the reading of older backups); the Program rows go."""
+    (`materials_from_programs`); the Program rows go."""
     rows = conn.execute(
         sa.text(
             "SELECT id, user_id, scope_id, data FROM settings_values "

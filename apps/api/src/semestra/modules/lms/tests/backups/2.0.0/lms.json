@@ -1,0 +1,22 @@
+{
+ "bindings": [
+  {
+   "connection_id": "01a1fa83-b075-741f-9c28-0d50e3170476",
+   "program_id": "01a1fa83-b041-7762-bda0-ee05085fb361"
+  }
+ ],
+ "connections": [
+  {
+   "account_name": "Ada Student",
+   "config": {
+    "base_url": "https://fake.example.edu"
+   },
+   "display_name": "fake.example.edu",
+   "id": "01a1fa83-b075-741f-9c28-0d50e3170476",
+   "provider": "fake"
+  }
+ ],
+ "links": [],
+ "refs": [],
+ "schema_version": 2
+}

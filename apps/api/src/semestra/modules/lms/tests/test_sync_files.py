@@ -1085,18 +1085,41 @@ async def test_restored_names_with_slashes_keep_following(
     ]
 
 
-def _as_2_0_0(archive: bytes) -> bytes:
-    """The backup as 2.0.0 (and the betas before it) wrote it, before `lms_materials`, at lms
-    version 2: the materials among the refs, their state in `snapshot`."""
+def made_by(manifest: bytes, version: str, revision: str | None = None) -> bytes:
+    """The manifest of a backup made by `version`: up to 2.4 manifests named no migration
+    (`db_revision`); a build between releases is told by `revision`."""
+    out = {k: v for k, v in json.loads(manifest).items() if k != "db_revision"}
+    out["app_version"] = version
+    if revision is not None:
+        out["db_revision"] = revision
+    return json.dumps(out).encode()
+
+
+def _files_before_0062(payload: dict[str, Any]) -> None:
+    """The files as backups made before migration 0062 had them: a followed file's platform
+    version in `sha256`, no source version or copy columns."""
+    for row in payload["items"]:
+        version = row.pop("source_version")
+        del row["copy_modified_at"], row["copy_error_code"]
+        if version is not None:
+            row["sha256"] = version
+
+
+def _as_before_materials_table(archive: bytes) -> bytes:
+    """The backup as a build between 2.0.0 and 2.1.0 wrote it (2.0.0 itself synced no
+    materials), before `lms_materials`: the materials among the refs, their state in
+    `snapshot`."""
     source = zipfile.ZipFile(io.BytesIO(archive))
     out = io.BytesIO()
     with zipfile.ZipFile(out, "w") as z:
         for name in source.namelist():
             data = source.read(name)
             if name == "manifest.json":
-                manifest = json.loads(data)
-                manifest["modules"]["lms"] = 2
-                data = json.dumps(manifest).encode()
+                data = made_by(data, "2.0.0", "0055")
+            elif name == "data/files.json":
+                payload = json.loads(data)
+                _files_before_0062(payload)
+                data = json.dumps(payload).encode()
             elif name == "data/lms.json":
                 payload = json.loads(data)
                 refs = [{**r, "external_kind": "assignment"} for r in payload["refs"]]
@@ -1130,7 +1153,8 @@ async def test_a_2_0_0_backup_keeps_the_materials_in_step(api: Api, fake: FakePr
     await api.run_jobs()
     archive = (await api.client.get(f"/me/exports/{started['id']}/download")).content
     uploaded = await api.client.post(
-        "/me/imports", files={"file": ("backup.zip", _as_2_0_0(archive), "application/zip")}
+        "/me/imports",
+        files={"file": ("backup.zip", _as_before_materials_table(archive), "application/zip")},
     )
     body = {"mode": "replace", "confirmation": "Replace my data"}
     await api.call("POST", f"/me/imports/{uploaded.json()['id']}:start", json=body)
@@ -1158,7 +1182,9 @@ def _as_2_1(archive: bytes, program_id: str, folder_id: str) -> bytes:
         for name in source.namelist():
             data = source.read(name)
             payload: dict[str, Any] = json.loads(data) if name.startswith("data/") else {}
-            if name == "data/lms.json":
+            if name == "manifest.json":
+                data = made_by(data, "2.1.0")
+            elif name == "data/lms.json":
                 for m in payload["materials"]:
                     del m["path"], m["placed_folder_id"]
                     m["type"] = "lecture" if m["title"] == "Lecture 1.pdf" else "other"
@@ -1175,6 +1201,7 @@ def _as_2_1(archive: bytes, program_id: str, folder_id: str) -> bytes:
             z.writestr(name, data)
         files = json.loads(source.read("data/files.json"))
         files.pop("source_folders")
+        _files_before_0062(files)
         files["type_folders"] = [{"course_id": course, "type": "lecture", "folder_id": folder_id}]
         z.writestr("data/files.json", json.dumps(files))
     return out.getvalue()
@@ -1228,17 +1255,16 @@ def _files_as_2_1(archive: bytes, own_id: str, made_own_id: str) -> bytes:
     with zipfile.ZipFile(out, "w") as z:
         for name in source.namelist():
             data = source.read(name)
-            if name == "data/files.json":
+            if name == "manifest.json":
+                data = made_by(data, "2.1.0")
+            elif name == "data/files.json":
                 payload = json.loads(data)
+                _files_before_0062(payload)
                 for row in payload["items"]:
-                    version = row.pop("source_version")
-                    del row["copy_modified_at"], row["copy_error_code"]
                     if row["id"] == own_id:
                         row |= {"source_kind": "agent", "source_ref": "att-1"}
                     elif row["id"] == made_own_id:  # made the user's own in 2.1.0
                         row |= {"source_ref": None, "source_name": None}
-                    elif version is not None:
-                        row["sha256"] = version
                 data = json.dumps(payload).encode()
             z.writestr(name, data)
     return out.getvalue()
@@ -1655,12 +1681,15 @@ def test_migration_to_four_states_and_names_the_sync_gave(tmp_path: Path):
         ("3", "restored", None, "Syllabus", None, "v1"),
         ("4", "handed_over", "i4", "Midterm.pdf", "Midterm.pdf", "v1"),
         ("5", "gone", None, "Old.pdf", None, None),
+        # A link was named in full, its title uncut.
+        ("6", "synced", "i6", "Recording " + "x" * 300, "Recording " + "x" * 300, "v1"),
     ]
     for mid, state, item, title, name, version in rows:
+        kind = "link" if mid == "6" else "file"
         db.execute(
             "INSERT INTO lms_materials (id, user_id, link_id, kind, external_id, state, item_id,"
-            " title, name, version, links) VALUES (?, 'u1', 'l1', 'file', ?, ?, ?, ?, ?, ?, '[]')",
-            (mid, mid, state, item, title, name, version),
+            " title, name, version, links) VALUES (?, 'u1', 'l1', ?, ?, ?, ?, ?, ?, ?, '[]')",
+            (mid, kind, mid, state, item, title, name, version),
         )
     db.commit()
     db.close()
@@ -1676,6 +1705,7 @@ def test_migration_to_four_states_and_names_the_sync_gave(tmp_path: Path):
         ("absent", 1, None, None, None),  # read whole when it comes in
         ("absent", 0, "i4", None, None),  # still names the user's own file
         ("absent", 0, None, None, None),
+        ("synced", 0, "i6", "Recording " + "x" * 300, "v1"),
     ]
 
 

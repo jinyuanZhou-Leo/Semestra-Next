@@ -1,0 +1,213 @@
+{
+ "assessments": [],
+ "categories": [
+  {
+   "archived": false,
+   "color": "blue",
+   "course_id": "01a1fa83-4a50-71e9-a1bb-a42cdbb4c4ad",
+   "id": "01a1fa83-4a5d-7325-89c8-eef45bcb068f",
+   "key": "quiz",
+   "name": "Quiz",
+   "position": 0
+  },
+  {
+   "archived": false,
+   "color": "amber",
+   "course_id": "01a1fa83-4a50-71e9-a1bb-a42cdbb4c4ad",
+   "id": "01a1fa83-4a5d-7325-89c8-eef5a9cd55d8",
+   "key": "exam",
+   "name": "Exam",
+   "position": 1
+  },
+  {
+   "archived": false,
+   "color": "emerald",
+   "course_id": "01a1fa83-4a50-71e9-a1bb-a42cdbb4c4ad",
+   "id": "01a1fa83-4a5d-7325-89c8-eef69d409d52",
+   "key": "assignment",
+   "name": "Assignment",
+   "position": 2
+  },
+  {
+   "archived": false,
+   "color": "violet",
+   "course_id": "01a1fa83-4a50-71e9-a1bb-a42cdbb4c4ad",
+   "id": "01a1fa83-4a5d-7325-89c8-eef7c765fdec",
+   "key": "project",
+   "name": "Project",
+   "position": 3
+  },
+  {
+   "archived": false,
+   "color": "cyan",
+   "course_id": "01a1fa83-4a50-71e9-a1bb-a42cdbb4c4ad",
+   "id": "01a1fa83-4a5d-7325-89c8-eef8cfafb5a4",
+   "key": "lab",
+   "name": "Lab",
+   "position": 4
+  },
+  {
+   "archived": false,
+   "color": "rose",
+   "course_id": "01a1fa83-4a50-71e9-a1bb-a42cdbb4c4ad",
+   "id": "01a1fa83-4a5d-7325-89c8-eef93159ef59",
+   "key": "presentation",
+   "name": "Presentation",
+   "position": 5
+  },
+  {
+   "archived": false,
+   "color": "slate",
+   "course_id": "01a1fa83-4a50-71e9-a1bb-a42cdbb4c4ad",
+   "id": "01a1fa83-4a5d-7325-89c8-eefa763cbd9d",
+   "key": "participation",
+   "name": "Participation",
+   "position": 6
+  }
+ ],
+ "course_results": [
+  {
+   "basis": "percentage",
+   "course_id": "01a1fa83-4a50-71e9-a1bb-a42cdbb4c4ad",
+   "created_at": "2026-01-15T12:00:00+00:00",
+   "final_override_percentage": null,
+   "forecast_model": "auto",
+   "gradebook_enabled": true,
+   "manual_percentage": null,
+   "pass_fail_result": null,
+   "target_points": null,
+   "updated_at": "2026-01-15T12:00:00+00:00"
+  }
+ ],
+ "scales": [
+  {
+   "bands": [
+    {
+     "letter": "A+",
+     "max": 100,
+     "min": 90,
+     "points": 4.0
+    },
+    {
+     "letter": "A",
+     "max": 89,
+     "min": 85,
+     "points": 4.0
+    },
+    {
+     "letter": "A-",
+     "max": 84,
+     "min": 80,
+     "points": 3.7
+    },
+    {
+     "letter": "B+",
+     "max": 79,
+     "min": 77,
+     "points": 3.3
+    },
+    {
+     "letter": "B",
+     "max": 76,
+     "min": 73,
+     "points": 3.0
+    },
+    {
+     "letter": "B-",
+     "max": 72,
+     "min": 70,
+     "points": 2.7
+    },
+    {
+     "letter": "C+",
+     "max": 69,
+     "min": 67,
+     "points": 2.3
+    },
+    {
+     "letter": "C",
+     "max": 66,
+     "min": 63,
+     "points": 2.0
+    },
+    {
+     "letter": "C-",
+     "max": 62,
+     "min": 60,
+     "points": 1.7
+    },
+    {
+     "letter": "D+",
+     "max": 59,
+     "min": 57,
+     "points": 1.3
+    },
+    {
+     "letter": "D",
+     "max": 56,
+     "min": 53,
+     "points": 1.0
+    },
+    {
+     "letter": "D-",
+     "max": 52,
+     "min": 50,
+     "points": 0.7
+    },
+    {
+     "letter": "F",
+     "max": 49,
+     "min": 0,
+     "points": 0.0
+    }
+   ],
+   "created_at": "2026-01-15T12:00:00+00:00",
+   "default_categories": [
+    {
+     "color": "blue",
+     "key": "quiz",
+     "name": "Quiz"
+    },
+    {
+     "color": "amber",
+     "key": "exam",
+     "name": "Exam"
+    },
+    {
+     "color": "emerald",
+     "key": "assignment",
+     "name": "Assignment"
+    },
+    {
+     "color": "violet",
+     "key": "project",
+     "name": "Project"
+    },
+    {
+     "color": "cyan",
+     "key": "lab",
+     "name": "Lab"
+    },
+    {
+     "color": "rose",
+     "key": "presentation",
+     "name": "Presentation"
+    },
+    {
+     "color": "slate",
+     "key": "participation",
+     "name": "Participation"
+    }
+   ],
+   "default_forecast_model": "auto",
+   "hide_grades": false,
+   "id": "01a1fa83-4a10-73c2-b9aa-49c9fe2ce996",
+   "max_points": 4.0,
+   "program_id": "01a1fa83-4a08-7176-9bd7-a5000f44e1d1",
+   "round_before_lookup": true,
+   "updated_at": "2026-01-15T12:00:00+00:00",
+   "year_course_attribution": "end_term"
+  }
+ ],
+ "schema_version": 2
+}

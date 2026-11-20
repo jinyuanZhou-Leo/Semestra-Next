@@ -33,6 +33,9 @@ class Manifest(BaseModel):
     version: int
     exported_at: datetime
     app_version: str
+    # The last migration of the database the backup was made from: which reshape steps an
+    # import runs (`upgrade.revision_of`). None in backups made before it was written.
+    db_revision: str | None = None
     modules: dict[str, int]
     include_files: bool
     counts: dict[str, int]

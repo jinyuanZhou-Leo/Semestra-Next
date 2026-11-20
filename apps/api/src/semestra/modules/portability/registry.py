@@ -20,6 +20,13 @@ tables with `tables.table_adapter(...)`; a module with special rules writes the 
   (already brought to their current version) through `archive.payload(module)`. Versions the
   steps do not lead up from are refused with `portability.unsupported_version`.
 
+A migration that changes what a module exports without a new schema version (the versions stay
+where they are since 2.0, owner 2026-11-18) adds a step of the same number with
+`register_reshape(revision, module, step)`: it turns the payload of a backup made before that
+migration into the shape after it, as the migration turned the tables. A backup's manifest names
+the migration its database was at (`db_revision`; for backups made before it did, the release's,
+`upgrade.revision_of`), and only the steps after it run, in order (`upgrade.py`).
+
 `tables` names the database tables the adapter is responsible for; a test checks that every
 table with a `user_id` column belongs to one adapter and is empty for the user after `purge`.
 """
@@ -63,8 +70,6 @@ class ImportOptions:
     program_ids: frozenset[str] | None
     include_preferences: bool
     files: FileSource | None = None
-    # The other modules' payloads, for reading an older shape that needs them.
-    archive: OlderArchive | None = None
 
 
 class IdMap(dict[str, str]):
@@ -98,13 +103,16 @@ PurgeContentFn = Callable[[Ctx, bool], Awaitable[None]]
 
 
 class OlderArchive(Protocol):
-    """What an upgrade step sees of the archive it converts."""
+    """What an upgrade or reshape step sees of the archive it converts."""
 
     # When the import runs (what a migration would call "now").
     now: datetime
+    # Whether the account's own settings and preferences are imported (`include_preferences`).
+    preferences: bool
 
     def payload(self, module: str) -> dict[str, Any] | None:
-        """Another module's payload, at that module's current schema version."""
+        """Another module's payload: for an upgrade step, at that module's current schema
+        version; for a reshape step, as it was before that step's migration."""
         ...
 
 
@@ -185,6 +193,26 @@ def register_portability(
         limits=dict(limits or {}),
         upgrades=dict(upgrades or {}),
     )
+
+
+# Migration revision → module → the step reading that module's payload of an older backup as the
+# migration changed its tables.
+_reshapes: dict[str, dict[str, UpgradeFn]] = {}
+
+
+def register_reshape(revision: str, module: str, step: UpgradeFn) -> None:
+    """A step of migration `revision` for `module`'s payload (see the module docstring). A
+    module may reshape another's payload when its migration changed that module's rows (M09's
+    settings live in M11's)."""
+    if not (revision.isdigit() and len(revision) == 4):
+        raise ValueError(f"reshape steps are named by their migration (0060), not {revision!r}")
+    if module in _reshapes.setdefault(revision, {}):
+        raise ValueError(f"duplicate reshape step {revision} for {module!r}")
+    _reshapes[revision][module] = step
+
+
+def reshapes() -> dict[str, dict[str, UpgradeFn]]:
+    return _reshapes
 
 
 def adapters() -> list[Adapter]:

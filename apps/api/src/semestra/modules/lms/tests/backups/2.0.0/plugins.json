@@ -1,0 +1,32 @@
+{
+ "default_offers": [
+  {
+   "plugin_id": "habit-streak"
+  },
+  {
+   "plugin_id": "pomodoro"
+  },
+  {
+   "plugin_id": "sticky-note"
+  }
+ ],
+ "installations": [
+  {
+   "installed_at": "2026-01-15T12:00:00+00:00",
+   "plugin_id": "canvas-tab"
+  },
+  {
+   "installed_at": "2026-01-15T12:00:00+00:00",
+   "plugin_id": "habit-streak"
+  },
+  {
+   "installed_at": "2026-01-15T12:00:00+00:00",
+   "plugin_id": "pomodoro"
+  },
+  {
+   "installed_at": "2026-01-15T12:00:00+00:00",
+   "plugin_id": "sticky-note"
+  }
+ ],
+ "schema_version": 1
+}

@@ -5,8 +5,8 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
+from semestra.modules.lms.older_backups import materials_from_programs
 from semestra.modules.lms.rules import Action, diverged, merge, platform_value, same
-from semestra.modules.lms.settings import materials_from_programs
 
 A, B, C = "A1", "A1 (revised)", "A1 (final)"
 

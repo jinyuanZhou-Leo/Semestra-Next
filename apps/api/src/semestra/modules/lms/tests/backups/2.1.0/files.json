@@ -1,0 +1,165 @@
+{
+ "folders": [
+  {
+   "course_id": "01a1fa82-bc9b-7167-8f36-fd572bbe01c3",
+   "created_at": "2026-01-15T12:00:00+00:00",
+   "id": "01a1fa82-bd70-726d-a17d-9f743069fd6c",
+   "name": "Recordings",
+   "parent_id": null,
+   "updated_at": "2026-01-15T12:00:00+00:00"
+  },
+  {
+   "course_id": "01a1fa82-bc9b-7167-8f36-fd572bbe01c3",
+   "created_at": "2026-01-15T12:00:00+00:00",
+   "id": "01a1fa82-bd8b-717a-bfa2-2b2747f25203",
+   "name": "Lectures",
+   "parent_id": null,
+   "updated_at": "2026-01-15T12:00:00+00:00"
+  },
+  {
+   "course_id": "01a1fa82-bc9b-7167-8f36-fd572bbe01c3",
+   "created_at": "2026-01-15T12:00:00+00:00",
+   "id": "01a1fa82-bd9d-72e4-bd68-fceb01f629fa",
+   "name": "Course materials",
+   "parent_id": null,
+   "updated_at": "2026-01-15T12:00:00+00:00"
+  },
+  {
+   "course_id": "01a1fa82-bc9b-7167-8f36-fd572bbe01c3",
+   "created_at": "2026-01-15T12:00:00+00:00",
+   "id": "01a1fa82-bdad-72b8-a3ba-da9322928674",
+   "name": "Past exams",
+   "parent_id": null,
+   "updated_at": "2026-01-15T12:00:00+00:00"
+  }
+ ],
+ "items": [
+  {
+   "copy_version": null,
+   "course_id": "01a1fa82-bc9b-7167-8f36-fd572bbe01c3",
+   "created_at": "2026-01-15T12:00:00+00:00",
+   "display_name": "Recording xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "doc_status": "none",
+   "folder_id": "01a1fa82-bd70-726d-a17d-9f743069fd6c",
+   "id": "01a1fa82-bd77-71bb-a3f4-a3823d55dd5e",
+   "keep_copy": null,
+   "kind": "link",
+   "mime_type": null,
+   "original_name": null,
+   "pinned": false,
+   "sha256": null,
+   "size_bytes": 0,
+   "source_kind": "lms",
+   "source_mime": null,
+   "source_modified_at": null,
+   "source_name": "Fake LMS",
+   "source_ref": "lms:link:i3",
+   "source_size": null,
+   "unseen": false,
+   "updated_at": "2026-01-15T12:00:00+00:00",
+   "url": "https://media.example.edu/v/1"
+  },
+  {
+   "copy_version": "2878d062c789c7238a01f780ac533f5d84e558749627f5349d9a1f932e1d8760",
+   "course_id": "01a1fa82-bc9b-7167-8f36-fd572bbe01c3",
+   "created_at": "2026-01-15T12:00:00+00:00",
+   "display_name": "Lecture 1.pdf",
+   "doc_status": "ready",
+   "folder_id": "01a1fa82-bd8b-717a-bfa2-2b2747f25203",
+   "id": "01a1fa82-bd93-7166-b1be-daec91677cc2",
+   "keep_copy": null,
+   "kind": "file",
+   "mime_type": "application/pdf",
+   "original_name": "Lecture 1.pdf",
+   "pinned": false,
+   "sha256": "2878d062c789c7238a01f780ac533f5d84e558749627f5349d9a1f932e1d8760",
+   "size_bytes": 1184,
+   "source_kind": "lms",
+   "source_mime": null,
+   "source_modified_at": "2026-01-10T00:00:00+00:00",
+   "source_name": "Fake LMS",
+   "source_ref": "lms:file:201",
+   "source_size": null,
+   "unseen": false,
+   "updated_at": "2026-11-20T19:50:36.782949+00:00",
+   "url": "https://fake/courses/101/files/201"
+  },
+  {
+   "copy_version": "2878d062c789c7238a01f780ac533f5d84e558749627f5349d9a1f932e1d8760",
+   "course_id": "01a1fa82-bc9b-7167-8f36-fd572bbe01c3",
+   "created_at": "2026-01-15T12:00:00+00:00",
+   "display_name": "Week one.pdf",
+   "doc_status": "ready",
+   "folder_id": "01a1fa82-bd9d-72e4-bd68-fceb01f629fa",
+   "id": "01a1fa82-bda5-728f-86bb-33be17333d4f",
+   "keep_copy": null,
+   "kind": "file",
+   "mime_type": "application/pdf",
+   "original_name": "W1.pdf",
+   "pinned": false,
+   "sha256": "2878d062c789c7238a01f780ac533f5d84e558749627f5349d9a1f932e1d8760",
+   "size_bytes": 1183,
+   "source_kind": "lms",
+   "source_mime": null,
+   "source_modified_at": "2026-01-10T00:00:00+00:00",
+   "source_name": "Fake LMS",
+   "source_ref": "lms:file:202",
+   "source_size": null,
+   "unseen": false,
+   "updated_at": "2026-01-15T12:00:00+00:00",
+   "url": "https://fake/courses/101/files/202"
+  },
+  {
+   "copy_version": "2878d062c789c7238a01f780ac533f5d84e558749627f5349d9a1f932e1d8760",
+   "course_id": "01a1fa82-bc9b-7167-8f36-fd572bbe01c3",
+   "created_at": "2026-01-15T12:00:00+00:00",
+   "display_name": "Midterm.pdf",
+   "doc_status": "ready",
+   "folder_id": "01a1fa82-bdad-72b8-a3ba-da9322928674",
+   "id": "01a1fa82-bdb4-7450-a813-709d800825f0",
+   "keep_copy": null,
+   "kind": "file",
+   "mime_type": "application/pdf",
+   "original_name": "Midterm.pdf",
+   "pinned": false,
+   "sha256": "2878d062c789c7238a01f780ac533f5d84e558749627f5349d9a1f932e1d8760",
+   "size_bytes": 1184,
+   "source_kind": "lms",
+   "source_mime": null,
+   "source_modified_at": "2026-01-10T00:00:00+00:00",
+   "source_name": "Fake LMS",
+   "source_ref": "lms:file:203",
+   "source_size": null,
+   "unseen": false,
+   "updated_at": "2026-11-20T19:50:36.813530+00:00",
+   "url": "https://fake/courses/101/files/203"
+  }
+ ],
+ "schema_version": 1,
+ "type_folders": [
+  {
+   "course_id": "01a1fa82-bc9b-7167-8f36-fd572bbe01c3",
+   "folder_id": "01a1fa82-bd70-726d-a17d-9f743069fd6c",
+   "id": "01a1fa82-bd72-72b3-aedf-bc0f737b54f1",
+   "type": "recordings"
+  },
+  {
+   "course_id": "01a1fa82-bc9b-7167-8f36-fd572bbe01c3",
+   "folder_id": "01a1fa82-bd8b-717a-bfa2-2b2747f25203",
+   "id": "01a1fa82-bd8c-759b-adcf-32cb283ecf38",
+   "type": "lectures"
+  },
+  {
+   "course_id": "01a1fa82-bc9b-7167-8f36-fd572bbe01c3",
+   "folder_id": "01a1fa82-bd9d-72e4-bd68-fceb01f629fa",
+   "id": "01a1fa82-bd9e-7349-b720-3c6f44b88214",
+   "type": "general"
+  },
+  {
+   "course_id": "01a1fa82-bc9b-7167-8f36-fd572bbe01c3",
+   "folder_id": "01a1fa82-bdad-72b8-a3ba-da9322928674",
+   "id": "01a1fa82-bdae-7727-8832-6b0ea2090e4e",
+   "type": "exams"
+  }
+ ]
+}
