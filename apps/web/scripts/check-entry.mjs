@@ -10,7 +10,7 @@
 //   - import the constant or small function from a file of its own, not from a component's file
 //     or a barrel (`@/app/settings` → `@/app/settings/rows`).
 // When something does belong in the first load, add it to a list below and say why.
-import { existsSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { transform } from 'oxc-transform-react'
 
@@ -62,8 +62,8 @@ const ui = new Set([
 // Parts of the app that load on demand, as a whole.
 const onDemand = [
   [
-    /^app\/settings\/(?!rows\.tsx$|choice\.tsx$)/,
-    'the settings framework (rows.tsx and choice.tsx are the light parts)',
+    /^app\/settings\/(?!rows\.tsx$|choice\.tsx$|use-settings-dialog\.ts$)/,
+    'the settings framework (rows.tsx, choice.tsx and use-settings-dialog.ts are the light parts)',
   ],
   [
     /^app\/(host|board|commands)\/(.*\.tsx|index\.ts)$/,
@@ -86,61 +86,105 @@ function resolve(from, spec) {
 }
 
 const rel = (file) => path.relative(src, file).split(path.sep).join('/')
-/** Each file reached, with the file that imported it first. */
-const parents = new Map()
 const failures = []
-const chain = (file) => {
-  const steps = []
-  for (let at = file; at; at = parents.get(at)) steps.push(rel(at))
-  return steps.reverse().join('\n      → ')
-}
+const DYNAMIC = /import\(\s*['"]([^'"]+)['"]\s*\)/g
 
-const queue = [[path.join(src, entry), null]]
-while (queue.length > 0) {
-  const [file, parent] = queue.shift()
-  if (parents.has(file)) continue
-  parents.set(file, parent)
-  const name = rel(file)
-  const blocked = onDemand.find(([pattern]) => pattern.test(name))
-  if (blocked) {
-    failures.push(`${name} is part of ${blocked[1]}:\n      ${chain(file)}`)
-    continue
+/**
+ * Walks the static imports from `roots`, failing on what `blocked` names (a pattern and what it
+ * is part of). With `firstLoad`, the packages and shadcn components are checked against the lists
+ * above too. `follow(file, code)` names more files to walk from a file reached (as on-demand
+ * roots of their own).
+ */
+async function walk(roots, { blocked, firstLoad = false, follow = () => [] }) {
+  /** Each file reached, with the file that imported it first. */
+  const parents = new Map()
+  const chain = (file) => {
+    const steps = []
+    for (let at = file; at; at = parents.get(at)) steps.push(rel(at))
+    return steps.reverse().join('\n      → ')
   }
-  if (name.startsWith('ui/') && !ui.has(name.slice(3).replace(/\.tsx?$/, ''))) {
-    failures.push(`${name} is not among the components of the first load:\n      ${chain(file)}`)
-    continue
-  }
-  if (!/\.tsx?$/.test(file)) continue
-  // Stripping the types drops `import type` and type-only names, as the bundler does.
-  const { code } = await transform(file, readFileSync(file, 'utf8'), {})
-  for (const [, spec] of code.matchAll(IMPORT)) {
-    if (spec.startsWith('.') || spec.startsWith('@/')) {
-      // Compiled messages are per-message modules; the bundler keeps the ones used.
-      if (spec.startsWith('@/paraglide/')) continue
-      const to = resolve(file, spec)
-      if (to) queue.push([to, file])
-      else failures.push(`${name} imports ${spec}, which was not found`)
+  const queue = roots.map((root) => [root, null])
+  while (queue.length > 0) {
+    const [file, parent] = queue.shift()
+    if (parents.has(file)) continue
+    parents.set(file, parent)
+    const name = rel(file)
+    const part = blocked.find(([pattern]) => pattern.test(name))
+    if (part) {
+      failures.push(`${name} is part of ${part[1]}:\n      ${chain(file)}`)
       continue
     }
-    const pkg = spec
-      .split('/')
-      .slice(0, spec.startsWith('@') ? 2 : 1)
-      .join('/')
-    if (!packages.has(pkg)) {
-      packages.add(pkg)
-      failures.push(
-        `${pkg} is not among the packages of the first load:\n      ${chain(file)}\n      → ${spec}`,
-      )
+    if (firstLoad && name.startsWith('ui/') && !ui.has(name.slice(3).replace(/\.tsx?$/, ''))) {
+      failures.push(`${name} is not among the components of the first load:\n      ${chain(file)}`)
+      continue
+    }
+    if (!/\.tsx?$/.test(file)) continue
+    // Stripping the types drops `import type` and type-only names, as the bundler does.
+    const { code } = await transform(file, readFileSync(file, 'utf8'), {})
+    for (const to of follow(file, code)) queue.push([to, file])
+    for (const [, spec] of code.matchAll(IMPORT)) {
+      if (spec.startsWith('.') || spec.startsWith('@/')) {
+        // Compiled messages are per-message modules; the bundler keeps the ones used.
+        if (spec.startsWith('@/paraglide/')) continue
+        const to = resolve(file, spec)
+        if (to) queue.push([to, file])
+        else failures.push(`${name} imports ${spec}, which was not found`)
+        continue
+      }
+      if (!firstLoad) continue
+      const pkg = spec
+        .split('/')
+        .slice(0, spec.startsWith('@') ? 2 : 1)
+        .join('/')
+      if (!packages.has(pkg)) {
+        packages.add(pkg)
+        failures.push(
+          `${pkg} is not among the packages of the first load:\n      ${chain(file)}\n      → ${spec}`,
+        )
+      }
     }
   }
+  return parents.size
 }
+
+const reached = await walk([path.join(src, entry)], { blocked: onDemand, firstLoad: true })
+
+// Status lines (`statusItems`) load with the signed-in shell, and a line's panel as soon as the
+// line shows (an LMS sync line shows whenever the Program is bound): neither may bring a settings
+// section, a page or the settings framework with it. A constant they share with one (an error's
+// label) goes in a file of its own.
+const linesBlocked = onDemand.filter(([pattern]) => !pattern.test('app/host/StatusBar.tsx'))
+const lineRoots = []
+for (const manifest of readdirSync(path.join(src, 'modules'), { withFileTypes: true })) {
+  const file = path.join(src, 'modules', manifest.name, 'manifest.ts')
+  if (!manifest.isDirectory() || !existsSync(file)) continue
+  const { code } = await transform(file, readFileSync(file, 'utf8'), {})
+  for (const [, spec] of code.matchAll(/load:\s*\(\)\s*=>\s*import\(\s*['"]([^'"]+)['"]/g)) {
+    const to = resolve(file, spec)
+    if (to) lineRoots.push(to)
+    else failures.push(`${rel(file)} loads a status line from ${spec}, which was not found`)
+  }
+}
+const lineFiles = new Set(lineRoots)
+const lines = await walk(lineRoots, {
+  blocked: linesBlocked,
+  // A line's panel (`preloadable(() => import(...))` in the line's own file).
+  follow: (file, code) =>
+    lineFiles.has(file)
+      ? [...code.matchAll(DYNAMIC)].flatMap(([, spec]) => resolve(file, spec) ?? [])
+      : [],
+})
 
 if (failures.length > 0) {
   console.error(
-    `The module manifests pull code into the first load that should load on demand ` +
+    `The module manifests pull code into the first load, or the status lines into theirs, ` +
+      `that should load on demand ` +
       `(${failures.length}). Load it with preloadable(), or import the constant from a file of ` +
       `its own; see the top of scripts/check-entry.mjs.\n\n  ${failures.join('\n\n  ')}`,
   )
   process.exit(1)
 }
-console.log(`First load: ${parents.size} files reached from the module manifests, none on-demand.`)
+console.log(
+  `First load: ${reached} files reached from the module manifests, none on-demand. ` +
+    `Status lines and their panels: ${lines} files, none from settings or pages.`,
+)

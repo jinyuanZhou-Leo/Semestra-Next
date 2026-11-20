@@ -13,6 +13,7 @@ import { useRealtime } from '../realtime'
 import { ModuleRegistry, useExtensions } from '../registry'
 import { CardGrid } from './CardGrid'
 import { StatusBar } from './StatusBar'
+import { useSeenFailures } from './status-lifecycle'
 import { ScopeNav } from './ScopeNav'
 import { ScopePage } from './ScopePage'
 import { PluginSettingsSections, SettingsSections } from '../settings/SettingsSections'
@@ -400,4 +401,99 @@ test('a line in the overflow opens its own panel, and the bar moves again once i
   await user.hover(bar)
   await user.unhover(bar)
   await waitFor(() => expect(shownLines(bar)).toEqual(OVERFLOWED))
+})
+
+/** A line driven by a test: its hook reads `state()`, re-rendered on `set`. */
+function renderDriven(useLine: () => StatusItem | null) {
+  server.use(
+    http.get(`${API}/jobs`, () => HttpResponse.json({ items: [], next_cursor: null })),
+    http.put(`${API}/me/ui-state/:key`, () => HttpResponse.json({ ok: true })),
+  )
+  const lines = {
+    ...template,
+    id: 'driven',
+    statusItems: [{ id: 'driven', order: 1, load: async () => useLine }],
+  }
+  renderWithRouter(
+    <ModuleRegistry value={[lines]}>
+      <SidebarProvider>
+        <StatusBar />
+      </SidebarProvider>
+    </ModuleRegistry>,
+  )
+  return () => document.querySelector('[data-status-line="driven"]') as HTMLElement
+}
+
+function ClosePanel({ onClose }: { onClose: () => void }) {
+  return (
+    <button type="button" onClick={onClose}>
+      Done
+    </button>
+  )
+}
+
+test('a line stays with its panel while the panel is open, and goes once it closes', async () => {
+  const user = userEvent.setup()
+  let ended = false
+  const listeners = new Set<() => void>()
+  const line = renderDriven(() => {
+    const over = useSyncExternalStore(
+      (listener) => {
+        listeners.add(listener)
+        return () => void listeners.delete(listener)
+      },
+      () => ended,
+    )
+    return over ? null : { icon: School, label: 'Reading', Panel: ClosePanel }
+  })
+  await user.click(await screen.findByRole('button', { name: 'Reading' }))
+  await screen.findByRole('button', { name: 'Done' })
+  act(() => {
+    ended = true
+    for (const listener of listeners) listener()
+  })
+  expect(screen.getByRole('button', { name: 'Done' })).toBeInTheDocument()
+  expect(line()).toHaveAttribute('data-shown', 'true')
+  await user.click(screen.getByRole('button', { name: 'Done' }))
+  // The bar holds still while the pointer is over it.
+  const bar = screen.getByRole('list', { name: 'In progress' })
+  await user.hover(bar)
+  await user.unhover(bar)
+  await waitFor(() => expect(line()).toHaveAttribute('data-shown', 'false'))
+})
+
+test('the failures a panel listed count as seen once it closes', async () => {
+  const user = userEvent.setup()
+  const saved = vi.fn<(key: unknown, body: unknown) => void>()
+  const line = renderDriven(() => {
+    const seen = useSeenFailures()
+    return seen.includes('job-1')
+      ? null
+      : {
+          icon: CircleAlert,
+          tone: 'error',
+          label: '1 failed',
+          Panel: ClosePanel,
+          failures: ['job-1'],
+        }
+  })
+  server.use(
+    http.put(`${API}/me/ui-state/:key`, async ({ params, request }) => {
+      saved(params.key, await request.json())
+      return HttpResponse.json({ ok: true })
+    }),
+  )
+  await user.click(await screen.findByRole('button', { name: '1 failed' }))
+  // Not on open: the line would change while the user reads it.
+  expect(line()).toHaveAttribute('data-shown', 'true')
+  await user.click(await screen.findByRole('button', { name: 'Done' }))
+  // The bar holds still while the pointer is over it.
+  const bar = screen.getByRole('list', { name: 'In progress' })
+  await user.hover(bar)
+  await user.unhover(bar)
+  await waitFor(() => expect(line()).toHaveAttribute('data-shown', 'false'))
+  await waitFor(() =>
+    expect(saved).toHaveBeenCalledWith('layout.status_seen_failures', expect.anything()),
+  )
+  expect(JSON.stringify(saved.mock.calls[0]?.[1])).toContain('job-1')
 })

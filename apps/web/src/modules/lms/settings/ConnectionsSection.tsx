@@ -50,21 +50,11 @@ import { Skeleton } from '@/ui/skeleton'
 import { Spinner } from '@/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { useOfferedProviders, useProviderName, useProviderUis } from '../providers'
+import { CONNECTION_ERROR_LABEL } from '../labels'
 import { invalidateLms, MATERIALS } from '../queries'
 import type { LmsLogo, LmsProviderUi } from '../types'
 import { ConnectionForm } from './ConnectionForm'
 import { MATERIAL_FIELDS } from './MaterialsSection'
-
-/** Short badge words for a connection's last error, like the AI providers' (M09 §7.1). */
-export const ERROR_LABEL: Record<string, () => string> = {
-  'lms.invalid_credentials': () => m.lms_status_invalid_credentials(),
-  'lms.credentials_missing': () => m.lms_status_credentials_missing(),
-  'lms.forbidden': () => m.lms_status_forbidden(),
-  'lms.unreachable': () => m.lms_status_unreachable(),
-  'lms.rate_limited': () => m.lms_status_rate_limited(),
-  'lms.invalid_config': () => m.lms_status_address(),
-  'lms.blocked_address': () => m.lms_status_address(),
-}
 
 /** Errors whose sentence needs parameters the connection does not keep: the badge says it all. */
 const NO_DETAIL = new Set(['lms.rate_limited'])
@@ -77,7 +67,7 @@ export function ConnectionStatus({ connection }: { connection: Connection }) {
   if (!code) return <Badge variant="secondary">{m.lms_connection_ok()}</Badge>
   // A transient failure (unreachable, rate limited) keeps the connection usable.
   const variant = broken ? 'destructive' : 'outline'
-  const label = ERROR_LABEL[code]?.() ?? m.lms_status_error()
+  const label = CONNECTION_ERROR_LABEL[code]?.() ?? m.lms_status_error()
   if (NO_DETAIL.has(code)) return <Badge variant={variant}>{label}</Badge>
   // The badge names the problem; the full sentence is its tooltip.
   return (

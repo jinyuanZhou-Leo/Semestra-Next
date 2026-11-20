@@ -24,7 +24,6 @@ import {
 } from 'react'
 import { PanelIconAction, PanelRow } from '@/components/StatusPanel'
 import { jobIsWaiting, jobStageLabel, useJob } from '@/hooks/use-job'
-import { useNow } from '@/hooks/use-now'
 import { useSmoothedProgress } from '@/hooks/use-smoothed-progress'
 import { errorMessage } from '@/lib/errors'
 import { cn } from '@/lib/utils'
@@ -53,30 +52,24 @@ import {
 } from '../extensions'
 import { useModules, useStatusItems } from '../registry'
 import { PluginBoundary } from './PluginBoundary'
+import { endedLately, useDoneClock, useMarkSeen, useSeenFailures } from './status-lifecycle'
 import { onStatusPanelRequest, openStatusPanel } from './status-panel'
-import { useUiPref } from '../ui-pref'
 
-/** How long a finished job stays in the bar. */
-export const DONE_VISIBLE_MS = 15_000
 /** Failed jobs older than this are no longer shown, seen or not. */
 const FAILED_VISIBLE_MS = 7 * 24 * 3600 * 1000
-const SEEN_KEY = 'layout.status_seen_failures'
 
 const ACTIVE = new Set(['pending', 'running'])
 
-function finishedAgo(job: JobOut, now: number): number {
-  return job.finished_at ? now - new Date(job.finished_at).getTime() : Number.POSITIVE_INFINITY
-}
+const endOf = (job: JobOut) =>
+  job.finished_at ? new Date(job.finished_at).getTime() : Number.NEGATIVE_INFINITY
 
 /** Jobs the bar shows: running ones, ones that just succeeded, and failures not looked at yet. */
 export function visibleJobs(jobs: readonly JobOut[], seen: readonly string[], now: number) {
   return jobs.filter(
     (job) =>
       ACTIVE.has(job.status) ||
-      (job.status === 'succeeded' && finishedAgo(job, now) < DONE_VISIBLE_MS) ||
-      (job.status === 'failed' &&
-        !seen.includes(job.id) &&
-        finishedAgo(job, now) < FAILED_VISIBLE_MS),
+      (job.status === 'succeeded' && endedLately(endOf(job), now)) ||
+      (job.status === 'failed' && !seen.includes(job.id) && now - endOf(job) < FAILED_VISIBLE_MS),
   )
 }
 
@@ -458,17 +451,29 @@ function Contribution({
   // oxlint-disable-next-line react/rules-of-hooks
   const item = useStatus()
   const [open, setOpen] = useState(false)
-  const Panel = item?.Panel
+  const markSeen = useMarkSeen()
+  // While its panel is open the line stays with it, even once the hook has nothing to say (Slot
+  // keeps the line's last content; the bar keeps its place).
+  // (In an object: a component given to useState would be called as its initializer.)
+  const [last, setLast] = useState({ Panel: item?.Panel })
+  if (item?.Panel && item.Panel !== last.Panel) setLast({ Panel: item.Panel })
+  const Panel = item?.Panel ?? (open ? last.Panel : undefined)
   // Loaded with the line, so opening it does not wait.
   useEffect(() => void preload(Panel), [Panel])
+  // What its panel listed as failed counts as seen once the panel closes (not on open: the line
+  // would change under the user while they read it).
+  const close = () => {
+    markSeen(item?.failures ?? [])
+    setOpen(false)
+  }
   return (
     <Slot
       id={id}
       order={order}
       item={item}
       open={open}
-      onOpenChange={Panel ? setOpen : undefined}
-      panel={Panel ? <Panel onClose={() => setOpen(false)} /> : undefined}
+      onOpenChange={Panel ? (next) => (next ? setOpen(true) : close()) : undefined}
+      panel={Panel ? <Panel onClose={close} /> : undefined}
     />
   )
 }
@@ -537,14 +542,13 @@ function JobsLine() {
   // The newest jobs, plus every active one however many finished after it.
   const all =
     useQuery(coreJobListOptions({ query: { limit: 20, with_active: true } })).data?.items ?? []
-  const [seen, setSeen] = useUiPref<string[]>(SEEN_KEY, [])
+  const seen = useSeenFailures()
+  const markSeen = useMarkSeen()
   const [open, setOpen] = useState(false)
   // Jobs the list showed when it opened: none of them vanishes under the user while it is open.
   const [held, setHeld] = useState<readonly string[]>([])
   const kinds = useModules().flatMap((module) => module.jobKinds ?? [])
-  const now = useNow(500, (at) =>
-    all.some((job) => job.status === 'succeeded' && finishedAgo(job, at) < DONE_VISIBLE_MS),
-  )
+  const now = useDoneClock(all.filter((job) => job.status === 'succeeded').map(endOf))
   const shown = visibleJobs(all, seen, now)
   const jobs = open ? all.filter((job) => shown.includes(job) || held.includes(job.id)) : shown
   const active = jobs.filter((job) => ACTIVE.has(job.status))
@@ -557,16 +561,9 @@ function JobsLine() {
     only?.status === 'running' && !onlyWaits,
   )
 
-  // Already-gone failures need not be remembered; keep the list short.
-  const markSeen = () => {
-    const ids = jobs.filter((job) => job.status === 'failed').map((job) => job.id)
-    if (ids.length > 0) setSeen([...ids, ...seen].slice(0, 50))
-  }
-
-  // Failures count as seen once the list that showed them closes (not on open: they would
-  // vanish, and the list with them, while the user reads them).
+  // Failures count as seen once the list that showed them closes, as for every line.
   const close = () => {
-    markSeen()
+    markSeen(jobs.filter((job) => job.status === 'failed').map((job) => job.id))
     setOpen(false)
   }
 
