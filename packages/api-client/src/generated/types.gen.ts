@@ -3865,6 +3865,36 @@ export type Done = {
 };
 
 /**
+ * DownloadInput
+ */
+export type DownloadInput = {
+    /**
+     * Item Ids
+     *
+     * Files to put in it
+     */
+    item_ids?: Array<string>;
+    /**
+     * Folder Ids
+     *
+     * Folders to put in it, whole
+     */
+    folder_ids?: Array<string>;
+};
+
+/**
+ * DownloadPrepared
+ */
+export type DownloadPrepared = {
+    /**
+     * Download Id
+     *
+     * Fetch the archive once, within a minute, at GET /file-downloads/{download_id}
+     */
+    download_id: string;
+};
+
+/**
  * DuplicateCheck
  */
 export type DuplicateCheck = {
@@ -14402,8 +14432,8 @@ export type FilesContentResponses = {
 
 export type FilesContentResponse = FilesContentResponses[keyof FilesContentResponses];
 
-export type FilesDownloadManyData = {
-    body?: never;
+export type FilesPrepareDownloadData = {
+    body: DownloadInput;
     path: {
         /**
          * Course Id
@@ -14412,21 +14442,40 @@ export type FilesDownloadManyData = {
          */
         course_id: string;
     };
-    query?: {
-        /**
-         * Item Ids
-         *
-         * Files to put in it
-         */
-        item_ids?: Array<string>;
-        /**
-         * Folder Ids
-         *
-         * Folders to put in it, whole
-         */
-        folder_ids?: Array<string>;
-    };
+    query?: never;
     url: '/courses/{course_id}/files:download';
+};
+
+export type FilesPrepareDownloadErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesPrepareDownloadError = FilesPrepareDownloadErrors[keyof FilesPrepareDownloadErrors];
+
+export type FilesPrepareDownloadResponses = {
+    /**
+     * Successful Response
+     */
+    200: DownloadPrepared;
+};
+
+export type FilesPrepareDownloadResponse = FilesPrepareDownloadResponses[keyof FilesPrepareDownloadResponses];
+
+export type FilesDownloadManyData = {
+    body?: never;
+    path: {
+        /**
+         * Download Id
+         *
+         * From POST /courses/{course_id}/files:download
+         */
+        download_id: string;
+    };
+    query?: never;
+    url: '/file-downloads/{download_id}';
 };
 
 export type FilesDownloadManyErrors = {

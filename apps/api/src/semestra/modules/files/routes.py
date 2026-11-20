@@ -14,6 +14,7 @@ from urllib.parse import quote
 from fastapi import APIRouter, Depends, File, Form, Path, Query, Request, UploadFile
 from fastapi.responses import Response, StreamingResponse
 from sqlalchemy import select
+from starlette.datastructures import State
 from stream_zip import ZIP_64, Method, async_stream_zip
 
 from semestra.core.context import DEFAULT_LOCALE, SUPPORTED_LOCALES, Ctx, get_ctx, run_after_commit
@@ -21,10 +22,10 @@ from semestra.core.errors import AppError, ErrorResponse, not_found
 from semestra.core.storage import CHUNK_SIZE, get_storage
 from semestra.modules.academics import service as academics
 from semestra.modules.files import content as files_content
-from semestra.modules.files import entries, items, service
+from semestra.modules.files import downloads, entries, items, service
 from semestra.modules.files.models import FilesDocumentPage
 from semestra.modules.files.parse.detect import INLINE_SAFE
-from semestra.modules.files.schemas import UploadResult
+from semestra.modules.files.schemas import DownloadInput, DownloadPrepared, UploadResult
 from semestra.modules.files.upload import MAX_FILES_PER_REQUEST
 
 router = APIRouter(tags=["files"])
@@ -165,8 +166,6 @@ async def content(
     )
 
 
-# What fits in an address (a Cloudflare tunnel takes up to 16 KB): files and folders by id.
-MAX_DOWNLOAD_ENTRIES = 300
 _DEFLATE_FAST = lambda: zlib.compressobj(level=1, wbits=-zlib.MAX_WBITS)  # noqa: E731
 
 
@@ -188,57 +187,81 @@ def _texts(locale: str) -> dict[str, str]:
     return json.loads((_TEXTS / f"{locale}.json").read_text(encoding="utf-8"))
 
 
-@router.get(
+async def _open(state: State, user_id: str, item_id: str) -> AsyncIterator[bytes] | None:
+    try:
+        return await files_content.open_detached(state, user_id, item_id)
+    except AppError:
+        return None
+
+
+@router.post(
     "/courses/{course_id}/files:download",
-    operation_id="filesDownloadMany",
-    response_class=StreamingResponse,
-    responses={200: {"content": {"application/zip": {}}}, "default": {"model": ErrorResponse}},
-    summary="Download several files and folders of a course as one zip archive.",
+    operation_id="filesPrepareDownload",
+    response_model=DownloadPrepared,
+    responses={"default": {"model": ErrorResponse}},
+    summary="Ask for several files and folders of a course as one zip archive.",
 )
-async def download_many(
+async def prepare_download(
     course_id: Annotated[str, Path(description="Course id")],
+    body: DownloadInput,
     ctx: CurrentCtx,
-    item_ids: Annotated[
-        list[str], Query(max_length=MAX_DOWNLOAD_ENTRIES, description="Files to put in it")
-    ] = [],  # noqa: B006 (FastAPI copies query defaults)
-    folder_ids: Annotated[
-        list[str],
-        Query(max_length=MAX_DOWNLOAD_ENTRIES, description="Folders to put in it, whole"),
-    ] = [],  # noqa: B006
-) -> Response:
-    """Links are left out. The archive is written while it is sent: each file is opened (read
-    from its source, if it is kept there) when its turn comes. One that cannot be read then (gone
-    from its source, the source unreachable) is left out and named in a list at the end of the
-    archive, in the user's language; when none can be read the answer is
-    `files.download_unavailable` instead of an archive without them. A file that fails halfway
-    breaks the download off, so no archive that looks whole is left behind."""
+) -> DownloadPrepared:
+    """Links are left out (only links: not found). Files are opened in order until one can be
+    read (read from its source, if it is kept there); when none can be,
+    `files.download_unavailable`. Otherwise the answer is an id to fetch the archive with, once,
+    within a minute (`GET /file-downloads/{download_id}`), which goes on from the file opened
+    here, so no file is opened twice."""
     course = await academics.get_course_row(ctx, course_id)
-    picked = await entries.download_entries(ctx, course_id, item_ids, folder_ids)
+    picked = await entries.download_entries(ctx, course_id, body.item_ids, body.folder_ids)
     if not picked:
         raise not_found()
-    state, user_id, now = ctx.state, ctx.user_id, ctx.now.replace(tzinfo=None)
-    members = [
+    now = ctx.now.replace(tzinfo=None)
+    members: list[tuple[str, str | None, datetime]] = [
         (path, row.id, row.updated_at.replace(tzinfo=None)) if row else (path, None, now)
         for path, row in picked
     ]
     missing: list[str] = []
-
-    async def open_(path: str, item_id: str) -> AsyncIterator[bytes] | None:
-        try:
-            return await files_content.open_detached(state, user_id, item_id)
-        except AppError:
-            missing.append(path)
-            return None
-
-    # Files are opened until one can be read before the answer starts, so that a download of
-    # nothing but unreadable files can fail with an error.
     first: tuple[int, AsyncIterator[bytes]] | None = None
     for i, (path, item_id, _) in enumerate(members):
-        if item_id is not None and (stream := await open_(path, item_id)) is not None:
+        if item_id is None:
+            continue
+        if (stream := await _open(ctx.state, ctx.user_id, item_id)) is not None:
             first = (i, stream)
             break
+        missing.append(path)
     if first is None and missing:
         raise AppError("files.download_unavailable", 502)
+    prepared = downloads.Prepared(
+        user_id=ctx.user_id,
+        name=f"{course.code or course.title}.zip",
+        members=members,
+        missing=missing,
+        first=first,
+    )
+    return DownloadPrepared(download_id=downloads.pending(ctx.state).put(prepared))
+
+
+@router.get(
+    "/file-downloads/{download_id}",
+    operation_id="filesDownloadMany",
+    response_class=StreamingResponse,
+    responses={200: {"content": {"application/zip": {}}}, "default": {"model": ErrorResponse}},
+    summary="Download an archive asked for with POST /courses/{course_id}/files:download.",
+)
+async def download_many(
+    download_id: Annotated[str, Path(description="From POST /courses/{course_id}/files:download")],
+    ctx: CurrentCtx,
+) -> Response:
+    """The archive is written while it is sent: each file after the one opened when it was asked
+    for is opened when its turn comes. One that cannot be read then (gone from its source, the
+    source unreachable) is left out and named, with those found unreadable before, in a list at
+    the end of the archive, in the user's language. A file that fails halfway breaks the download
+    off, so no archive that looks whole is left behind. Not found once fetched or expired."""
+    prepared = downloads.pending(ctx.state).take(download_id, ctx.user_id)
+    if prepared is None:
+        raise not_found()
+    state, user_id, now = ctx.state, ctx.user_id, ctx.now.replace(tzinfo=None)
+    members, missing, first = prepared.members, prepared.missing, prepared.first
     texts = _texts(ctx.locale)
     title, intro = texts["missing_list_name"], texts["missing_list_intro"]
     taken = {path.lower() for path, _, _ in members}
@@ -253,17 +276,18 @@ async def download_many(
                 yield path, modified, stat.S_IFDIR | 0o755, ZIP_64, _nothing()
                 continue
             if first is None or i < first[0]:
-                continue  # could not be opened above (in `missing` already)
-            stream = first[1] if i == first[0] else await open_(path, item_id)
-            if stream is not None:
+                continue  # could not be opened when asked for (in `missing` already)
+            stream = first[1] if i == first[0] else await _open(state, user_id, item_id)
+            if stream is None:
+                missing.append(path)
+            else:
                 yield path, modified, 0o644, ZIP_64, stream
         if missing:
             text = intro + "\n\n" + "".join(f"{path}\n" for path in missing)
             yield title, now, 0o644, ZIP_64, _once(text.encode())
 
-    name = f"{course.code or course.title}.zip"
     headers = {
-        "Content-Disposition": _content_disposition("attachment", name),
+        "Content-Disposition": _content_disposition("attachment", prepared.name),
         "Cache-Control": "private, no-store",
         "X-Content-Type-Options": "nosniff",
     }

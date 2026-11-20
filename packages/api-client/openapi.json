@@ -1050,13 +1050,13 @@
       }
     },
     "/courses/{course_id}/files:download": {
-      "get": {
+      "post": {
         "tags": [
           "files"
         ],
-        "summary": "Download several files and folders of a course as one zip archive.",
-        "description": "Links are left out. The archive is written while it is sent: each file is opened (read\nfrom its source, if it is kept there) when its turn comes. One that cannot be read then (gone\nfrom its source, the source unreachable) is left out and named in a list at the end of the\narchive, in the user's language; when none can be read the answer is\n`files.download_unavailable` instead of an archive without them. A file that fails halfway\nbreaks the download off, so no archive that looks whole is left behind.",
-        "operationId": "filesDownloadMany",
+        "summary": "Ask for several files and folders of a course as one zip archive.",
+        "description": "Links are left out (only links: not found). Files are opened in order until one can be\nread (read from its source, if it is kept there); when none can be,\n`files.download_unavailable`. Otherwise the answer is an id to fetch the archive with, once,\nwithin a minute (`GET /file-downloads/{download_id}`), which goes on from the file opened\nhere, so no file is opened twice.",
+        "operationId": "filesPrepareDownload",
         "security": [
           {
             "sessionCookie": []
@@ -1076,38 +1076,69 @@
               "title": "Course Id"
             },
             "description": "Course id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DownloadInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DownloadPrepared"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/file-downloads/{download_id}": {
+      "get": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Download an archive asked for with POST /courses/{course_id}/files:download.",
+        "description": "The archive is written while it is sent: each file after the one opened when it was asked\nfor is opened when its turn comes. One that cannot be read then (gone from its source, the\nsource unreachable) is left out and named, with those found unreadable before, in a list at\nthe end of the archive, in the user's language. A file that fails halfway breaks the download\noff, so no archive that looks whole is left behind. Not found once fetched or expired.",
+        "operationId": "filesDownloadMany",
+        "security": [
+          {
+            "sessionCookie": []
           },
           {
-            "name": "item_ids",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              },
-              "maxItems": 300,
-              "description": "Files to put in it",
-              "default": [],
-              "title": "Item Ids"
-            },
-            "description": "Files to put in it"
-          },
+            "accessToken": []
+          }
+        ],
+        "parameters": [
           {
-            "name": "folder_ids",
-            "in": "query",
-            "required": false,
+            "name": "download_id",
+            "in": "path",
+            "required": true,
             "schema": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              },
-              "maxItems": 300,
-              "description": "Folders to put in it, whole",
-              "default": [],
-              "title": "Folder Ids"
+              "type": "string",
+              "description": "From POST /courses/{course_id}/files:download",
+              "title": "Download Id"
             },
-            "description": "Folders to put in it, whole"
+            "description": "From POST /courses/{course_id}/files:download"
           }
         ],
         "responses": {
@@ -26537,6 +26568,48 @@
         },
         "type": "object",
         "title": "Done"
+      },
+      "DownloadInput": {
+        "properties": {
+          "item_ids": {
+            "items": {
+              "type": "string",
+              "maxLength": 64,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 10000,
+            "title": "Item Ids",
+            "description": "Files to put in it"
+          },
+          "folder_ids": {
+            "items": {
+              "type": "string",
+              "maxLength": 64,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 10000,
+            "title": "Folder Ids",
+            "description": "Folders to put in it, whole"
+          }
+        },
+        "type": "object",
+        "title": "DownloadInput"
+      },
+      "DownloadPrepared": {
+        "properties": {
+          "download_id": {
+            "type": "string",
+            "title": "Download Id",
+            "description": "Fetch the archive once, within a minute, at GET /file-downloads/{download_id}"
+          }
+        },
+        "type": "object",
+        "required": [
+          "download_id"
+        ],
+        "title": "DownloadPrepared"
       },
       "DuplicateCheck": {
         "properties": {
