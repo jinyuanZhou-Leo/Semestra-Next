@@ -206,8 +206,17 @@ def clean_name(name: str) -> str:
 
 
 def safe_name(filename: str | None) -> str:
+    """An uploaded file's name: what follows its last slash (browsers may send a path)."""
     name = _UNSAFE_NAME.sub("", (filename or "").replace("\\", "/").rsplit("/", 1)[-1]).strip()
     return name[:255] or "file"
+
+
+def name_from_source(title: str, fallback: str = "") -> str:
+    """A source's title as a name here (an item's or a folder's): a title, not a path, so a
+    slash reads as a dash ("Week 1/2" → "Week 1-2") rather than cutting it; `fallback` when
+    nothing is left."""
+    name = _UNSAFE_NAME.sub("", title.replace("/", "-").replace("\\", "-")).strip()
+    return name[:255] or fallback
 
 
 def refuse_none(fields: list[str]) -> None:

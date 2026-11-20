@@ -47,6 +47,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from html import escape
 from typing import Any, Literal
+from urllib.parse import urlsplit
 
 from sqlalchemy import select
 
@@ -220,19 +221,33 @@ def _module_item(item: ModuleItem, module: Segment, found: _Found) -> None:
         found.placed.setdefault(("page", target), module)
         found.pages.setdefault(target, (item.title, None, item.web_url))
     elif item.kind in ("external_url", "external_tool"):
-        url = item.external_url if item.kind == "external_url" else item.web_url
-        if url:
+        own = item.external_url if item.kind == "external_url" else None
+        if url := _link_url(own, item.web_url):
             found.add(
                 Material(
                     "link",
                     item.external_id,
-                    item.title or url,
+                    item.title or urlsplit(url).hostname or url,
                     version=url,
                     url=url,
                     web_url=item.web_url,
                     module=module,
                 )
             )
+
+
+def _link_url(*candidates: str | None) -> str | None:
+    """The first address a link in the files can open (http or https): one to another kind of
+    address (mailto:, an app's own scheme) opens through the platform's view of the item."""
+    for url in candidates:
+        if not url:
+            continue
+        try:
+            sources.normalize_url(url)
+        except AppError:
+            continue
+        return url
+    return None
 
 
 async def _files(ctx: Ctx, link: LmsCourseLink, b: Bound, found: _Found) -> None:
@@ -457,7 +472,9 @@ async def _follow(ctx: Ctx, m: Material, mat: LmsMaterial, row: FilesItem) -> bo
     local copy is let go until stored again). True when the contents changed. `mat.name` is
     what the sync named it: the user's own name never takes its place, so it stays theirs."""
     title = None if row.display_name != mat.name else m.title
-    retitled = title is not None and title != (mat.title if mat.title is not None else mat.name)
+    # Named anew when its name here would change (not on every new spelling of the title): also
+    # mends a name an older sync cut at a slash.
+    retitled = title is not None and sources.name_from_source(title) not in ("", mat.name)
     changed = mat.version != m.version
     if m.kind == "link":
         if changed or retitled:

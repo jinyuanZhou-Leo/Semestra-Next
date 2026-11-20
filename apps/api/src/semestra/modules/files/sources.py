@@ -6,9 +6,10 @@ items here with these functions: an item for a file it keeps (`add_remote_file`,
 taking no quota) or a link (`create_link` with a `source_ref`), updated when the source changes
 (`update_remote_file`, `rename_synced`, `update_link`), read again after the source failed
 (`retry_synced`), let go of (`purge_items`) or handed to the user (`detach_from_source`).
-`find_items`, `get_folder` and `folder_names` read what it keeps. It puts its items in the
-folders of their places on the source (`source_folders.SourceFolders`), and tells "Organize" where
-the items it put somewhere else belong (`register_homes`).
+`find_items`, `get_folder` and `folder_names` read what it keeps. Its titles become names here
+as `name_from_source` makes them, and a link's address must pass `normalize_url`. It puts its
+items in the folders of their places on the source (`source_folders.SourceFolders`), and tells
+"Organize" where the items it put somewhere else belong (`register_homes`).
 A source module reads and writes `files_*` only through these.
 
 A file that follows its source is read from it when opened, or has a local copy here; either
@@ -22,6 +23,7 @@ import hashlib
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
+from urllib.parse import urlsplit
 
 from semestra.core.context import Ctx, run_as_system
 from semestra.core.db import new_id
@@ -38,11 +40,16 @@ from semestra.core.storage import (
 from semestra.core.storage import usage as core_usage
 from semestra.modules.files import content, items, service
 from semestra.modules.files.folders import folder_names
-from semestra.modules.files.items import create_link, find_duplicate, save_bytes_as_file
+from semestra.modules.files.items import (
+    create_link,
+    find_duplicate,
+    normalize_url,
+    save_bytes_as_file,
+)
 from semestra.modules.files.models import FilesItem
 from semestra.modules.files.parse.detect import DOCX, PPTX, XLSX
 from semestra.modules.files.schemas import SourceKind
-from semestra.modules.files.service import find_items, get_folder, purge_items
+from semestra.modules.files.service import find_items, get_folder, name_from_source, purge_items
 
 __all__ = [
     "SOURCE_UNREAD",
@@ -56,6 +63,8 @@ __all__ = [
     "folder_names",
     "get_folder",
     "keep_copy",
+    "name_from_source",
+    "normalize_url",
     "purge_items",
     "remote",
     "rename_synced",
@@ -122,7 +131,7 @@ async def add_remote_file(
     where the source shows the file, `modified_at` when the source last changed it; `unseen`
     marks it new until the user opens it. Processed like an upload."""
     status, error = _remote_status(ctx, name, mime, size)
-    clean = service.safe_name(name)
+    clean = service.name_from_source(name, "file")
     row = FilesItem(
         user_id=ctx.user_id,
         course_id=course_id,
@@ -171,7 +180,7 @@ async def update_remote_file(
     swaps them in and reads the text again): until then the item opens as the copy it has, and
     the platform deleting it meanwhile still hands that copy over."""
     if name is not None:
-        row.display_name = row.original_name = service.safe_name(name)
+        row.display_name = row.original_name = service.name_from_source(name, "file")
     row.url, row.source_modified_at = url, modified_at
     row.source_version = content.version_hash(version)
     row.source_mime, row.source_size = mime, size
@@ -480,7 +489,7 @@ async def retry_synced(ctx: Ctx, row: FilesItem) -> None:
 
 async def rename_synced(ctx: Ctx, row: FilesItem, name: str) -> None:
     """The source renamed its file (the bytes are the same)."""
-    row.display_name = row.original_name = service.safe_name(name)
+    row.display_name = row.original_name = service.name_from_source(name, "file")
     row.updated_at = ctx.now
     await ctx.db.flush()
     await events.publish(ctx, "files.item.updated", {"item_id": row.id, "course_id": row.course_id})
@@ -507,9 +516,9 @@ async def detach_from_source(ctx: Ctx, rows: Sequence[FilesItem]) -> None:
 
 async def update_link(ctx: Ctx, row: FilesItem, *, url: str, name: str | None) -> None:
     """Another module's link moved (and, unless None, was renamed); its place stays."""
-    row.url = items.normalize_url(url)
+    row.url = clean = items.normalize_url(url)
     if name is not None:
-        row.display_name = service.clean_name(name)
+        row.display_name = service.name_from_source(name, urlsplit(clean).hostname or clean)
     row.updated_at = ctx.now
     await ctx.db.flush()
     await events.publish(ctx, "files.item.updated", {"item_id": row.id, "course_id": row.course_id})
