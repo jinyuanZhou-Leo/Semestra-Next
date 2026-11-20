@@ -63,6 +63,7 @@ from semestra.modules.lms.materials import page_shape
 from semestra.modules.lms.models import LmsCourseLink, LmsMaterial, MaterialChange, MaterialState
 from semestra.modules.lms.reads import AREA_REFUSALS, ITEM_ERRORS
 from semestra.modules.lms.schemas.dto import FileMeta, ModuleItem
+from semestra.modules.lms.schemas.io import HeldMaterials
 from semestra.modules.lms.service import Bound
 from semestra.modules.lms.settings import materials as material_settings
 from semestra.modules.lms.sync import UPDATED, Notice, StageResult, hold, register_sync_stage
@@ -573,9 +574,13 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
         await _pages(ctx, link, b, found)
     await _files(ctx, link, b, found)
     _place(found)
-    cfg = await material_settings(ctx, link.course_id)
 
     await hold(ctx, link)
+    # Under the lock: the user may have turned the sync off (and removed what it left) while the
+    # platform was read; bringing it all back now would undo that.
+    cfg = await material_settings(ctx, link.course_id)
+    if not cfg.sync:
+        return StageResult()
     # Read again under the write lock: the user may have answered (deleted, moved) meanwhile.
     mats = list(await ctx.db.scalars(read_materials().execution_options(populate_existing=True)))
     known = {(r.kind, r.external_id): r for r in mats}
@@ -900,6 +905,83 @@ async def restore_all(ctx: Ctx, program_id: str) -> None:
         restored[mat.link_id] = by_id[mat.link_id]
     if restored:
         await sync_queue(ctx, list(restored.values()), manual=True)
+
+
+async def _scope_links(ctx: Ctx, course_id: str | None) -> list[LmsCourseLink]:
+    if course_id is None:
+        return await service.user_links(ctx)
+    await academics.get_course_row(ctx, course_id)  # owned, or not found
+    link = await service.link_row(ctx, course_id)
+    if link is None:
+        raise lms_error("lms.course_not_linked")
+    return [link]
+
+
+async def _held_links(links: list[LmsCourseLink], ctx: Ctx) -> list[LmsCourseLink]:
+    """Of `links`, the courses whose materials no longer sync."""
+    return [li for li in links if not (await material_settings(ctx, li.course_id)).sync]
+
+
+async def _left(ctx: Ctx, link: LmsCourseLink) -> tuple[list[LmsMaterial], list[FilesItem]]:
+    """The materials the sync left in the course files and their items, without the ones the
+    user chose to keep for themselves (saved from the Canvas tab, or "Save in Semestra" on the
+    file): those are the user's own decision, and are neither counted nor removed."""
+    mats = [
+        m
+        for m in await ctx.db.scalars(
+            select(LmsMaterial)
+            .where(LmsMaterial.link_id == link.id, LmsMaterial.state == "synced")
+            .execution_options(populate_existing=True)
+        )
+        if m.item_id
+    ]
+    rows = {
+        r.id: r
+        for r in await sources.find_items(ctx, [m.item_id for m in mats if m.item_id])
+        if r.keep_copy is not True
+    }
+    mats = [m for m in mats if m.item_id in rows]
+    return mats, [rows[m.item_id] for m in mats if m.item_id]
+
+
+async def held(ctx: Ctx, course_id: str | None) -> HeldMaterials:
+    """What turning the materials sync off left in the course files (they stay, no longer
+    updated), so the user can take it out (`remove_held`)."""
+    out = HeldMaterials(courses=0, local=0, online=0)
+    for link in await _held_links(await _scope_links(ctx, course_id), ctx):
+        _, rows = await _left(ctx, link)
+        if not rows:
+            continue
+        local = sum(1 for r in rows if has_copy(r))
+        out.courses += 1
+        out.local += local
+        out.online += len(rows) - local
+    return out
+
+
+async def remove_held(ctx: Ctx, course_id: str | None) -> HeldMaterials:
+    """Deletes the materials left in the course files after their sync was turned off, local
+    copies too, except the ones the user kept for themselves (`_left`). They are not dismissed:
+    turning the sync on again brings them back (`absent`), unlike a material the user deleted by
+    hand."""
+    scope = await _scope_links(ctx, course_id)
+    if not scope:
+        raise lms_error("lms.sync_nothing_to_resolve")
+    await hold(ctx, scope[0])  # the database's write lock: one for every course
+    # The settings are read under the lock, like a sync stage does (`run`).
+    links = await _held_links(scope, ctx)
+    if not links:
+        raise lms_error("lms.sync_nothing_to_resolve")
+    for link in links:
+        mats, rows = await _left(ctx, link)
+        if not mats:
+            continue
+        # Before the items go, so `on_item_deleted` does not take them as the user's deletes.
+        for mat in mats:
+            enter(mat, "absent", ctx.now)
+        await sources.purge_items(ctx, rows)
+        await events.publish(ctx, UPDATED, {"program_id": link.program_id})
+    return await held(ctx, course_id)
 
 
 @events.subscribe("settings.values.updated", in_transaction=True)

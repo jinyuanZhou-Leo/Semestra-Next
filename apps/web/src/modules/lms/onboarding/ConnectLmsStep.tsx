@@ -7,7 +7,8 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link2 } from 'lucide-react'
 import { useState } from 'react'
-import { SettingsGroup } from '@/app/settings'
+import { SettingsBlock, SettingsGroup, SettingsNote } from '@/app/settings'
+import { NamespaceForm } from '@/app/settings/NamespaceForm'
 import { StepFooter } from '@/modules/academics/onboarding/StepFooter'
 import type { OnboardingStepProps } from '@/modules/academics/types'
 import { toastError } from '@/lib/errors'
@@ -15,14 +16,17 @@ import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from '@/ui/item'
 import { Skeleton } from '@/ui/skeleton'
-import { useOfferedProviders, useProviderUis } from '../providers'
-import { invalidateLms } from '../queries'
+import { useOfferedProviders, useProviderName, useProviderUis } from '../providers'
+import { invalidateLms, MATERIALS } from '../queries'
 import { AddConnectionDialog, ConnectionStatus, LogoTile } from '../settings/ConnectionsSection'
+import { MATERIAL_FIELDS } from '../settings/MaterialsSection'
 
 /**
  * Onboarding step "Connect a learning platform" (M09 §7.1), before the first term so its wizard
  * can import the courses: a connection of the user's (one from before, or a new one) becomes the
- * Program's. Coming back to the step shows the Program's connection.
+ * Program's. Once it is, the step shows how course materials will come in, since the first
+ * sync starts as soon as the term wizard links the courses (M09 §7.1). Coming back to the step
+ * shows the Program's connection.
  */
 export default function ConnectLmsStep({ programId, nav }: OnboardingStepProps) {
   const queryClient = useQueryClient()
@@ -32,6 +36,7 @@ export default function ConnectLmsStep({ programId, nav }: OnboardingStepProps) 
   const binding = useQuery(lmsProgramBindingGetOptions({ path: { program_id: programId } }))
   const bind = useMutation({ ...lmsProgramBindingSetMutation(), onError: toastError })
   const [adding, setAdding] = useState<{ kind: string; key: number } | null>(null)
+  const provider = useProviderName(binding.data?.connection?.provider ?? null) ?? m.lms_name()
 
   const choose = async (connection: Connection) => {
     await bind.mutateAsync({
@@ -39,7 +44,6 @@ export default function ConnectLmsStep({ programId, nav }: OnboardingStepProps) 
       body: { connection_id: connection.id },
     })
     await invalidateLms(queryClient)
-    nav.next()
   }
 
   if (!connections.data || !binding.data) return <Skeleton className="h-40 w-full rounded-2xl" />
@@ -106,11 +110,26 @@ export default function ConnectLmsStep({ programId, nav }: OnboardingStepProps) 
           ]
         )}
       </SettingsGroup>
+      {bound ? (
+        <SettingsBlock
+          title={m.lms_materials_group()}
+          description={m.lms_onboarding_materials_description()}
+        >
+          <NamespaceForm
+            namespace={MATERIALS}
+            level="account"
+            fields={MATERIAL_FIELDS}
+            params={{ provider }}
+          />
+          <SettingsNote>{m.lms_onboarding_more_settings()}</SettingsNote>
+        </SettingsBlock>
+      ) : null}
       <AddConnectionDialog
         key={adding?.key}
         open={adding !== null}
         chosen={adding?.kind}
         onClose={() => setAdding(null)}
+        setup={false}
         onSaved={(connection) => void choose(connection).catch(() => undefined)}
       />
       <StepFooter onBack={nav.back} onSkip={bound ? undefined : nav.next}>

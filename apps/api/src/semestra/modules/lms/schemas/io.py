@@ -245,6 +245,21 @@ class MaterialCounts(BaseModel):
     online: int = Field(description="Read online (and links): they leave the course's files")
 
 
+class MaterialsScope(BaseModel):
+    course_id: Id | None = Field(
+        default=None, description="One course; left out: every linked course"
+    )
+
+
+class HeldMaterials(BaseModel):
+    """Course files still there from materials whose sync was turned off: they no longer follow
+    the platform."""
+
+    courses: int = Field(description="Linked courses with such files")
+    local: int = Field(description="With a local copy")
+    online: int = Field(description="Read online (and links)")
+
+
 class CourseLinkState(BaseModel):
     course_id: str
     link: CourseLink | None

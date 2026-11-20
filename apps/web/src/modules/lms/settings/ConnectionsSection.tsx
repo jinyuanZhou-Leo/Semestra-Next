@@ -11,7 +11,14 @@ import { ChevronRight, Link2, Pencil, PlugZap, Plus, Trash2 } from 'lucide-react
 import { createContext, use, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { preload } from '@/app/extensions'
-import { RowMenu, SectionAction, SettingsTable, settingsTableFeatures } from '@/app/settings'
+import {
+  RowMenu,
+  SectionAction,
+  SettingsNote,
+  SettingsTable,
+  settingsTableFeatures,
+} from '@/app/settings'
+import { NamespaceForm } from '@/app/settings/NamespaceForm'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { BrandTile } from '@/components/BrandLogo'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
@@ -22,7 +29,14 @@ import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
 import { DropdownMenuItem, DropdownMenuSeparator } from '@/ui/dropdown-menu'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/ui/dialog'
 import {
   Empty,
   EmptyContent,
@@ -36,9 +50,10 @@ import { Skeleton } from '@/ui/skeleton'
 import { Spinner } from '@/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { useOfferedProviders, useProviderName, useProviderUis } from '../providers'
-import { invalidateLms } from '../queries'
+import { invalidateLms, MATERIALS } from '../queries'
 import type { LmsLogo, LmsProviderUi } from '../types'
 import { ConnectionForm } from './ConnectionForm'
+import { MATERIAL_FIELDS } from './MaterialsSection'
 
 /** Short badge words for a connection's last error, like the AI providers' (M09 §7.1). */
 export const ERROR_LABEL: Record<string, () => string> = {
@@ -248,13 +263,20 @@ export function AddConnectionDialog({
   onClose,
   chosen,
   onSaved,
+  setup = true,
 }: {
   open: boolean
   onClose: () => void
   chosen?: string
   onSaved?: (connection: Connection) => void
+  /**
+   * After saving, go on to how course materials come in (they apply from the first sync, which a
+   * course link starts at once). Off where the page shows them itself (onboarding).
+   */
+  setup?: boolean
 }) {
   const { providers, isPending } = useOfferedProviders()
+  const [saved, setSaved] = useState(false)
   const [picked, setPicked] = useState<string | null>(chosen ?? null)
   // With one platform there is nothing to pick: the dialog opens on its form.
   const kind = picked ?? (providers.length === 1 ? (providers[0]?.kind ?? null) : null)
@@ -267,20 +289,40 @@ export function AddConnectionDialog({
           <div className="flex items-center gap-3">
             {ui ? <LogoTile logo={ui.logo} /> : null}
             <DialogTitle>
-              {kind && name
-                ? m.lms_connection_add_provider({ provider: name })
-                : m.lms_connection_add()}
+              {saved && name
+                ? m.lms_connection_ready_title({ provider: name })
+                : kind && name
+                  ? m.lms_connection_add_provider({ provider: name })
+                  : m.lms_connection_add()}
             </DialogTitle>
           </div>
-          {kind ? null : <DialogDescription>{m.lms_connection_pick_provider()}</DialogDescription>}
+          {saved ? (
+            <DialogDescription>{m.lms_connection_ready_description()}</DialogDescription>
+          ) : kind ? null : (
+            <DialogDescription>{m.lms_connection_pick_provider()}</DialogDescription>
+          )}
         </DialogHeader>
-        {!open ? null : kind ? (
+        {!open ? null : saved ? (
+          <div className="space-y-4">
+            <NamespaceForm
+              namespace={MATERIALS}
+              level="account"
+              fields={MATERIAL_FIELDS}
+              params={{ provider: name ?? m.lms_name() }}
+            />
+            <SettingsNote>{m.lms_connection_ready_note()}</SettingsNote>
+            <DialogFooter>
+              <Button onClick={onClose}>{m.lms_connection_done()}</Button>
+            </DialogFooter>
+          </div>
+        ) : kind ? (
           <ConnectionForm
             key={kind}
             kind={kind}
             onSaved={(connection) => {
               onSaved?.(connection)
-              onClose()
+              if (setup) setSaved(true)
+              else onClose()
             }}
             onBack={providers.length > 1 && !chosen ? () => setPicked(null) : undefined}
           />

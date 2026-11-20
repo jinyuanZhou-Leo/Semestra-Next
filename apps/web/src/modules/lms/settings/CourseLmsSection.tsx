@@ -71,6 +71,7 @@ import { externalLabel, groupByTerm } from '../external'
 import { useProviderName, useProviderUis } from '../providers'
 import { MATERIALS, invalidateLms } from '../queries'
 import { ERROR_LABEL, LogoTile } from './ConnectionsSection'
+import { HeldMaterials } from './HeldMaterials'
 import { MATERIAL_FIELDS } from './MaterialsSection'
 import { useOpenConnections } from './ProgramLmsSection'
 
@@ -83,7 +84,8 @@ const CONNECTION_ERRORS = new Set([
 
 /**
  * Course settings → LMS (M09 §7.1): which course on the platform this one is and whether its
- * calendar and assignment changes show up; or, without a link, a searchable picker.
+ * calendar and assignment changes show up; or, without a link, a searchable picker and the
+ * course's materials settings, so they can be chosen before the first sync.
  */
 export function CourseLmsSection({ scope }: SettingsSectionProps) {
   const courseId = scope?.kind === 'course' ? scope.courseId : ''
@@ -92,6 +94,7 @@ export function CourseLmsSection({ scope }: SettingsSectionProps) {
   // Names the connection the list comes from (a student may have several).
   const binding = useQuery(lmsProgramBindingGetOptions({ path: { program_id: programId } }))
   const [changing, setChanging] = useState(false)
+  const provider = useProviderName(binding.data?.connection?.provider) ?? m.lms_name()
 
   return (
     <AsyncBoundary query={state}>
@@ -111,13 +114,30 @@ export function CourseLmsSection({ scope }: SettingsSectionProps) {
           )
         }
         return (
-          <CoursePicker
-            programId={programId}
-            courseId={courseId}
-            connection={connection}
-            current={data.link}
-            onDone={() => setChanging(false)}
-          />
+          <div className="space-y-6">
+            <CoursePicker
+              programId={programId}
+              courseId={courseId}
+              connection={connection}
+              current={data.link}
+              onDone={() => setChanging(false)}
+            />
+            {data.link ? null : (
+              // Chosen before linking: the first sync starts as soon as the course is linked.
+              <SettingsBlock
+                title={m.lms_materials_group()}
+                description={m.lms_course_materials_before_link()}
+              >
+                <NamespaceForm
+                  namespace={MATERIALS}
+                  level="course"
+                  scope={scope}
+                  fields={MATERIAL_FIELDS}
+                  params={{ provider }}
+                />
+              </SettingsBlock>
+            )}
+          </div>
         )
       }}
     </AsyncBoundary>
@@ -302,6 +322,7 @@ function LinkedCourse({
             fields={MATERIAL_FIELDS}
             params={{ provider }}
           />
+          <HeldMaterials courseId={courseId} provider={provider} />
         </SettingsBlock>
       ) : null}
       {code ? (

@@ -7,6 +7,7 @@ import {
   lmsProviderListOptions,
   settingsSchemaListOptions,
   settingsValueGetOptions,
+  lmsMaterialCountLeftOptions,
 } from '@semestra/api-client/react-query'
 import type { Query, QueryClient } from '@tanstack/react-query'
 import type { Scope } from '@/app/extensions'
@@ -27,6 +28,8 @@ export const LMS_STATE_QUERIES = [
   // The feedback the sync kept for the course's assessments (stays after unbinding or unlinking).
   'lmsFeedbackList',
   'lmsAnnouncementUnread',
+  // What turning the materials sync off left in the course files.
+  'lmsMaterialCountLeft',
 ]
 
 /** What linked courses hold on the platform: refetched for one course, not on every change. */
@@ -138,6 +141,7 @@ export const settingsPrefetch = {
     Promise.all([
       queryClient.ensureQueryData(lmsConnectionListOptions()),
       materialSettings({ scope_type: 'account' }, queryClient),
+      queryClient.ensureQueryData(lmsMaterialCountLeftOptions()),
     ]),
   program: (scope: Scope | undefined, queryClient: QueryClient) =>
     Promise.all([
@@ -155,10 +159,17 @@ export const settingsPrefetch = {
     if (!state.program_connection_id) {
       return queryClient.ensureQueryData(lmsConnectionListOptions())
     }
+    const materials = materialSettings({ scope_type: 'course', scope_id: courseId }, queryClient)
     if (state.link) {
-      return materialSettings({ scope_type: 'course', scope_id: courseId }, queryClient)
+      return Promise.all([
+        materials,
+        queryClient.ensureQueryData(
+          lmsMaterialCountLeftOptions({ query: { course_id: courseId } }),
+        ),
+      ])
     }
     return Promise.all([
+      materials,
       queryClient.ensureQueryData(academicsCourseGetOptions({ path: { course_id: courseId } })),
       queryClient.ensureQueryData(
         lmsCourseListOptions({

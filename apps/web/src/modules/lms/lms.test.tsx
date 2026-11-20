@@ -20,6 +20,7 @@ import { ConnectionsSection } from './settings/ConnectionsSection'
 import { CourseLmsSection, pickerGroups } from './settings/CourseLmsSection'
 import { ProgramLmsSection } from './settings/ProgramLmsSection'
 import { MaterialsSection } from './settings/MaterialsSection'
+import ConnectLmsStep from './onboarding/ConnectLmsStep'
 
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => server.resetHandlers())
@@ -108,6 +109,7 @@ test('adding a connection sends the form; a rejected token shows and saves nothi
       saved = [connection()]
       return HttpResponse.json(saved[0])
     }),
+    ...materialsHandlers(),
   )
   renderWithRouter(<ConnectionsSection />)
   await userEvent.click(await screen.findByRole('button', { name: 'Add connection' }))
@@ -131,6 +133,12 @@ test('adding a connection sends the form; a rejected token shows and saves nothi
   await userEvent.clear(within(dialog).getByLabelText('Access token'))
   await userEvent.type(within(dialog).getByLabelText('Access token'), '7~abcdefghxy')
   await userEvent.click(save)
+  // Saved: before any course is linked (and syncs), how course materials come in.
+  expect(await within(dialog).findByText('Canvas connected')).toBeInTheDocument()
+  expect(
+    await within(dialog).findByRole('switch', { name: 'Bring in course materials' }),
+  ).toBeChecked()
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Done' }))
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
   expect(created).toHaveBeenLastCalledWith({
     provider: 'canvas',
@@ -164,6 +172,7 @@ test('school-page sign-in links to Canvas and pastes the callback address', asyn
       saved = [connection({ credentials_hint: { method: 'sign_in' } })]
       return HttpResponse.json(saved[0])
     }),
+    ...materialsHandlers(),
   )
   renderWithRouter(<ConnectionsSection />)
   await userEvent.click(await screen.findByRole('button', { name: 'Add connection' }))
@@ -182,6 +191,7 @@ test('school-page sign-in links to Canvas and pastes the callback address', asyn
     'https://sso.canvaslms.com/canvas/login?code=abc',
   )
   await userEvent.click(within(dialog).getByRole('button', { name: 'Check and save' }))
+  await userEvent.click(await within(dialog).findByRole('button', { name: 'Done' }))
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
   expect(created).toHaveBeenCalledWith({
     provider: 'canvas',
@@ -316,25 +326,101 @@ const MATERIALS_SCHEMA = {
   },
 }
 
+const materialsHandlers = (
+  values: { sync: boolean; store: string } = { sync: true, store: 'online' },
+) => [
+  http.get(`${API}/me/settings-schemas`, () => HttpResponse.json({ items: [MATERIALS_SCHEMA] })),
+  http.get(`${API}/me/settings/lms.materials`, () =>
+    HttpResponse.json({
+      namespace: 'lms.materials',
+      scope_type: 'account',
+      scope_id: null,
+      values,
+      sources: { sync: 'default', store: 'default' },
+      inherited: {},
+    }),
+  ),
+]
+
 test('account settings: how every course takes in its materials', async () => {
   server.use(
-    http.get(`${API}/me/settings-schemas`, () => HttpResponse.json({ items: [MATERIALS_SCHEMA] })),
-    http.get(`${API}/me/settings/lms.materials`, () =>
-      HttpResponse.json({
-        namespace: 'lms.materials',
-        scope_type: 'account',
-        scope_id: null,
-        values: { sync: true, store: 'online' },
-        sources: { sync: 'default', store: 'default' },
-        inherited: {},
-      }),
-    ),
+    ...materialsHandlers(),
     http.get(`${API}/lms/connections`, () => HttpResponse.json({ items: [connection()] })),
+    http.get(`${API}/me/lms/materials/held`, () =>
+      HttpResponse.json({ courses: 0, local: 0, online: 0 }),
+    ),
   )
   renderWithRouter(<MaterialsSection />)
   expect(await screen.findByRole('switch', { name: 'Bring in course materials' })).toBeChecked()
   // Named after the platform of the account's connections.
   expect(screen.getByText(/from Canvas into course files/)).toBeInTheDocument()
+  expect(screen.queryByText('Synced materials')).toBeNull()
+})
+
+test('onboarding: choosing a connection shows how materials come in before going on', async () => {
+  let bound = false
+  const next = vi.fn<() => void>()
+  server.use(
+    ...materialsHandlers(),
+    http.get(`${API}/lms/providers`, () => HttpResponse.json(PROVIDERS)),
+    http.get(`${API}/lms/connections`, () => HttpResponse.json({ items: [connection()] })),
+    http.get(`${API}/programs/p1/lms-binding`, () =>
+      HttpResponse.json({
+        program_id: 'p1',
+        connection_id: bound ? 'k1' : null,
+        connection: bound ? connection() : null,
+        link_count: 0,
+      }),
+    ),
+    http.put(`${API}/programs/p1/lms-binding`, () => {
+      bound = true
+      return HttpResponse.json({
+        program_id: 'p1',
+        connection_id: 'k1',
+        connection: connection(),
+        link_count: 0,
+      })
+    }),
+  )
+  renderWithRouter(<ConnectLmsStep programId="p1" nav={{ back: () => {}, next }} />)
+  await userEvent.click(await screen.findByRole('button', { name: 'Use' }))
+  // The step stays: the first sync follows these as soon as the term wizard links courses.
+  expect(
+    await screen.findByRole('switch', { name: 'Bring in course materials' }),
+  ).toBeInTheDocument()
+  expect(next).not.toHaveBeenCalled()
+  await userEvent.click(screen.getByRole('button', { name: 'Continue' }))
+  expect(next).toHaveBeenCalled()
+})
+
+test('materials left after turning the sync off can be removed', async () => {
+  const removed = vi.fn<(body: unknown) => void>()
+  let held = { courses: 2, local: 1, online: 4 }
+  server.use(
+    ...materialsHandlers({ sync: false, store: 'online' }),
+    http.get(`${API}/lms/connections`, () => HttpResponse.json({ items: [connection()] })),
+    http.get(`${API}/me/lms/materials/held`, () => HttpResponse.json(held)),
+    http.post(`${API}/me/lms/materials:remove`, async ({ request }) => {
+      removed(await request.json())
+      held = { courses: 0, local: 0, online: 0 }
+      return HttpResponse.json(held)
+    }),
+  )
+  renderWithRouter(<MaterialsSection />)
+  expect(
+    await screen.findByText('5 materials in 2 courses no longer update from Canvas.'),
+  ).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: 'Remove…' }))
+  const confirm = await screen.findByRole('alertdialog')
+  expect(
+    within(confirm).getByText('Saved in Semestra (1): deleted with their copies.'),
+  ).toBeInTheDocument()
+  expect(
+    within(confirm).getByText('Read from Canvas (4): removed. They remain on Canvas.'),
+  ).toBeInTheDocument()
+  await userEvent.click(within(confirm).getByRole('button', { name: 'Remove' }))
+  await waitFor(() => expect(removed).toHaveBeenCalledWith({ course_id: null }))
+  await waitFor(() => expect(screen.queryByText('Synced materials')).toBeNull())
 })
 
 test("a program's connection is locked while courses are linked through it", async () => {
@@ -382,6 +468,9 @@ test('course settings: guidance without a binding, then the switches, materials 
   }
   server.use(
     http.get(`${API}/courses/c1/lms-link`, () => HttpResponse.json(state)),
+    http.get(`${API}/me/lms/materials/held`, () =>
+      HttpResponse.json({ courses: 0, local: 0, online: 0 }),
+    ),
     http.get(`${API}/me/settings-schemas`, () => HttpResponse.json({ items: [MATERIALS_SCHEMA] })),
     // Local copies for every course; this one follows that.
     http.get(`${API}/me/settings/lms.materials`, () =>

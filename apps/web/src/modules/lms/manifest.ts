@@ -413,9 +413,12 @@ export default defineModule({
             typeof data.course_id === 'string'
               ? [{ _id: 'lmsCourseLinkGet', path: { course_id: data.course_id } }]
               : ['lmsCourseLinkGet'],
+          'lmsMaterialCountLeft',
         ],
       ]),
     ),
+    // Materials turned off or on: what the sync left behind (M09 §4.2).
+    'settings.values.updated': ['lmsMaterialCountLeft'],
     // Which courses a term has: the term's links and announcements.
     'academics.course.terms_changed': ['lmsCourseLinkList', 'lmsTermAnnouncementList'],
     // The sync was queued, ran or was answered: its status line, panel and reminders.

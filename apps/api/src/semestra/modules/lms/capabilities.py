@@ -59,10 +59,12 @@ from semestra.modules.lms.schemas.io import (
     FileSearchInput,
     FolderInput,
     GradeList,
+    HeldMaterials,
     ImportStarted,
     LinkListInput,
     LinkSetInput,
     LinkUpdateInput,
+    MaterialsScope,
     ModuleItemList,
     ModuleItemsInput,
     ModuleList,
@@ -883,6 +885,34 @@ materials don't sync are left alone).""",
 async def sync_material_restore_all(ctx: Ctx, inp: ProgramRef) -> SyncStatus:
     await sync_files.restore_all(ctx, inp.program_id)
     return await sync_status.status(ctx, inp.program_id)
+
+
+@capability(
+    name="lms.material.count_left",
+    summary="Count the course files left from materials whose sync was turned off.",
+    description="""They stay in the course files but no longer follow the platform. One course,
+or every linked course.""",
+    effect="read",
+    http=Http("GET", "/me/lms/materials/held"),
+    expose=HTTP_ONLY,
+    tags=TAGS,
+)
+async def materials_held(ctx: Ctx, inp: MaterialsScope) -> HeldMaterials:
+    return await sync_files.held(ctx, inp.course_id)
+
+
+@capability(
+    name="lms.material.remove_left",
+    summary="Remove the course files left from materials whose sync was turned off.",
+    description="""Local copies too, except files the user chose to keep. Turning the materials sync
+on again brings them back.""",
+    effect="destructive",
+    http=Http("POST", "/me/lms/materials:remove"),
+    expose=HTTP_ONLY,
+    tags=TAGS,
+)
+async def materials_remove(ctx: Ctx, inp: MaterialsScope) -> HeldMaterials:
+    return await sync_files.remove_held(ctx, inp.course_id)
 
 
 @capability(

@@ -13931,6 +13931,118 @@
         }
       }
     },
+    "/me/lms/materials/held": {
+      "get": {
+        "tags": [
+          "lms"
+        ],
+        "summary": "Count the course files left from materials whose sync was turned off.",
+        "description": "They stay in the course files but no longer follow the platform. One course,\nor every linked course.",
+        "operationId": "lmsMaterialCountLeft",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "One course; left out: every linked course",
+              "title": "Course Id"
+            },
+            "description": "One course; left out: every linked course"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HeldMaterials"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/me/lms/materials:remove": {
+      "post": {
+        "tags": [
+          "lms"
+        ],
+        "summary": "Remove the course files left from materials whose sync was turned off.",
+        "description": "Local copies too, except files the user chose to keep. Turning the materials sync\non again brings them back.",
+        "operationId": "lmsMaterialRemoveLeft",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MaterialsScopeBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HeldMaterials"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
+      }
+    },
     "/courses/{course_id}/lms/modules": {
       "get": {
         "tags": [
@@ -29344,6 +29456,33 @@
         ],
         "title": "Health"
       },
+      "HeldMaterials": {
+        "properties": {
+          "courses": {
+            "type": "integer",
+            "title": "Courses",
+            "description": "Linked courses with such files"
+          },
+          "local": {
+            "type": "integer",
+            "title": "Local",
+            "description": "With a local copy"
+          },
+          "online": {
+            "type": "integer",
+            "title": "Online",
+            "description": "Read online (and links)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "courses",
+          "local",
+          "online"
+        ],
+        "title": "HeldMaterials",
+        "description": "Course files still there from materials whose sync was turned off: they no longer follow\nthe platform."
+      },
       "HexColor": {
         "properties": {
           "hex": {
@@ -31961,6 +32100,26 @@
         ],
         "title": "MaterialCounts",
         "description": "The course files that follow the linked course's materials, by what unlinking does to\nthem."
+      },
+      "MaterialsScopeBody": {
+        "properties": {
+          "course_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Course Id",
+            "description": "One course; left out: every linked course"
+          }
+        },
+        "type": "object",
+        "title": "MaterialsScopeBody"
       },
       "McpChangeList": {
         "properties": {
