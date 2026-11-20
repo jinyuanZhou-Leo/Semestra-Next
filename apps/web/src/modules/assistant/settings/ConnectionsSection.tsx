@@ -120,7 +120,6 @@ const columns = column.columns([
 ])
 
 const COLUMN_CLASS: Record<string, string> = {
-  name: 'w-full max-w-0',
   scope: 'whitespace-nowrap',
   actions: 'w-10',
 }
@@ -195,6 +194,7 @@ export function ConnectionsSection() {
         {(page) => (
           <RowActionsContext value={actions}>
             <SettingsTable
+              fill="name"
               label={m.auth_account_tokens_title()}
               data={page.items}
               columns={columns}

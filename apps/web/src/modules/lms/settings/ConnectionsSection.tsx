@@ -183,7 +183,6 @@ const columns = column.columns([
 ])
 
 const COLUMN_CLASS: Record<string, string> = {
-  name: 'w-full max-w-0',
   status: 'w-56 whitespace-nowrap',
   actions: 'w-10',
 }
@@ -371,6 +370,7 @@ export function ConnectionsSection() {
               </Button>
             </SectionAction>
             <SettingsTable
+              fill="name"
               label={m.lms_settings_connections()}
               data={data.items}
               columns={columns}

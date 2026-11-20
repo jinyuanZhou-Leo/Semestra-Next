@@ -125,7 +125,7 @@ const instructorColumns = instructorColumn.columns([
   }),
 ])
 const INSTRUCTOR_COLUMN_CLASS = {
-  name: 'w-full max-w-0 pl-2',
+  name: 'pl-2',
   email: 'w-64 min-w-64',
   remove: 'w-14 min-w-14',
 }
@@ -291,6 +291,7 @@ function CourseBasics({ course, terms }: { course: Course; terms: Term[] }) {
         {instructors.length > 0 ? (
           <InstructorsContext value={{ change: changeInstructors, instructors }}>
             <SettingsTable
+              fill="name"
               label={m.academics_course_instructors()}
               data={instructors.map((person, index) => ({ index, person }))}
               columns={instructorColumns}

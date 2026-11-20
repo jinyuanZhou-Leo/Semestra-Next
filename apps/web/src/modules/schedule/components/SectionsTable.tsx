@@ -333,7 +333,6 @@ const COLUMN_CLASS: Record<string, string> = {
   on: 'w-20 min-w-20',
   section: 'w-52 min-w-52 max-w-52',
   time: 'w-72 min-w-72 max-w-72',
-  location: 'w-full max-w-0',
   weeks: 'w-48 min-w-48',
   actions: 'w-10',
 }
@@ -383,6 +382,7 @@ export function SectionsTable({
   return (
     <SectionsContext value={{ ...state, types, sections, expanded, onExpand }}>
       <SettingsTable
+        fill="location"
         label={m.schedule_meetings()}
         data={rows}
         columns={columns}

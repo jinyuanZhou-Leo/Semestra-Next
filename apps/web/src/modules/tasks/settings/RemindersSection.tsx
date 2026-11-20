@@ -130,7 +130,7 @@ const columns = column.columns([
     cell: ActionsCell,
   }),
 ])
-const COLUMN_CLASS: Record<string, string> = { device: 'w-full max-w-0', actions: 'w-10' }
+const COLUMN_CLASS: Record<string, string> = { actions: 'w-10' }
 
 const NOTIFICATIONS = {
   path: { namespace: 'notifications' },
@@ -215,6 +215,7 @@ export default function RemindersSection({ scope }: SettingsSectionProps) {
         {(s) => (
           <RowActionsContext value={{ setUpAgain, disconnect: disconnecting.show }}>
             <SettingsTable
+              fill="device"
               label={m.tasks_reminders_title()}
               data={s.items}
               columns={columns}

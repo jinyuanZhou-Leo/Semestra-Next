@@ -64,6 +64,14 @@ type Props<T extends RowData> = {
   // oxlint-disable-next-line typescript/no-explicit-any -- each column has its own value type
   columns: Array<ColumnDef<Features, T, any>>
   getRowId: (row: T) => string
+  /**
+   * The column that takes the width the others leave (usually the name), or `null` when every
+   * column already shrinks (a table of inputs). Its cell is held to that width, so its content
+   * must truncate or wrap; the other columns keep their text on one line (shadcn's cells do not
+   * wrap). Without it a long value widens the table past its rounded frame and the trailing
+   * columns are cut off.
+   */
+  fill: string | null
   /** Classes per column id, applied to the header and every cell of that column. */
   columnClassName?: Partial<Record<string, string>>
   /**
@@ -95,13 +103,17 @@ export function SettingsTable<T extends RowData>({
   data,
   columns,
   getRowId,
-  columnClassName = {},
+  fill,
+  columnClassName: classes = {},
   onReorder,
   rowName,
   footer,
   rowClassName,
   cellSpan,
 }: Props<T>) {
+  const columnClassName = fill
+    ? { ...classes, [fill]: cn('w-full max-w-0', classes[fill]) }
+    : classes
   const [pending, setPending] = useState<string[] | null>(null)
   // Only the latest reorder clears the shown order, so a second drag made while the first is
   // still saving does not flash back to the server's order.

@@ -255,11 +255,12 @@ export function ApprovalsSection() {
               {mode === 'module' ? (
                 <ModuleContext value={actions}>
                   <SettingsTable
+                    fill="name"
                     label={m.assistant_permissions_modules()}
                     data={rows}
                     columns={columns}
                     getRowId={(row) => row.id}
-                    columnClassName={{ name: 'w-full max-w-0', menu: 'w-12' }}
+                    columnClassName={{ menu: 'w-12' }}
                   />
                 </ModuleContext>
               ) : null}

@@ -83,7 +83,7 @@ const columns = column.columns([
   }),
 ])
 
-const COLUMN_CLASS: Record<string, string> = { device: 'w-full max-w-0', actions: 'w-10' }
+const COLUMN_CLASS: Record<string, string> = { actions: 'w-10' }
 
 type Target = { kind: 'one'; id: string } | { kind: 'others' }
 
@@ -120,6 +120,7 @@ export function SessionsSection() {
             }
           >
             <SettingsTable
+              fill="device"
               label={m.auth_account_sessions_title()}
               data={items}
               columns={columns}

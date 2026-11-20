@@ -361,7 +361,6 @@ const columns = [
 ]
 
 const COLUMN_CLASS: Record<string, string> = {
-  name: 'w-full max-w-0',
   files: 'text-right tabular-nums',
   share: 'w-40 min-w-28',
   bytes: 'text-right whitespace-nowrap tabular-nums',
@@ -414,6 +413,7 @@ function UsageDetails({
           {(data) => (
             <GroupingContext value={grouping}>
               <SettingsTable
+                fill="name"
                 label={m.portability_storage_details()}
                 data={usageRows(grouping, usage, data, counts)}
                 columns={columns}

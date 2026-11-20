@@ -226,7 +226,6 @@ const categoryColumns = categoryColumn.columns([
 
 const CATEGORY_COLUMN_CLASS: Record<string, string> = {
   color: 'w-20',
-  name: 'w-full max-w-0',
   active: 'w-16 whitespace-nowrap',
   actions: 'w-10',
 }
@@ -288,6 +287,7 @@ function Categories({ gradebook }: { gradebook: Gradebook }) {
     >
       <CategoryContext value={handlers}>
         <SettingsTable
+          fill="name"
           label={m.grading_categories()}
           data={categories}
           columns={categoryColumns}

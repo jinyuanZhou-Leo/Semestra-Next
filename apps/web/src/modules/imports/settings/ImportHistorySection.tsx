@@ -71,7 +71,7 @@ function OpenButton({ sessionId }: { sessionId: string }) {
 function SourceCell({ session }: { session: ImportSession }) {
   const names = session.source_refs.map((r) => r.filename).filter(Boolean)
   return (
-    <span className="block max-w-56 truncate">
+    <span className="block truncate">
       {SOURCE_KIND_LABELS[session.source_kind]()}
       {names.length > 0 ? (
         <span className="text-muted-foreground"> · {names.join(', ')}</span>
@@ -123,6 +123,7 @@ function HistoryTable({ programId, sessions }: { programId: string; sessions: Im
         data={sessions}
         columns={columns}
         getRowId={(s) => s.id}
+        fill="source"
         columnClassName={COLUMN_CLASS}
       />
     </ProgramIdContext>

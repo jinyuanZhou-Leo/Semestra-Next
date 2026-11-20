@@ -170,7 +170,6 @@ const columns = column.columns([
 ])
 
 const COLUMN_CLASS: Record<string, string> = {
-  name: 'w-full max-w-0',
   size: 'w-28 whitespace-nowrap',
   actions: 'w-10',
 }
@@ -241,6 +240,7 @@ export function LocalModelsSection() {
         return (
           <SettingsBlock key={entry.purpose} title={title}>
             <SettingsTable
+              fill="name"
               label={title}
               data={rows.filter((row) => row.purpose === entry.purpose)}
               columns={columns}

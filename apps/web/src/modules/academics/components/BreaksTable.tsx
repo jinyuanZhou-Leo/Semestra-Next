@@ -97,7 +97,7 @@ const columns = column.columns([
 
 // Fixed widths, so the header sits in the same place with or without breaks.
 const COLUMN_CLASS = {
-  name: 'w-full max-w-0 pl-2',
+  name: 'pl-2',
   dates: 'w-64 min-w-64',
   remove: 'w-14 min-w-14',
 }
@@ -150,6 +150,7 @@ export function BreaksTable({
       {value.length > 0 ? (
         <BreaksContext value={state}>
           <SettingsTable
+            fill="name"
             label={m.academics_term_breaks()}
             data={value.map((b, index) => ({ index, key: keyOf(index), value: b }))}
             columns={columns}

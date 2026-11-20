@@ -122,7 +122,7 @@ const columns = column.columns([
   }),
 ])
 
-const COLUMN_CLASS: Record<string, string> = { name: 'w-full max-w-0', actions: 'w-10' }
+const COLUMN_CLASS: Record<string, string> = { actions: 'w-10' }
 
 export function PasskeysSection() {
   const queryClient = useQueryClient()
@@ -183,6 +183,7 @@ export function PasskeysSection() {
           <HandlersContext value={{ onRename: renaming.show, onDelete: deleting.show }}>
             <SectionAction>{addButton}</SectionAction>
             <SettingsTable
+              fill="name"
               label={m.auth_passkeys_title()}
               data={items}
               columns={columns}
