@@ -5,30 +5,30 @@
    "code": "LEC",
    "color": null,
    "icon": "presentation",
-   "id": "01a1fa83-b04b-74d2-9a4a-2546c52955c9",
+   "id": "01a1fa9c-fa2b-7069-bf6b-9bd1acfe5918",
    "name": "Lecture",
    "position": 0,
-   "program_id": "01a1fa83-b041-7762-bda0-ee05085fb361"
+   "program_id": "01a1fa9c-fa20-70fc-8742-9ac40f992f0f"
   },
   {
    "builtin": true,
    "code": "PRA",
    "color": null,
    "icon": "flask-conical",
-   "id": "01a1fa83-b04b-74d2-9a4a-25479e6cda4c",
+   "id": "01a1fa9c-fa2b-7069-bf6b-9bd2ea327e49",
    "name": "Practical",
    "position": 1,
-   "program_id": "01a1fa83-b041-7762-bda0-ee05085fb361"
+   "program_id": "01a1fa9c-fa20-70fc-8742-9ac40f992f0f"
   },
   {
    "builtin": true,
    "code": "TUT",
    "color": null,
    "icon": "users",
-   "id": "01a1fa83-b04b-74d2-9a4a-2548676054b7",
+   "id": "01a1fa9c-fa2b-7069-bf6b-9bd3d72e9dbd",
    "name": "Tutorial",
    "position": 2,
-   "program_id": "01a1fa83-b041-7762-bda0-ee05085fb361"
+   "program_id": "01a1fa9c-fa20-70fc-8742-9ac40f992f0f"
   }
  ],
  "events": [],

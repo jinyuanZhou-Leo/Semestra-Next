@@ -4,15 +4,15 @@
  "ui_state": [],
  "values": [
   {
-   "created_at": "2026-11-20T19:51:36.890909+00:00",
+   "created_at": "2026-11-20T20:19:14.209031+00:00",
    "data": {
     "display": "original"
    },
-   "id": "01a1fa83-b0ba-7187-9944-602866d26df6",
+   "id": "01a1fa9c-faa1-7054-823d-b2e2811b39a3",
    "namespace": "plugin.canvas-tab",
    "scope_id": "",
    "scope_type": "account",
-   "updated_at": "2026-11-20T19:51:36.890914+00:00"
+   "updated_at": "2026-11-20T20:19:14.209035+00:00"
   }
  ]
 }

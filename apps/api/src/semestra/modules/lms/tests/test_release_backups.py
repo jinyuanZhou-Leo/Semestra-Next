@@ -1,10 +1,12 @@
 """Backups made by each release since 2.0 restore into this version (M13 §3.1, M09 §10).
 `backups/<version>/` holds a backup each release exported (`manifest.json` and the
 `data/<module>.json` files flattened, `data/` being git-ignored; the stored copies in `files/`):
-2.0.0 the Canvas tab's display setting; from 2.1.0 a linked course whose materials were saved in
+2.0.0 the Canvas tab's display setting and a linked course with a file saved from the Canvas tab;
+from 2.1.0 a linked course whose materials were saved in
 Semestra (a file, a link with a long title), one renamed by the user and one deleted."""
 
 import io
+import json
 import zipfile
 from datetime import UTC, datetime
 from pathlib import Path
@@ -23,13 +25,18 @@ JAN = datetime(2026, 1, 10, tzinfo=UTC)
 LONG = "Recording " + "x" * 300
 
 
-def _archive(version: str) -> bytes:
+def _archive(version: str, labelled: str | None = None) -> bytes:
+    """The release's backup; `labelled` names an older version in its manifest instead."""
     out = io.BytesIO()
     with zipfile.ZipFile(out, "w") as z:
         for path in sorted((BACKUPS / version).rglob("*")):
             if path.is_dir():
                 continue
             name = path.relative_to(BACKUPS / version).as_posix()
+            if name == "manifest.json" and labelled is not None:
+                manifest = {**json.loads(path.read_text()), "app_version": labelled}
+                z.writestr(name, json.dumps(manifest))
+                continue
             if name.endswith(".json") and name != "manifest.json":
                 name = f"data/{name}"
             z.write(path, name)
@@ -62,10 +69,11 @@ def _platform(fake: FakeProvider) -> None:
     fake.page_list = []
 
 
-async def _restore(api: Api, version: str) -> tuple[str, str | None]:
+async def _restore(api: Api, version: str, labelled: str | None = None) -> tuple[str, str | None]:
     """Replaces the user's data with the release's backup: (Program, its course or None)."""
     uploaded = await api.client.post(
-        "/me/imports", files={"file": ("backup.zip", _archive(version), "application/zip")}
+        "/me/imports",
+        files={"file": ("backup.zip", _archive(version, labelled), "application/zip")},
     )
     assert uploaded.status_code == 200, uploaded.text
     body = {"mode": "replace", "confirmation": "Replace my data", "include_preferences": True}
@@ -87,6 +95,34 @@ async def test_a_2_0_0_backup_keeps_the_display_setting(api: Api):
     await _restore(api, "2.0.0")
     got = await api.call("GET", "/me/settings/lms", params={"scope_type": "account"})
     assert got["values"]["display"] == "original"
+
+
+async def test_a_file_saved_from_the_canvas_tab_in_2_0_follows_the_platform(
+    api: Api, fake: FakeProvider
+):
+    """2.0 saved a platform file into the course without a material: restored, it is the
+    platform file's item, as a file saved there now is: the sync does not bring it in again, it
+    follows a rename, and its copy can be let go (read from the platform instead)."""
+    _platform(fake)
+    program_id, course = await _restore(api, "2.0.0")
+    assert course is not None
+    [connection] = (await api.call("GET", "/lms/connections"))["items"]
+    token = {"credentials": {"token": "good-token-1"}}  # not in backups: typed again
+    await api.call("PATCH", f"/lms/connections/{connection['id']}", json=token)
+    await api.sync(program_id)
+    await api.run_jobs()
+    saved = (await _items(api, course))["Lecture 1.pdf"]
+    assert (saved["follows_source"], saved["local_copy"]["state"]) == (True, "saved")
+
+    files = fake.course_file_list
+    files[0] = files[0].model_copy(update={"name": "Lecture 1 (revised).pdf"})
+    await api.sync(program_id)
+    await api.run_jobs()
+    after = await _items(api, course)
+    assert after["Lecture 1 (revised).pdf"]["id"] == saved["id"]
+    await api.call("POST", f"/files/{saved['id']}:drop-copy")
+    got = await api.call("GET", f"/files/{saved['id']}")
+    assert (got["stored"], got["follows_source"]) == (False, True)
 
 
 @pytest.mark.parametrize("version", ["2.1.0", "2.2.0", "2.3.0", "2.4.0"])
@@ -124,3 +160,17 @@ async def test_a_backup_keeps_its_materials_in_step(api: Api, fake: FakeProvider
     assert sorted(after) == sorted(
         ["Lecture 1 (revised).pdf", "Week one.pdf", "Midterm.pdf", "Recording, week 1"]
     )
+
+
+async def test_a_backup_labelled_older_than_it_is_keeps_its_materials_as_they_were(api: Api):
+    """A backup a build made before its version was raised (the hosted backend is deployed
+    ahead of the release) names an older version than its shape: the steps of migrations it
+    already had run again, and leave what they changed before alone: the deleted material
+    stays deleted and the stored copies stay current (a name the sync gave may read as the
+    user's: there is no telling)."""
+    program_id, course = await _restore(api, "2.4.0", labelled="2.0.0")
+    assert course is not None
+    status = await api.call("GET", f"/programs/{program_id}/lms/sync")
+    assert [m["title"] for m in status["removed_materials"]] == ["data.zip"]
+    got = await _items(api, course)
+    assert got["Lecture 1.pdf"]["local_copy"]["state"] == "saved"

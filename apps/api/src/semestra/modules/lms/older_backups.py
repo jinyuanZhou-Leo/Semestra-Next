@@ -63,10 +63,14 @@ def _0056(lms: Row, archive: OlderArchive) -> Row:
 
 
 def _0057(lms: Row, archive: OlderArchive) -> Row:
-    """A material's state, from whether the user deleted it and whether it only lists others."""
+    """A material's state, from whether the user deleted it and whether it only lists others
+    (one with a state already is from a backup that names an older version than it was made
+    by, `upgrade.RELEASE_REVISIONS`)."""
     del archive
     materials = [
-        {
+        r
+        if "state" in r
+        else {
             **{k: v for k, v in r.items() if k not in ("deleted_at", "is_list")},
             "state": "list"
             if r.get("is_list")
@@ -142,6 +146,109 @@ def _0063(lms: Row, archive: OlderArchive) -> Row:
         for r in _rows(lms, "materials")
     ]
     return {**lms, "materials": materials}
+
+
+# The providers' names at 0065 (`LmsProvider.display_name`).
+_PROVIDER_NAMES = {"canvas": "Canvas"}
+
+
+def _saved_in_2_0(files: Row | None, lms: Row | None) -> dict[str, tuple[str, Row | None]]:
+    """The files 2.0's Canvas tab saved (`lms:<provider>:<connection>:file:<id>`, no material),
+    as migration 0065 reads them: each file's id → its provider and the link whose material it
+    becomes (oldest first; None: it is the user's own)."""
+    links = {(r.get("course_id"), r.get("connection_id")): r for r in _rows(lms, "links")}
+    taken = {
+        (r.get("link_id"), r.get("external_id"))
+        for r in _rows(lms, "materials")
+        if r.get("kind") == "file" and r.get("state") == "synced" and r.get("item_id")
+    }
+    found: dict[str, tuple[str, Row | None]] = {}
+    items = sorted(
+        _rows(files, "items"), key=lambda r: (str(r.get("created_at")), str(r.get("id")))
+    )
+    for item in items:
+        ref = item.get("source_ref")
+        parts = ref.split(":") if isinstance(ref, str) and item.get("kind") == "file" else []
+        if not (len(parts) == 5 and parts[0] == "lms" and parts[3] == "file" and all(parts)):
+            continue
+        link = links.get((item.get("course_id"), parts[2]))
+        key = (link.get("id") if link else None, parts[4])
+        if link is None or key in taken:
+            found[str(item.get("id"))] = (parts[1], None)
+            continue
+        taken.add(key)
+        found[str(item.get("id"))] = (parts[1], link)
+    return found
+
+
+def _0065(lms: Row, archive: OlderArchive) -> Row:
+    """A file 2.0's Canvas tab saved is its material's item, as if saved now, on the course
+    still linked through the same connection (unless the material has an item already)."""
+    files = {str(r.get("id")): r for r in _rows(archive.payload("files"), "items")}
+    materials = _rows(lms, "materials")
+    for item_id, (_, link) in _saved_in_2_0(archive.payload("files"), lms).items():
+        if link is None:
+            continue
+        item, link_id = files[item_id], link.get("id")
+        external_id = str(item.get("source_ref")).split(":")[-1]
+        row: Row = {
+            "link_id": link_id,
+            "kind": "file",
+            "external_id": external_id,
+            "state": "synced",
+            "state_at": archive.now,
+            "item_id": item_id,
+            "title": item.get("display_name"),
+            "name": item.get("display_name"),
+            "version": None,
+            "path": None,
+            "placed_folder_id": None,
+            "links": [],
+            "checked_at": None,
+            "imported_at": archive.now,
+        }
+        materials = [
+            r
+            for r in materials
+            if (r.get("link_id"), r.get("kind"), r.get("external_id"))
+            != (link_id, "file", external_id)
+        ]
+        materials.append(row)
+    return {**lms, "materials": materials}
+
+
+def _files_0065(files: Row, archive: OlderArchive) -> Row:
+    """The files 2.0's Canvas tab saved: followed as their material's item (`_0065`), else the
+    user's own (their copy's hash back from `source_version`, where 0062 put it)."""
+    saved = _saved_in_2_0(files, archive.payload("lms"))
+    items: list[Row] = []
+    for item in _rows(files, "items"):
+        got = saved.get(str(item.get("id")))
+        if got is not None:
+            provider, link = got
+            if link is not None:
+                external_id = str(item.get("source_ref")).split(":")[-1]
+                item = {
+                    **item,
+                    "source_ref": f"lms:file:{external_id}",
+                    "source_name": _PROVIDER_NAMES.get(provider),
+                    "keep_copy": True,
+                }
+            else:
+                item = {
+                    **item,
+                    **dict.fromkeys(_SOURCE_SIDE),
+                    "sha256": item.get("sha256") or item.get("source_version"),
+                }
+        items.append(item)
+    return {**files, "items": items}
+
+
+# What a file the user owns has none of.
+_SOURCE_SIDE = (
+    "source_ref", "source_name", "keep_copy", "source_version", "source_mime", "source_size",
+    "copy_version", "copy_modified_at", "copy_error_code",
+)  # fmt: skip
 
 
 # The materials settings and their defaults when they left the Program (2.2.0).
@@ -253,5 +360,7 @@ register_reshape("0057", "lms", _0057)
 register_reshape("0060", "lms", _0060)
 register_reshape("0061", "lms", _0061)
 register_reshape("0063", "lms", _0063)
+register_reshape("0065", "lms", _0065)
+register_reshape("0065", "files", _files_0065)
 register_reshape("0060", "settings", _settings_0060)
 register_reshape("0064", "settings", _settings_0064)

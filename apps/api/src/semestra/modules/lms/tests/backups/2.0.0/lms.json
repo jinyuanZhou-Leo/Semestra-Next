@@ -1,8 +1,8 @@
 {
  "bindings": [
   {
-   "connection_id": "01a1fa83-b075-741f-9c28-0d50e3170476",
-   "program_id": "01a1fa83-b041-7762-bda0-ee05085fb361"
+   "connection_id": "01a1fa9c-fa5d-74eb-9d54-b76f2bc49ecb",
+   "program_id": "01a1fa9c-fa20-70fc-8742-9ac40f992f0f"
   }
  ],
  "connections": [
@@ -12,11 +12,24 @@
     "base_url": "https://fake.example.edu"
    },
    "display_name": "fake.example.edu",
-   "id": "01a1fa83-b075-741f-9c28-0d50e3170476",
+   "id": "01a1fa9c-fa5d-74eb-9d54-b76f2bc49ecb",
    "provider": "fake"
   }
  ],
- "links": [],
+ "links": [
+  {
+   "connection_id": "01a1fa9c-fa5d-74eb-9d54-b76f2bc49ecb",
+   "course_id": "01a1fa9c-fa77-71e6-a566-c9122406c3f6",
+   "external_code": "APS105H1 S LEC0101",
+   "external_course_id": "101",
+   "external_name": "Computer Fundamentals",
+   "external_term": "Winter 2026",
+   "id": "01a1fa9c-fab3-75f4-8296-5e0c429c2090",
+   "program_id": "01a1fa9c-fa20-70fc-8742-9ac40f992f0f",
+   "sync_enabled": true,
+   "web_url": "https://fake/courses/101"
+  }
+ ],
  "refs": [],
  "schema_version": 2
 }

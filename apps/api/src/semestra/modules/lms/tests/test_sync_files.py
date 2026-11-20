@@ -748,6 +748,68 @@ def test_migration_dismisses_materials_whose_file_was_made_the_users_own(tmp_pat
     ]
 
 
+def test_migration_makes_files_saved_in_2_0_materials_or_the_users_own(tmp_path: Path):
+    """2.0's Canvas tab saved files with a `source_ref` of its own and no material: on the
+    course still linked through the same connection the file becomes its material's item (as
+    if saved now), unless the material has one already; elsewhere it is the user's own."""
+    path = tmp_path / "m.db"
+    cfg = Config(str(API_DIR / "alembic.ini"))
+    cfg.set_main_option("script_location", str(API_DIR / "migrations"))
+    cfg.attributes["database_url"] = f"sqlite+aiosqlite:///{path}"
+    command.upgrade(cfg, "0064")
+    db = sqlite3.connect(path)  # foreign keys are off: no user, course or connection rows needed
+    db.execute(
+        "INSERT INTO lms_course_links (id, user_id, course_id, program_id, connection_id,"
+        " external_course_id, sync_enabled, created_at, updated_at) VALUES ('l1', 'u1', 'c1',"
+        " 'p1', 'k1', '101', 1, '2026-01-10 00:00:00', '2026-01-10 00:00:00')"
+    )
+    db.execute(
+        "INSERT INTO lms_materials (id, user_id, link_id, kind, external_id, state, quiet,"
+        " links, version, name) VALUES ('m-202', 'u1', 'l1', 'file', '202', 'dismissed', 0,"
+        " '[]', 'v1', 'W1.pdf')"
+    )
+    rows = [  # as migrations 0057 and 0062 left them: the copy's hash in both versions
+        ("1", "c1", "lms:canvas:k1:file:201", "2026-01-10"),  # linked: followed
+        ("2", "c1", "lms:canvas:k1:file:201", "2026-01-11"),  # saved again: the user's
+        ("3", "c1", "lms:canvas:k1:file:202", "2026-01-10"),  # its material deleted: followed
+        ("4", "c1", "lms:canvas:k9:file:203", "2026-01-10"),  # another connection's
+        ("5", "c2", "lms:canvas:k1:file:204", "2026-01-10"),  # course unlinked since
+    ]
+    for iid, course, ref, day in rows:
+        db.execute(
+            "INSERT INTO files_items (id, user_id, course_id, kind, display_name, mime_type,"
+            " size_bytes, storage_key, source_kind, source_ref, source_version, copy_version,"
+            " source_mime, source_size, pinned, unseen, doc_status, created_at, updated_at)"
+            " VALUES (?, 'u1', ?, 'file', ?, 'application/pdf', 5, 'k', 'lms', ?, ?, ?,"
+            " 'application/pdf', 5, 0, 0, 'ready', ?, ?)",
+            (iid, course, f"f{iid}.pdf", ref, f"h{iid}", f"h{iid}", day, day),
+        )
+    db.commit()
+    db.close()
+    command.upgrade(cfg, "head")
+    db = sqlite3.connect(path)
+    items = db.execute(
+        "SELECT id, source_ref, source_name, keep_copy, sha256, source_version, copy_version"
+        " FROM files_items ORDER BY id"
+    ).fetchall()
+    materials = db.execute(
+        "SELECT link_id, external_id, state, item_id, name, version, state_at IS NOT NULL"
+        " FROM lms_materials ORDER BY external_id"
+    ).fetchall()
+    db.close()
+    assert items == [
+        ("1", "lms:file:201", "Canvas", 1, None, "h1", "h1"),
+        ("2", None, None, None, "h2", None, None),
+        ("3", "lms:file:202", "Canvas", 1, None, "h3", "h3"),
+        ("4", None, None, None, "h4", None, None),
+        ("5", None, None, None, "h5", None, None),
+    ]
+    assert materials == [  # read whole at the next sync (no version yet)
+        ("l1", "201", "synced", "1", "f1.pdf", None, 1),
+        ("l1", "202", "synced", "3", "f3.pdf", None, 1),
+    ]
+
+
 async def test_a_renamed_item_keeps_its_name_and_a_locked_one_stays(
     api: Api, fake: FakeProvider, clock: Clock
 ):

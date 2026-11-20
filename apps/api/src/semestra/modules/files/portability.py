@@ -69,11 +69,12 @@ def _0060(files: dict[str, Any], archive: OlderArchive) -> dict[str, Any]:
 def _0062(files: dict[str, Any], archive: OlderArchive) -> dict[str, Any]:
     """A followed file's source version moves from `sha256` to `source_version`, and the source's
     type and size are kept whatever its copy holds: the source's side and the copy's (the copy's
-    hash is taken again when it is handed over)."""
+    hash is taken again when it is handed over). A file with a source version already is from
+    a backup that names an older version than it was made by (`upgrade.RELEASE_REVISIONS`)."""
     del archive
     items: list[dict[str, Any]] = []
     for raw in _items(files):
-        if _followed(raw):
+        if _followed(raw) and "source_version" not in raw:
             source = {
                 "source_version": raw.get("sha256"),
                 "source_mime": raw.get("source_mime") or raw.get("mime_type"),

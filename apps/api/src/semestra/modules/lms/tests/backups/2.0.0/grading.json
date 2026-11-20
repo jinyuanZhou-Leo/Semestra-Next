@@ -4,8 +4,8 @@
   {
    "archived": false,
    "color": "blue",
-   "course_id": "01a1fa83-b091-723f-b7c7-7dbe64257e8c",
-   "id": "01a1fa83-b09e-716a-900c-5b8d8364ed79",
+   "course_id": "01a1fa9c-fa77-71e6-a566-c9122406c3f6",
+   "id": "01a1fa9c-fa85-7465-b4e4-5f72435cb59d",
    "key": "quiz",
    "name": "Quiz",
    "position": 0
@@ -13,8 +13,8 @@
   {
    "archived": false,
    "color": "amber",
-   "course_id": "01a1fa83-b091-723f-b7c7-7dbe64257e8c",
-   "id": "01a1fa83-b09e-716a-900c-5b8e4053392d",
+   "course_id": "01a1fa9c-fa77-71e6-a566-c9122406c3f6",
+   "id": "01a1fa9c-fa85-7465-b4e4-5f7328e5015c",
    "key": "exam",
    "name": "Exam",
    "position": 1
@@ -22,8 +22,8 @@
   {
    "archived": false,
    "color": "emerald",
-   "course_id": "01a1fa83-b091-723f-b7c7-7dbe64257e8c",
-   "id": "01a1fa83-b09f-740a-9ed2-df095afb120b",
+   "course_id": "01a1fa9c-fa77-71e6-a566-c9122406c3f6",
+   "id": "01a1fa9c-fa85-7465-b4e4-5f74f5fb2b74",
    "key": "assignment",
    "name": "Assignment",
    "position": 2
@@ -31,8 +31,8 @@
   {
    "archived": false,
    "color": "violet",
-   "course_id": "01a1fa83-b091-723f-b7c7-7dbe64257e8c",
-   "id": "01a1fa83-b09f-740a-9ed2-df0af463f851",
+   "course_id": "01a1fa9c-fa77-71e6-a566-c9122406c3f6",
+   "id": "01a1fa9c-fa85-7465-b4e4-5f75f7289f9d",
    "key": "project",
    "name": "Project",
    "position": 3
@@ -40,8 +40,8 @@
   {
    "archived": false,
    "color": "cyan",
-   "course_id": "01a1fa83-b091-723f-b7c7-7dbe64257e8c",
-   "id": "01a1fa83-b09f-740a-9ed2-df0b2ab8bf63",
+   "course_id": "01a1fa9c-fa77-71e6-a566-c9122406c3f6",
+   "id": "01a1fa9c-fa85-7465-b4e4-5f76e99c75e8",
    "key": "lab",
    "name": "Lab",
    "position": 4
@@ -49,8 +49,8 @@
   {
    "archived": false,
    "color": "rose",
-   "course_id": "01a1fa83-b091-723f-b7c7-7dbe64257e8c",
-   "id": "01a1fa83-b09f-740a-9ed2-df0c626ce52b",
+   "course_id": "01a1fa9c-fa77-71e6-a566-c9122406c3f6",
+   "id": "01a1fa9c-fa85-7465-b4e4-5f77db1af82e",
    "key": "presentation",
    "name": "Presentation",
    "position": 5
@@ -58,8 +58,8 @@
   {
    "archived": false,
    "color": "slate",
-   "course_id": "01a1fa83-b091-723f-b7c7-7dbe64257e8c",
-   "id": "01a1fa83-b09f-740a-9ed2-df0daabebf58",
+   "course_id": "01a1fa9c-fa77-71e6-a566-c9122406c3f6",
+   "id": "01a1fa9c-fa85-7465-b4e4-5f78b9f81a14",
    "key": "participation",
    "name": "Participation",
    "position": 6
@@ -68,7 +68,7 @@
  "course_results": [
   {
    "basis": "percentage",
-   "course_id": "01a1fa83-b091-723f-b7c7-7dbe64257e8c",
+   "course_id": "01a1fa9c-fa77-71e6-a566-c9122406c3f6",
    "created_at": "2026-01-15T12:00:00+00:00",
    "final_override_percentage": null,
    "forecast_model": "auto",
@@ -201,9 +201,9 @@
    ],
    "default_forecast_model": "auto",
    "hide_grades": false,
-   "id": "01a1fa83-b04e-72d7-a074-52aeeeb0f69b",
+   "id": "01a1fa9c-fa2e-71c7-a25c-38b78610404a",
    "max_points": 4.0,
-   "program_id": "01a1fa83-b041-7762-bda0-ee05085fb361",
+   "program_id": "01a1fa9c-fa20-70fc-8742-9ac40f992f0f",
    "round_before_lookup": true,
    "updated_at": "2026-01-15T12:00:00+00:00",
    "year_course_attribution": "end_term"
