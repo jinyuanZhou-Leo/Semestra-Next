@@ -8,6 +8,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 import defusedxml.ElementTree as SafeET  # pyright: ignore[reportMissingTypeStubs]
+import httpx
 import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
@@ -435,6 +436,71 @@ async def test_setup_profile(
     assert reset["password"] != created["password"]
     assert (await device.request("PROPFIND", "/caldav/")).status_code == 401
     assert (await Device(app, reset["password"]).request("PROPFIND", "/caldav/")).status_code == 207
+
+
+async def test_plain_http_signs_in_with_digest(
+    app: FastAPI, client: AsyncClient, user: UserHandle, clock: Clock, caldav_on: None
+):
+    """Apple devices send no Basic password over http, so a server without https offers Digest
+    (macOS: "Cancelling authentication challenge for insecure connection using basic")."""
+    origin = "http://localhost:8066"
+    app.state.settings.public_api_origin = origin
+    s = await setup(client)
+    created = await call(client, "POST", f"/programs/{s['program']}/caldav-connections")
+    anonymous = AsyncClient(transport=ASGITransport(app), base_url=origin)
+
+    # What the server supports is answered before signing in.
+    r = await anonymous.options("/caldav/principal/")
+    assert r.status_code == 200
+    assert "calendar-access" in r.headers["dav"]
+    r = await anonymous.request("PROPFIND", "/caldav/principal/")
+    assert r.status_code == 401
+    assert [v.split()[0] for v in r.headers.get_list("www-authenticate")] == ["Digest", "Basic"]
+
+    # The account the profile sets up signs in with Digest.
+    profile = await anonymous.get(created["setup"]["url"].removeprefix(origin))
+    [account] = plistlib.loads(profile.content)["PayloadContent"]
+    assert account["CalDAVUseSSL"] is False
+    sent: list[str] = []
+
+    async def keep(request: httpx.Request) -> None:
+        sent.append(request.headers.get("authorization", ""))
+
+    device = AsyncClient(
+        transport=ASGITransport(app),
+        base_url=origin,
+        auth=httpx.DigestAuth(account["CalDAVUsername"], account["CalDAVPassword"]),
+        event_hooks={"request": [keep]},
+    )
+    principal = b'<d:propfind xmlns:d="DAV:"><d:prop><d:displayname/></d:prop></d:propfind>'
+    r = await device.request("PROPFIND", "/caldav/principal/", content=principal)
+    assert r.status_code == 207
+    signed = sent[-1]
+    assert signed.startswith("Digest ")
+    lists = await device.request("PROPFIND", "/caldav/lists/", content=PROPFIND_LISTS)
+    assert b"Inbox" in lists.content
+
+    wrong = AsyncClient(
+        transport=ASGITransport(app),
+        base_url=origin,
+        auth=httpx.DigestAuth(account["CalDAVUsername"], "not-the-password"),
+    )
+    assert (await wrong.request("PROPFIND", "/caldav/principal/")).status_code == 401
+
+    # A response made for one address does not open another.
+    elsewhere = await anonymous.request(
+        "PROPFIND", "/caldav/lists/", headers={"Authorization": signed}
+    )
+    assert elsewhere.status_code == 401
+
+    # An old nonce is answered as stale, so the device signs in again without asking the user.
+    clock.advance(minutes=11)
+    r = await anonymous.request(
+        "PROPFIND", "/caldav/principal/", content=principal, headers={"Authorization": signed}
+    )
+    assert r.status_code == 401
+    assert "stale=true" in r.headers.get_list("www-authenticate")[0]
+    assert (await device.request("PROPFIND", "/caldav/principal/")).status_code == 207
 
 
 async def test_unused_connections_go_after_a_day(

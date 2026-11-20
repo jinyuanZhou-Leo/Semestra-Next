@@ -52,4 +52,4 @@ compose 文件默认开启，用户可以把待办[同步到 Apple 提醒事项]
 SEMESTRA_CALDAV=false
 ```
 
-设备会用 `SEMESTRA_PUBLIC_URL` 连接服务器，所以它必须是手机能访问到的地址，而不是 `localhost`。建议使用 `https://`：用纯 http 时，设备会先提示无法用 SSL 连接，确认后才能继续。
+设备会用 `SEMESTRA_PUBLIC_URL` 连接服务器，所以它必须是设备能访问到的地址。写成 `localhost` 时，只有运行 Semestra 的这台电脑能安装描述文件；要在 iPhone 上用，请填局域网地址（例如这台电脑的局域网 IP）或你自己的域名。`https://` 和纯 `http://` 都可以：用 http 时密码不会以明文传输，但待办内容会，所以在家庭网络之外请使用 `https://`。
