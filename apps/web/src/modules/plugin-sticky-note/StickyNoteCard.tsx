@@ -8,7 +8,7 @@ import { useCardSettings } from '../plugin-kit/useCardSettings'
 import { forgetNote, setNoteEditing, useNoteEditing, useNoteOpened } from './editing'
 import { loadEditor, preloadEditor, useEditorModule } from './editor-loader'
 import type { StartAt } from './NoteEditor'
-import { NoteView } from './NoteView'
+import { NoteView, type Toggle } from './NoteView'
 import type { StickySettings } from './schema'
 import './note.css'
 
@@ -16,10 +16,9 @@ import './note.css'
 const inPopup = (target: EventTarget | null) =>
   target instanceof Element && target.closest('[data-slot$="-content"]') !== null
 
-const isEmpty = (content: string) => /^(?:\s|&nbsp;| )*$/.test(content)
+const NO_TICKS: ReadonlyMap<number, boolean> = new Map()
 
-/** A checklist item ticked while the editor was still loading, shown until the note is saved. */
-type Tick = { content: string; index: number; checked: boolean }
+const isEmpty = (content: string) => /^(?:\s|&nbsp;| )*$/.test(content)
 
 /**
  * Sticky note (M14 §4). It reads like a note: links open and checklist items tick with one click.
@@ -35,7 +34,14 @@ export default function StickyNoteCard({ instanceId, size, settings }: CardProps
   const NoteEditor = useEditorModule()?.default
   const root = useRef<HTMLDivElement>(null)
   const [startAt, setStartAt] = useState<StartAt | null>(null)
-  const [tick, setTick] = useState<Tick | null>(null)
+  // Ticks waiting for the editor's code, by item, shown until they are applied.
+  const [ticks, setTicks] = useState<ReadonlyMap<number, boolean>>(NO_TICKS)
+  const queue = useRef<Promise<void> | null>(null)
+  // The note each queued tick applies to: the latest content, including ticks applied before it.
+  const latest = useRef(value.content)
+  useEffect(() => {
+    latest.current = value.content
+  }, [value.content])
 
   // Leaving the card ends editing: a click elsewhere, or the focus moving out with the keyboard.
   // The header's buttons are in the card, and the toolbar's popups count as part of the note.
@@ -79,13 +85,25 @@ export default function StickyNoteCard({ instanceId, size, settings }: CardProps
 
   // Ticking a read-only item rewrites the note by the editor's rules, so it loads the editor's
   // code (usually already there: hovering the note started loading it) without showing it.
-  const toggle = (index: number, checked: boolean) => {
-    const content = value.content
-    setTick({ content, index, checked })
-    loadEditor()
-      .then(({ toggleTask }) => update({ content: toggleTask(content, index, checked) }))
-      .catch(() => toast.error(m.sticky_save_failed()))
-      .finally(() => setTick(null))
+  // Ticks made while it loads are applied in order, each on the note the one before it left.
+  const toggle: Toggle = (index, checked, text) => {
+    setTicks((shown) => new Map(shown).set(index, checked))
+    const run = (queue.current ?? Promise.resolve())
+      .then(async () => {
+        const { toggleTask } = await loadEditor()
+        const next = toggleTask(latest.current, index, checked, text)
+        latest.current = next
+        update({ content: next })
+      })
+      .catch(() => {
+        toast.error(m.sticky_save_failed())
+      })
+    queue.current = run
+    void run.then(() => {
+      if (queue.current !== run) return
+      queue.current = null
+      setTicks(NO_TICKS)
+    })
   }
 
   const view = (
@@ -93,7 +111,7 @@ export default function StickyNoteCard({ instanceId, size, settings }: CardProps
       content={value.content}
       placeholder={m.sticky_placeholder()}
       onToggle={toggle}
-      tick={tick?.content === value.content ? tick : null}
+      ticks={ticks}
     />
   )
 

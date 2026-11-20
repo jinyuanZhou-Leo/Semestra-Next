@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { m } from '@/paraglide/messages'
 import { Checkbox } from '@/ui/checkbox'
 import { EDITOR_RULES, type TaskItem } from './editor-rules'
+import { isAllowedHref } from './href'
 import { BREAK, noteMarked } from './note-marked'
 
 /**
@@ -86,7 +87,7 @@ function markElement(mark: Mark, children: ReactNode[], key: number): ReactNode 
           key={key}
           target="_blank"
           rel="noopener noreferrer nofollow"
-          href={mark.href}
+          href={isAllowedHref(mark.href) ? mark.href : ''}
           title={mark.title}
         >
           {children}
@@ -152,10 +153,15 @@ function inline(tokens: Token[] = []): ReactNode[] {
   return root
 }
 
+/** A checklist item ticked: its place in reading order, the new state and the item's text. */
+export type Toggle = (index: number, checked: boolean, text: string) => void
+
+const NO_TICKS: ReadonlyMap<number, boolean> = new Map()
+
 type Counter = {
   next: number
-  onToggle: (index: number, checked: boolean) => void
-  tick: { index: number; checked: boolean } | null
+  onToggle: Toggle
+  ticks: ReadonlyMap<number, boolean>
 }
 
 const EMPTY_LINE = (key: string) => (
@@ -237,14 +243,14 @@ function checklist(items: TaskItem[], tasks: Counter, key: string): ReactNode {
     <ul key={key} data-type="taskList">
       {items.map((item, i) => {
         const index = tasks.next++
-        const checked = tasks.tick?.index === index ? tasks.tick.checked : item.checked
+        const checked = tasks.ticks.get(index) ?? item.checked
         return (
           <li key={i} data-checked={checked} style={{ whiteSpace: 'normal' }}>
             <span contentEditable={false} className="flex h-[1lh] items-center">
               <Checkbox
                 checked={checked}
                 aria-label={m.sticky_task_label({ text: plain(item.tokens) })}
-                onCheckedChange={(next) => tasks.onToggle(index, next === true)}
+                onCheckedChange={(next) => tasks.onToggle(index, next === true, plain(item.tokens))}
               />
             </span>
             <div style={{ whiteSpace: 'pre-wrap' }}>
@@ -276,10 +282,32 @@ function taskItem(item: Tokens.ListItem): TaskItem {
   }
 }
 
-/** A list; its checklist items and plain items become separate lists, as in the editor. */
+/**
+ * A numbered item starting `[ ]` is text in the editor (only bulleted items are checklist
+ * items), so the box goes back into the item's text.
+ */
+function untask(tokens: Token[]): Token[] {
+  const box = tokens.find((t) => t.type === 'checkbox')
+  if (!box) return tokens
+  let done = false
+  return tokens.flatMap((t): Token[] => {
+    if (t === box) return []
+    if (done || t.type !== 'text') return [t]
+    done = true
+    const lead = { type: 'text', raw: box.raw, text: box.raw } as Token
+    return [{ ...t, tokens: [lead, ...(t.tokens ?? [])] } as Token]
+  })
+}
+
+/**
+ * A list; in a bulleted list, checklist items and plain items become separate lists, as in the
+ * editor.
+ */
 function listBlock(token: Tokens.List, tasks: Counter, key: string): ReactNode {
   const groups: Tokens.ListItem[][] = []
-  for (const item of token.items) {
+  for (const item of token.ordered
+    ? token.items.map((i) => ({ ...i, task: false, tokens: untask(i.tokens) }))
+    : token.items) {
     const last = groups.at(-1)
     if (last && last[0]?.task === item.task) last.push(item)
     else groups.push([item])
@@ -346,21 +374,21 @@ function tableBlock(token: Tokens.Table, key: string): ReactNode {
 
 /**
  * The note's text, read-only. `onToggle` gets a checklist item's place in the note (in reading
- * order); `tick` shows a tick that is still being saved.
+ * order) and text; `ticks` shows ticks that are still being saved.
  */
 export function NoteView({
   content,
   placeholder,
   onToggle,
-  tick = null,
+  ticks = NO_TICKS,
 }: {
   content: string
   placeholder: string
-  onToggle: (index: number, checked: boolean) => void
-  tick?: { index: number; checked: boolean } | null
+  onToggle: Toggle
+  ticks?: ReadonlyMap<number, boolean>
 }) {
   const tokens = noteMarked().use(EDITOR_RULES).lexer(content)
-  const nodes = blocks(tokens, { next: 0, onToggle, tick }, true)
+  const nodes = blocks(tokens, { next: 0, onToggle, ticks }, true)
   return (
     <div
       // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- the editor's own element (a read-only text box), so the note reads the same before and after the editor loads

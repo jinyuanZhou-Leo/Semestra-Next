@@ -112,6 +112,13 @@ test('a note is read-only, with working links and no editor, until editing start
   expect(screen.getByRole('button', { name: 'Edit note' })).toHaveFocus()
 })
 
+test('a link to a script or data address keeps its text but cannot be opened', async () => {
+  note('[run](javascript:alert(1)) [page](data:text/html,hi) [site](https://example.com)')
+  expect((await screen.findByText('run')).closest('a')).toHaveAttribute('href', '')
+  expect(screen.getByText('page').closest('a')).toHaveAttribute('href', '')
+  expect(screen.getByText('site').closest('a')).toHaveAttribute('href', 'https://example.com')
+})
+
 test('double-clicking the text starts editing', async () => {
   note('hello')
   await userEvent.dblClick(await screen.findByText('hello'))

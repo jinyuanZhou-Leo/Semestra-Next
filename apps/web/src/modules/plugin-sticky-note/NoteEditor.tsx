@@ -136,9 +136,16 @@ export default function NoteEditor({
 
 /**
  * Ticks the `index`th checklist item (in reading order) of a read-only note: read and written by
- * the editor's rules, as a tick inside the editor would be, without showing an editor.
+ * the editor's rules, as a tick inside the editor would be, without showing an editor. `text` is
+ * the item as the read-only view showed it; if the editor reads a different item there, nothing
+ * is changed and it throws, so a misread note is never written with the wrong item ticked.
  */
-export function toggleTask(markdown: string, index: number, checked: boolean): string {
+export function toggleTask(
+  markdown: string,
+  index: number,
+  checked: boolean,
+  text: string,
+): string {
   const editor = new Editor({
     element: null,
     injectCSS: false,
@@ -148,18 +155,21 @@ export function toggleTask(markdown: string, index: number, checked: boolean): s
   })
   let seen = 0
   let at = -1
+  let found = ''
   editor.state.doc.descendants((node, pos) => {
     if (at >= 0) return false
-    if (node.type.name === 'taskItem' && seen++ === index) at = pos
+    if (node.type.name === 'taskItem' && seen++ === index) {
+      at = pos
+      found = node.firstChild?.textContent ?? ''
+    }
     return true
   })
-  const result =
-    at < 0
-      ? markdown
-      : noteMarkdown(
-          editor,
-          editor.state.apply(editor.state.tr.setNodeAttribute(at, 'checked', checked)).doc,
-        )
+  const doc =
+    at >= 0 && found === text
+      ? editor.state.apply(editor.state.tr.setNodeAttribute(at, 'checked', checked)).doc
+      : null
+  const result = doc ? noteMarkdown(editor, doc) : null
   editor.destroy()
+  if (result === null) throw new Error(`Checklist item ${index} is not "${text}"`)
   return result
 }

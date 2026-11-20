@@ -113,6 +113,11 @@ const SAMPLES = [
   '> - [x] done in quote\n> - plain in quote',
   '&nbsp;',
   '\u00a0',
+  '1. [ ] x\n\n- [ ] y',
+  '- [ ] a\n- [x] b\n\n1. [ ] c',
+  '2. [x] **done** item\n3. plain',
+  '[x](javascript:alert(1)) [y](data:text/html,<b>x</b>) [z](vbscript:msgbox(1))',
+  '[a](JAVA\tSCRIPT:alert(1)) [b](mailto:a@b.c) [c](tel:123) [d](/relative) [e](#frag) [f](ftp://x)',
   'emoji 🎉 &#x1F600; &#0;',
 ]
 
