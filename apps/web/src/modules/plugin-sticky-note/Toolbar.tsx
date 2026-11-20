@@ -14,7 +14,7 @@ import { Toggle } from '@/ui/toggle'
 import { LinkButton } from './LinkButton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 
-// Toolbar buttons must not take focus from the editor, or the toolbar would hide.
+// Toolbar buttons must not take focus from the editor, so typing goes on where it was.
 const keepFocus = (event: { preventDefault: () => void }) => event.preventDefault()
 
 function Mark({

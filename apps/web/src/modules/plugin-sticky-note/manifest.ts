@@ -1,6 +1,7 @@
 import { StickyNote } from 'lucide-react'
 import { defineModule, preloadable } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
+import StickyHeaderActions from './StickyHeaderActions'
 
 /** M14 §4 便签: a Markdown note stored in the card's settings. */
 export default defineModule({
@@ -21,6 +22,7 @@ export default defineModule({
       settings: () => import('./schema'),
       multiple: true,
       bleed: true,
+      headerActions: StickyHeaderActions,
     },
   ],
 })

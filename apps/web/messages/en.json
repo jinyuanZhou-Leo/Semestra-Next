@@ -286,6 +286,7 @@
   "sticky_card_title": "Sticky note",
   "sticky_placeholder": "Write a note…",
   "sticky_edit": "Edit note",
+  "sticky_done": "Done editing",
   "sticky_task_label": "Done: {text}",
   "sticky_save_failed": "Couldn't save the note",
   "sticky_format_bold": "Bold",

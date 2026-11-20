@@ -6,8 +6,9 @@ export function openLink(href: string) {
 }
 
 /**
- * A click puts the cursor in a link so its text can be edited (as in Notion and Google Docs);
- * ⌘/Ctrl+click opens it, and so does the link button's popover.
+ * A read-only note's links are plain links: the browser opens them. While editing, a click puts
+ * the cursor in a link so its text can be edited (as in Notion and Google Docs); ⌘/Ctrl+click
+ * opens it, and so does the link button's popover.
  */
 export const OpenLinkOnModClick = Extension.create({
   name: 'openLinkOnModClick',
@@ -16,7 +17,7 @@ export const OpenLinkOnModClick = Extension.create({
       new Plugin({
         props: {
           handleClick: (view, pos, event) => {
-            if (!(event.metaKey || event.ctrlKey)) return false
+            if (!view.editable || !(event.metaKey || event.ctrlKey)) return false
             const link = view.state.doc
               .resolve(pos)
               .marks()
