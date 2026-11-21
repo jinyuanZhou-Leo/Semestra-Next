@@ -74,7 +74,7 @@ const by = (value: (a: AssessmentRow) => number | string | null) => (a: Sortable
 
 function CategoryCell({ a }: { a: Assessment }) {
   const { categories } = useActions()
-  return <CategoryBadge category={a.category_id ? categories.get(a.category_id) : null} />
+  return <CategoryBadge category={a.category_id ? categories.get(a.category_id) : null} truncate />
 }
 
 function WeightCell({ a }: { a: Assessment }) {

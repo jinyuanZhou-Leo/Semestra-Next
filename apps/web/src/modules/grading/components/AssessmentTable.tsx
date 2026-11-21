@@ -502,11 +502,11 @@ function GroupRow({
           )}
         </TableCell>
       ) : null}
-      <TableCell colSpan={3} className="py-1.5">
+      <TableCell colSpan={3} className="max-w-0 py-1.5">
         <Button
           variant="ghost"
           size="sm"
-          className="h-8 items-center px-1 font-medium aria-expanded:bg-transparent hover:bg-muted"
+          className="h-8 max-w-full min-w-0 items-center px-1 font-medium aria-expanded:bg-transparent hover:bg-muted"
           aria-expanded={!collapsed}
           onClick={onToggle}
         >
@@ -515,8 +515,8 @@ function GroupRow({
           ) : (
             <ChevronDown aria-hidden className="size-4" />
           )}
-          <CategoryBadge category={category} />
-          <span className="text-xs font-normal text-muted-foreground tabular-nums">
+          <CategoryBadge category={category} truncate />
+          <span className="shrink-0 text-xs font-normal text-muted-foreground tabular-nums">
             {m.grading_group_summary({
               count,
               graded: formatCredits(graded),
