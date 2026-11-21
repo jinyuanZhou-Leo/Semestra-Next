@@ -382,7 +382,7 @@ function CourseFolders({
       </div>
 
       <div className="flex h-8 items-center">
-        <FilesNavBar up={null} />
+        <FilesNavBar up={null} onNavigate={() => setSearch('')} />
         {searching ? (
           <p className="truncate text-sm text-muted-foreground">
             {m.files_search_results_for({ query: search.trim() })}

@@ -318,6 +318,7 @@ export function CourseFiles({
           <div className="flex h-8 items-center">
             <FilesNavBar
               up={folder ? () => setFolderId(folder.parent_id) : (up?.onClick ?? null)}
+              onNavigate={() => setSearch('')}
             />
             {searching ? (
               <p className="truncate text-sm text-muted-foreground">

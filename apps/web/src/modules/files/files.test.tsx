@@ -921,6 +921,46 @@ test('back, forward and up move between the folders shown, by button and by key'
   await waitFor(() => expect(router.state.location.search).toEqual({ folder: 'f1' }))
 })
 
+test('the back button follows the browser history, so the two never disagree', async () => {
+  server.use(
+    http.get(`${API}/courses/c1/files`, () =>
+      HttpResponse.json({
+        folders: [makeFolder('f1', 'Week 1'), makeFolder('f2', 'Slides', 'f1')],
+        items: [],
+        next_cursor: null,
+      }),
+    ),
+  )
+  const user = userEvent.setup()
+  const { router } = mount()
+  await user.click(await screen.findByRole('button', { name: 'Week 1' }))
+  await user.click(await screen.findByRole('button', { name: 'Slides' }))
+  act(() => router.history.back())
+  await waitFor(() => expect(router.state.location.search).toEqual({ folder: 'f1' }))
+  await user.click(screen.getByRole('button', { name: 'Back' }))
+  await waitFor(() => expect(router.state.location.search).toEqual({}))
+  expect(screen.getByRole('button', { name: 'Back' })).toHaveAttribute('aria-disabled', 'true')
+})
+
+test('going up clears a search so the folder it opens is what shows', async () => {
+  server.use(
+    http.get(`${API}/courses/c1/files`, () =>
+      HttpResponse.json({
+        folders: [makeFolder('f1', 'Week 1')],
+        items: [],
+        next_cursor: null,
+      }),
+    ),
+  )
+  const user = userEvent.setup()
+  mount()
+  await user.click(await screen.findByRole('button', { name: 'Week 1' }))
+  const box = screen.getByRole('searchbox')
+  await user.type(box, 'zzz')
+  await user.click(screen.getByRole('button', { name: 'Up one folder' }))
+  await waitFor(() => expect(box).toHaveValue(''))
+})
+
 test('the folder and the previewed file are in the address, so back and reload return there', async () => {
   items = [item({ folder_id: 'f2' })]
   server.use(
