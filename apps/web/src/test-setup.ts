@@ -3,6 +3,7 @@ import { vi } from 'vitest'
 import { FakeEventSource } from './test-event-source'
 
 // jsdom gaps used by input-otp and Base UI.
+Element.prototype.getAnimations ??= () => []
 document.elementFromPoint ??= () => null
 // cmdk scrolls the selected command into view.
 Element.prototype.scrollIntoView ??= () => {}

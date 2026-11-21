@@ -6,9 +6,11 @@ import { useState } from 'react'
 import { COLLAPSE } from '@/lib/collapse'
 import { useDialogTarget } from '@/lib/dialog-target'
 import { errorMessage } from '@/lib/errors'
+import { FRAMED_SCROLLBAR } from '@/lib/scroll-area'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
+import { ScrollArea } from '@/ui/scroll-area'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/ui/collapsible'
 import {
   Dialog,
@@ -254,29 +256,30 @@ export function MoveDialog({
                 <Search aria-hidden />
               </InputGroupAddon>
             </InputGroup>
-            <fieldset
-              aria-label={m.files_move_destination()}
-              className="h-72 min-w-0 overflow-y-auto rounded-2xl border p-1"
-            >
-              {visible === null || topLevel.length > 0 ? (
-                <>
-                  <div className={cn(rowState(state, null).className, 'pl-2.5 font-medium')}>
-                    <PickButton
-                      state={state}
-                      id={null}
-                      name={m.files_all_files()}
-                      icon={FolderRoot}
-                    />
-                  </div>
-                  {topLevel.map((folder) => (
-                    <TreeNode key={folder.id} folder={folder} depth={1} state={state} />
-                  ))}
-                </>
-              ) : (
-                <p className="px-2.5 py-2 text-xs text-muted-foreground">
-                  {m.files_move_no_match()}
-                </p>
-              )}
+            <fieldset aria-label={m.files_move_destination()} className="min-w-0">
+              <ScrollArea className={cn('h-72 rounded-2xl border', FRAMED_SCROLLBAR)}>
+                <div className="p-1">
+                  {visible === null || topLevel.length > 0 ? (
+                    <>
+                      <div className={cn(rowState(state, null).className, 'pl-2.5 font-medium')}>
+                        <PickButton
+                          state={state}
+                          id={null}
+                          name={m.files_all_files()}
+                          icon={FolderRoot}
+                        />
+                      </div>
+                      {topLevel.map((folder) => (
+                        <TreeNode key={folder.id} folder={folder} depth={1} state={state} />
+                      ))}
+                    </>
+                  ) : (
+                    <p className="px-2.5 py-2 text-xs text-muted-foreground">
+                      {m.files_move_no_match()}
+                    </p>
+                  )}
+                </div>
+              </ScrollArea>
             </fieldset>
             {move.error ? <FieldError>{errorMessage(move.error)}</FieldError> : null}
           </div>
