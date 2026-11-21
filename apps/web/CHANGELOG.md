@@ -1,5 +1,50 @@
 # @semestra/web
 
+## 2.6.0
+
+### Minor Changes
+
+- 10a486e: <!-- area: files -->
+  <!-- improved -->
+  <!-- en -->
+  File search now finds folders too, groups results by folder, file and content, and shows where each one is kept.
+  <!-- zh -->
+  文件搜索现在也能搜到文件夹，结果按文件夹、文件和内容分组，并标出所在位置。
+- 2217955: <!-- area: files -->
+  <!-- en -->
+  Go back, forward or up one folder from buttons and keyboard shortcuts on the files page.
+  <!-- zh -->
+  文件页新增后退、前进和上一级按钮，并支持键盘快捷键。
+- 36d41ab: <!-- area: canvas -->
+  <!-- en -->
+  Every gradebook assessment that comes from Canvas now has a button to open its assignment details, and it shows the teacher's feedback when there is some; in the Canvas tab, assignment names underline on hover.
+  <!-- zh -->
+  成绩册里来自 Canvas 的每个考核都有按钮可以打开作业详情，老师留了反馈时直接打开反馈；Canvas 页签里悬停作业时名称会加下划线。
+
+### Patch Changes
+
+- 05d8a3e: <!-- area: general -->
+  <!-- en -->
+  Lists in the announcements page, the move-to-folder dialog and the import review now use a slimmer scrollbar that stays clear of the rounded corners.
+  <!-- zh -->
+  公告页、移动到文件夹对话框和导入审核中的列表，滚动条更纤细，不再与圆角边框相互干扰。
+- e38a82b: <!-- area: grades -->
+  <!-- en -->
+  On narrower windows a course's grade summary moves above the gradebook, so assessment names no longer get squeezed out of the table.
+  <!-- zh -->
+  窗口较窄时，课程的成绩摘要移到成绩册上方，考核名称不会再被挤得看不见。
+- 7da1751: <!-- area: grades -->
+  <!-- en -->
+  Long category names now wrap in the category menu and are truncated in the gradebook table, so they no longer overflow or overlap other columns.
+  <!-- zh -->
+  成绩册中过长的分类名称在分类菜单里会换行显示，在表格中会截断，不再溢出或与相邻列重叠。
+- 10a486e: <!-- area: general -->
+  <!-- en -->
+  Fixed the clear button in search boxes showing as an emoji-like cross on some browsers.
+  <!-- zh -->
+  修复部分浏览器中搜索框的清除按钮显示为类似表情符号的叉的问题。
+- @semestra/api-client@2.6.0
+
 ## 2.5.0
 
 ### Minor Changes

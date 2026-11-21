@@ -3,6 +3,24 @@
 Generated from `release-notes/*.json` by `scripts/release.mjs`; do not edit by hand.
 The same notes in Chinese are in the JSON files and on the docs site.
 
+## 2.6.0 (2026-11-20)
+
+### New
+
+- **Files:** Go back, forward or up one folder from buttons and keyboard shortcuts on the files page.
+- **Canvas:** Every gradebook assessment that comes from Canvas now has a button to open its assignment details, and it shows the teacher's feedback when there is some; in the Canvas tab, assignment names underline on hover.
+
+### Improved
+
+- **Files:** File search now finds folders too, groups results by folder, file and content, and shows where each one is kept.
+
+### Fixed
+
+- **General:** Lists in the announcements page, the move-to-folder dialog and the import review now use a slimmer scrollbar that stays clear of the rounded corners.
+- **General:** Fixed the clear button in search boxes showing as an emoji-like cross on some browsers.
+- **Grades:** On narrower windows a course's grade summary moves above the gradebook, so assessment names no longer get squeezed out of the table.
+- **Grades:** Long category names now wrap in the category menu and are truncated in the gradebook table, so they no longer overflow or overlap other columns.
+
 ## 2.5.0 (2026-11-20)
 
 ### New
