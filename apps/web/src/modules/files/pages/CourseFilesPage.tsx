@@ -63,6 +63,7 @@ import { type Uploads, useUploads } from '../components/Uploads'
 import { UsageBar } from '../components/UsageBar'
 import { type Target, targetKey } from '../folders'
 import { searchTerms } from '../highlight'
+import { matchNames } from '../search-names'
 import { useDebounced } from '@/hooks/use-debounced'
 import { useFileDrop } from '../hooks'
 import { useFilesLocation, usePreviewLocation } from '../location'
@@ -169,10 +170,8 @@ export function CourseFiles({
   const download = downloadTarget(courseId, selected)
   const archive = useMutation({ mutationFn: downloadArchive, onError: toastError })
 
-  const needle = search.trim().toLowerCase()
-  const nameMatches = needle
-    ? list.items.filter((i) => i.display_name.toLowerCase().includes(needle))
-    : []
+  const needle = search.trim()
+  const names = matchNames(needle, [list])
 
   const open = (item: ItemOut) => {
     if (item.kind === 'link' && item.url) link.open(item.url)
@@ -368,10 +367,16 @@ export function CourseFiles({
 
           {searching ? (
             <SearchResults
-              nameMatches={nameMatches}
+              needle={needle}
+              folderMatches={names.folders}
+              nameMatches={names.items}
               hits={contentSearch.data?.results ?? []}
               loading={query.trim().length >= 2 && (contentSearch.isFetching || search !== query)}
               pendingNames={(contentSearch.data?.pending_items ?? []).map((p) => p.display_name)}
+              onOpenFolder={(f) => {
+                setSearch('')
+                setFolderId(f.id)
+              }}
               onOpenItem={open}
               onOpenHit={(hit) =>
                 preview.show({

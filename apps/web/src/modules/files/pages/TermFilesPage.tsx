@@ -32,6 +32,7 @@ import { SearchResults, useContentSearch } from '../components/SearchResults'
 import { type Uploads, useUploads } from '../components/Uploads'
 import { UsageBar } from '../components/UsageBar'
 import { searchTerms } from '../highlight'
+import { matchNames } from '../search-names'
 import { useDebounced } from '@/hooks/use-debounced'
 import { DROP_TARGET, type DropTargets, dropTargetProps, useFileDrop } from '../hooks'
 import { type FilesLocation, useFilesLocation, usePreviewLocation } from '../location'
@@ -330,8 +331,12 @@ function CourseFolders({
   useEffect(() => {
     if (fileGone) location.go({ file: null }, { replace: true })
   }, [fileGone, location])
-  const needle = search.trim().toLowerCase()
+  const needle = search.trim()
   const searching = needle.length > 0
+  const names = matchNames(
+    needle,
+    lists.flatMap((q) => (q.data ? [q.data] : [])),
+  )
   const open = (item: ItemOut) => {
     if (item.kind === 'link' && item.url) link.open(item.url)
     else preview.show({ itemId: item.id })
@@ -399,7 +404,9 @@ function CourseFolders({
       <HandlersContext value={handlers}>
         {searching ? (
           <SearchResults
-            nameMatches={allItems.filter((i) => i.display_name.toLowerCase().includes(needle))}
+            needle={needle}
+            folderMatches={names.folders}
+            nameMatches={names.items}
             hits={contentSearch.data?.results ?? []}
             loading={query.trim().length >= 2 && (contentSearch.isFetching || search !== query)}
             pendingNames={(contentSearch.data?.pending_items ?? []).map((p) => p.display_name)}
@@ -407,6 +414,7 @@ function CourseFolders({
               const course = byCourse.get(id)
               return course ? courseLabel(course) : ''
             }}
+            onOpenFolder={(f) => location.go({ course: f.course_id, folder: f.id, file: null })}
             onOpenItem={open}
             onOpenHit={(hit) =>
               preview.show({ itemId: hit.item_id, page: hit.page_from, terms: searchTerms(query) })
