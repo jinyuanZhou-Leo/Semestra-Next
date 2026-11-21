@@ -62,6 +62,10 @@ function formatOne(combo: string): string {
           if (part === 'alt') return isApple() ? '⌥' : 'Alt'
           if (part === 'up') return '↑'
           if (part === 'down') return '↓'
+          if (part === 'left') return '←'
+          if (part === 'right') return '→'
+          if (part === 'bracketleft') return '['
+          if (part === 'bracketright') return ']'
           return part.length === 1 ? part.toUpperCase() : part
         })
         .join(isApple() ? '' : '+'),

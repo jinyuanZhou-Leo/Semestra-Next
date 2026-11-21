@@ -47,6 +47,7 @@ import { SelectionToolbar } from '@/components/SelectionToolbar'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/ui/input-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { useExternalLink } from '@/components/ExternalLink'
+import { FilesNavBar, FilesNavProvider } from '../components/FilesNav'
 import { FileDragArea, useDropFolder } from '../components/FileDrag'
 import { FileBrowser, SortMenu, ViewToggle } from '../components/FileBrowser'
 import { type ItemAction, ItemDialogs } from '../components/ItemDialogs'
@@ -75,7 +76,9 @@ export default function CourseFilesPage({ scope }: PageProps) {
   return (
     <AsyncBoundary query={useCourseFiles(courseId)}>
       {(list) => (
-        <CourseFiles key={courseId} list={list} courseId={courseId} programId={scope.programId} />
+        <FilesNavProvider key={courseId}>
+          <CourseFiles list={list} courseId={courseId} programId={scope.programId} />
+        </FilesNavProvider>
       )}
     </AsyncBoundary>
   )
@@ -313,6 +316,9 @@ export function CourseFiles({
 
           {/* Always one line tall, so opening a folder or searching never moves the list. */}
           <div className="flex h-8 items-center">
+            <FilesNavBar
+              up={folder ? () => setFolderId(folder.parent_id) : (up?.onClick ?? null)}
+            />
             {searching ? (
               <p className="truncate text-sm text-muted-foreground">
                 {m.files_search_results_for({ query: search.trim() })}
