@@ -32,6 +32,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/ui/select'
+import { ScrollArea } from '@/ui/scroll-area'
 import { Skeleton } from '@/ui/skeleton'
 import { Spinner } from '@/ui/spinner'
 import { postedLabel, postKey } from '../announcements'
@@ -153,19 +154,22 @@ export default function AnnouncementsPage({ scope }: PageProps) {
             </EmptyContent>
           </Empty>
         ) : (
-          <ItemGroup className="min-h-0 gap-0 overflow-y-auto overscroll-contain rounded-2xl border border-border has-data-[size=sm]:gap-0">
-            {shown.map((p) => (
-              <PostRow
-                key={keyOf(p)}
-                post={p}
-                withCourse={term}
-                unread={p.item.unread}
-                selected={p === open}
-                now={now}
-                onOpen={() => go({ post: keyOf(p) })}
-              />
-            ))}
-          </ItemGroup>
+          // The rounded frame clips the rows; the scrollbar floats inside it, off the corners.
+          <ScrollArea className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-border **:data-[slot=scroll-area-scrollbar]:my-2 **:data-[slot=scroll-area-thumb]:bg-muted-foreground/40">
+            <ItemGroup className="gap-0 has-data-[size=sm]:gap-0">
+              {shown.map((p) => (
+                <PostRow
+                  key={keyOf(p)}
+                  post={p}
+                  withCourse={term}
+                  unread={p.item.unread}
+                  selected={p === open}
+                  now={now}
+                  onOpen={() => go({ post: keyOf(p) })}
+                />
+              ))}
+            </ItemGroup>
+          </ScrollArea>
         )}
       </div>
       {open ? (
