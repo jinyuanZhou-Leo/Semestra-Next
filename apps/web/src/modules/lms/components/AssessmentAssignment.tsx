@@ -31,7 +31,7 @@ export function AssessmentAssignmentCell({
           <Button
             variant="ghost"
             size="icon-sm"
-            className={feedback ? 'relative text-primary' : 'text-muted-foreground'}
+            className={feedback ? 'text-primary' : 'text-muted-foreground'}
             aria-label={`${tip}: ${assessment.title}`}
             onClick={() =>
               open(target.course_id, target.assignment_id, feedback ? 'feedback' : 'details')
@@ -39,14 +39,7 @@ export function AssessmentAssignmentCell({
           />
         }
       >
-        {feedback ? (
-          <>
-            <MessageSquareText aria-hidden />
-            <span aria-hidden className="absolute top-1 right-1 size-1.5 rounded-full bg-primary" />
-          </>
-        ) : (
-          <FileText aria-hidden />
-        )}
+        {feedback ? <MessageSquareText aria-hidden /> : <FileText aria-hidden />}
       </TooltipTrigger>
       <TooltipContent>{tip}</TooltipContent>
     </Tooltip>

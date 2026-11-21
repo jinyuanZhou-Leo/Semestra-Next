@@ -105,7 +105,7 @@ function CourseGrades({ gradebook, programId }: { gradebook: Gradebook; programI
 
   return (
     <div className="space-y-4">
-      <div className="grid items-start gap-6 @page-lg/main:grid-cols-[minmax(0,1fr)_20rem]">
+      <div className="grid items-start gap-6 @page-gradebook/main:grid-cols-[minmax(0,1fr)_20rem]">
         <AssessmentTable
           programId={programId}
           courseId={courseId}
@@ -159,8 +159,8 @@ function CourseGrades({ gradebook, programId }: { gradebook: Gradebook; programI
             />
           }
         />
-        {/* On narrow screens the summary comes first. */}
-        <aside className="-order-1 grid gap-4 @page-sm/main:grid-cols-2 @page-lg/main:sticky @page-lg/main:top-4 @page-lg/main:order-none @page-lg/main:grid-cols-1">
+        {/* Until the table has room for its titles beside it, the summary comes first. */}
+        <aside className="-order-1 grid gap-4 @page-sm/main:grid-cols-2 @page-gradebook/main:sticky @page-gradebook/main:top-4 @page-gradebook/main:order-none @page-gradebook/main:grid-cols-1">
           <GradeComposition gradebook={gradebook} />
           <ForecastCard
             gradebook={gradebook}

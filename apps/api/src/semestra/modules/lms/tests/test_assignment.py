@@ -153,7 +153,8 @@ async def test_to_dos_are_kept_too_and_follow_into_the_gradebook(
     assert (kept["kept"], kept["assignment"]["html"]) == (True, "<p>Chapter 2</p>")
     assert (kept["assessment"], kept["task"]["id"]) == (None, reading["id"])
     # A to-do's feedback is not the gradebook's.
-    assert (await api.call("GET", f"/courses/{course}/lms/feedback"))["items"] == []
+    found = await api.call("GET", f"/programs/{program_id}/lms/assignment-targets")
+    assert [t["feedback"] for t in found["items"] if t["assignment_id"] == "a9"] == [False]
 
     # Moved into the gradebook, what was kept follows to the assessment; its to-do stays.
     fake.down = False

@@ -13,7 +13,6 @@ from semestra.modules.lms import (
     sync,
     sync_assignments,
     sync_files,
-    sync_kept,
     sync_status,
 )
 from semestra.modules.lms.schemas.dto import (
@@ -54,7 +53,6 @@ from semestra.modules.lms.schemas.io import (
     CoursesImportInput,
     ExternalCourseList,
     ExternalCourseListInput,
-    FeedbackList,
     FileInput,
     FileList,
     FilePreview,
@@ -518,20 +516,6 @@ database): what their rows open with lms.assignment.get.""",
 )
 async def assignment_targets(ctx: Ctx, inp: ProgramRef) -> AssignmentTargets:
     return await assignment.targets(ctx, inp.program_id)
-
-
-@capability(
-    name="lms.feedback.list",
-    summary="The teacher's feedback kept for a course's imported assessments.",
-    description="""Comments and rubric scores the background sync keeps (read from the database,
-so it works while the LMS cannot be reached). The gradebook's feedback column.""",
-    effect="read",
-    http=Http("GET", "/courses/{course_id}/lms/feedback"),
-    expose=HTTP_ONLY,
-    tags=TAGS,
-)
-async def feedback_list(ctx: Ctx, inp: CourseRef) -> FeedbackList:
-    return await sync_kept.feedback_list(ctx, inp.course_id)
 
 
 @capability(

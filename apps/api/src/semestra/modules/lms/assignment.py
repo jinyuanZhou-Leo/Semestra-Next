@@ -251,6 +251,20 @@ async def targets(ctx: Ctx, program_id: str) -> AssignmentTargets:
     courses = select(AcademicsCourse.id).where(
         AcademicsCourse.user_id == ctx.user_id, AcademicsCourse.program_id == program_id
     )
+    refs = (
+        await ctx.db.execute(
+            select(LmsImportedRef, LmsCourseLink.course_id)
+            .join(LmsCourseLink, LmsCourseLink.id == LmsImportedRef.link_id)
+            .where(
+                LmsImportedRef.user_id == ctx.user_id,
+                LmsCourseLink.course_id.in_(courses),
+                LmsImportedRef.target_id.is_not(None),
+            )
+        )
+    ).all()
+    # What an assessment or to-do follows now: a row kept of another assignment (before it was
+    # rebound) no longer names it until the sync moves what was kept.
+    current = {(ref.target_kind, ref.target_id): ref.external_id for ref, _ in refs}
     found: dict[tuple[str, str], AssignmentTarget] = {}
     kept = await ctx.db.scalars(
         select(LmsKeptAssignment)
@@ -258,6 +272,12 @@ async def targets(ctx: Ctx, program_id: str) -> AssignmentTargets:
         .order_by(LmsKeptAssignment.assessment_id.is_not(None))
     )
     for row in kept:
+        if any(
+            current.get((kind, target_id), row.assignment_id) != row.assignment_id
+            for kind, target_id in (("assessment", row.assessment_id), ("task", row.task_id))
+            if target_id
+        ):
+            continue
         found[row.course_id, row.assignment_id] = AssignmentTarget(
             course_id=row.course_id,
             assignment_id=row.assignment_id,
@@ -265,15 +285,6 @@ async def targets(ctx: Ctx, program_id: str) -> AssignmentTargets:
             task_id=row.task_id,
             feedback=sync_kept.has_feedback(row),
         )
-    refs = await ctx.db.execute(
-        select(LmsImportedRef, LmsCourseLink.course_id)
-        .join(LmsCourseLink, LmsCourseLink.id == LmsImportedRef.link_id)
-        .where(
-            LmsImportedRef.user_id == ctx.user_id,
-            LmsCourseLink.course_id.in_(courses),
-            LmsImportedRef.target_id.is_not(None),
-        )
-    )
     for ref, course_id in refs:
         graded = ref.target_kind == "assessment"
         kept_target = found.get((course_id, ref.external_id))

@@ -20,6 +20,9 @@
   --container-page-sm: 23rem; /* sm (40rem) */
   --container-page-lg: 47rem; /* lg (64rem) */
   --container-page-xl: 63rem; /* xl (80rem) */
+  /* A course's gradebook beside its summary: the table's fixed columns (~41rem), a title of at
+     least 10rem, the 20rem summary with its gap and the page padding; narrower, the summary goes above the table. */
+  --container-page-gradebook: 76rem;
 }
 
 @theme inline {
