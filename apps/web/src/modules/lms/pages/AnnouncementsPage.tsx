@@ -7,6 +7,7 @@ import type { PageProps } from '@/app/extensions'
 import { useNow } from '@/hooks/use-now'
 import { formatBytes, formatDateTime } from '@/lib/format'
 import { toastError } from '@/lib/errors'
+import { FRAMED_SCROLLBAR } from '@/lib/scroll-area'
 import { cn } from '@/lib/utils'
 import { courseColor, courseLabel } from '@/modules/academics/color'
 import { FileIcon } from '@/modules/files/components/FileIcon'
@@ -155,7 +156,7 @@ export default function AnnouncementsPage({ scope }: PageProps) {
           </Empty>
         ) : (
           // The rounded frame clips the rows; the scrollbar floats inside it, off the corners.
-          <ScrollArea className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-border **:data-[slot=scroll-area-scrollbar]:my-2 **:data-[slot=scroll-area-thumb]:bg-muted-foreground/40">
+          <ScrollArea className={cn('min-h-0 rounded-2xl border border-border', FRAMED_SCROLLBAR)}>
             <ItemGroup className="gap-0 has-data-[size=sm]:gap-0">
               {shown.map((p) => (
                 <PostRow
@@ -339,7 +340,7 @@ function Reading({
   return (
     <LmsContentContext value={content}>
       {/* The back button and the header stay put; only the text and the attachments scroll. */}
-      <article className="flex min-h-0 min-w-0 flex-col overflow-hidden @page-lg/main:rounded-2xl @page-lg/main:border @page-lg/main:border-border">
+      <article className="flex min-h-0 min-w-0 flex-col @page-lg/main:rounded-2xl @page-lg/main:border @page-lg/main:border-border">
         <div className="flex flex-col gap-4 pb-4 @page-lg/main:px-6 @page-lg/main:pt-6">
           <Button
             variant="ghost"
@@ -363,7 +364,7 @@ function Reading({
             webUrl={a.web_url}
           />
         </div>
-        <ScrollArea className="min-h-0 flex-1 **:data-[slot=scroll-area-scrollbar]:my-2 **:data-[slot=scroll-area-thumb]:bg-muted-foreground/40">
+        <ScrollArea className={cn('min-h-0 flex-1', FRAMED_SCROLLBAR)}>
           <div className="flex flex-col gap-4 @page-lg/main:px-6 @page-lg/main:pb-6">
             {a.html ? <LmsHtml html={a.html} /> : null}
             <Attachments files={a.attachments ?? []} course={course} />

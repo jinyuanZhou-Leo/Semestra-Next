@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { COLLAPSE } from '@/lib/collapse'
 import { useDialogTarget } from '@/lib/dialog-target'
 import { errorMessage } from '@/lib/errors'
+import { FRAMED_SCROLLBAR } from '@/lib/scroll-area'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
@@ -255,11 +256,8 @@ export function MoveDialog({
                 <Search aria-hidden />
               </InputGroupAddon>
             </InputGroup>
-            <fieldset
-              aria-label={m.files_move_destination()}
-              className="h-72 min-w-0 overflow-hidden rounded-2xl border"
-            >
-              <ScrollArea className="h-full **:data-[slot=scroll-area-scrollbar]:my-2 **:data-[slot=scroll-area-thumb]:bg-muted-foreground/40">
+            <fieldset aria-label={m.files_move_destination()} className="min-w-0">
+              <ScrollArea className={cn('h-72 rounded-2xl border', FRAMED_SCROLLBAR)}>
                 <div className="p-1">
                   {visible === null || topLevel.length > 0 ? (
                     <>

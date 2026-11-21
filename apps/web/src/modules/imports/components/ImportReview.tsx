@@ -10,6 +10,7 @@ import {
 import { ChevronDown, ChevronRight, ChevronsUpDown, CircleAlert, CircleCheck } from 'lucide-react'
 import { createContext, Fragment, type ReactNode, use } from 'react'
 import { toastError } from '@/lib/errors'
+import { FRAMED_SCROLLBAR } from '@/lib/scroll-area'
 import { cn } from '@/lib/utils'
 import { useCourses } from '@/modules/academics/queries'
 import { m } from '@/paraglide/messages'
@@ -667,7 +668,8 @@ export function ImportReview({
     <ReviewContext value={state}>
       <ScrollArea
         className={cn(
-          'min-h-0 overflow-hidden rounded-2xl border border-border **:data-[slot=scroll-area-scrollbar]:my-2 **:data-[slot=scroll-area-thumb]:bg-muted-foreground/40',
+          'min-h-0 rounded-2xl border border-border **:data-[slot=table-container]:overflow-visible',
+          FRAMED_SCROLLBAR,
           className,
         )}
       >
