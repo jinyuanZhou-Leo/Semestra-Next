@@ -1,4 +1,6 @@
 import type { AgentSessionDetail, AgentSessionOut } from '@semestra/api-client'
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/ui/input-group'
+import { clearOnEscape, clearSearch } from '@/lib/search-input'
 import {
   agentSessionDeleteMutation,
   agentSessionGetQueryKey,
@@ -16,6 +18,7 @@ import {
   PinOff,
   SearchX,
   Trash2,
+  X,
 } from 'lucide-react'
 import { useId, useState } from 'react'
 import { invalidateOperations } from '@/app/api'
@@ -263,13 +266,27 @@ export function SessionList({
       <Label htmlFor={`${id}-search`} className="sr-only">
         {m.assistant_history_search()}
       </Label>
-      <Input
-        id={`${id}-search`}
-        type="search"
-        placeholder={m.assistant_history_search()}
-        value={query}
-        onChange={(event) => setQuery(event.target.value)}
-      />
+      <InputGroup>
+        <InputGroupInput
+          id={`${id}-search`}
+          type="search"
+          placeholder={m.assistant_history_search()}
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          onKeyDown={clearOnEscape(query, () => setQuery(''))}
+        />
+        <InputGroupAddon align="inline-end">
+          {query ? (
+            <InputGroupButton
+              size="icon-xs"
+              aria-label={m.common_search_clear()}
+              onClick={(event) => clearSearch(event, () => setQuery(''))}
+            >
+              <X aria-hidden />
+            </InputGroupButton>
+          ) : null}
+        </InputGroupAddon>
+      </InputGroup>
       <nav aria-label={m.assistant_history()} className="min-h-0 flex-1 space-y-3 overflow-y-auto">
         {list.isPending ? (
           <div className="space-y-2">

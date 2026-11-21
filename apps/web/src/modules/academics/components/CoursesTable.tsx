@@ -1,4 +1,5 @@
 import type { Course } from '@semestra/api-client'
+import { clearOnEscape, clearSearch } from '@/lib/search-input'
 import {
   academicsCourseDeleteMutation,
   academicsCourseUpdateMutation,
@@ -28,6 +29,7 @@ import {
   SearchX,
   Settings,
   Trash2,
+  X,
 } from 'lucide-react'
 import { createContext, memo, use, useState } from 'react'
 import { useExtensions } from '@/app/registry'
@@ -64,7 +66,7 @@ import {
 } from '@/ui/empty'
 import { Input } from '@/ui/input'
 import { SelectionToolbar } from '@/components/SelectionToolbar'
-import { InputGroup, InputGroupAddon, InputGroupInput } from '@/ui/input-group'
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/ui/input-group'
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
 import {
   Select,
@@ -541,9 +543,21 @@ export function CoursesTable({
                 placeholder={m.academics_courses_search()}
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
+                onKeyDown={clearOnEscape(search, () => setSearch(''))}
               />
               <InputGroupAddon>
                 <Search aria-hidden />
+              </InputGroupAddon>
+              <InputGroupAddon align="inline-end">
+                {search ? (
+                  <InputGroupButton
+                    size="icon-xs"
+                    aria-label={m.common_search_clear()}
+                    onClick={(event) => clearSearch(event, () => setSearch(''))}
+                  >
+                    <X aria-hidden />
+                  </InputGroupButton>
+                ) : null}
               </InputGroupAddon>
             </InputGroup>
             <div className="ml-auto flex items-center justify-end gap-2">

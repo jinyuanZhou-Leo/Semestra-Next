@@ -1,4 +1,5 @@
 import type { FileMeta, Folder as FolderOut } from '@semestra/api-client'
+import { clearOnEscape, clearSearch } from '@/lib/search-input'
 import { lmsFileSearchOptions, lmsFolderGetOptions } from '@semestra/api-client/react-query'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import {
@@ -24,6 +25,7 @@ import {
   Lock,
   Presentation,
   Search,
+  X,
 } from 'lucide-react'
 import { Fragment, useState } from 'react'
 import { useUiPref } from '@/app/ui-pref'
@@ -41,7 +43,7 @@ import {
 } from '@/ui/breadcrumb'
 import { Button } from '@/ui/button'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
-import { InputGroup, InputGroupAddon, InputGroupInput } from '@/ui/input-group'
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/ui/input-group'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { CanvasBoundary } from '../CanvasBoundary'
 import { useCanvasPage } from '../context'
@@ -187,7 +189,19 @@ export function FilesView({ selected }: { selected?: string }) {
               placeholder={m.canvas_tab_files_search()}
               aria-label={m.canvas_tab_files_search()}
               onChange={(event) => setTerm(event.target.value)}
+              onKeyDown={clearOnEscape(term, () => setTerm(''))}
             />
+            <InputGroupAddon align="inline-end">
+              {term ? (
+                <InputGroupButton
+                  size="icon-xs"
+                  aria-label={m.common_search_clear()}
+                  onClick={(event) => clearSearch(event, () => setTerm(''))}
+                >
+                  <X aria-hidden />
+                </InputGroupButton>
+              ) : null}
+            </InputGroupAddon>
           </InputGroup>
         }
       />

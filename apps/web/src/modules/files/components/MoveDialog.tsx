@@ -1,14 +1,17 @@
 import type { FolderOut } from '@semestra/api-client'
+import { clearOnEscape, clearSearch } from '@/lib/search-input'
 import { filesFolderCreateMutation } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Check, ChevronRight, Folder, FolderPlus, FolderRoot, Search } from 'lucide-react'
+import { Check, ChevronRight, Folder, FolderPlus, FolderRoot, Search, X } from 'lucide-react'
 import { useState } from 'react'
 import { COLLAPSE } from '@/lib/collapse'
 import { useDialogTarget } from '@/lib/dialog-target'
 import { errorMessage } from '@/lib/errors'
+import { FRAMED_SCROLLBAR } from '@/lib/scroll-area'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
+import { ScrollArea } from '@/ui/scroll-area'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/ui/collapsible'
 import {
   Dialog,
@@ -19,7 +22,7 @@ import {
   DialogTitle,
 } from '@/ui/dialog'
 import { FieldError } from '@/ui/field'
-import { InputGroup, InputGroupAddon, InputGroupInput } from '@/ui/input-group'
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/ui/input-group'
 import { useMoveTargets } from '../actions'
 import {
   MAX_FOLDER_DEPTH,
@@ -249,34 +252,47 @@ export function MoveDialog({
                 placeholder={m.files_move_search()}
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
+                onKeyDown={clearOnEscape(search, () => setSearch(''))}
               />
               <InputGroupAddon>
                 <Search aria-hidden />
               </InputGroupAddon>
+              <InputGroupAddon align="inline-end">
+                {search ? (
+                  <InputGroupButton
+                    size="icon-xs"
+                    aria-label={m.common_search_clear()}
+                    onClick={(event) => clearSearch(event, () => setSearch(''))}
+                  >
+                    <X aria-hidden />
+                  </InputGroupButton>
+                ) : null}
+              </InputGroupAddon>
             </InputGroup>
-            <fieldset
-              aria-label={m.files_move_destination()}
-              className="h-72 min-w-0 overflow-y-auto rounded-2xl border p-1"
-            >
-              {visible === null || topLevel.length > 0 ? (
-                <>
-                  <div className={cn(rowState(state, null).className, 'pl-2.5 font-medium')}>
-                    <PickButton
-                      state={state}
-                      id={null}
-                      name={m.files_all_files()}
-                      icon={FolderRoot}
-                    />
-                  </div>
-                  {topLevel.map((folder) => (
-                    <TreeNode key={folder.id} folder={folder} depth={1} state={state} />
-                  ))}
-                </>
-              ) : (
-                <p className="px-2.5 py-2 text-xs text-muted-foreground">
-                  {m.files_move_no_match()}
-                </p>
-              )}
+            <fieldset aria-label={m.files_move_destination()} className="min-w-0">
+              <ScrollArea className={cn('h-72 rounded-2xl border', FRAMED_SCROLLBAR)}>
+                <div className="p-1">
+                  {visible === null || topLevel.length > 0 ? (
+                    <>
+                      <div className={cn(rowState(state, null).className, 'pl-2.5 font-medium')}>
+                        <PickButton
+                          state={state}
+                          id={null}
+                          name={m.files_all_files()}
+                          icon={FolderRoot}
+                        />
+                      </div>
+                      {topLevel.map((folder) => (
+                        <TreeNode key={folder.id} folder={folder} depth={1} state={state} />
+                      ))}
+                    </>
+                  ) : (
+                    <p className="px-2.5 py-2 text-xs text-muted-foreground">
+                      {m.files_move_no_match()}
+                    </p>
+                  )}
+                </div>
+              </ScrollArea>
             </fieldset>
             {move.error ? <FieldError>{errorMessage(move.error)}</FieldError> : null}
           </div>

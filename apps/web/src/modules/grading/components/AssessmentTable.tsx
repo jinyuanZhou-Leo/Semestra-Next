@@ -70,6 +70,9 @@ import { GradeTableCard } from './GradeTableCard'
 // stay readable instead of being squeezed out (contributed columns make the table wider).
 const TITLE_COLUMN = 'w-full max-w-0 min-w-40'
 
+// A long category name is cut short instead of widening the table.
+const CATEGORY_COLUMN = 'max-w-44'
+
 const NUMERIC = new Set(['weight'])
 
 const toSorting = (pref: SortPref): SortingState =>
@@ -443,7 +446,11 @@ const AssessmentCells = memo(function AssessmentCells({
       {cells.map((cell) => (
         <TableCell
           key={cell.id}
-          className={cn('py-1.5', cell.column.id === 'title' && TITLE_COLUMN)}
+          className={cn(
+            'py-1.5',
+            cell.column.id === 'title' && TITLE_COLUMN,
+            cell.column.id === 'category' && CATEGORY_COLUMN,
+          )}
         >
           <FlexRender cell={cell} />
         </TableCell>
@@ -495,11 +502,11 @@ function GroupRow({
           )}
         </TableCell>
       ) : null}
-      <TableCell colSpan={3} className="py-1.5">
+      <TableCell colSpan={3} className="max-w-0 py-1.5">
         <Button
           variant="ghost"
           size="sm"
-          className="h-8 items-center px-1 font-medium aria-expanded:bg-transparent hover:bg-muted"
+          className="h-8 max-w-full min-w-0 items-center px-1 font-medium aria-expanded:bg-transparent hover:bg-muted"
           aria-expanded={!collapsed}
           onClick={onToggle}
         >
@@ -508,8 +515,8 @@ function GroupRow({
           ) : (
             <ChevronDown aria-hidden className="size-4" />
           )}
-          <CategoryBadge category={category} />
-          <span className="text-xs font-normal text-muted-foreground tabular-nums">
+          <CategoryBadge category={category} truncate />
+          <span className="shrink-0 text-xs font-normal text-muted-foreground tabular-nums">
             {m.grading_group_summary({
               count,
               graded: formatCredits(graded),

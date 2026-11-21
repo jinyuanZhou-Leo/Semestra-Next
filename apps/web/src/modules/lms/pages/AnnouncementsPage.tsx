@@ -7,6 +7,7 @@ import type { PageProps } from '@/app/extensions'
 import { useNow } from '@/hooks/use-now'
 import { formatBytes, formatDateTime } from '@/lib/format'
 import { toastError } from '@/lib/errors'
+import { FRAMED_SCROLLBAR } from '@/lib/scroll-area'
 import { cn } from '@/lib/utils'
 import { courseColor, courseLabel } from '@/modules/academics/color'
 import { FileIcon } from '@/modules/files/components/FileIcon'
@@ -32,6 +33,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/ui/select'
+import { ScrollArea } from '@/ui/scroll-area'
 import { Skeleton } from '@/ui/skeleton'
 import { Spinner } from '@/ui/spinner'
 import { postedLabel, postKey } from '../announcements'
@@ -153,19 +155,22 @@ export default function AnnouncementsPage({ scope }: PageProps) {
             </EmptyContent>
           </Empty>
         ) : (
-          <ItemGroup className="min-h-0 gap-0 overflow-y-auto overscroll-contain rounded-2xl border border-border has-data-[size=sm]:gap-0">
-            {shown.map((p) => (
-              <PostRow
-                key={keyOf(p)}
-                post={p}
-                withCourse={term}
-                unread={p.item.unread}
-                selected={p === open}
-                now={now}
-                onOpen={() => go({ post: keyOf(p) })}
-              />
-            ))}
-          </ItemGroup>
+          // The rounded frame clips the rows; the scrollbar floats inside it, off the corners.
+          <ScrollArea className={cn('min-h-0 rounded-2xl border border-border', FRAMED_SCROLLBAR)}>
+            <ItemGroup className="gap-0 has-data-[size=sm]:gap-0">
+              {shown.map((p) => (
+                <PostRow
+                  key={keyOf(p)}
+                  post={p}
+                  withCourse={term}
+                  unread={p.item.unread}
+                  selected={p === open}
+                  now={now}
+                  onOpen={() => go({ post: keyOf(p) })}
+                />
+              ))}
+            </ItemGroup>
+          </ScrollArea>
         )}
       </div>
       {open ? (
@@ -359,10 +364,12 @@ function Reading({
             webUrl={a.web_url}
           />
         </div>
-        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain @page-lg/main:px-6 @page-lg/main:pb-6">
-          {a.html ? <LmsHtml html={a.html} /> : null}
-          <Attachments files={a.attachments ?? []} course={course} />
-        </div>
+        <ScrollArea className={cn('min-h-0 flex-1', FRAMED_SCROLLBAR)}>
+          <div className="flex flex-col gap-4 @page-lg/main:px-6 @page-lg/main:pb-6">
+            {a.html ? <LmsHtml html={a.html} /> : null}
+            <Attachments files={a.attachments ?? []} course={course} />
+          </div>
+        </ScrollArea>
       </article>
     </LmsContentContext>
   )
