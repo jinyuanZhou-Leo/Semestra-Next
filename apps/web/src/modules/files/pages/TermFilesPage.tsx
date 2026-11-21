@@ -36,6 +36,7 @@ import { searchTerms } from '../highlight'
 import { matchNames } from '../search-names'
 import { useDebounced } from '@/hooks/use-debounced'
 import { DROP_TARGET, type DropTargets, dropTargetProps, useFileDrop } from '../hooks'
+import { FilesNavBar, FilesNavProvider } from '../components/FilesNav'
 import { type FilesLocation, useFilesLocation, usePreviewLocation } from '../location'
 import { courseFilesOptions, useCourseFiles } from '../queries'
 import { CourseFiles } from './CourseFilesPage'
@@ -97,7 +98,7 @@ function TermFiles({
     )
   }
   return (
-    <>
+    <FilesNavProvider>
       {course ? (
         <OpenCourse
           key={course.id}
@@ -117,7 +118,7 @@ function TermFiles({
       )}
       {uploads.panel}
       {uploads.dialog}
-    </>
+    </FilesNavProvider>
   )
 }
 
@@ -399,6 +400,7 @@ function CourseFolders({
       </div>
 
       <div className="flex h-8 items-center">
+        <FilesNavBar up={null} onNavigate={() => setSearch('')} />
         {searching ? (
           <p className="truncate text-sm text-muted-foreground">
             {m.files_search_results_for({ query: search.trim() })}
