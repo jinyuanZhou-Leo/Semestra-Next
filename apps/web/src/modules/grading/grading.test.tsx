@@ -46,7 +46,7 @@ beforeEach(() => {
     http.get(`${API}/courses/c1/lms-link`, () =>
       HttpResponse.json({ course_id: 'c1', link: null, program_connection_id: null }),
     ),
-    http.get(`${API}/courses/c1/lms/feedback`, () => HttpResponse.json({ items: [] })),
+    http.get(`${API}/programs/p1/lms/assignment-targets`, () => HttpResponse.json({ items: [] })),
     http.get(`${API}/programs/p1/lms-binding`, () =>
       HttpResponse.json({ program_id: 'p1', connection_id: null, connection: null, link_count: 0 }),
     ),
@@ -431,96 +431,41 @@ test("an assessment's to-do is checked off from its row", async () => {
   await waitFor(() => expect(check.getAttribute('aria-checked')).toBe('true'))
 })
 
-test("an assessment from the LMS opens the assignment's details on the teacher's feedback", async () => {
+test("an assessment from the LMS opens the assignment's details, or the teacher's feedback", async () => {
   book = gradebook({
     assessments: [
-      assessment({
-        id: 'a1',
-        title: 'Lab 1',
-        weight: 40,
-        score_percentage: 90,
-        source_kind: 'lms',
-        source_ref: '91',
-      }),
+      assessment({ id: 'a1', title: 'Lab 1', weight: 20, source_kind: 'lms', source_ref: '91' }),
+      assessment({ id: 'a3', title: 'Lab 2', weight: 20, source_kind: 'lms', source_ref: '92' }),
       assessment({ id: 'a2', title: 'Final exam', weight: 60 }),
     ],
   })
-  const link = {
-    id: 'l1',
-    course_id: 'c1',
-    program_id: 'p1',
-    connection_id: 'n1',
-    provider: 'canvas',
-    external_course_id: '7',
-    external_code: null,
-    external_name: 'APS105',
-    external_term: null,
-    web_url: null,
-    sync_enabled: true,
-    synced_at: null,
-    sync_errors: {},
-    created_at: '2026-01-01T00:00:00Z',
-  }
-  const criterion = {
-    id: 'c1',
-    description: 'Correctness',
-    points: 10,
-    ratings: [{ id: 'r1', description: 'Most tests pass', points: 8 }],
-  }
+  const target = { course_id: 'c1', task_id: null }
   server.use(
-    http.get(`${API}/courses/c1/lms-link`, () =>
-      HttpResponse.json({ course_id: 'c1', link, program_connection_id: 'n1' }),
-    ),
-    http.get(`${API}/lms/providers`, () =>
+    // Read from Semestra (kept by the sync), never from the platform.
+    http.get(`${API}/programs/p1/lms/assignment-targets`, () =>
       HttpResponse.json({
         items: [
-          {
-            kind: 'canvas',
-            display_name: 'Canvas',
-            features: [],
-            config_schema: {},
-            credentials_schema: {},
-          },
-        ],
-      }),
-    ),
-    // Kept by the sync: read from Semestra, never from the platform.
-    http.get(`${API}/courses/c1/lms/feedback`, () =>
-      HttpResponse.json({
-        items: [
-          {
-            assessment_id: 'a1',
-            provider: 'canvas',
-            assignment_id: '91',
-            web_url: 'https://lms.example/a/91',
-            points: 10,
-            score: 9,
-            comments: [{ author: 'TA', comment: 'Check the edge cases.' }],
-            rubric: [criterion],
-            rubric_scores: [{ criterion_id: 'c1', points: 8, rating_id: 'r1' }],
-          },
+          { ...target, assignment_id: '91', assessment_id: 'a1', feedback: true },
+          { ...target, assignment_id: '92', assessment_id: 'a3', feedback: false },
         ],
       }),
     ),
   )
   const { router } = mount()
-  await userEvent.click(await screen.findByRole('button', { name: 'View feedback: Lab 1' }))
-  // Only assessments the teacher left feedback on have a button.
-  expect(screen.queryByRole('button', { name: 'View feedback: Final exam' })).toBeNull()
-  // The assignment's details open on the feedback (M09 §7.3).
+  await userEvent.click(await screen.findByRole('button', { name: 'View assignment: Lab 2' }))
+  expect(router.state.location.search).toEqual({ assignment: 'c1:92' })
+  // Where the teacher left feedback, the button opens the details on it (M09 §7.3).
+  await userEvent.click(screen.getByRole('button', { name: 'View feedback: Lab 1' }))
   expect(router.state.location.search).toEqual({ assignment: 'c1:91', view: 'feedback' })
+  // An assessment of Semestra's own has neither.
+  const exam = screen.getByText('Final exam').closest('tr')!
+  expect(within(exam).queryByRole('button', { name: /^View / })).toBeNull()
 })
 
-test('a gradebook without feedback has no feedback column', async () => {
-  // An imported assessment the teacher left nothing on: no column.
-  book = gradebook({
-    assessments: [
-      assessment({ id: 'a1', title: 'Lab 1', weight: 40, source_kind: 'lms', source_ref: '91' }),
-    ],
-  })
+test('a gradebook without assignments of the LMS has no assignment column', async () => {
   mount()
-  await screen.findByRole('textbox', { name: 'Score: Lab 1' })
-  expect(screen.queryByRole('columnheader', { name: 'Feedback' })).toBeNull()
+  await screen.findByRole('textbox', { name: 'Score: Final exam' })
+  expect(screen.queryByRole('columnheader', { name: 'Assignment' })).toBeNull()
 })
 
 test('checked assessments are changed and deleted together, only the ones on screen', async () => {

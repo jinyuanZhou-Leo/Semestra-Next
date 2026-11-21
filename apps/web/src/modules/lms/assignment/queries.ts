@@ -1,4 +1,9 @@
-import type { AssignmentDetail, AssignmentOut, AssignmentTargets } from '@semestra/api-client'
+import type {
+  AssignmentDetail,
+  AssignmentOut,
+  AssignmentTarget,
+  AssignmentTargets,
+} from '@semestra/api-client'
 import {
   lmsAssignmentGetOptions,
   lmsAssignmentTargetsOptions,
@@ -77,15 +82,21 @@ type Of = { taskId?: string | null; assessmentId?: string | null }
  * The platform assignment a to-do or an assessment is, when it is one: a to-do imported as such,
  * or the to-do of an imported assessment.
  */
+function targetOf(targets: AssignmentTargets, of: Of): AssignmentTarget | null {
+  return (
+    targets.items.find(
+      (t) =>
+        (of.assessmentId != null && t.assessment_id === of.assessmentId) ||
+        (of.taskId != null && t.task_id === of.taskId),
+    ) ?? null
+  )
+}
+
 export function assignmentOf(
   targets: AssignmentTargets,
   of: Of,
 ): { courseId: string; assignmentId: string } | null {
-  const found = targets.items.find(
-    (t) =>
-      (of.assessmentId != null && t.assessment_id === of.assessmentId) ||
-      (of.taskId != null && t.task_id === of.taskId),
-  )
+  const found = targetOf(targets, of)
   return found ? { courseId: found.course_id, assignmentId: found.assignment_id } : null
 }
 
@@ -95,6 +106,17 @@ export function useAssignmentOf(programId: string, of: Of) {
       ...assignmentTargetsOptions(programId),
       enabled: programId !== '',
       select: (targets) => assignmentOf(targets, of),
+    }).data ?? null
+  )
+}
+
+/** The target itself, with whether the teacher left feedback on the assessment. */
+export function useAssignmentTarget(programId: string, of: Of) {
+  return (
+    useQuery({
+      ...assignmentTargetsOptions(programId),
+      enabled: programId !== '',
+      select: (targets) => targetOf(targets, of),
     }).data ?? null
   )
 }

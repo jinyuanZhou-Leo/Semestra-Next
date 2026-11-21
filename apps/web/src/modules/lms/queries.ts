@@ -25,8 +25,6 @@ export const LMS_STATE_QUERIES = [
   'lmsCourseLinkList',
   'lmsCourseOverview',
   'lmsSyncStatus',
-  // The feedback the sync kept for the course's assessments (stays after unbinding or unlinking).
-  'lmsFeedbackList',
   // Which assessments and to-dos are an assignment of the platform.
   'lmsAssignmentTargets',
   'lmsAnnouncementUnread',

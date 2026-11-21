@@ -2798,7 +2798,7 @@
   "lms_assignment_kept_at": "Showing what was saved on {time}.",
   "lms_assignment_kept_earlier": "Showing what was saved earlier.",
   "lms_feedback_open": "View feedback",
-  "lms_feedback_column": "Feedback",
+  "lms_assignment_column": "Assignment",
   "lms_feedback_attempt": "Attempt {attempt}",
   "lms_feedback_no_comments": "No comments from your teacher",
   "lms_feedback_attachment": "Attachment",

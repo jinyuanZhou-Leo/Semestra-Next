@@ -197,10 +197,11 @@ function NameCell({ row }: CellProps) {
   return (
     <span className="flex items-center gap-2">
       <KindIcon row={row.original} />
-      {/* The row opens the details on a click; the name is its button for the keyboard. */}
+      {/* The row opens the details on a click (the name underlines on hover, like a link); the
+          name is its button for the keyboard. */}
       <button
         type="button"
-        className="min-w-0 truncate rounded-sm text-left font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+        className="min-w-0 truncate rounded-sm text-left font-medium decoration-primary/60 underline-offset-4 outline-none group-hover/row:text-primary group-hover/row:underline focus-visible:ring-2 focus-visible:ring-ring/50"
         title={a.name}
         onClick={(event) => {
           event.stopPropagation()
@@ -720,7 +721,7 @@ function AssignmentTable({ rows: data }: { rows: Row[] }) {
                             key={row.id}
                             data-state={rowSelection[row.id] ? 'selected' : undefined}
                             // One height for every row, whatever badge its status shows.
-                            className="h-10 cursor-pointer"
+                            className="group/row h-10 cursor-pointer"
                             onClick={() => details.open(courseId, row.id)}
                           >
                             {row.getAllCells().map((cell) => (

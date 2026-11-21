@@ -40,9 +40,27 @@ def _submission(assignment_id: str, *comments: SubmissionComment, **kw: Any) -> 
     )
 
 
-async def _feedback(api: Api, course: str) -> dict[str, dict[str, Any]]:
-    items = (await api.call("GET", f"/courses/{course}/lms/feedback"))["items"]
-    return {f["assignment_id"]: f for f in items}
+async def _feedback(api: Api, fake: FakeProvider, course: str) -> dict[str, dict[str, Any]]:
+    """The course's assessments with feedback, as the gradebook's assignment column tells them
+    (`feedback`), and what was kept of each, as the details open it with the platform down."""
+    program_id = (await api.call("GET", f"/courses/{course}"))["program_id"]
+    targets = (await api.call("GET", f"/programs/{program_id}/lms/assignment-targets"))["items"]
+    down, fake.down = fake.down, True
+    found: dict[str, dict[str, Any]] = {}
+    for t in targets:
+        if t["course_id"] == course and t["feedback"]:
+            url = f"/courses/{course}/lms/assignments/{t['assignment_id']}"
+            kept = await api.call("GET", url, params={"refresh": True})
+            assert kept["kept"]
+            found[t["assignment_id"]] = {
+                "assessment_id": t["assessment_id"],
+                "provider": kept["provider"],
+                "points": kept["assignment"]["points"],
+                "rubric": kept["assignment"]["rubric"],
+                "comments": kept["submission"]["comments"],
+            }
+    fake.down = down
+    return found
 
 
 async def test_feedback_is_kept_and_follows_the_platform(
@@ -71,16 +89,22 @@ async def test_feedback_is_kept_and_follows_the_platform(
     assert [c for c in status["recent"] if c["field"] == "feedback"] == []
 
     lab = (await _assessments(api, course))["a1"]
-    kept = await _feedback(api, course)
+    kept = await _feedback(api, fake, course)
     assert list(kept) == ["a1"]  # the midterm has nothing to show
     assert kept["a1"]["assessment_id"] == lab["id"]
     assert kept["a1"]["comments"][0]["comment"] == "See me"
     assert kept["a1"]["rubric"][0]["ratings"][0]["description"] == "Full marks"
     assert kept["a1"]["points"] == 10
+    # The gradebook's assignment column tells the two apart from the same read.
+    targets = await api.call("GET", f"/programs/{program_id}/lms/assignment-targets")
+    assert {t["assignment_id"]: t["feedback"] for t in targets["items"]} == {
+        "a1": True,
+        "a3": False,
+    }
 
     # Read from the database: the platform is not asked.
     calls = len(fake.calls)
-    await _feedback(api, course)
+    await api.call("GET", f"/programs/{program_id}/lms/assignment-targets")
     assert fake.calls[calls:] == []
 
     # A new comment is a recent update of the assessment, which cannot be put back, and told
@@ -100,7 +124,7 @@ async def test_feedback_is_kept_and_follows_the_platform(
     assert change["new"] == {"comments": 1, "rubric": False}
     assert (change["target_kind"], change["target_id"]) == ("assessment", lab["id"])
     assert not change["toggleable"]
-    comments = (await _feedback(api, course))["a1"]["comments"]
+    comments = (await _feedback(api, fake, course))["a1"]["comments"]
     assert [c["comment"] for c in comments] == ["See me after class", "Regraded"]
 
     # Deleted on the platform, deleted here; an edit alone is no news.
@@ -109,7 +133,9 @@ async def test_feedback_is_kept_and_follows_the_platform(
     clock.advance(minutes=2)
     status = await api.sync(program_id)
     assert len([c for c in status["recent"] if c["field"] == "feedback"]) == 1
-    assert (await _feedback(api, course))["a1"]["comments"] == [edited.model_dump(mode="json")]
+    assert (await _feedback(api, fake, course))["a1"]["comments"] == [
+        edited.model_dump(mode="json")
+    ]
 
     # A rubric assessed for the first time is news too.
     fake.course_submissions["101"][1].rubric_scores = [RubricScore(criterion_id="c9", points=1)]
@@ -131,7 +157,7 @@ async def test_unbinding_keeps_the_feedback_as_it_was(api: Api, fake: FakeProvid
     fake.course_submissions["101"][0].comments = []
     clock.advance(minutes=2)
     await api.sync(program_id)
-    kept = await _feedback(api, course)
+    kept = await _feedback(api, fake, course)
     assert [c["comment"] for c in kept["a1"]["comments"]] == ["Good"]
     assert kept["a1"]["provider"] == fake.kind
 
@@ -142,7 +168,7 @@ async def test_the_users_own_comments_are_not_feedback(api: Api, fake: FakeProvi
     fake.course_submissions["101"] = [_submission("a1", mine)]
     await api.sync(program_id)
     # Only the user's own comment: the gradebook shows no feedback for it.
-    assert await _feedback(api, course) == {}
+    assert await _feedback(api, fake, course) == {}
 
     # Writing another is no news either; the teacher's reply is, and comes with the user's.
     reply = SubmissionComment(id="3", author="Prof", comment="Fine")
@@ -155,7 +181,7 @@ async def test_the_users_own_comments_are_not_feedback(api: Api, fake: FakeProvi
     status = await api.sync(program_id)
     [change] = [c for c in status["recent"] if c["kind"] == "feedback"]
     assert change["new"] == {"comments": 1, "rubric": False}
-    comments = (await _feedback(api, course))["a1"]["comments"]
+    comments = (await _feedback(api, fake, course))["a1"]["comments"]
     assert [(c["comment"], c["own"]) for c in comments] == [
         ("Late, sorry", True), ("Uploaded", True), ("Fine", False)
     ]  # fmt: skip
@@ -169,4 +195,29 @@ async def test_a_cut_off_list_keeps_what_was_kept(api: Api, fake: FakeProvider, 
     fake.truncated = True
     clock.advance(minutes=2)
     await api.sync(program_id)
-    assert list(await _feedback(api, course)) == ["a1"]
+    assert list(await _feedback(api, fake, course)) == ["a1"]
+
+
+async def test_a_rebound_assessment_opens_its_new_assignment(
+    api: Api, fake: FakeProvider, clock: Clock
+):
+    program_id, course = await _course(api, "a1")
+    fake.course_submissions["101"] = [
+        _submission("a1", SubmissionComment(id="1", author="TA", comment="Good"))
+    ]
+    await api.sync(program_id)
+    lab = (await _assessments(api, course))["a1"]
+    await api.call("DELETE", f"/assessments/{lab['id']}/lms-assignment")
+    await api.call("PUT", f"/assessments/{lab['id']}/lms-assignment", json={"assignment_id": "a2"})
+
+    async def targets() -> list[tuple[str, bool]]:
+        found = await api.call("GET", f"/programs/{program_id}/lms/assignment-targets")
+        return [(t["assignment_id"], t["feedback"]) for t in found["items"]
+                if t["assessment_id"] == lab["id"]]  # fmt: skip
+
+    # Before any sync, the binding wins over what was kept of the old assignment: the
+    # gradebook's button opens the new one, which has no feedback yet.
+    assert await targets() == [("a2", False)]
+    clock.advance(minutes=2)
+    await api.sync(program_id)
+    assert await targets() == [("a2", False)]

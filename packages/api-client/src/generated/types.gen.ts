@@ -1427,6 +1427,12 @@ export type AssignmentTarget = {
      * Set for an assignment imported as a to-do only
      */
     task_id?: string | null;
+    /**
+     * Feedback
+     *
+     * The teacher left comments or rubric scores on the assessment
+     */
+    feedback?: boolean;
 };
 
 /**
@@ -4962,82 +4968,6 @@ export type FeedUpdateInputBody = {
      * What the feed contains
      */
     sources: Array<'schedule' | 'tasks' | 'lms'>;
-};
-
-/**
- * FeedbackList
- */
-export type FeedbackList = {
-    /**
-     * Items
-     *
-     * Assessments of the course with comments or rubric scores
-     */
-    items: Array<FeedbackOut>;
-};
-
-/**
- * FeedbackOut
- *
- * The teacher's feedback on an assessment, as the last sync kept it (M09 §4.4).
- */
-export type FeedbackOut = {
-    /**
-     * Assessment Id
-     */
-    assessment_id: string;
-    /**
-     * Provider
-     *
-     * The provider it was read from
-     */
-    provider: string;
-    /**
-     * Assignment Id
-     *
-     * The assignment's external id
-     */
-    assignment_id: string;
-    /**
-     * Web Url
-     */
-    web_url?: string | null;
-    /**
-     * Points
-     *
-     * The assignment's points
-     */
-    points?: number | null;
-    /**
-     * Score
-     */
-    score?: number | null;
-    /**
-     * Grade
-     */
-    grade?: string | null;
-    /**
-     * Attempt
-     */
-    attempt?: number | null;
-    /**
-     * Graded At
-     */
-    graded_at?: string | null;
-    /**
-     * Comments
-     */
-    comments?: Array<SubmissionComment>;
-    /**
-     * Rubric
-     *
-     * The assignment's rubric; `rubric_scores` name its criteria
-     */
-    rubric?: Array<RubricCriterion>;
-    /**
-     * Rubric Scores
-     */
-    rubric_scores?: Array<RubricScore>;
 };
 
 /**
@@ -21475,38 +21405,6 @@ export type LmsCourseRefreshResponses = {
 };
 
 export type LmsCourseRefreshResponse = LmsCourseRefreshResponses[keyof LmsCourseRefreshResponses];
-
-export type LmsFeedbackListData = {
-    body?: never;
-    path: {
-        /**
-         * Course Id
-         *
-         * Course id
-         */
-        course_id: string;
-    };
-    query?: never;
-    url: '/courses/{course_id}/lms/feedback';
-};
-
-export type LmsFeedbackListErrors = {
-    /**
-     * Default Response
-     */
-    default: ErrorResponse;
-};
-
-export type LmsFeedbackListError = LmsFeedbackListErrors[keyof LmsFeedbackListErrors];
-
-export type LmsFeedbackListResponses = {
-    /**
-     * Successful Response
-     */
-    200: FeedbackList;
-};
-
-export type LmsFeedbackListResponse = LmsFeedbackListResponses[keyof LmsFeedbackListResponses];
 
 export type LmsFileGetData = {
     body?: never;

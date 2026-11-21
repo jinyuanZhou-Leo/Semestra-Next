@@ -13,7 +13,7 @@ import {
 import { lmsSyncRequest } from '@semestra/api-client'
 import { defineModule, preloadable } from '@/app/extensions'
 import type {
-  FeedbackList,
+  AssignmentTargets,
   LmsProgramBindingGetResponse,
   LmsProviderListResponse,
   UnreadCounts,
@@ -55,8 +55,8 @@ import {
 import { assignmentHost } from './assignment/AssignmentHost'
 import { bindAction, unbindAction } from './binding/actions'
 import { OpenInPlatform, PlatformMark } from './components/PlatformMark'
-import { AssessmentFeedbackCell, viewAction } from './components/AssessmentFeedback'
-import { feedbackListOptions } from './feedback'
+import { assignmentTargetsOptions } from './assignment/queries'
+import { AssessmentAssignmentCell } from './components/AssessmentAssignment'
 import { prefetchCourseLink, prefetchCourseTools } from './course-info'
 import { taskAssignmentLink } from './components/TaskAssignment'
 import { assignmentSource, wizardCourseSource } from './import/sources'
@@ -357,19 +357,19 @@ export default defineModule({
     [ONBOARDING_STEPS]: onboardingSteps,
     [TERM_WIZARD_IMPORT_SOURCES]: [wizardCourseSource],
     [ASSESSMENT_IMPORT_SOURCES]: [assignmentSource],
-    [ASSESSMENT_ACTIONS]: [viewAction, bindAction, unbindAction],
-    // Only in a gradebook where the teacher left feedback on some assessment (kept by the sync, so
-    // it goes when the assessment stops following its assignment or the course is unlinked).
+    [ASSESSMENT_ACTIONS]: [bindAction, unbindAction],
+    // Only in a gradebook where some assessment is an assignment of the platform (imported, or
+    // kept from when it was): each such row opens the assignment's details, or its feedback.
     [ASSESSMENT_COLUMNS]: [
       {
-        id: 'lms.feedback',
-        header: m.lms_feedback_column,
-        Cell: AssessmentFeedbackCell,
-        query: ({ courseId }) => feedbackListOptions(courseId),
-        shownFor: (assessments, list) =>
-          assessments.some((a) => list?.items.some((f) => f.assessment_id === a.id)),
+        id: 'lms.assignment',
+        header: m.lms_assignment_column,
+        Cell: AssessmentAssignmentCell,
+        query: ({ programId }) => assignmentTargetsOptions(programId),
+        shownFor: (assessments, targets) =>
+          assessments.some((a) => targets?.items.some((t) => t.assessment_id === a.id)),
       },
-    ] satisfies AssessmentColumn<FeedbackList>[],
+    ] satisfies AssessmentColumn<AssignmentTargets>[],
     [FIELD_ORIGINS]: [
       { id: 'lms.sync', Button: preloadable(() => import('./sync/FollowButton')) },
     ] satisfies FieldOrigin[],
@@ -466,7 +466,6 @@ export default defineModule({
     // The sync kept new or changed feedback for a course's assessments.
     'lms.kept.updated': [
       (data) => [
-        { _id: 'lmsFeedbackList', path: { course_id: data.course_id } },
         { _id: 'lmsAssignmentGet', path: { course_id: data.course_id } },
         'lmsAssignmentTargets',
       ],

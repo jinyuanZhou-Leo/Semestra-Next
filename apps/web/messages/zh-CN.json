@@ -2798,7 +2798,7 @@
   "lms_assignment_kept_at": "显示的是 {time} 保存的内容。",
   "lms_assignment_kept_earlier": "显示的是之前保存的内容。",
   "lms_feedback_open": "查看反馈",
-  "lms_feedback_column": "反馈",
+  "lms_assignment_column": "作业",
   "lms_feedback_attempt": "第 {attempt} 次提交",
   "lms_feedback_no_comments": "老师还没有留评语",
   "lms_feedback_attachment": "附件",

@@ -65,10 +65,10 @@ import { CategoryBadge } from './CategoryBadge'
 import { GradeTableCard } from './GradeTableCard'
 
 /** Columns of figures: their headings line up with the figures on the right. */
-// The title takes what the other columns leave and is cut short, so the table fits beside the
-// summary column instead of scrolling sideways (contributed columns make it wider). The minimum
-// keeps its heading from running under the next one.
-const TITLE_COLUMN = 'w-full min-w-28 max-w-0'
+// The title takes what the other columns leave and is cut short, but keeps 10rem: the course page
+// puts the summary above the table until both fit (`--container-page-gradebook`), so the names
+// stay readable instead of being squeezed out (contributed columns make the table wider).
+const TITLE_COLUMN = 'w-full max-w-0 min-w-40'
 
 // A long category name is cut short instead of widening the table.
 const CATEGORY_COLUMN = 'max-w-44'
