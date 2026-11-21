@@ -386,7 +386,8 @@ test('the search box has one clear button, and Esc clears it too', async () => {
   const box = await screen.findByRole('searchbox')
   expect(screen.queryByRole('button', { name: 'Clear search' })).not.toBeInTheDocument()
   await user.type(box, 'week')
-  await user.click(screen.getByRole('button', { name: 'Clear search' }))
+  const field = box.closest<HTMLElement>('[data-slot="input-group"]')!
+  await user.click(within(field).getByRole('button', { name: 'Clear search' }))
   expect(box).toHaveValue('')
   expect(box).toHaveFocus()
   await user.type(box, 'week{Escape}')
