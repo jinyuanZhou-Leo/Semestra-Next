@@ -1,10 +1,12 @@
 import { useState } from 'react'
+import { X } from 'lucide-react'
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/ui/input-group'
+import { clearOnEscape, clearSearch } from '@/lib/search-input'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/ui/dialog'
 import { Empty, EmptyDescription, EmptyHeader } from '@/ui/empty'
 import { Item, ItemContent, ItemDescription, ItemMedia, ItemTitle } from '@/ui/item'
-import { Input } from '@/ui/input'
 import type { BoardKind, CardContribution, CardSize } from '../extensions'
 import { useModules } from '../registry'
 import { SPANS } from './layout'
@@ -78,13 +80,27 @@ export function AddCardDialog({
           <DialogTitle>{m.board_add_card()}</DialogTitle>
           <DialogDescription>{m.board_add_card_description()}</DialogDescription>
         </DialogHeader>
-        <Input
-          type="search"
-          aria-label={m.board_add_card_search()}
-          placeholder={m.board_add_card_search()}
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-        />
+        <InputGroup>
+          <InputGroupInput
+            type="search"
+            aria-label={m.board_add_card_search()}
+            placeholder={m.board_add_card_search()}
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={clearOnEscape(query, () => setQuery(''))}
+          />
+          <InputGroupAddon align="inline-end">
+            {query ? (
+              <InputGroupButton
+                size="icon-xs"
+                aria-label={m.common_search_clear()}
+                onClick={(event) => clearSearch(event, () => setQuery(''))}
+              >
+                <X aria-hidden />
+              </InputGroupButton>
+            ) : null}
+          </InputGroupAddon>
+        </InputGroup>
         <div className="max-h-[60vh] space-y-4 overflow-y-auto">
           {groups.length === 0 ? (
             <Empty className="p-6">

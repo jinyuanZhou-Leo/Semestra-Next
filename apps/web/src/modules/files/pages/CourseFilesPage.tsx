@@ -1,4 +1,5 @@
 import { useMutation } from '@tanstack/react-query'
+import { clearOnEscape, clearSearch } from '@/lib/search-input'
 import type { FilesItemList, ItemOut } from '@semestra/api-client'
 import {
   Download,
@@ -9,6 +10,7 @@ import {
   Plus,
   Search,
   Upload,
+  X,
 } from 'lucide-react'
 import { Fragment, useEffect, useRef, useState } from 'react'
 import type { PageProps } from '@/app/extensions'
@@ -44,7 +46,7 @@ import {
 } from '@/ui/empty'
 import { RowSelectionContext, useRowSelection } from '@/components/row-selection'
 import { SelectionToolbar } from '@/components/SelectionToolbar'
-import { InputGroup, InputGroupAddon, InputGroupInput } from '@/ui/input-group'
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/ui/input-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { useExternalLink } from '@/components/ExternalLink'
 import { FilesNavBar, FilesNavProvider } from '../components/FilesNav'
@@ -64,6 +66,7 @@ import { type Uploads, useUploads } from '../components/Uploads'
 import { UsageBar } from '../components/UsageBar'
 import { type Target, targetKey } from '../folders'
 import { searchTerms } from '../highlight'
+import { matchNames } from '../search-names'
 import { useDebounced } from '@/hooks/use-debounced'
 import { useFileDrop } from '../hooks'
 import { useFilesLocation, usePreviewLocation } from '../location'
@@ -172,10 +175,8 @@ export function CourseFiles({
   const download = downloadTarget(courseId, selected)
   const archive = useMutation({ mutationFn: downloadArchive, onError: toastError })
 
-  const needle = search.trim().toLowerCase()
-  const nameMatches = needle
-    ? list.items.filter((i) => i.display_name.toLowerCase().includes(needle))
-    : []
+  const needle = search.trim()
+  const names = matchNames(needle, [list])
 
   const open = (item: ItemOut) => {
     if (item.kind === 'link' && item.url) link.open(item.url)
@@ -247,9 +248,21 @@ export function CourseFiles({
                   placeholder={m.files_search()}
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
+                  onKeyDown={clearOnEscape(search, () => setSearch(''))}
                 />
                 <InputGroupAddon>
                   <Search aria-hidden />
+                </InputGroupAddon>
+                <InputGroupAddon align="inline-end">
+                  {search ? (
+                    <InputGroupButton
+                      size="icon-xs"
+                      aria-label={m.common_search_clear()}
+                      onClick={(event) => clearSearch(event, () => setSearch(''))}
+                    >
+                      <X aria-hidden />
+                    </InputGroupButton>
+                  ) : null}
                 </InputGroupAddon>
               </InputGroup>
             </SelectionToolbar>
@@ -375,10 +388,16 @@ export function CourseFiles({
 
           {searching ? (
             <SearchResults
-              nameMatches={nameMatches}
+              needle={needle}
+              folderMatches={names.folders}
+              nameMatches={names.items}
               hits={contentSearch.data?.results ?? []}
               loading={query.trim().length >= 2 && (contentSearch.isFetching || search !== query)}
               pendingNames={(contentSearch.data?.pending_items ?? []).map((p) => p.display_name)}
+              onOpenFolder={(f) => {
+                setSearch('')
+                setFolderId(f.id)
+              }}
               onOpenItem={open}
               onOpenHit={(hit) =>
                 preview.show({

@@ -1,7 +1,8 @@
-import type { ItemOut, SearchHit } from '@semestra/api-client'
+import type { FolderOut, ItemOut, SearchHit } from '@semestra/api-client'
 import { filesDocumentSearch } from '@semestra/api-client'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import { SearchX } from 'lucide-react'
+import { Folder, SearchX } from 'lucide-react'
+import { formatTimeAgo } from '@/lib/format'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Empty, EmptyContent, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
@@ -15,7 +16,8 @@ import {
   ItemTitle,
 } from '@/ui/item'
 import { Skeleton } from '@/ui/skeleton'
-import { snippetParts } from '../highlight'
+import { matchParts, type SnippetPart, snippetParts } from '../highlight'
+import type { NameMatch } from '../search-names'
 import { pageRangeLabel } from './Citation'
 import { FileIcon } from './FileIcon'
 
@@ -59,10 +61,11 @@ export function useContentSearch(
   })
 }
 
-export function Snippet({ text }: { text: string }) {
+/** Text split into plain and marked parts; the marked ones are the matches. */
+function MarkedParts({ parts }: { parts: readonly SnippetPart[] }) {
   return (
     <>
-      {snippetParts(text).map((part, index) =>
+      {parts.map((part, index) =>
         part.marked ? (
           // oxlint-disable-next-line no-array-index-key -- parts never reorder
           <mark key={index} className="rounded-sm bg-primary/15 px-0.5 text-foreground">
@@ -77,30 +80,60 @@ export function Snippet({ text }: { text: string }) {
   )
 }
 
+export function Snippet({ text }: { text: string }) {
+  return <MarkedParts parts={snippetParts(text)} />
+}
+
+/** `text` with every case-insensitive occurrence of `needle` marked. */
+function Marked({ text, needle }: { text: string; needle: string }) {
+  return <MarkedParts parts={matchParts(text, needle)} />
+}
+
+function Heading({ children, count }: { children: string; count: number }) {
+  return (
+    <h2 className="flex gap-1.5 text-xs font-medium text-muted-foreground">
+      {children}
+      <span className="tabular-nums">{count}</span>
+    </h2>
+  )
+}
+
+/** "Course · All files › Folder": where a match is. */
+function where(match: NameMatch<unknown>, courseName?: (courseId: string) => string) {
+  const place = match.trail.length > 0 ? match.trail.join(' › ') : m.files_all_files()
+  return [courseName?.(match.courseId), place].filter(Boolean).join(' · ')
+}
+
 /**
- * Results of typing in the file page's search box: files whose name matches, then passages
- * whose text matches. `courseName` labels hits when several courses are searched.
+ * Results of typing in the file page's search box: folders and files whose name matches, then
+ * passages whose text matches. `courseName` labels matches when several courses are searched.
  */
 export function SearchResults({
+  needle,
+  folderMatches,
   nameMatches,
   hits,
   loading,
   pendingNames,
   courseName,
+  onOpenFolder,
   onOpenItem,
   onOpenHit,
   onClear,
 }: {
-  nameMatches: readonly ItemOut[]
+  needle: string
+  folderMatches: readonly NameMatch<FolderOut>[]
+  nameMatches: readonly NameMatch<ItemOut>[]
   hits: readonly SearchHit[]
   loading: boolean
   pendingNames: readonly string[]
   courseName?: (courseId: string) => string
+  onOpenFolder: (folder: FolderOut) => void
   onOpenItem: (item: ItemOut) => void
   onOpenHit: (hit: SearchHit) => void
   onClear: () => void
 }) {
-  if (!loading && nameMatches.length === 0 && hits.length === 0) {
+  if (!loading && folderMatches.length === 0 && nameMatches.length === 0 && hits.length === 0) {
     return (
       <Empty>
         <EmptyHeader>
@@ -118,39 +151,75 @@ export function SearchResults({
     )
   }
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
+      {folderMatches.length > 0 ? (
+        <section className="space-y-2">
+          <Heading count={folderMatches.length}>{m.files_search_folders()}</Heading>
+          <ItemGroup className="rounded-2xl border">
+            {folderMatches.map((match, index) => (
+              <div key={match.entry.id}>
+                {index > 0 ? <ItemSeparator /> : null}
+                <Item
+                  size="sm"
+                  render={(props) => (
+                    <button type="button" {...props} onClick={() => onOpenFolder(match.entry)} />
+                  )}
+                >
+                  <ItemMedia variant="icon">
+                    <Folder aria-hidden />
+                  </ItemMedia>
+                  <ItemContent className="min-w-0 text-left">
+                    <ItemTitle className="w-full truncate">
+                      <Marked text={match.entry.name} needle={needle} />
+                    </ItemTitle>
+                    <ItemDescription className="truncate">
+                      {where(match, courseName)}
+                    </ItemDescription>
+                  </ItemContent>
+                  <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                    {m.files_items_count({ count: match.entry.item_count })}
+                  </span>
+                </Item>
+              </div>
+            ))}
+          </ItemGroup>
+        </section>
+      ) : null}
       {nameMatches.length > 0 ? (
         <section className="space-y-2">
-          <h2 className="text-sm font-medium">{m.files_search_names()}</h2>
+          <Heading count={nameMatches.length}>{m.files_search_names()}</Heading>
           <ItemGroup className="rounded-2xl border">
-            {nameMatches.map((item, index) => {
-              return (
-                <div key={item.id}>
-                  {index > 0 ? <ItemSeparator /> : null}
-                  <Item
-                    size="sm"
-                    render={(props) => (
-                      <button type="button" {...props} onClick={() => onOpenItem(item)} />
-                    )}
-                  >
-                    <ItemMedia variant="icon">
-                      <FileIcon item={item} aria-hidden />
-                    </ItemMedia>
-                    <ItemContent className="min-w-0 text-left">
-                      <ItemTitle className="w-full truncate">{item.display_name}</ItemTitle>
-                      {courseName ? (
-                        <ItemDescription>{courseName(item.course_id)}</ItemDescription>
-                      ) : null}
-                    </ItemContent>
-                  </Item>
-                </div>
-              )
-            })}
+            {nameMatches.map((match, index) => (
+              <div key={match.entry.id}>
+                {index > 0 ? <ItemSeparator /> : null}
+                <Item
+                  size="sm"
+                  render={(props) => (
+                    <button type="button" {...props} onClick={() => onOpenItem(match.entry)} />
+                  )}
+                >
+                  <ItemMedia variant="icon">
+                    <FileIcon item={match.entry} aria-hidden />
+                  </ItemMedia>
+                  <ItemContent className="min-w-0 text-left">
+                    <ItemTitle className="w-full truncate">
+                      <Marked text={match.entry.display_name} needle={needle} />
+                    </ItemTitle>
+                    <ItemDescription className="truncate">
+                      {where(match, courseName)}
+                    </ItemDescription>
+                  </ItemContent>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {formatTimeAgo(match.entry.updated_at)}
+                  </span>
+                </Item>
+              </div>
+            ))}
           </ItemGroup>
         </section>
       ) : null}
       <section className="space-y-2">
-        <h2 className="text-sm font-medium">{m.files_search_contents()}</h2>
+        <Heading count={hits.length}>{m.files_search_contents()}</Heading>
         {pendingNames.length > 0 ? (
           <p className="text-xs text-muted-foreground">
             {m.files_search_pending({ names: pendingNames.join(', ') })}
