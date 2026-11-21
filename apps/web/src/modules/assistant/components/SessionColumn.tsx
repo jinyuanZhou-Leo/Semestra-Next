@@ -1,7 +1,9 @@
 import type { AgentSessionOut } from '@semestra/api-client'
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/ui/input-group'
+import { clearOnEscape, clearSearch } from '@/lib/search-input'
 import { agentSessionListOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
-import { MoreHorizontal, SearchX, SquarePen } from 'lucide-react'
+import { MoreHorizontal, SearchX, SquarePen, X } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
@@ -13,7 +15,6 @@ import {
   SidebarGroup,
   SidebarGroupLabel,
   SidebarHeader,
-  SidebarInput,
   SidebarMenu,
   SidebarMenuAction,
   SidebarMenuButton,
@@ -68,13 +69,27 @@ export function SessionColumn({
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
-        <SidebarInput
-          type="search"
-          aria-label={m.assistant_history_search()}
-          placeholder={m.assistant_history_search()}
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-        />
+        <InputGroup>
+          <InputGroupInput
+            type="search"
+            aria-label={m.assistant_history_search()}
+            placeholder={m.assistant_history_search()}
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={clearOnEscape(query, () => setQuery(''))}
+          />
+          <InputGroupAddon align="inline-end">
+            {query ? (
+              <InputGroupButton
+                size="icon-xs"
+                aria-label={m.common_search_clear()}
+                onClick={(event) => clearSearch(event, () => setQuery(''))}
+              >
+                <X aria-hidden />
+              </InputGroupButton>
+            ) : null}
+          </InputGroupAddon>
+        </InputGroup>
       </SidebarHeader>
       <nav aria-label={m.assistant_history()} className="flex min-h-0 flex-1 flex-col">
         <SidebarContent className="gap-0">

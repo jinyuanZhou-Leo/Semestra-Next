@@ -1,7 +1,8 @@
 import type { FolderOut } from '@semestra/api-client'
+import { clearOnEscape, clearSearch } from '@/lib/search-input'
 import { filesFolderCreateMutation } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Check, ChevronRight, Folder, FolderPlus, FolderRoot, Search } from 'lucide-react'
+import { Check, ChevronRight, Folder, FolderPlus, FolderRoot, Search, X } from 'lucide-react'
 import { useState } from 'react'
 import { COLLAPSE } from '@/lib/collapse'
 import { useDialogTarget } from '@/lib/dialog-target'
@@ -19,7 +20,7 @@ import {
   DialogTitle,
 } from '@/ui/dialog'
 import { FieldError } from '@/ui/field'
-import { InputGroup, InputGroupAddon, InputGroupInput } from '@/ui/input-group'
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/ui/input-group'
 import { useMoveTargets } from '../actions'
 import {
   MAX_FOLDER_DEPTH,
@@ -249,9 +250,21 @@ export function MoveDialog({
                 placeholder={m.files_move_search()}
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
+                onKeyDown={clearOnEscape(search, () => setSearch(''))}
               />
               <InputGroupAddon>
                 <Search aria-hidden />
+              </InputGroupAddon>
+              <InputGroupAddon align="inline-end">
+                {search ? (
+                  <InputGroupButton
+                    size="icon-xs"
+                    aria-label={m.common_search_clear()}
+                    onClick={(event) => clearSearch(event, () => setSearch(''))}
+                  >
+                    <X aria-hidden />
+                  </InputGroupButton>
+                ) : null}
               </InputGroupAddon>
             </InputGroup>
             <fieldset

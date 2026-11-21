@@ -1,4 +1,5 @@
 import type { Course, FilesItemList, ItemOut } from '@semestra/api-client'
+import { clearOnEscape, clearSearch } from '@/lib/search-input'
 import { type UseQueryResult, useQueries } from '@tanstack/react-query'
 import {
   type CellContext,
@@ -7,7 +8,7 @@ import {
   tableFeatures,
   useTable,
 } from '@tanstack/react-table'
-import { BookOpen, Folder, Search, Upload } from 'lucide-react'
+import { BookOpen, Folder, Search, Upload, X } from 'lucide-react'
 import { createContext, use, useEffect, useState } from 'react'
 import type { PageProps } from '@/app/extensions'
 import { useUiPref } from '@/app/ui-pref'
@@ -21,7 +22,7 @@ import { m } from '@/paraglide/messages'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbList, BreadcrumbPage } from '@/ui/breadcrumb'
 import { Button } from '@/ui/button'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
-import { InputGroup, InputGroupAddon, InputGroupInput } from '@/ui/input-group'
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/ui/input-group'
 import { Skeleton } from '@/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
@@ -362,9 +363,21 @@ function CourseFolders({
             placeholder={m.files_search_term()}
             value={search}
             onChange={(event) => setSearch(event.target.value)}
+            onKeyDown={clearOnEscape(search, () => setSearch(''))}
           />
           <InputGroupAddon>
             <Search aria-hidden />
+          </InputGroupAddon>
+          <InputGroupAddon align="inline-end">
+            {search ? (
+              <InputGroupButton
+                size="icon-xs"
+                aria-label={m.common_search_clear()}
+                onClick={(event) => clearSearch(event, () => setSearch(''))}
+              >
+                <X aria-hidden />
+              </InputGroupButton>
+            ) : null}
           </InputGroupAddon>
         </InputGroup>
         <div className="ml-auto flex items-center gap-2">

@@ -16,7 +16,7 @@ import {
   ItemTitle,
 } from '@/ui/item'
 import { Skeleton } from '@/ui/skeleton'
-import { snippetParts } from '../highlight'
+import { matchParts, type SnippetPart, snippetParts } from '../highlight'
 import type { NameMatch } from '../search-names'
 import { pageRangeLabel } from './Citation'
 import { FileIcon } from './FileIcon'
@@ -61,39 +61,8 @@ export function useContentSearch(
   })
 }
 
-export function Snippet({ text }: { text: string }) {
-  return (
-    <>
-      {snippetParts(text).map((part, index) =>
-        part.marked ? (
-          // oxlint-disable-next-line no-array-index-key -- parts never reorder
-          <mark key={index} className="rounded-sm bg-primary/15 px-0.5 text-foreground">
-            {part.text}
-          </mark>
-        ) : (
-          // oxlint-disable-next-line no-array-index-key -- parts never reorder
-          <span key={index}>{part.text}</span>
-        ),
-      )}
-    </>
-  )
-}
-
-/** `text` with every case-insensitive occurrence of `needle` marked, as in content snippets. */
-function Marked({ text, needle }: { text: string; needle: string }) {
-  const wanted = needle.trim().toLowerCase()
-  const parts: { text: string; marked: boolean }[] = []
-  let from = 0
-  const lower = text.toLowerCase()
-  for (;;) {
-    if (!wanted) break
-    const at = lower.indexOf(wanted, from)
-    if (at < 0) break
-    if (at > from) parts.push({ text: text.slice(from, at), marked: false })
-    parts.push({ text: text.slice(at, at + wanted.length), marked: true })
-    from = at + wanted.length
-  }
-  if (from < text.length) parts.push({ text: text.slice(from), marked: false })
+/** Text split into plain and marked parts; the marked ones are the matches. */
+function MarkedParts({ parts }: { parts: readonly SnippetPart[] }) {
   return (
     <>
       {parts.map((part, index) =>
@@ -109,6 +78,15 @@ function Marked({ text, needle }: { text: string; needle: string }) {
       )}
     </>
   )
+}
+
+export function Snippet({ text }: { text: string }) {
+  return <MarkedParts parts={snippetParts(text)} />
+}
+
+/** `text` with every case-insensitive occurrence of `needle` marked. */
+function Marked({ text, needle }: { text: string; needle: string }) {
+  return <MarkedParts parts={matchParts(text, needle)} />
 }
 
 function Heading({ children, count }: { children: string; count: number }) {

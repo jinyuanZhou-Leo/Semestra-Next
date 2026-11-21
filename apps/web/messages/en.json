@@ -1477,6 +1477,7 @@
   "academics_courses_empty_description": "Add courses from a term.",
   "common_clear_filters": "Clear filters",
   "common_selected_count": "{count} selected",
+  "common_search_clear": "Clear search",
   "common_clear_selection": "Clear selection",
   "common_undo": "Undo",
   "terms_courses_tab_terms": "Terms",

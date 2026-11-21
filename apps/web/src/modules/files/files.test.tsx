@@ -380,6 +380,19 @@ test('a search finds folders by name and opens one', async () => {
   expect(screen.getByRole('searchbox')).toHaveValue('')
 })
 
+test('the search box has one clear button, and Esc clears it too', async () => {
+  const user = userEvent.setup()
+  mount()
+  const box = await screen.findByRole('searchbox')
+  expect(screen.queryByRole('button', { name: 'Clear search' })).not.toBeInTheDocument()
+  await user.type(box, 'week')
+  await user.click(screen.getByRole('button', { name: 'Clear search' }))
+  expect(box).toHaveValue('')
+  expect(box).toHaveFocus()
+  await user.type(box, 'week{Escape}')
+  expect(box).toHaveValue('')
+})
+
 test('a file new from the LMS is marked until opened, and shows where it is kept', async () => {
   const seen = vi.fn<(id: string) => void>()
   const calls: string[] = []

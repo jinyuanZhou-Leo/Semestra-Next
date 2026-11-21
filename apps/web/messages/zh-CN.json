@@ -1477,6 +1477,7 @@
   "academics_courses_empty_description": "在学期中添加课程。",
   "common_clear_filters": "清除筛选",
   "common_selected_count": "已选 {count} 项",
+  "common_search_clear": "清除搜索",
   "common_clear_selection": "取消选择",
   "common_undo": "撤销",
   "terms_courses_tab_terms": "学期",

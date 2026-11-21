@@ -1,4 +1,5 @@
 import { useMutation } from '@tanstack/react-query'
+import { clearOnEscape, clearSearch } from '@/lib/search-input'
 import type { FilesItemList, ItemOut } from '@semestra/api-client'
 import {
   Download,
@@ -9,6 +10,7 @@ import {
   Plus,
   Search,
   Upload,
+  X,
 } from 'lucide-react'
 import { Fragment, useEffect, useRef, useState } from 'react'
 import type { PageProps } from '@/app/extensions'
@@ -44,7 +46,7 @@ import {
 } from '@/ui/empty'
 import { RowSelectionContext, useRowSelection } from '@/components/row-selection'
 import { SelectionToolbar } from '@/components/SelectionToolbar'
-import { InputGroup, InputGroupAddon, InputGroupInput } from '@/ui/input-group'
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/ui/input-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { useExternalLink } from '@/components/ExternalLink'
 import { FileDragArea, useDropFolder } from '../components/FileDrag'
@@ -243,9 +245,21 @@ export function CourseFiles({
                   placeholder={m.files_search()}
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
+                  onKeyDown={clearOnEscape(search, () => setSearch(''))}
                 />
                 <InputGroupAddon>
                   <Search aria-hidden />
+                </InputGroupAddon>
+                <InputGroupAddon align="inline-end">
+                  {search ? (
+                    <InputGroupButton
+                      size="icon-xs"
+                      aria-label={m.common_search_clear()}
+                      onClick={(event) => clearSearch(event, () => setSearch(''))}
+                    >
+                      <X aria-hidden />
+                    </InputGroupButton>
+                  ) : null}
                 </InputGroupAddon>
               </InputGroup>
             </SelectionToolbar>
