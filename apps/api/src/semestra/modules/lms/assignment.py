@@ -18,7 +18,7 @@ from semestra.core.errors import AppError
 from semestra.modules.academics import service as academics
 from semestra.modules.academics.models import AcademicsCourse
 from semestra.modules.grading import service as grading
-from semestra.modules.lms import announcements, reads, service
+from semestra.modules.lms import announcements, reads, service, sync_kept
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.models import LmsCourseLink, LmsImportedRef, LmsKeptAssignment
 from semestra.modules.lms.schemas.dto import FileMeta, Quiz, SubmissionDetail
@@ -263,6 +263,7 @@ async def targets(ctx: Ctx, program_id: str) -> AssignmentTargets:
             assignment_id=row.assignment_id,
             assessment_id=row.assessment_id,
             task_id=row.task_id,
+            feedback=sync_kept.has_feedback(row),
         )
     refs = await ctx.db.execute(
         select(LmsImportedRef, LmsCourseLink.course_id)
@@ -275,11 +276,18 @@ async def targets(ctx: Ctx, program_id: str) -> AssignmentTargets:
     )
     for ref, course_id in refs:
         graded = ref.target_kind == "assessment"
+        kept_target = found.get((course_id, ref.external_id))
         found[course_id, ref.external_id] = AssignmentTarget(
             course_id=course_id,
             assignment_id=ref.external_id,
             assessment_id=ref.target_id if graded else None,
             task_id=None if graded else ref.target_id,
+            feedback=bool(
+                graded
+                and kept_target
+                and kept_target.assessment_id == ref.target_id
+                and kept_target.feedback
+            ),
         )
     return AssignmentTargets(items=list(found.values()))
 

@@ -639,6 +639,10 @@ class AssignmentTarget(BaseModel):
     task_id: str | None = Field(
         default=None, description="Set for an assignment imported as a to-do only"
     )
+    feedback: bool = Field(
+        default=False,
+        description="The teacher left comments or rubric scores on the assessment",
+    )
 
 
 class AssignmentTargets(BaseModel):

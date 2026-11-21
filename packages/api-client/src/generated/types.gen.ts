@@ -1427,6 +1427,12 @@ export type AssignmentTarget = {
      * Set for an assignment imported as a to-do only
      */
     task_id?: string | null;
+    /**
+     * Feedback
+     *
+     * The teacher left comments or rubric scores on the assessment
+     */
+    feedback?: boolean;
 };
 
 /**

@@ -77,6 +77,12 @@ async def test_feedback_is_kept_and_follows_the_platform(
     assert kept["a1"]["comments"][0]["comment"] == "See me"
     assert kept["a1"]["rubric"][0]["ratings"][0]["description"] == "Full marks"
     assert kept["a1"]["points"] == 10
+    # The gradebook's assignment column tells the two apart from the same read.
+    targets = await api.call("GET", f"/programs/{program_id}/lms/assignment-targets")
+    assert {t["assignment_id"]: t["feedback"] for t in targets["items"]} == {
+        "a1": True,
+        "a3": False,
+    }
 
     # Read from the database: the platform is not asked.
     calls = len(fake.calls)

@@ -112,7 +112,14 @@ async def test_an_assignment_opens_from_the_platform_then_from_what_was_kept(
     assert kept["assessment"]["id"] == lab["id"]
     targets = await api.call("GET", f"/programs/{program_id}/lms/assignment-targets")
     assert targets["items"] == [
-        {"course_id": course, "assignment_id": "a1", "assessment_id": lab["id"], "task_id": None}
+        {
+            "course_id": course,
+            "assignment_id": "a1",
+            "assessment_id": lab["id"],
+            "task_id": None,
+            # The teacher's comment: the gradebook opens the details on the feedback.
+            "feedback": True,
+        }
     ]
 
 

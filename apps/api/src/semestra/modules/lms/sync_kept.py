@@ -224,6 +224,12 @@ async def _enabled(ctx: Ctx, link: LmsCourseLink, b: Bound) -> bool:
 register_sync_stage("kept", run, order=30, enabled=_enabled)
 
 
+def has_feedback(row: LmsKeptAssignment) -> bool:
+    """Whether the teacher left feedback on the row's assessment: someone else's comments, or
+    rubric scores. A to-do's are not the gradebook's."""
+    return bool(row.assessment_id and (_theirs(row.comments) or row.rubric_scores))
+
+
 async def feedback_list(ctx: Ctx, course_id: str) -> FeedbackList:
     """The kept feedback of the course's assessments that have feedback (someone else's
     comments, or rubric scores), from the database only; also of assessments no longer tied to
@@ -238,6 +244,6 @@ async def feedback_list(ctx: Ctx, course_id: str) -> FeedbackList:
         items=[
             FeedbackOut.model_validate({k: getattr(f, k) for k in FeedbackOut.model_fields})
             for f in rows
-            if f.assessment_id and (_theirs(f.comments) or f.rubric_scores)
+            if has_feedback(f)
         ]
     )

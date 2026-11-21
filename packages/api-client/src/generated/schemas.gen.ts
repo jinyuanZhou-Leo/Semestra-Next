@@ -2709,6 +2709,12 @@ export const AssignmentTargetSchema = {
             ],
             title: 'Task Id',
             description: 'Set for an assignment imported as a to-do only'
+        },
+        feedback: {
+            type: 'boolean',
+            title: 'Feedback',
+            description: 'The teacher left comments or rubric scores on the assessment',
+            default: false
         }
     },
     type: 'object',
