@@ -4,6 +4,6 @@
 
 <!-- area: grades -->
 <!-- en -->
-Long category names are now truncated in the gradebook instead of overflowing the menu or running under the next column.
+Long category names now wrap in the category menu and are truncated in the gradebook table, so they no longer overflow or overlap other columns.
 <!-- zh -->
-成绩册中过长的分类名称现在会自动截断，不再撑出菜单或与相邻列重叠。
+成绩册中过长的分类名称在分类菜单里会换行显示，在表格中会截断，不再溢出或与相邻列重叠。
