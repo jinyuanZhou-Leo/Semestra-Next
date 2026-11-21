@@ -66,8 +66,12 @@ import { GradeTableCard } from './GradeTableCard'
 
 /** Columns of figures: their headings line up with the figures on the right. */
 // The title takes what the other columns leave and is cut short, so the table fits beside the
-// summary column instead of scrolling sideways (contributed columns make it wider).
-const TITLE_COLUMN = 'w-full max-w-0'
+// summary column instead of scrolling sideways (contributed columns make it wider). The minimum
+// keeps its heading from running under the next one.
+const TITLE_COLUMN = 'w-full min-w-28 max-w-0'
+
+// A long category name is cut short instead of widening the table.
+const CATEGORY_COLUMN = 'max-w-44'
 
 const NUMERIC = new Set(['weight'])
 
@@ -442,7 +446,11 @@ const AssessmentCells = memo(function AssessmentCells({
       {cells.map((cell) => (
         <TableCell
           key={cell.id}
-          className={cn('py-1.5', cell.column.id === 'title' && TITLE_COLUMN)}
+          className={cn(
+            'py-1.5',
+            cell.column.id === 'title' && TITLE_COLUMN,
+            cell.column.id === 'category' && CATEGORY_COLUMN,
+          )}
         >
           <FlexRender cell={cell} />
         </TableCell>
