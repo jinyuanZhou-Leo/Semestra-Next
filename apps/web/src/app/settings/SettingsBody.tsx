@@ -1,4 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query'
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/ui/input-group'
+import { clearOnEscape, clearSearch } from '@/lib/search-input'
 import { useLocation } from '@tanstack/react-router'
 import {
   BarChart3,
@@ -21,15 +23,9 @@ import {
   Sparkles,
   UserRound,
   type LucideIcon,
+  X,
 } from 'lucide-react'
-import {
-  type CSSProperties,
-  type KeyboardEvent,
-  useDeferredValue,
-  useEffect,
-  useEffectEvent,
-  useState,
-} from 'react'
+import { type CSSProperties, useDeferredValue, useEffect, useEffectEvent, useState } from 'react'
 import { whenIdle } from '@/lib/when-settled'
 import { courseLabel } from '@/modules/academics/color'
 import { m } from '@/paraglide/messages'
@@ -58,7 +54,6 @@ import {
   SidebarGroupContent,
   SidebarGroupLabel,
   SidebarHeader,
-  SidebarInput,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -154,13 +149,6 @@ export function SettingsBody({ target, page }: { target: SettingsTarget; page: P
   const isHit = (section: { id: string }) => matched?.has(section.id) === true
   const hitGroups = groups.filter((group) => group.sections.some(isHit))
   const navRuns = searching ? clusterNavigation(hitGroups, level) : runs
-  const clearOnEscape = (event: KeyboardEvent<HTMLInputElement>) => {
-    // Esc clears the search first; only an empty field lets it close the dialog.
-    if (event.key === 'Escape' && query) {
-      event.stopPropagation()
-      setQuery('')
-    }
-  }
 
   // Another level keeps the group on screen when that level has one with the same name.
   const goTo = (next: SettingsLevel, ids: PathIds) => {
@@ -242,21 +230,30 @@ export function SettingsBody({ target, page }: { target: SettingsTarget; page: P
       >
         <Sidebar collapsible="none" className="hidden border-r md:flex">
           <SidebarHeader className="px-3 pt-3 pb-0">
-            <div className="relative">
-              <Search
-                aria-hidden
-                className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
-              />
-              <SidebarInput
+            <InputGroup>
+              <InputGroupInput
                 type="search"
                 aria-label={m.settings_search_label()}
                 placeholder={m.settings_search_label()}
-                className="pl-8"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                onKeyDown={clearOnEscape}
+                onKeyDown={clearOnEscape(query, () => setQuery(''))}
               />
-            </div>
+              <InputGroupAddon>
+                <Search aria-hidden />
+              </InputGroupAddon>
+              <InputGroupAddon align="inline-end">
+                {query ? (
+                  <InputGroupButton
+                    size="icon-xs"
+                    aria-label={m.common_search_clear()}
+                    onClick={(event) => clearSearch(event, () => setQuery(''))}
+                  >
+                    <X aria-hidden />
+                  </InputGroupButton>
+                ) : null}
+              </InputGroupAddon>
+            </InputGroup>
           </SidebarHeader>
           <SidebarContent>
             <ScopePath path={path} onSelect={goTo} />

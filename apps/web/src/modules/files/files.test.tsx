@@ -349,6 +349,51 @@ test('a search hit opens the preview on its page', async () => {
   expect(await screen.findByText('PDF page 3')).toBeInTheDocument()
 })
 
+test('a search finds folders by name and opens one', async () => {
+  server.use(
+    http.get(`${API}/courses/c1/files`, () =>
+      HttpResponse.json({
+        folders: [
+          {
+            id: 'f1',
+            course_id: 'c1',
+            parent_id: null,
+            name: 'Week 1',
+            item_count: 2,
+            created_at: '2026-01-10T12:00:00Z',
+            updated_at: '2026-01-10T12:00:00Z',
+          },
+        ],
+        items,
+        next_cursor: null,
+      }),
+    ),
+  )
+  const user = userEvent.setup()
+  const { router } = mount()
+  await user.type(await screen.findByRole('searchbox'), 'week')
+  // The folder row says where it is, under its name.
+  const folder = (await screen.findByText('All files')).closest('button')
+  expect(within(folder!).getByText('Week').tagName).toBe('MARK')
+  await user.click(folder!)
+  expect(router.state.location.search).toEqual({ folder: 'f1' })
+  expect(screen.getByRole('searchbox')).toHaveValue('')
+})
+
+test('the search box has one clear button, and Esc clears it too', async () => {
+  const user = userEvent.setup()
+  mount()
+  const box = await screen.findByRole('searchbox')
+  expect(screen.queryByRole('button', { name: 'Clear search' })).not.toBeInTheDocument()
+  await user.type(box, 'week')
+  const field = box.closest<HTMLElement>('[data-slot="input-group"]')!
+  await user.click(within(field).getByRole('button', { name: 'Clear search' }))
+  expect(box).toHaveValue('')
+  expect(box).toHaveFocus()
+  await user.type(box, 'week{Escape}')
+  expect(box).toHaveValue('')
+})
+
 test('a file new from the LMS is marked until opened, and shows where it is kept', async () => {
   const seen = vi.fn<(id: string) => void>()
   const calls: string[] = []

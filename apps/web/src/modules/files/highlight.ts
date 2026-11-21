@@ -57,3 +57,19 @@ export function snippetParts(snippet: string): SnippetPart[] {
         : { text: part, marked: false },
     )
 }
+
+/** `text` split around every case-insensitive occurrence of `needle`, for rendering as text. */
+export function matchParts(text: string, needle: string): SnippetPart[] {
+  const wanted = needle.trim().toLowerCase()
+  if (!wanted) return [{ text, marked: false }]
+  const lower = text.toLowerCase()
+  const parts: SnippetPart[] = []
+  let from = 0
+  for (let at = lower.indexOf(wanted); at >= 0; at = lower.indexOf(wanted, from)) {
+    if (at > from) parts.push({ text: text.slice(from, at), marked: false })
+    parts.push({ text: text.slice(at, at + wanted.length), marked: true })
+    from = at + wanted.length
+  }
+  if (from < text.length) parts.push({ text: text.slice(from), marked: false })
+  return parts
+}

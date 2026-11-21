@@ -386,6 +386,11 @@
   html {
     @apply font-sans;
   }
+  /* Search boxes draw their own clear button (an InputGroupButton with the X icon); the
+     browser's would be a second one, drawn differently in every browser. */
+  input[type='search']::-webkit-search-cancel-button {
+    display: none;
+  }
   /*
    * Dialog and AlertDialog stack their parts in a grid whose one implicit column is `auto`, so it
    * grows to the widest thing that cannot wrap: a long folder or file name pushed the search box,
