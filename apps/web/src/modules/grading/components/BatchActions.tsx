@@ -55,7 +55,7 @@ export function BatchActions({
           {m.grading_batch_category()}
           <ChevronDown aria-hidden data-icon="inline-end" />
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-48">
+        <DropdownMenuContent align="start" className="w-auto max-w-72">
           {categories.map((category) => (
             <DropdownMenuItem
               key={category.id}
