@@ -339,7 +339,7 @@ function Reading({
   return (
     <LmsContentContext value={content}>
       {/* The back button and the header stay put; only the text and the attachments scroll. */}
-      <article className="flex min-h-0 min-w-0 flex-col @page-lg/main:rounded-2xl @page-lg/main:border @page-lg/main:border-border">
+      <article className="flex min-h-0 min-w-0 flex-col overflow-hidden @page-lg/main:rounded-2xl @page-lg/main:border @page-lg/main:border-border">
         <div className="flex flex-col gap-4 pb-4 @page-lg/main:px-6 @page-lg/main:pt-6">
           <Button
             variant="ghost"
@@ -363,10 +363,12 @@ function Reading({
             webUrl={a.web_url}
           />
         </div>
-        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain @page-lg/main:px-6 @page-lg/main:pb-6">
-          {a.html ? <LmsHtml html={a.html} /> : null}
-          <Attachments files={a.attachments ?? []} course={course} />
-        </div>
+        <ScrollArea className="min-h-0 flex-1 **:data-[slot=scroll-area-scrollbar]:my-2 **:data-[slot=scroll-area-thumb]:bg-muted-foreground/40">
+          <div className="flex flex-col gap-4 @page-lg/main:px-6 @page-lg/main:pb-6">
+            {a.html ? <LmsHtml html={a.html} /> : null}
+            <Attachments files={a.attachments ?? []} course={course} />
+          </div>
+        </ScrollArea>
       </article>
     </LmsContentContext>
   )

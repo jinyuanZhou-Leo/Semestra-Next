@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils'
 import { useCourses } from '@/modules/academics/queries'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
+import { ScrollArea } from '@/ui/scroll-area'
 import { Checkbox } from '@/ui/checkbox'
 import {
   DropdownMenu,
@@ -664,7 +665,12 @@ export function ImportReview({
 
   return (
     <ReviewContext value={state}>
-      <div className={cn('min-h-0 overflow-y-auto rounded-2xl border border-border', className)}>
+      <ScrollArea
+        className={cn(
+          'min-h-0 overflow-hidden rounded-2xl border border-border **:data-[slot=scroll-area-scrollbar]:my-2 **:data-[slot=scroll-area-thumb]:bg-muted-foreground/40',
+          className,
+        )}
+      >
         <Table className="table-fixed">
           <TableHeader className="sticky top-0 z-10 bg-muted">
             {table.getHeaderGroups().map((headerGroup) => (
@@ -754,7 +760,7 @@ export function ImportReview({
             })}
           </TableBody>
         </Table>
-      </div>
+      </ScrollArea>
     </ReviewContext>
   )
 }
