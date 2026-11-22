@@ -57,14 +57,18 @@ export function openAssignmentDetails(
  */
 export function useAssignmentDetails() {
   const router = useRouter()
-  const { pathname, searchStr } = useLocation()
-  const search = new URLSearchParams(searchStr)
-  const target = parseAssignmentParam(search.get(PARAM), search.get(VIEW_PARAM))
-  const place = { pathname, searchStr }
+  // Read when called, not subscribed: rows of a table each open details, and a hook that
+  // followed the URL would re-render every one of them on any change of address.
   return {
-    target,
     open: (courseId: string, assignmentId: string, view: AssignmentView = 'details') =>
-      router.history.replace(assignmentHref(place, { courseId, assignmentId, view })),
-    close: () => router.history.replace(assignmentHref(place)),
+      openAssignmentDetails(router, courseId, assignmentId, view),
+    close: () => router.history.replace(assignmentHref(router.state.location)),
   }
+}
+
+/** Which details are open, following the URL: for the one host that shows them. */
+export function useOpenAssignmentTarget(): AssignmentTarget | null {
+  const { searchStr } = useLocation()
+  const search = new URLSearchParams(searchStr)
+  return parseAssignmentParam(search.get(PARAM), search.get(VIEW_PARAM))
 }

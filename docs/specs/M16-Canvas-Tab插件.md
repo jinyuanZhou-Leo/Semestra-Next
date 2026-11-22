@@ -134,3 +134,9 @@ defineModule({
   - 单元：所有单元放在一个圆角列表里（分隔线分开，方案 A）；展开状态提到视图里，标题行右侧有"全部展开/全部收起"。单元标题行右侧显示状态：未解锁是锁 + 解锁日期，完成是对勾 +"已完成"，有完成要求的显示细进度条 + "完成数/总数"（列表没带条目时，用展开后加载的条目计算），否则是条目数；`unlock_at` 在未来时总是显示解锁日期（非学生身份没有 `state`）；去掉"已完成/进行中/未解锁"徽章。条目的截止日期只显示月日（悬停看完整时间），已逾期只把文字标红，0 分不显示分值；子标题与条目标题对齐。
   - 文件行只有"下载"和"保存到课程文件"两个按钮：点文件名打开预览（单元和"文件"页一致），不再有单独的预览按钮。
   - "Canvas 样式"不对表格做任何美化：Canvas 自己只在没有 `cellspacing` 时合并边框（有 `cellspacing` 时是 `separate`，否则 preflight 的 collapse 会吃掉间距），网格来自编辑器的 `border` 属性。M09 清洗时保留 `table` 的 `border`/`cellpadding`/`cellspacing`；`.lms-original` 按浏览器的做法补回 `border` 属性画的网格（Tailwind preflight 会把它清掉），`cellpadding` 由 `SafeHtml` 转成单元格内联 padding（只补作者没写的方向），单元格默认 1px 内边距。旧缓存在刷新或过期前仍没有这些属性。
+- **整理（2026-11-22，LMS 评审后）**：
+  - 大纲的智能导入搬进 M09 核心：按钮是 `lms/import/syllabus.tsx` 的 `SyllabusImportButton`，成绩册的导入来源 `lms.syllabus` 走同一个导入，卸载插件后仍可在成绩册里导入大纲。
+  - 公告阅读视图显示附件，与「公告」页共用 `lms/content/Attachments.tsx`（课程文件里有的在文件预览中打开，其余在新标签页经 Semestra 打开）。
+  - 文件图标与课程文件共用 `files/components/FileIcon`；测验的 `quiz:` 编码只在 `lms/assignment/queries.ts` 的 `quizRef`。
+  - 作业表的勾选改用 `useRowSelection` + `SelectionToolbar` + memo 行，勾选时只重绘该行；`useAssignmentDetails` 不再订阅地址，点开时才读路由。
+  - 页面 `prefetch`（`prefetch.ts`）：按记住的位置（`app/ui-pref.ts` 的 `cachedUiPref`）与概览并行预取当前视图的数据，首次打开不再先等概览再发列表请求。

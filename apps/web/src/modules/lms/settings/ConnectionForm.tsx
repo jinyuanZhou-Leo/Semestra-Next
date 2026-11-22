@@ -91,7 +91,7 @@ export function ConnectionForm({
     if (!result) return
     setCredentials({})
     setSignIn('')
-    await invalidateLms(queryClient, { all: true })
+    await invalidateLms(queryClient)
     onSaved(result)
   }
 

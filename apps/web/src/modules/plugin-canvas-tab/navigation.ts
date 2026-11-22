@@ -1,4 +1,5 @@
 import type { NavTab } from '@semestra/api-client'
+import { quizRef } from '@/modules/lms/assignment/queries'
 import { m } from '@/paraglide/messages'
 
 /** Canvas tabs the plugin shows with its own views (M16 §3). */
@@ -113,7 +114,7 @@ export function refLocation(ref: { kind: string; ref: string }): CanvasLocation 
     case 'assignment':
       return { tab: 'assignments', ref: ref.ref }
     case 'quiz':
-      return { tab: 'assignments', ref: `quiz:${ref.ref}` }
+      return { tab: 'assignments', ref: quizRef(ref.ref) }
     case 'module':
       return { tab: 'modules', ref: ref.ref }
     case 'announcement':

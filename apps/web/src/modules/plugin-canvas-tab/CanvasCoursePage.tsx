@@ -26,7 +26,7 @@ import { useLmsDisplay } from '@/modules/lms/content/display'
 import { IconAction } from '@/components/IconAction'
 import { OpenOnPlatformIcon } from '@/modules/lms/content/LmsContent'
 import { useProviderName } from '@/modules/lms/providers'
-import { invalidateLms, isCourseContent } from '@/modules/lms/queries'
+import { courseReadTargets, invalidateTargets, isCourseContent } from '@/modules/lms/queries'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import {
@@ -98,7 +98,7 @@ function CanvasCourse({ programId, courseId }: { programId: string; courseId: st
   const reload = () => {
     setRefreshing(true)
     lmsCourseRefresh({ path: { course_id: courseId }, throwOnError: true })
-      .then(() => invalidateLms(queryClient, { courseId }), toastError)
+      .then(() => invalidateTargets(queryClient, courseReadTargets(courseId)), toastError)
       .finally(() => setRefreshing(false))
   }
 

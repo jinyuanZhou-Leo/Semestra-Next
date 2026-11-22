@@ -6,6 +6,7 @@ import {
   FileSpreadsheet,
   FileText,
   FileType,
+  FileVideo,
   Link2,
   type LucideIcon,
   Presentation,
@@ -38,6 +39,7 @@ export function fileIcon(item: Pick<ItemOut, 'kind' | 'mime_type'>): LucideIcon 
   const mime = item.mime_type ?? ''
   if (mime === 'application/pdf') return FileType
   if (mime.startsWith('image/')) return FileImage
+  if (mime.startsWith('video/')) return FileVideo
   if (mime.includes('spreadsheet') || mime === 'text/csv') return FileSpreadsheet
   if (mime.includes('presentation')) return Presentation
   if (mime.includes('zip') || mime.includes('compressed')) return FileArchive

@@ -16,6 +16,9 @@ export type Assignment = AssignmentDetail['assignment']
 /** How the details name a quiz by its own id (what a link to a quiz knows). */
 export const PRACTICE = 'quiz:'
 
+/** The details' id of a quiz, by the quiz's own id. */
+export const quizRef = (quizId: string) => `${PRACTICE}${quizId}`
+
 export const assignmentOptions = (courseId: string, assignmentId: string) =>
   lmsAssignmentGetOptions({ path: { course_id: courseId, assignment_id: assignmentId } })
 

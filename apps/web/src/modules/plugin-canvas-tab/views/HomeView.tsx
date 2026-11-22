@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { errorCode } from '@/lib/errors'
 import { useCanvasPage } from '../context'
 import { homeView } from '../navigation'
+import { FRONT_PAGE_REF } from '../prefetch'
 import { AnnouncementsView } from './AnnouncementsView'
 import { AssignmentsView } from './AssignmentsView'
 import { ModulesView } from './ModulesView'
@@ -24,9 +25,6 @@ export function HomeView({ defaultView }: { defaultView: string | null | undefin
       return <ModulesView />
   }
 }
-
-/** M09's page ref for the course's front page (Canvas `GET /courses/:id/front_page`). */
-export const FRONT_PAGE_REF = '@front'
 
 /** A course whose home is a page (`wiki`); the modules when it has no front page. */
 function FrontPage() {
