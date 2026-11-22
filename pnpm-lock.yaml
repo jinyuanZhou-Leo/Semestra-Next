@@ -567,6 +567,9 @@ importers:
       '@inlang/paraglide-js':
         specifier: 2.29.3
         version: 2.29.3(typescript@7.0.2)(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))
+      '@inlang/plugin-message-format':
+        specifier: 4.5.4
+        version: 4.5.4
       '@playwright/test':
         specifier: 1.64.1
         version: 1.64.1
@@ -1769,8 +1772,15 @@ packages:
       vite:
         optional: true
 
+  '@inlang/plugin-message-format@4.5.4':
+    resolution: {integrity: sha512-rpNQgDvL723tvUM9VWu6uwXnRzIGSTBN7M7QJbQmpPk0SROMXjXPEafVteEZ1RAeeETcYsUG8OJes6nCcnYu6A==}
+
   '@inlang/recommend-sherlock@0.2.1':
     resolution: {integrity: sha512-ckv8HvHy/iTqaVAEKrr+gnl+p3XFNwe5D2+6w6wJk2ORV2XkcRkKOJ/XsTUJbPSiyi4PI+p+T3bqbmNx/rDUlg==}
+
+  '@inlang/sdk@4.0.4':
+    resolution: {integrity: sha512-OJhVSGJa/Ak52WncgqIPHr9TyVJ1DuoublcmtNo9H8apoVn4Dr1DJNxUxawCCc01QmMSg8qoY8GrTV8SVIu1lg==}
+    engines: {node: '>=20.0.0'}
 
   '@inlang/sdk@4.1.1':
     resolution: {integrity: sha512-eeRnaW6mZPctXd8mwnATWEQgSg0J+EneUsBX2pJEl/7YRfosApCoc5aR4bHKwizLDd0CB3rtfuqteYirG5VSsg==}
@@ -8660,9 +8670,21 @@ snapshots:
       typescript: 7.0.2
       vite: 8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)
 
+  '@inlang/plugin-message-format@4.5.4':
+    dependencies:
+      '@inlang/sdk': 4.0.4
+      '@sinclair/typebox': 0.31.30
+
   '@inlang/recommend-sherlock@0.2.1':
     dependencies:
       comment-json: 4.6.2
+
+  '@inlang/sdk@4.0.4':
+    dependencies:
+      '@lix-js/sdk': 0.20.1
+      '@sinclair/typebox': 0.31.30
+      kysely: 0.28.19
+      uuid: 14.0.3
 
   '@inlang/sdk@4.1.1':
     dependencies:

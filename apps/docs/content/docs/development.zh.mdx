@@ -1,0 +1,27 @@
+---
+title: 开发工具
+description: 本地开发与调试用的工具，例如推送前的检查和云端会话的环境。
+icon: Wrench
+---
+
+这些工具只用于开发，不进入生产镜像。
+
+## 推送前检查
+
+```bash
+pnpm check            # 跑这次改动在 CI 上会跑的检查
+pnpm check --list     # 只列出会跑哪些 job
+pnpm check --only api,web
+```
+
+`pnpm check` 直接读 `.github/workflows/ci.yml`：把当前工作区（含未提交和未跟踪的文件）当作一次提交，和 `origin/main` 的分叉点比较，按同一份路径规则选出要跑的 job，再按顺序执行这些 job 的步骤，测试同样只挑受影响的部分。草稿 PR 不跑 CI，标成可评审前先在本地跑一遍。
+
+和 CI 的两处不同：安装依赖的步骤会跳过；“生成结果没有变化”的检查（`git diff --exit-code`）看的是这个 job 前面的步骤有没有改动文件，所以有未提交的改动也能用。
+
+脚本只认识 `ci.yml` 现在用到的写法。改 `ci.yml` 时用了新的 `if:` 条件、步骤字段或 `${{ }}` 表达式，`pnpm check` 会报错并指出位置，需要同步更新 `scripts/check.py`。
+
+## 云端会话
+
+仓库的 `.claude/hooks/session-start.sh` 会在 Claude Code 的云端会话开始时准备环境：安装 CI 用的 Node 26 和 `packageManager` 指定的 pnpm，再安装前后端依赖，并把 `CHROME` 指向镜像里自带的 Chromium。依赖文件没变时会跳过安装。本机运行时它什么都不做。
+
+Paraglide 的插件作为开发依赖安装在 `apps/web/node_modules` 里，`project.inlang/settings.json` 直接引用它，编译文案不需要访问 CDN。
