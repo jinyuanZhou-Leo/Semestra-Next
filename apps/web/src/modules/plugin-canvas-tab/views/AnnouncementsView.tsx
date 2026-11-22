@@ -1,4 +1,3 @@
-import { lmsAnnouncementListOptions } from '@semestra/api-client/react-query'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { Megaphone } from 'lucide-react'
 import { formatDateTime } from '@/lib/format'
@@ -11,12 +10,13 @@ import { CanvasBoundary } from '../CanvasBoundary'
 import { useCanvasPage } from '../context'
 import { Attachments } from '@/modules/lms/content/Attachments'
 import { DetailHeader, LmsHtml, ViewHeader } from '@/modules/lms/content/LmsContent'
+import { viewQueries } from '../queries'
 
 /** Announcements, newest first; one opens in place with its cleaned HTML (M16 §4). */
 export function AnnouncementsView({ selected }: { selected?: string }) {
   const { title, programId, courseId, go } = useCanvasPage()
   const list = useQuery({
-    ...lmsAnnouncementListOptions({ path: { course_id: courseId } }),
+    ...viewQueries.announcements(courseId),
     placeholderData: keepPreviousData,
   })
   const opened = selected ? list.data?.items.find((a) => a.external_id === selected) : undefined

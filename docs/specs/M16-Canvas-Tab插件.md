@@ -14,7 +14,7 @@
 新增：
 - 作业列表可以多选导入（调用 M09 `lms.assignment.import`：有分值进成绩簿，没分值进待办）；只是待办的作业可以"加入成绩簿"。
 - 单元中的文件条目可以"保存到课程文件"。
-- Syllabus 页有"智能导入"按钮（M09 `lms.syllabus.import`）。
+- Syllabus 页有"读取大纲"按钮（M09 `lms.syllabus.import`）。
 - 记住浏览位置，带更新提示条。
 
 ## 2. 注册
@@ -53,7 +53,7 @@ defineModule({
 | 单元 | `lms.module.list` + `lms.module_item.list`（展开时懒加载） | 可展开的模块列表；条目内联渲染：页面（应用内打开）、文件（M07 预览组件 + 下载 + "保存到课程文件"）、外部链接（打开前确认）、作业（跳到作业视图对应行）、测验（跳到测验视图） |
 | 页面 | `lms.page.list` / `lms.page.get` | 列表与详情；内部链接改写后在插件内跳转 |
 | 测验 | `lms.quiz.list` | 列表（名称、截止、分值、题目数），在 Canvas 中打开 |
-| Syllabus | `lms.syllabus.get` | 清洗后的 HTML；"智能导入"按钮 → `lms.syllabus.import` → 打开 M08 审核 |
+| Syllabus | `lms.syllabus.get` | 清洗后的 HTML；"读取大纲"按钮 → `lms.syllabus.import` → 打开 M08 审核 |
 
 - 渲染 HTML 时使用共享组件 `<SafeHtml>`（M00），再次过一遍前端净化（DOMPurify），图片懒加载，表格横向滚动。
 - 每个视图都有加载骨架、空状态和错误状态（`lms.invalid_credentials` 时引导到连接设置重新填写令牌；`lms.rate_limited` 时显示稍后重试）。
@@ -135,9 +135,10 @@ defineModule({
   - 文件行只有"下载"和"保存到课程文件"两个按钮：点文件名打开预览（单元和"文件"页一致），不再有单独的预览按钮。
   - "Canvas 样式"不对表格做任何美化：Canvas 自己只在没有 `cellspacing` 时合并边框（有 `cellspacing` 时是 `separate`，否则 preflight 的 collapse 会吃掉间距），网格来自编辑器的 `border` 属性。M09 清洗时保留 `table` 的 `border`/`cellpadding`/`cellspacing`；`.lms-original` 按浏览器的做法补回 `border` 属性画的网格（Tailwind preflight 会把它清掉），`cellpadding` 由 `SafeHtml` 转成单元格内联 padding（只补作者没写的方向），单元格默认 1px 内边距。旧缓存在刷新或过期前仍没有这些属性。
 - **整理（2026-11-22，LMS 评审后）**：
-  - 大纲的智能导入搬进 M09 核心：按钮是 `lms/import/syllabus.tsx` 的 `SyllabusImportButton`，成绩册的导入来源 `lms.syllabus` 走同一个导入，卸载插件后仍可在成绩册里导入大纲。
+  - 大纲导入搬进 M09 核心：按钮是 `lms/import/syllabus.tsx` 的 `SyllabusImportButton`，成绩册的导入来源 `lms.syllabus` 走同一个导入，卸载插件后仍可在成绩册里导入大纲。名称统一：按钮都叫“读取大纲”（原“智能导入”），对话框标题都是“{平台} 课程大纲”；Canvas 上没有大纲时两个入口都不给开始按钮（成绩册入口读同一个 `lms.syllabus.get`）。
+  - 预取的位置与页面同一条规则（`navigation.ts` 的 `canvasLocation`：地址的 `?tab=&ref=` 优先，其次记住的位置，再次首页；M10 页面 `prefetch` 的 options 新增 `search`），各视图首屏读取的 options 只在 `queries.ts` 的 `viewQueries` 定义一次，视图与预取（`placeQueries`）共用。
   - 公告阅读视图显示附件，与「公告」页共用 `lms/content/Attachments.tsx`（课程文件里有的在文件预览中打开，其余在新标签页经 Semestra 打开）。
   - 文件图标与课程文件共用 `files/components/FileIcon`；测验的 `quiz:` 编码只在 `lms/assignment/queries.ts` 的 `quizRef`。
   - 作业表的勾选改用 `useRowSelection` + `SelectionToolbar` + memo 行，勾选时只重绘该行；`useAssignmentDetails` 不再订阅地址，点开时才读路由。
-  - 页面 `prefetch`（`prefetch.ts`）：按记住的位置（`app/ui-pref.ts` 的 `cachedUiPref`）与概览并行预取当前视图的数据，首次打开不再先等概览再发列表请求。
+  - 页面 `prefetch`（`prefetch.ts`）：与概览并行预取要打开的视图的数据，首次打开不再先等概览再发列表请求。
 - **提交状态只有一条规则**（2026-11-22，M09 统一提交状态之后）：徽章与筛选都用 M09 的 `assignmentState(submission, online)`（`lms/assignment/status.ts`，与作业详情、待办卡片同一份）：已评分（缺交被扣成 0 分也只算已评分）、已提交（可带“迟交”）、免交、缺交、未提交（7 天内截止显示“N 天后截止”）、不在线提交（`online=false`，不显示截止）。每行最多落在一个筛选里：已出分 = 已评分，缺交 = 缺交，待完成 = 未提交；免交与不在线提交只在“全部”里。

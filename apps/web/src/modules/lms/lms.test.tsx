@@ -595,8 +595,16 @@ test("the gradebook's syllabus import reads the linked course's syllabus into a 
       return HttpResponse.json({ session_id: 's1', program_id: 'p1', count: 0 })
     }),
     http.get(`${API}/imports/s1`, () => HttpResponse.json({ id: 's1', items: [] })),
+    http.get(`${API}/courses/c1/lms/syllabus`, () => HttpResponse.json({ html: syllabusHtml })),
   )
+  // Nothing on the platform: nothing to read, so no start (as in the Canvas tab).
+  let syllabusHtml: string | null = null
   const onStarted = vi.fn<(session: ImportSessionDetail) => void>()
+  const empty = renderWithRouter(<SyllabusPicker courseId="c1" onStarted={onStarted} />)
+  expect(await screen.findByText('No syllabus on Canvas')).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Read syllabus' })).toBeNull()
+  empty.unmount()
+  syllabusHtml = '<p>Grading: labs 20%</p>'
   renderWithRouter(<SyllabusPicker courseId="c1" onStarted={onStarted} />)
   expect(await screen.findByText('Canvas syllabus')).toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'Read syllabus' }))

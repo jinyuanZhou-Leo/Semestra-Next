@@ -258,7 +258,7 @@ lms_cache  key, user_id, connection_id, scope, payload, expires_at
 - 贡献：
   - 日历源 `lms.events`（M04 `calendarSources`）：在日历筛选面板中按连接显示；事件描述默认以纯文本显示，用户可以在源设置中开启"渲染 HTML 描述"（清洗后，开启前确认，与旧版一致）。
   - `academics.termWizardImportSources`：学期向导中的"从 LMS 导入课程"（要求 Program 已绑定连接，否则引导绑定）。
-  - `grading.assessmentImportSources`：成绩页中的"从 LMS 导入作业"和"{平台} 课程大纲"（`lms.syllabus.import`，读平台上这门课的大纲，打开 M08 审核；需要 `extraction` 用途的模型，未完成的导入用 `lms/import/keys.ts` 的 `syllabusImportKey` 续接，Canvas 标签大纲页的“智能导入”是同一个导入）。
+  - `grading.assessmentImportSources`：成绩页中的"从 LMS 导入作业"和"{平台} 课程大纲"（`lms.syllabus.import`，读平台上这门课的大纲，打开 M08 审核；需要 `extraction` 用途的模型，未完成的导入用 `lms/import/keys.ts` 的 `syllabusImportKey` 续接，Canvas 标签大纲页的“读取大纲”是同一个导入；平台上没有大纲时不给开始按钮）。
   - `academics.courseInfo`：已关联课程显示 provider 徽章、外部代码，以及"在 <provider> 中打开"。
   - Card `lms.announcements`（course/term 作用域，m/l 尺寸）：最近公告；term 作用域时汇总本学期所有已关联课程。
   - Page `announcements`「公告」（course/term 作用域，见 §7 实现说明）与命令面板搜索 `searchProviders: lms.announcements`。

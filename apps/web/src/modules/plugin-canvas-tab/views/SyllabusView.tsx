@@ -1,4 +1,3 @@
-import { lmsSyllabusGetOptions } from '@semestra/api-client/react-query'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { ScrollText } from 'lucide-react'
 import { m } from '@/paraglide/messages'
@@ -7,11 +6,12 @@ import { CanvasBoundary } from '../CanvasBoundary'
 import { useCanvasPage } from '../context'
 import { LmsHtml, ViewHeader } from '@/modules/lms/content/LmsContent'
 import { SyllabusImportButton } from '@/modules/lms/import/syllabus'
+import { viewQueries } from '../queries'
 
 export function SyllabusView() {
   const { programId, courseId, title } = useCanvasPage()
   const syllabus = useQuery({
-    ...lmsSyllabusGetOptions({ path: { course_id: courseId } }),
+    ...viewQueries.syllabus(courseId),
     placeholderData: keepPreviousData,
   })
   return (
@@ -34,7 +34,7 @@ export function SyllabusView() {
                 <EmptyMedia variant="icon">
                   <ScrollText aria-hidden />
                 </EmptyMedia>
-                <EmptyTitle>{m.canvas_tab_syllabus_empty()}</EmptyTitle>
+                <EmptyTitle>{m.lms_syllabus_empty({ provider: m.lms_canvas() })}</EmptyTitle>
               </EmptyHeader>
             </Empty>
           )}

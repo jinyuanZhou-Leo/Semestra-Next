@@ -1,5 +1,4 @@
 import type { AssignmentOut, Quiz } from '@semestra/api-client'
-import { lmsAssignmentListOptions, lmsQuizListOptions } from '@semestra/api-client/react-query'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import {
   type CellContext,
@@ -61,6 +60,7 @@ import { useCanvasPage } from '../context'
 import { ViewHeader } from '@/modules/lms/content/LmsContent'
 import { assignmentState } from '@/modules/lms/assignment/status'
 import { ScoreText, SubmissionStatus } from './common'
+import { viewQueries } from '../queries'
 
 /**
  * A row: a Canvas assignment (a graded quiz is one too, with its quiz alongside), or a practice
@@ -376,13 +376,13 @@ const WIDTHS: Record<string, string> = {
 export function AssignmentsView() {
   const { courseId } = useCanvasPage()
   const list = useQuery({
-    ...lmsAssignmentListOptions({ path: { course_id: courseId } }),
+    ...viewQueries.assignments(courseId),
     placeholderData: keepPreviousData,
   })
   // Without it the table still shows; quizzes then look like plain assignments. A course whose
   // quizzes the instructor hid answers `lms.area_hidden` every time: not asked again.
   const quizzes = useQuery({
-    ...lmsQuizListOptions({ path: { course_id: courseId } }),
+    ...viewQueries.quizzes(courseId),
     placeholderData: keepPreviousData,
     retry: (failures, error) => errorCode(error) !== 'lms.area_hidden' && failures < 3,
   }).data?.items

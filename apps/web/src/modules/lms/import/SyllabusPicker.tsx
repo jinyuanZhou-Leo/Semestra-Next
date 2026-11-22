@@ -1,5 +1,5 @@
 import type { ImportSessionDetail } from '@semestra/api-client'
-import { lmsCourseLinkGetOptions } from '@semestra/api-client/react-query'
+import { lmsCourseLinkGetOptions, lmsSyllabusGetOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowRight, Link2, ScrollText } from 'lucide-react'
 import { useState } from 'react'
@@ -43,7 +43,7 @@ export function SyllabusPicker({
     <AsyncBoundary query={state}>
       {(data) =>
         data.link ? (
-          <Start courseId={courseId} kind={data.link.provider} onStarted={onStarted} />
+          <Linked courseId={courseId} kind={data.link.provider} onStarted={onStarted} />
         ) : data.program_connection_id ? (
           <Empty className="min-h-0 flex-1">
             <EmptyHeader>
@@ -61,6 +61,41 @@ export function SyllabusPicker({
           </Empty>
         ) : (
           <ProgramUnbound />
+        )
+      }
+    </AsyncBoundary>
+  )
+}
+
+/**
+ * A linked course: its syllabus as the Canvas tab shows it (the same read, usually cached). With
+ * nothing on the platform there is nothing to read, so no start, as in the Canvas tab.
+ */
+function Linked({
+  courseId,
+  kind,
+  onStarted,
+}: {
+  courseId: string
+  kind: string
+  onStarted: (session: ImportSessionDetail) => void
+}) {
+  const provider = useProviderName(kind) ?? kind
+  const syllabus = useQuery(lmsSyllabusGetOptions({ path: { course_id: courseId } }))
+  return (
+    <AsyncBoundary query={syllabus}>
+      {(data) =>
+        data.html ? (
+          <Start courseId={courseId} kind={kind} onStarted={onStarted} />
+        ) : (
+          <Empty className="min-h-0 flex-1">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <ScrollText aria-hidden />
+              </EmptyMedia>
+              <EmptyTitle>{m.lms_syllabus_empty({ provider })}</EmptyTitle>
+            </EmptyHeader>
+          </Empty>
         )
       }
     </AsyncBoundary>

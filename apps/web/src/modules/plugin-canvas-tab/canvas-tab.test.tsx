@@ -18,6 +18,8 @@ import { API, apiError, newQueryClient, renderWithQuery, server } from '@/test-u
 import CanvasCoursePage from './CanvasCoursePage'
 import canvasTab from './manifest'
 import { homeView, navEntries, resolveLocation } from './navigation'
+import { prefetchUiPrefs } from '@/app/ui-pref'
+import { prefetchCanvasPage } from './prefetch'
 
 const openImport = vi.hoisted(() =>
   vi.fn<(request: unknown) => Promise<null>>(() => Promise.resolve(null)),
@@ -136,7 +138,16 @@ beforeEach(() => {
   display = 'simplified'
   puts.mockClear()
   server.use(
-    // No syllabus import waiting (the smart import button follows it).
+    // The Program's platform names the syllabus import.
+    http.get(`${API}/programs/p1/lms-binding`, () =>
+      HttpResponse.json({
+        program_id: 'p1',
+        connection_id: 'k1',
+        connection: { id: 'k1', provider: 'canvas' },
+        link_count: 1,
+      }),
+    ),
+    // No syllabus import waiting (the syllabus button follows it).
     http.get(`${API}/programs/:programId/imports`, () =>
       HttpResponse.json({ items: [], next_cursor: null }),
     ),
@@ -207,6 +218,30 @@ function renderPage(path = '/') {
 }
 
 // --- pure rules ------------------------------------------------------------------------------
+
+test('opened from a link, the prefetch reads what the link shows, not where the tab was left', async () => {
+  saved = { 'canvas-tab.location.c1': { tab: 'files' } }
+  const asked = vi.fn<(path: string) => void>()
+  server.use(
+    http.get(`${API}/courses/c1/lms/announcements`, () => {
+      asked('announcements')
+      return HttpResponse.json(ANNOUNCEMENTS)
+    }),
+    http.get(`${API}/courses/c1/lms/folder`, () => {
+      asked('folder')
+      return HttpResponse.json({})
+    }),
+  )
+  const queryClient = newQueryClient()
+  await prefetchUiPrefs(queryClient, ['canvas-tab.'])
+  const scope: Scope = { kind: 'course', programId: 'p1', courseId: 'c1' }
+  prefetchCanvasPage(scope, queryClient, {
+    preload: false,
+    search: { tab: 'announcements', ref: 'a1' },
+  })
+  await waitFor(() => expect(asked).toHaveBeenCalledWith('announcements'))
+  expect(asked).not.toHaveBeenCalledWith('folder')
+})
 
 test('the menu mirrors Canvas: native views, external tools, unknown tabs; discussions hidden', () => {
   const entries = navEntries(NAV)
@@ -624,7 +659,7 @@ test('a module file can be saved to the course files', async () => {
   )
 })
 
-test('smart import of the syllabus opens its review', async () => {
+test('reading the syllabus opens its review', async () => {
   const started = vi.fn<() => void>()
   server.use(
     http.get(`${API}/courses/c1/lms/syllabus`, () =>
@@ -636,7 +671,7 @@ test('smart import of the syllabus opens its review', async () => {
     }),
   )
   renderPage('/?tab=syllabus')
-  await userEvent.click(await screen.findByRole('button', { name: 'Smart import' }))
+  await userEvent.click(await screen.findByRole('button', { name: 'Read syllabus' }))
   await waitFor(() =>
     expect(openImport).toHaveBeenCalledWith(
       expect.objectContaining({ source: 'session', sessionId: 's2' }),

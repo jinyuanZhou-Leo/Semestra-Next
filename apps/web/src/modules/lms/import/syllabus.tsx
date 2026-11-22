@@ -12,6 +12,7 @@ import { sessionRequest, useUnfinishedImport } from '@/modules/imports/unfinishe
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Spinner } from '@/ui/spinner'
+import { useProgramProviderName } from '../providers'
 import { syllabusImportKey } from './keys'
 
 /** Reads the course's syllabus on the platform into a new import: its session id. */
@@ -21,7 +22,7 @@ export async function startSyllabusImport(courseId: string): Promise<string> {
 }
 
 /**
- * "Smart import" next to a syllabus shown from the platform (the Canvas tab): the grading scheme
+ * "Read syllabus" next to a syllabus shown from the platform (the Canvas tab): the grading scheme
  * and dates read from it, reviewed in the import dialog (M08). The button follows the course's
  * unfinished syllabus import on the server, the one the gradebook's "Add" menu starts too: while
  * it is read it shows how far, once read "To review", and either opens the dialog where it
@@ -38,6 +39,10 @@ export function SyllabusImportButton({
   const waiting = useUnfinishedImport(programId, syllabusImportKey(courseId))
   const state = useImportState(waiting)
   const [starting, setStarting] = useState(false)
+  // The same name as the gradebook's entry for this import: "{provider} syllabus".
+  const provider = useProgramProviderName(programId)
+  const title = () =>
+    provider ? m.lms_import_syllabus_from({ provider }) : m.lms_import_syllabus()
   const start = () => {
     setStarting(true)
     startSyllabusImport(courseId)
@@ -49,15 +54,14 @@ export function SyllabusImportButton({
           mode: 'direct',
           source: 'session',
           sessionId,
-          title: m.lms_syllabus_import,
+          title,
         })
       })
       .catch(toastError)
       .finally(() => setStarting(false))
   }
   if (waiting && state) {
-    const review = () =>
-      void openImport({ ...sessionRequest(waiting), title: m.lms_syllabus_import })
+    const review = () => void openImport({ ...sessionRequest(waiting), title })
     return state.reading || state.failed ? (
       <Button variant="outline" onClick={review}>
         {state.failed ? (
@@ -75,7 +79,7 @@ export function SyllabusImportButton({
     <AiRequired purpose="extraction">
       <AiAction
         state={starting ? 'running' : 'idle'}
-        label={m.lms_syllabus_import()}
+        label={m.lms_syllabus_read()}
         onClick={start}
       />
     </AiRequired>
