@@ -1,4 +1,5 @@
 import type { AssignmentOut } from '@semestra/api-client'
+import { formatDaysUntil } from '@/lib/format'
 import { m } from '@/paraglide/messages'
 
 /**
@@ -6,6 +7,23 @@ import { m } from '@/paraglide/messages'
  * the details, the to-do's card and the Canvas tab's badges and filters only show it.
  */
 export type AssignmentState = AssignmentOut['state']
+
+/** Whether the due date still matters, as the server works it out (M09 table 3d). */
+export type DueState = AssignmentOut['due_state']
+
+/** The due hint table 3d gives a due state: "Due in 3 days", "Past due", "Overdue"; none for `none`. */
+export function dueHint(
+  dueState: DueState,
+  dueAt: string | null | undefined,
+  now: number,
+): string | null {
+  if (dueState === 'upcoming' && dueAt) {
+    return m.lms_assignment_due_in({ when: formatDaysUntil(new Date(dueAt), now) })
+  }
+  if (dueState === 'past') return m.lms_assignment_past_due()
+  if (dueState === 'overdue') return m.lms_assignment_overdue()
+  return null
+}
 
 export const STATE_LABELS: Record<AssignmentState, () => string> = {
   graded: m.lms_assignment_graded,

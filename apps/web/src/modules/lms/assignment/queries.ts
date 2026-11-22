@@ -35,11 +35,12 @@ function listed(
   for (const [, list] of lists) {
     const found = list?.items.find((a) => a.external_id === assignmentId)
     if (found) {
-      const { submission, state, ...assignment } = found
+      const { submission, state, due_state, ...assignment } = found
       return {
         provider: '',
         assignment,
         state,
+        due_state,
         submission: submission
           ? { external_id: '', assignment_id: assignmentId, ...submission }
           : null,

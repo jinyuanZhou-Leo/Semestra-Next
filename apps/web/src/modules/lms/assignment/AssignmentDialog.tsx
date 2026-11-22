@@ -225,6 +225,7 @@ function Details({ target, onClose }: { target: AssignmentTarget; onClose: () =>
                 assignment={a}
                 submission={s}
                 state={state}
+                dueState={detail.due_state}
                 practice={practice}
                 now={d.now}
               />

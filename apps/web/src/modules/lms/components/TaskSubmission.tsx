@@ -50,9 +50,7 @@ function Card({
       </ItemMedia>
       <ItemContent>
         <ItemTitle>{linked ?? bound ?? m.lms_platform()}</ItemTitle>
-        {target.state ? (
-          <ItemDescription>{status(target.state, target.submitted_at)}</ItemDescription>
-        ) : null}
+        {target.state ? <ItemDescription>{status(target, target.state)}</ItemDescription> : null}
       </ItemContent>
       <ItemActions>
         <Button
@@ -70,12 +68,21 @@ function Card({
   )
 }
 
-/** How it stands on the platform, as the sync last read it: "Submitted Nov 20, 18:00". */
-function status(
-  state: NonNullable<AssignmentTarget['state']>,
-  submittedAt: string | null | undefined,
-): string {
-  return state === 'submitted' && submittedAt
-    ? m.lms_task_submitted({ time: formatDateTime(new Date(submittedAt)) })
-    : STATE_LABELS[state]()
+/**
+ * How it stands on the platform, as the sync last read it (M09 table 3b): "Submitted Nov 20,
+ * 18:00", with the missing and late markers: "Graded · Missing". Before the first sync there is
+ * no state and no line.
+ */
+function status(t: AssignmentTarget, state: NonNullable<AssignmentTarget['state']>): string {
+  const label =
+    state === 'submitted' && t.submitted_at
+      ? m.lms_task_submitted({ time: formatDateTime(new Date(t.submitted_at)) })
+      : STATE_LABELS[state]()
+  return [
+    label,
+    t.missing && state === 'graded' ? m.lms_assignment_missing() : null,
+    t.late && (state === 'graded' || state === 'submitted') ? m.lms_assignment_late() : null,
+  ]
+    .filter(Boolean)
+    .join(' · ')
 }

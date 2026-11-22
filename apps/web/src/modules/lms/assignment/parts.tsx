@@ -5,7 +5,7 @@ import { CircleAlert, ListChecks, Plus } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { SafeHtml } from '@/components/SafeHtml'
 import { errorMessage } from '@/lib/errors'
-import { formatBytes, formatDateTime, formatDaysUntil, formatPercent } from '@/lib/format'
+import { formatBytes, formatDateTime, formatPercent } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { Concealed } from '@/modules/grading/components/GradeValue'
 import { m } from '@/paraglide/messages'
@@ -15,7 +15,14 @@ import { Skeleton } from '@/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import type { Assignment } from './queries'
-import { type AssignmentState, STATE_LABELS, latenessLabel, submissionTypeLabel } from './status'
+import {
+  type AssignmentState,
+  type DueState,
+  STATE_LABELS,
+  dueHint,
+  latenessLabel,
+  submissionTypeLabel,
+} from './status'
 
 /**
  * The leaves of the assignment details (M09 §7.3), shared by the dialog and the phone's page:
@@ -40,15 +47,15 @@ export function AssignmentStatus({
   assignment: a,
   submission: s,
   state,
+  dueState,
   practice,
   now,
-}: Shown & { practice: boolean; now: number }) {
+}: Shown & { dueState: DueState; practice: boolean; now: number }) {
   const late = s?.late
     ? s.points_deducted
       ? m.lms_assignment_late_deducted({ points: points(s.points_deducted) })
       : m.lms_assignment_late()
     : null
-  const due = a.due_at ? new Date(a.due_at) : null
   const line = practice
     ? m.lms_assignment_practice_note()
     : state === 'graded'
@@ -56,6 +63,7 @@ export function AssignmentStatus({
           m.lms_assignment_graded(),
           s?.score != null && a.points ? formatPercent(s.score / a.points) : null,
           s?.grade && s.grade !== String(s.score) ? s.grade : null,
+          s?.missing ? m.lms_assignment_missing() : null,
           late,
         ]
       : state === 'submitted'
@@ -65,13 +73,9 @@ export function AssignmentStatus({
               : null,
             late,
           ]
-        : state === 'excused' || state === 'offline'
+        : state === 'excused'
           ? null
-          : due === null
-            ? m.lms_assignment_no_due()
-            : due.getTime() > now
-              ? m.lms_assignment_due_in({ when: formatDaysUntil(due, now) })
-              : m.lms_assignment_past_due()
+          : (dueHint(dueState, a.due_at, now) ?? m.lms_assignment_no_due())
   const text = Array.isArray(line) ? line.filter(Boolean).join(' · ') : line
   return (
     <div className="min-w-0">

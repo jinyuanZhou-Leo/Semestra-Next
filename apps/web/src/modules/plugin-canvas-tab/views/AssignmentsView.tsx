@@ -98,7 +98,9 @@ function rowsOf(assignments: readonly AssignmentOut[], quizzes: readonly Quiz[])
         allowed_attempts: q.allowed_attempts,
         imported_as: null,
         online: true,
+        // Not shown: a practice quiz has no assignment, so no state or due hint (StatusCell).
         state: 'unsubmitted',
+        due_state: 'none',
         // Not graded: no assignment behind it.
         is_quiz: false,
       },
@@ -305,11 +307,14 @@ const ScoreCell = ({ row }: CellProps) => (
 
 function StatusCell({ row }: CellProps) {
   const { now } = useTableState()
+  if (row.original.practice) return null
   const a = row.original.assignment
   return (
     <SubmissionStatus
       state={a.state}
+      missing={a.submission?.missing ?? false}
       late={a.submission?.late ?? false}
+      dueState={a.due_state}
       dueAt={a.due_at}
       now={now}
     />

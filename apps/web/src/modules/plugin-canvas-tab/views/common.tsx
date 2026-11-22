@@ -1,6 +1,10 @@
 import { ExternalLink, Lock } from 'lucide-react'
-import { formatDaysUntil } from '@/lib/format'
-import { type AssignmentState, STATE_LABELS } from '@/modules/lms/assignment/status'
+import {
+  type AssignmentState,
+  type DueState,
+  STATE_LABELS,
+  dueHint,
+} from '@/modules/lms/assignment/status'
 import { m } from '@/paraglide/messages'
 import { Alert, AlertDescription, AlertTitle } from '@/ui/alert'
 import { Badge } from '@/ui/badge'
@@ -59,58 +63,73 @@ export function ScoreText({
   )
 }
 
-/** Unsubmitted work due within this many days says so. */
-const DUE_SOON_DAYS = 7
-const DAY_MS = 86_400_000
-
 /**
- * Where the user is with an assignment (the server's `state`), as badges: graded or submitted
- * (late), excused, missing, due soon, not submitted, or no online submission (never "due"); the
- * same in the assignments, quizzes and grades (M16 §4). `now` is read once by the caller.
+ * Where the user is with an assignment, as M09 tables 3b and 3d give it: the state's badge, the
+ * missing and late markers beside it, and the due hint; the same in the assignments, quizzes and
+ * grades (M16). A missing assignment's badge already says so, so it has no due hint.
  */
 export function SubmissionStatus({
   state,
-  late: isLate,
+  missing,
+  late,
+  dueState,
   dueAt,
   now,
 }: {
   state: AssignmentState
+  missing: boolean
   late: boolean
+  dueState: DueState
   dueAt: string | null | undefined
   now: number
 }) {
-  const late = isLate ? <Badge variant="outline">{m.lms_assignment_late()}</Badge> : null
-  switch (state) {
-    case 'missing':
-      return <Badge variant="destructive">{STATE_LABELS.missing()}</Badge>
-    case 'graded':
-    case 'submitted':
-      return (
-        <span className="flex items-center gap-1">
-          <Badge variant="secondary">{STATE_LABELS[state]()}</Badge>
-          {late}
-        </span>
-      )
-    case 'excused':
-      return <Badge variant="secondary">{STATE_LABELS.excused()}</Badge>
-    case 'offline':
-      return (
-        <span className="whitespace-nowrap text-muted-foreground">{STATE_LABELS.offline()}</span>
-      )
-    case 'unsubmitted': {
-      const due = dueAt ? new Date(dueAt).getTime() : null
-      if (due != null && due > now && due - now <= DUE_SOON_DAYS * DAY_MS) {
-        return (
-          <Badge variant="outline" className="border-primary/40 text-primary">
-            {m.canvas_tab_due_relative({ time: formatDaysUntil(new Date(due), now) })}
-          </Badge>
-        )
-      }
-      return (
-        <span className="whitespace-nowrap text-muted-foreground">
-          {STATE_LABELS.unsubmitted()}
-        </span>
-      )
-    }
+  const hint = state === 'missing' ? null : dueHint(dueState, dueAt, now)
+  const markers = [
+    missing && state === 'graded' ? (
+      <Badge key="missing" variant="outline" className="border-destructive/40 text-destructive">
+        {STATE_LABELS.missing()}
+      </Badge>
+    ) : null,
+    late && (state === 'graded' || state === 'submitted') ? (
+      <Badge key="late" variant="outline">
+        {m.lms_assignment_late()}
+      </Badge>
+    ) : null,
+  ]
+  const badge =
+    state === 'missing' ? (
+      <Badge variant="destructive">{STATE_LABELS.missing()}</Badge>
+    ) : state === 'unsubmitted' || state === 'offline' ? (
+      hint === null || state === 'offline' ? (
+        <span className="whitespace-nowrap text-muted-foreground">{STATE_LABELS[state]()}</span>
+      ) : null
+    ) : (
+      <Badge variant="secondary">{STATE_LABELS[state]()}</Badge>
+    )
+  return (
+    <span className="flex items-center gap-1">
+      {badge}
+      {markers}
+      {hint ? <DueHint dueState={dueState}>{hint}</DueHint> : null}
+    </span>
+  )
+}
+
+/** Table 3d's look: upcoming in the accent, overdue in red, past (can't tell if done) muted. */
+function DueHint({ dueState, children }: { dueState: DueState; children: string }) {
+  if (dueState === 'past') {
+    return <span className="whitespace-nowrap text-muted-foreground">{children}</span>
   }
+  return (
+    <Badge
+      variant="outline"
+      className={
+        dueState === 'overdue'
+          ? 'border-destructive/40 text-destructive'
+          : 'border-primary/40 text-primary'
+      }
+    >
+      {children}
+    </Badge>
+  )
 }

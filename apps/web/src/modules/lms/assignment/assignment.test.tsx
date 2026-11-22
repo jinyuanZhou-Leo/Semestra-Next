@@ -18,6 +18,7 @@ const PhoneHost = assignmentHost(AssignmentSheet)
 
 const LAB: AssignmentDetail = {
   provider: 'canvas',
+  due_state: 'none',
   assignment: {
     external_id: 'a1',
     name: 'Lab 1',
