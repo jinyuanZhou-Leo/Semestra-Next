@@ -70,7 +70,10 @@ function Card({
 
 /** How it stands on the platform, as the sync last read it: "Submitted Nov 20, 18:00". */
 function status(t: AssignmentTarget): string {
-  const state = assignmentState(t.status ? { status: t.status, missing: t.missing } : null, t.online)
+  const state = assignmentState(
+    t.status ? { status: t.status, missing: t.missing } : null,
+    t.online,
+  )
   return state === 'submitted' && t.submitted_at
     ? m.lms_task_submitted({ time: formatDateTime(new Date(t.submitted_at)) })
     : STATE_LABELS[state]()

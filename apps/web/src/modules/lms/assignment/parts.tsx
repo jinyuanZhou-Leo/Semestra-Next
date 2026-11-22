@@ -15,13 +15,7 @@ import { Skeleton } from '@/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import type { Assignment } from './queries'
-import {
-  STATE_LABELS,
-  assignmentState,
-  isOpen,
-  latenessLabel,
-  submissionTypeLabel,
-} from './status'
+import { STATE_LABELS, assignmentState, isOpen, latenessLabel, submissionTypeLabel } from './status'
 
 /**
  * The leaves of the assignment details (M09 §7.3), shared by the dialog and the phone's page:

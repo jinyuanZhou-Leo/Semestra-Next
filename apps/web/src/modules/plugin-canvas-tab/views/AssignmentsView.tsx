@@ -290,9 +290,7 @@ const ScoreCell = ({ row }: CellProps) => (
 function StatusCell({ row }: CellProps) {
   const { now } = useTableState()
   const a = row.original.assignment
-  return (
-    <SubmissionStatus submission={a.submission} online={a.online} dueAt={a.due_at} now={now} />
-  )
+  return <SubmissionStatus submission={a.submission} online={a.online} dueAt={a.due_at} now={now} />
 }
 
 type SortValue = string | number | null
