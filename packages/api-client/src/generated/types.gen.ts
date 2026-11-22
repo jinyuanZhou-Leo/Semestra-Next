@@ -1267,6 +1267,12 @@ export type AssignmentFacts = {
      * A graded quiz
      */
     readonly is_quiz: boolean;
+    /**
+     * State
+     *
+     * Where the user is with it (`rules.assignment_state`)
+     */
+    readonly state: 'graded' | 'excused' | 'submitted' | 'missing' | 'offline' | 'unsubmitted';
 };
 
 /**
@@ -1409,6 +1415,12 @@ export type AssignmentOut = {
      * A graded quiz
      */
     readonly is_quiz: boolean;
+    /**
+     * State
+     *
+     * Where the user is with it (`rules.assignment_state`)
+     */
+    readonly state: 'graded' | 'excused' | 'submitted' | 'missing' | 'offline' | 'unsubmitted';
 };
 
 /**
@@ -1481,6 +1493,12 @@ export type AssignmentTarget = {
      * Handed in on the platform (not on paper or not at all)
      */
     online?: boolean;
+    /**
+     * State
+     *
+     * Where the user is with it (`rules.assignment_state`); None until the sync has read it
+     */
+    readonly state: 'graded' | 'excused' | 'submitted' | 'missing' | 'offline' | 'unsubmitted' | null;
 };
 
 /**
@@ -14332,6 +14350,74 @@ export type AssignmentOutWritable = {
 };
 
 /**
+ * AssignmentTarget
+ */
+export type AssignmentTargetWritable = {
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * Assignment Id
+     *
+     * The assignment's external id
+     */
+    assignment_id: string;
+    /**
+     * Assessment Id
+     */
+    assessment_id?: string | null;
+    /**
+     * Task Id
+     *
+     * Set for an assignment imported as a to-do only
+     */
+    task_id?: string | null;
+    /**
+     * Feedback
+     *
+     * The teacher left comments or rubric scores on the assessment
+     */
+    feedback?: boolean;
+    /**
+     * Status
+     *
+     * Where the user's submission stands as of the last sync; None until the sync has read it
+     */
+    status?: 'unsubmitted' | 'submitted' | 'graded' | 'excused' | null;
+    /**
+     * Missing
+     */
+    missing?: boolean;
+    /**
+     * Late
+     */
+    late?: boolean;
+    /**
+     * Submitted At
+     */
+    submitted_at?: string | null;
+    /**
+     * Online
+     *
+     * Handed in on the platform (not on paper or not at all)
+     */
+    online?: boolean;
+};
+
+/**
+ * AssignmentTargets
+ */
+export type AssignmentTargetsWritable = {
+    /**
+     * Items
+     *
+     * The Program's assessments and to-dos that are an assignment of the platform
+     */
+    items: Array<AssignmentTargetWritable>;
+};
+
+/**
  * ConnectionCreateInputBody
  */
 export type ConnectionCreateInputBodyWritable = {
@@ -21201,11 +21287,11 @@ export type LmsAssignmentListData = {
          */
         refresh?: boolean;
         /**
-         * Status
+         * State
          *
-         * Only those due later and not handed in (upcoming), past due and not handed in (missing), or graded
+         * Only those in this state: unsubmitted (still to hand in online), missing (marked missing by the LMS), offline (not handed in on the LMS), submitted, graded or excused. With `due_after`/`due_before` for what is due when
          */
-        status?: 'upcoming' | 'missing' | 'graded' | null;
+        state?: 'graded' | 'excused' | 'submitted' | 'missing' | 'offline' | 'unsubmitted' | null;
         /**
          * Due After
          *

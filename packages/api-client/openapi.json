@@ -12258,16 +12258,19 @@
             "description": "Skip the 5-minute cache and ask again"
           },
           {
-            "name": "status",
+            "name": "state",
             "in": "query",
             "required": false,
             "schema": {
               "anyOf": [
                 {
                   "enum": [
-                    "upcoming",
+                    "graded",
+                    "excused",
+                    "submitted",
                     "missing",
-                    "graded"
+                    "offline",
+                    "unsubmitted"
                   ],
                   "type": "string"
                 },
@@ -12275,10 +12278,10 @@
                   "type": "null"
                 }
               ],
-              "description": "Only those due later and not handed in (upcoming), past due and not handed in (missing), or graded",
-              "title": "Status"
+              "description": "Only those in this state: unsubmitted (still to hand in online), missing (marked missing by the LMS), offline (not handed in on the LMS), submitted, graded or excused. With `due_after`/`due_before` for what is due when",
+              "title": "State"
             },
-            "description": "Only those due later and not handed in (upcoming), past due and not handed in (missing), or graded"
+            "description": "Only those in this state: unsubmitted (still to hand in online), missing (marked missing by the LMS), offline (not handed in on the LMS), submitted, graded or excused. With `due_after`/`due_before` for what is due when"
           },
           {
             "name": "due_after",
@@ -22315,6 +22318,20 @@
             "title": "Is Quiz",
             "description": "A graded quiz",
             "readOnly": true
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "graded",
+              "excused",
+              "submitted",
+              "missing",
+              "offline",
+              "unsubmitted"
+            ],
+            "title": "State",
+            "description": "Where the user is with it (`rules.assignment_state`)",
+            "readOnly": true
           }
         },
         "type": "object",
@@ -22322,7 +22339,8 @@
           "external_id",
           "name",
           "online",
-          "is_quiz"
+          "is_quiz",
+          "state"
         ],
         "title": "AssignmentFacts",
         "description": "The assignment as `AssignmentDetail` gives it (its own name in the API: the AI module has\nan `Assignment` too)."
@@ -22610,6 +22628,20 @@
             "title": "Is Quiz",
             "description": "A graded quiz",
             "readOnly": true
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "graded",
+              "excused",
+              "submitted",
+              "missing",
+              "offline",
+              "unsubmitted"
+            ],
+            "title": "State",
+            "description": "Where the user is with it (`rules.assignment_state`)",
+            "readOnly": true
           }
         },
         "type": "object",
@@ -22618,7 +22650,8 @@
           "name",
           "imported_as",
           "online",
-          "is_quiz"
+          "is_quiz",
+          "state"
         ],
         "title": "AssignmentOut"
       },
@@ -22734,12 +22767,34 @@
             "title": "Online",
             "description": "Handed in on the platform (not on paper or not at all)",
             "default": true
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "graded",
+                  "excused",
+                  "submitted",
+                  "missing",
+                  "offline",
+                  "unsubmitted"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State",
+            "description": "Where the user is with it (`rules.assignment_state`); None until the sync has read it",
+            "readOnly": true
           }
         },
         "type": "object",
         "required": [
           "course_id",
-          "assignment_id"
+          "assignment_id",
+          "state"
         ],
         "title": "AssignmentTarget"
       },

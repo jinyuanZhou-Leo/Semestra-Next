@@ -3,11 +3,11 @@
 from datetime import date, datetime
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, BeforeValidator, Field, SecretStr
+from pydantic import BaseModel, BeforeValidator, Field, SecretStr, computed_field
 
 from semestra.core.capability import HTTP_ONLY
 from semestra.modules.academics.schemas import Id
-from semestra.modules.lms.rules import SubmissionStatus
+from semestra.modules.lms.rules import AssignmentState, SubmissionStatus, assignment_state
 from semestra.modules.lms.schemas.dto import (
     Assignment,
     Attachment,
@@ -438,10 +438,11 @@ AssignmentField = Literal[
 
 
 class AssignmentsInput(CourseReadInput):
-    status: Literal["upcoming", "missing", "graded"] | None = Field(
+    state: AssignmentState | None = Field(
         default=None,
-        description="Only those due later and not handed in (upcoming), past due and not handed "
-        "in (missing), or graded",
+        description="Only those in this state: unsubmitted (still to hand in online), missing "
+        "(marked missing by the LMS), offline (not handed in on the LMS), submitted, graded or "
+        "excused. With `due_after`/`due_before` for what is due when",
     )
     due_after: datetime | None = Field(
         default=None, description="Only those due after this (no offset: the Program's time)"
@@ -655,6 +656,14 @@ class AssignmentTarget(BaseModel):
     online: bool = Field(
         default=True, description="Handed in on the platform (not on paper or not at all)"
     )
+
+    @computed_field(description="Where the user is with it (`rules.assignment_state`); None "
+                    "until the sync has read it")  # fmt: skip
+    @property
+    def state(self) -> AssignmentState | None:
+        if self.status is None:
+            return None
+        return assignment_state(self.status, missing=self.missing, online=self.online)
 
 
 class AssignmentTargets(BaseModel):

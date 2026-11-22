@@ -247,7 +247,7 @@ async def assignments(ctx: Ctx, inp: AssignmentsInput) -> AssignmentList:
     items = [
         {**a, "ref": f"assignment:{a['external_id']}", "imported_as": targets.get(a["external_id"])}
         for a in data
-        if _wanted(ctx, a, inp, after, before)
+        if _wanted(a, inp, after, before)
     ]
     totals: list[Any] = []
     if inp.include_total and "grades" in linked[1].provider.features:
@@ -280,7 +280,6 @@ async def _totals_fetch(b: Bound, i: Any, ext: str) -> Any:
 
 
 def _wanted(
-    ctx: Ctx,
     a: dict[str, Any],
     inp: AssignmentsInput,
     after: datetime | None,
@@ -291,7 +290,7 @@ def _wanted(
         return False
     if before and (due is None or due > before):
         return False
-    return inp.status is None or rules.bucket(a, ctx.now) == inp.status
+    return inp.state is None or rules.state_of(a) == inp.state
 
 
 async def grades(ctx: Ctx, course_id: str, refresh: bool) -> GradeList:

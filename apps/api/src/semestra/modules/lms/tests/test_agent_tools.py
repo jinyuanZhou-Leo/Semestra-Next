@@ -230,7 +230,7 @@ async def test_assignment_list_filters_and_gives_refs(api: Api, fake: FakeProvid
     fake.course_assignments["101"][0].submission = Submission(score=9)
     graded = await api.call(
         "GET", f"/courses/{course}/lms/assignments",
-        params={"status": "graded", "include_total": True},
+        params={"state": "graded", "include_total": True},
     )  # fmt: skip
     assert [(a["ref"], a["name"]) for a in graded["items"]] == [("assignment:a1", "Lab 1")]
     assert graded["totals"][0]["score"] == 91.5
@@ -338,32 +338,33 @@ async def test_missing_follows_the_platform_and_skips_work_handed_in_elsewhere(
     lab1.submission = Submission(missing=True)
     lab2.submission = Submission(missing=False)  # excused, say
     midterm.submission_types = ["on_paper"]
-    out = await api.call("GET", f"/courses/{course}/lms/assignments", params={"status": "missing"})
+    out = await api.call("GET", f"/courses/{course}/lms/assignments", params={"state": "missing"})
     assert [a["name"] for a in out["items"]] == ["Lab 1"]
 
 
-async def test_each_assignment_falls_in_one_status_filter_at_most(api: Api, fake: FakeProvider):
+async def test_each_assignment_is_in_one_state(api: Api, fake: FakeProvider):
     course, _ = await _linked(api)
     lab1, lab2, midterm = fake.course_assignments["101"]
     past = datetime.fromisoformat("2026-01-10T12:00:00+00:00")
     later = datetime.fromisoformat("2026-02-10T12:00:00+00:00")
     # Missing on the platform, then graded zero: graded only.
     lab1.due_at, lab1.submission = past, Submission(missing=True, score=0)
-    # Excused before it was due: neither upcoming nor missing.
+    # Excused before it was due.
     lab2.due_at, lab2.submission = later, Submission(excused=True)
     # Handed in on paper, never marked: not missing however late.
     midterm.due_at, midterm.submission_types, midterm.submission = past, ["on_paper"], None
 
-    async def names(status: str) -> list[str]:
-        out = await api.call("GET", f"/courses/{course}/lms/assignments", params={"status": status})
+    async def names(state: str) -> list[str]:
+        out = await api.call("GET", f"/courses/{course}/lms/assignments", params={"state": state})
         return [a["name"] for a in out["items"]]
 
     assert await names("graded") == ["Lab 1"]
     assert await names("missing") == []
-    assert await names("upcoming") == []
+    assert await names("unsubmitted") == []
+    assert await names("offline") == ["Midterm"]
     listed = await api.call("GET", f"/courses/{course}/lms/assignments")
-    statuses = {a["name"]: (a["submission"] or {}).get("status") for a in listed["items"]}
-    assert statuses == {"Lab 1": "graded", "Lab 2": "excused", "Midterm": None}
+    states = {a["name"]: a["state"] for a in listed["items"]}
+    assert states == {"Lab 1": "graded", "Lab 2": "excused", "Midterm": "offline"}
 
 
 async def test_a_refusal_is_a_hidden_area_only_when_the_menu_says_so(

@@ -1,6 +1,5 @@
 """The per-field sync decision (M09 §4.1), every state combination."""
 
-from datetime import UTC, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -9,11 +8,11 @@ import pytest
 from semestra.modules.lms.older_backups import materials_from_programs
 from semestra.modules.lms.rules import (
     Action,
-    bucket,
     diverged,
     merge,
     platform_value,
     same,
+    state_of,
     submission_status,
 )
 
@@ -133,15 +132,34 @@ def test_submission_status(name: str, kw: dict[str, Any], status: str):
     assert submission_status(**(facts | kw)) == status
 
 
-def test_the_filter_reads_the_submission_itself():
-    """A list read before `status` was part of the reads (still in the cache) is sorted the
-    same: from the submission's own fields."""
-    now = datetime(2026, 1, 15, tzinfo=UTC)
-    graded = {"due_at": "2026-01-10T12:00:00+00:00", "submission": {"score": 9}}
-    waiting = {"submission": {"score": 9, "needs_grading": True, "submitted_at": "2026-01-12"}}
-    on_paper = {"due_at": "2026-01-10T12:00:00+00:00", "submission_types": ["on_paper"]}
-    late = {"due_at": "2026-01-10T12:00:00+00:00", "submission_types": ["online_upload"]}
-    assert bucket(graded, now) == "graded"
-    assert bucket(waiting, now) is None
-    assert bucket(on_paper, now) is None
-    assert bucket(late, now) == "missing"
+@pytest.mark.parametrize(
+    ("name", "assignment", "state"),
+    [
+        ("graded", {"submission": {"score": 9}}, "graded"),
+        ("excused", {"submission": {"excused": True, "missing": True}}, "excused"),
+        (
+            "waiting on the teacher",
+            {"submission": {"score": 9, "needs_grading": True, "submitted_at": "2026-01-12"}},
+            "submitted",
+        ),
+        ("marked missing", {"submission": {"missing": True}}, "missing"),
+        (
+            "on paper, marked missing",
+            {"submission_types": ["on_paper"], "submission": {"missing": True}},
+            "missing",
+        ),
+        ("on paper", {"submission_types": ["on_paper"]}, "offline"),
+        ("nothing to hand in", {"submission_types": ["none"]}, "offline"),
+        # Past due without the platform's flag: can still be handed in late.
+        (
+            "past due, not marked",
+            {"due_at": "2026-01-10T12:00:00+00:00", "submission_types": ["online_upload"]},
+            "unsubmitted",
+        ),
+        ("no ways given", {}, "unsubmitted"),
+    ],
+)
+def test_assignment_state(name: str, assignment: dict[str, Any], state: str):
+    """Read from the assignment's own fields, so a list kept in the cache before `state` was
+    part of the reads is sorted the same."""
+    assert state_of(assignment) == state

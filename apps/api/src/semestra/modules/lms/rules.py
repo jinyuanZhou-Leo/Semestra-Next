@@ -150,29 +150,29 @@ def submits_online(submission_types: list[str]) -> bool:
     return not submission_types or not set(submission_types) <= OFFLINE_SUBMISSIONS
 
 
-AssignmentBucket = Literal["upcoming", "missing", "graded"]
+AssignmentState = Literal["graded", "excused", "submitted", "missing", "offline", "unsubmitted"]
+"""Where the user is with an assignment, the same for every platform and every surface (the app,
+Sem, MCP)."""
 
 
-def bucket(assignment: Mapping[str, Any], now: datetime) -> AssignmentBucket | None:
-    """Which of the assignment list's filters an assignment (as the reads give it) falls in, at
-    most one: graded; then missing (the platform's own flag, else, without a submission, an
-    online assignment past its due date); then upcoming (nothing handed in, not due yet).
-    Excused and handed-in ones are in none."""
-    sub = assignment.get("submission")
-    status = status_of(sub)
-    if status == "graded":
-        return "graded"
+def assignment_state(status: SubmissionStatus, *, missing: bool, online: bool) -> AssignmentState:
+    """The one rule for an assignment's state: what the submission says when it is handed in
+    (graded, excused, submitted); else missing when the platform marks it missing; else offline
+    when it is not handed in on the platform (on paper, or nothing to hand in); else unsubmitted.
+    Only the platform's flag makes it missing: past due without it, it can still be handed in
+    late. The due date is not part of it: filter on it alongside."""
     if status != "unsubmitted":
-        return None
-    raw_due = assignment.get("due_at")
-    due = (
-        (raw_due if isinstance(raw_due, datetime) else datetime.fromisoformat(raw_due))
-        if raw_due
-        else None
-    )
-    online = submits_online(list(assignment.get("submission_types") or []))
-    if (sub or {}).get("missing") or (not sub and online and due is not None and due < now):
+        return status
+    if missing:
         return "missing"
-    if due is None or due > now:
-        return "upcoming"
-    return None
+    return "unsubmitted" if online else "offline"
+
+
+def state_of(assignment: Mapping[str, Any]) -> AssignmentState:
+    """`assignment_state` of an assignment as the reads give it (a dumped `Assignment`)."""
+    sub = assignment.get("submission") or {}
+    return assignment_state(
+        status_of(sub),
+        missing=bool(sub.get("missing")),
+        online=submits_online(list(assignment.get("submission_types") or [])),
+    )

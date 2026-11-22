@@ -2366,6 +2366,20 @@ export const AssignmentFactsSchema = {
             title: 'Is Quiz',
             description: 'A graded quiz',
             readOnly: true
+        },
+        state: {
+            type: 'string',
+            enum: [
+                'graded',
+                'excused',
+                'submitted',
+                'missing',
+                'offline',
+                'unsubmitted'
+            ],
+            title: 'State',
+            description: 'Where the user is with it (`rules.assignment_state`)',
+            readOnly: true
         }
     },
     type: 'object',
@@ -2373,7 +2387,8 @@ export const AssignmentFactsSchema = {
         'external_id',
         'name',
         'online',
-        'is_quiz'
+        'is_quiz',
+        'state'
     ],
     title: 'AssignmentFacts',
     description: 'The assignment as `AssignmentDetail` gives it (its own name in the API: the AI module has\nan `Assignment` too).'
@@ -2663,6 +2678,20 @@ export const AssignmentOutSchema = {
             title: 'Is Quiz',
             description: 'A graded quiz',
             readOnly: true
+        },
+        state: {
+            type: 'string',
+            enum: [
+                'graded',
+                'excused',
+                'submitted',
+                'missing',
+                'offline',
+                'unsubmitted'
+            ],
+            title: 'State',
+            description: 'Where the user is with it (`rules.assignment_state`)',
+            readOnly: true
         }
     },
     type: 'object',
@@ -2671,7 +2700,8 @@ export const AssignmentOutSchema = {
         'name',
         'imported_as',
         'online',
-        'is_quiz'
+        'is_quiz',
+        'state'
     ],
     title: 'AssignmentOut'
 } as const;
@@ -2789,12 +2819,34 @@ export const AssignmentTargetSchema = {
             title: 'Online',
             description: 'Handed in on the platform (not on paper or not at all)',
             default: true
+        },
+        state: {
+            anyOf: [
+                {
+                    type: 'string',
+                    enum: [
+                        'graded',
+                        'excused',
+                        'submitted',
+                        'missing',
+                        'offline',
+                        'unsubmitted'
+                    ]
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'State',
+            description: 'Where the user is with it (`rules.assignment_state`); None until the sync has read it',
+            readOnly: true
         }
     },
     type: 'object',
     required: [
         'course_id',
-        'assignment_id'
+        'assignment_id',
+        'state'
     ],
     title: 'AssignmentTarget'
 } as const;
@@ -25144,6 +25196,119 @@ export const AssignmentOutWritableSchema = {
         'imported_as'
     ],
     title: 'AssignmentOut'
+} as const;
+
+export const AssignmentTargetWritableSchema = {
+    properties: {
+        course_id: {
+            type: 'string',
+            title: 'Course Id'
+        },
+        assignment_id: {
+            type: 'string',
+            title: 'Assignment Id',
+            description: 'The assignment\'s external id'
+        },
+        assessment_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Assessment Id'
+        },
+        task_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Task Id',
+            description: 'Set for an assignment imported as a to-do only'
+        },
+        feedback: {
+            type: 'boolean',
+            title: 'Feedback',
+            description: 'The teacher left comments or rubric scores on the assessment',
+            default: false
+        },
+        status: {
+            anyOf: [
+                {
+                    type: 'string',
+                    enum: [
+                        'unsubmitted',
+                        'submitted',
+                        'graded',
+                        'excused'
+                    ]
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Status',
+            description: 'Where the user\'s submission stands as of the last sync; None until the sync has read it'
+        },
+        missing: {
+            type: 'boolean',
+            title: 'Missing',
+            default: false
+        },
+        late: {
+            type: 'boolean',
+            title: 'Late',
+            default: false
+        },
+        submitted_at: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date-time'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Submitted At'
+        },
+        online: {
+            type: 'boolean',
+            title: 'Online',
+            description: 'Handed in on the platform (not on paper or not at all)',
+            default: true
+        }
+    },
+    type: 'object',
+    required: [
+        'course_id',
+        'assignment_id'
+    ],
+    title: 'AssignmentTarget'
+} as const;
+
+export const AssignmentTargetsWritableSchema = {
+    properties: {
+        items: {
+            items: {
+                $ref: '#/components/schemas/AssignmentTargetWritable'
+            },
+            type: 'array',
+            title: 'Items',
+            description: 'The Program\'s assessments and to-dos that are an assignment of the platform'
+        }
+    },
+    type: 'object',
+    required: [
+        'items'
+    ],
+    title: 'AssignmentTargets'
 } as const;
 
 export const ConnectionCreateInputBodyWritableSchema = {
