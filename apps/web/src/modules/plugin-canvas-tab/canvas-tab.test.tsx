@@ -629,7 +629,10 @@ test('an announcement lists its attachments: the course copy, or the file on Can
   const copy = (await screen.findByText('Rooms.pdf')).closest('a')!
   expect(copy).toHaveAttribute('href', expect.stringContaining('/p/p1/c/c1/files'))
   const online = screen.getByText('Seating.xlsx').closest('a')!
-  expect(online).toHaveAttribute('href', expect.stringContaining('/courses/c1/lms/files/f2/content'))
+  expect(online).toHaveAttribute(
+    'href',
+    expect.stringContaining('/courses/c1/lms/files/f2/content'),
+  )
   expect(online).toHaveAttribute('target', '_blank')
 })
 

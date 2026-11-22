@@ -519,7 +519,9 @@ test('course settings: guidance without a binding, then the switches, materials 
       return HttpResponse.json({ course_id: 'c1', link: null, program_connection_id: 'k1' })
     }),
     // Once unlinked, the section offers the platform's courses to link again.
-    http.get(`${API}/courses/c1`, () => HttpResponse.json(academicsCourse({ id: 'c1', term_ids: [] }))),
+    http.get(`${API}/courses/c1`, () =>
+      HttpResponse.json(academicsCourse({ id: 'c1', term_ids: [] })),
+    ),
     http.get(`${API}/programs/p1/lms/courses`, () =>
       HttpResponse.json({ connection_id: 'k1', provider: 'canvas', truncated: false, items: [] }),
     ),
