@@ -14,9 +14,11 @@ pnpm check --list     # only list the jobs it would run
 pnpm check --only api,web
 ```
 
-`pnpm check` reads `.github/workflows/ci.yml` itself: it picks jobs with the same path filters (comparing against the merge base with `origin/main`, including uncommitted and untracked files) and runs each job's steps in order, with tests narrowed to the affected ones as on a pull request. Draft PRs skip CI, so run it before marking a PR ready for review.
+`pnpm check` reads `.github/workflows/ci.yml` itself: it treats the working tree (uncommitted and untracked files included) as one commit, compares it with the merge base of `origin/main`, picks jobs with the same path filters and runs each job's steps in order, with tests narrowed to the affected ones as on a pull request. Draft PRs skip CI, so run it before marking a PR ready for review.
 
-It differs from CI in two places: dependency installs are skipped, and the "nothing to regenerate" check (`git diff --exit-code`) compares against the working tree as it was when the job started, so uncommitted work is fine.
+It differs from CI in two places: dependency installs are skipped, and the "nothing to regenerate" check (`git diff --exit-code`) looks at whether the job's earlier steps changed any files, so uncommitted work is fine.
+
+The script only understands the forms `ci.yml` uses today. If a change to `ci.yml` adds a new `if:` condition, step field or `${{ }}` expression, `pnpm check` stops and points at it; update `scripts/check.py` to match.
 
 ## Cloud sessions
 

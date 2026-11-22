@@ -3,55 +3,84 @@ ready (draft PRs skip CI to save Actions minutes).
 
     pnpm check [--list] [--only api,web,...]
 
-The jobs and their steps come from `.github/workflows/ci.yml` itself: the `changes` job's path
-filters decide which jobs have work (against the merge base with origin/main, plus uncommitted
-and untracked files), and each selected job's `run:` steps run in order, as a pull request would
-run them (`EVENT=pull_request`, so tests are picked by affected_tests.py). Two local adjustments:
+The jobs and their steps come from `.github/workflows/ci.yml` itself. The working tree (staged,
+unstaged and untracked files) is first recorded as a throwaway commit object, without touching the
+index or the branch; the `changes` job's path filters and the test selection (affected_tests.py)
+both compare that snapshot with the merge base of origin/main, so uncommitted work is checked the
+same way a pushed commit would be. Each selected job's `run:` steps then run in order, as on a
+pull request. Two local adjustments:
 
 - Install steps (`pnpm install`, `uv sync`) are skipped: the dependencies are already installed.
-- `git diff --exit-code` (the contract job's "nothing to regenerate" check) compares against the
-  tree as it was when the job started, since local work is usually uncommitted.
+- `git diff --exit-code` (the contract job's "nothing to regenerate" check) fails when the steps
+  before it changed the working tree.
+
+The script understands only the forms ci.yml uses today. Anything else (another `if:` shape, a
+step field, a `${{ }}` expression) stops it with the offending job and step, so a change to
+ci.yml can't make the local check quietly drift from CI.
 
 `--list` prints the plan without running it; `--only` restricts it to some jobs.
 """
 
 import argparse
-import fnmatch
 import os
 import re
 import subprocess
 import sys
-from pathlib import Path
+import tempfile
+from pathlib import Path, PurePosixPath
 
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github/workflows/ci.yml"
 INSTALL = re.compile(r"^(pnpm install|uv sync)\b")
+# What a pull request from a local branch sees for the expressions ci.yml uses.
+EXPRESSIONS = {"github.base_ref": "main", "github.event_name": "pull_request"}
+# `if:` terms that are true for a ready (non-draft) pull request that isn't the version PR.
+TRUE_TERMS = {
+    "github.event_name == 'pull_request'",
+    "!github.event.pull_request.draft",
+    "!startsWith(github.head_ref, 'changeset-release/')",
+}
+SETUP_ACTIONS = ("actions/checkout@", "pnpm/action-setup@", "actions/setup-node@",
+                 "astral-sh/setup-uv@")  # fmt: skip
+JOB_KEYS = {"needs", "if", "runs-on", "timeout-minutes", "permissions", "outputs", "steps",
+            "defaults", "name"}  # fmt: skip
+STEP_KEYS = {"name", "run", "env", "uses", "with", "id", "working-directory"}
 
 
-def git(*args: str) -> str:
+class Unsupported(SystemExit):
+    def __init__(self, where: str, what: str):
+        super().__init__(f"ci.yml: {where}: {what} isn't understood by scripts/check.py; teach it "
+                         "the new form so the local check stays the same as CI")  # fmt: skip
+
+
+def git(*args: str, env: dict[str, str] | None = None) -> str:
     return subprocess.run(  # noqa: S603
         ["git", *args],  # noqa: S607
         cwd=ROOT,
         check=True,
         capture_output=True,
         text=True,
-    ).stdout
+        env=env,
+    ).stdout.strip()
 
 
-def changed_files(base: str) -> list[str]:
-    committed = git("diff", "--name-only", base, "HEAD").splitlines()
-    working = git("diff", "--name-only", "HEAD").splitlines()
-    untracked = git("ls-files", "--others", "--exclude-standard").splitlines()
-    return sorted({*committed, *working, *untracked} - {""})
+def snapshot() -> str:
+    """A commit object holding the working tree as it is now (untracked files included)."""
+    with tempfile.TemporaryDirectory() as tmp:
+        env = {**os.environ, "GIT_INDEX_FILE": str(Path(tmp) / "index")}
+        git("read-tree", "HEAD", env=env)
+        git("add", "-A", env=env)
+        tree = git("write-tree", env=env)
+    return git("commit-tree", tree, "-p", "HEAD", "-m", "pnpm check snapshot")
 
 
 def path_filters(workflow: dict) -> dict[str, list[str]]:
     for step in workflow["jobs"]["changes"]["steps"]:
-        if str(step.get("uses", "")).startswith("dorny/paths-filter"):
+        if str(step.get("uses", "")).startswith("dorny/paths-filter@"):
             return yaml.safe_load(step["with"]["filters"])
-    raise SystemExit("ci.yml: no paths-filter step in the changes job")
+    raise Unsupported("jobs.changes", "a changes job without a dorny/paths-filter step")
 
 
 def flatten(patterns: list) -> list[str]:
@@ -62,7 +91,17 @@ def flatten(patterns: list) -> list[str]:
 
 
 def matches(path: str, patterns: list[str]) -> bool:
-    return any(fnmatch.fnmatchcase(path, p) for p in patterns)
+    # full_match: `**` crosses directories and `*` doesn't, like paths-filter's picomatch.
+    return any(PurePosixPath(path).full_match(p) for p in patterns)
+
+
+def expand(text: str, where: str) -> str:
+    def value(m: re.Match[str]) -> str:
+        if m.group(1) not in EXPRESSIONS:
+            raise Unsupported(where, f"the expression ${{{{ {m.group(1)} }}}}")
+        return EXPRESSIONS[m.group(1)]
+
+    return re.sub(r"\$\{\{\s*(.*?)\s*\}\}", value, text)
 
 
 def selected_jobs(workflow: dict, files: list[str]) -> list[str]:
@@ -70,48 +109,63 @@ def selected_jobs(workflow: dict, files: list[str]) -> list[str]:
             path_filters(workflow).items()}  # fmt: skip
     jobs = []
     for name, job in workflow["jobs"].items():
-        cond = str(job.get("if", ""))
-        if m := re.search(r"needs\.changes\.outputs\.(\w+) == 'true'", cond):
-            if hits.get(m.group(1)):
+        if name == "changes":
+            continue
+        where = f"jobs.{name}"
+        if unknown := set(job) - JOB_KEYS:
+            raise Unsupported(where, f"the job field(s) {', '.join(sorted(unknown))}")
+        cond = " ".join(str(job.get("if", "true")).split())
+        if m := re.fullmatch(r"needs\.changes\.outputs\.(\w+) == 'true'", cond):
+            if m.group(1) not in hits:
+                raise Unsupported(where, f"the unknown filter {m.group(1)}")
+            if hits[m.group(1)]:
                 jobs.append(name)
-        elif "github.event_name == 'pull_request'" in cond and any(
-            f.startswith(("apps/", "packages/")) for f in files
-        ):
-            jobs.append(name)  # the changeset job: every PR touching an app or package
+        elif all(term.strip() in TRUE_TERMS for term in cond.split("&&")):
+            if files:
+                jobs.append(name)  # e.g. the changeset job: every pull request
+        else:
+            raise Unsupported(where, f"the condition `if: {cond}`")
     return jobs
 
 
-def expand(command: str) -> str:
-    return command.replace("${{ github.base_ref }}", "main")
+def head_tree(commit: str) -> str:
+    return git("rev-parse", f"{commit}^{{tree}}")
 
 
-def tree_state() -> str:
-    return git("diff", "HEAD") + git("ls-files", "--others", "--exclude-standard")
-
-
-def run_job(name: str, job: dict, base: str) -> bool:
-    workdir = job.get("defaults", {}).get("run", {}).get("working-directory", ".")
-    start = tree_state()
-    for step in job["steps"]:
-        command = step.get("run")
-        if not command:
+def run_job(name: str, job: dict, base: str, head: str) -> bool:
+    defaults = job.get("defaults", {})
+    if set(defaults) - {"run"} or set(defaults.get("run", {})) - {"working-directory"}:
+        raise Unsupported(f"jobs.{name}.defaults", "a default other than run.working-directory")
+    job_dir = defaults.get("run", {}).get("working-directory", ".")
+    start = head_tree(snapshot())
+    for i, step in enumerate(job["steps"]):
+        where = f"jobs.{name}.steps[{i}]"
+        if unknown := set(step) - STEP_KEYS:
+            raise Unsupported(where, f"the step field(s) {', '.join(sorted(unknown))}")
+        if "uses" in step:
+            if not str(step["uses"]).startswith(SETUP_ACTIONS):
+                raise Unsupported(where, f"the action {step['uses']}")
             continue
-        command = expand(command).strip()
+        command = expand(step["run"], where).strip()
         label = step.get("name") or command.splitlines()[0]
         if INSTALL.match(command):
             print(f"  skip  {label}")
             continue
         print(f"  run   {label}", flush=True)
         if command == "git diff --exit-code":
-            if tree_state() != start:
-                print(git("diff", "--stat", "HEAD"))
-                print(f"✗ {name}: the step above changed files (regenerate and commit them)")
+            if head_tree(snapshot()) != start:
+                print(git("status", "--short"))
+                print(f"✗ {name}: the steps above changed files (regenerate and commit them)")
                 return False
             continue
-        env = {**os.environ, "EVENT": "pull_request"}
-        # CI diffs the PR merge commit against HEAD^1 (its base); here that is the merge base.
-        command = command.replace("--base HEAD^1", f"--base {base}")
-        result = subprocess.run(["bash", "-eo", "pipefail", "-c", command], cwd=ROOT / workdir,  # noqa: S603, S607
+        env = {**os.environ, **{k: expand(str(v), where) for k, v in step.get("env", {}).items()}}
+        # CI diffs the PR merge commit against HEAD^1 (its base); here, the snapshot against the
+        # merge base.
+        command = command.replace("--base HEAD^1", f"--base {base} --head {head}")
+        if "HEAD^1" in command:
+            raise Unsupported(where, "a use of HEAD^1 other than `--base HEAD^1`")
+        workdir = ROOT / job_dir / step.get("working-directory", ".")
+        result = subprocess.run(["bash", "-eo", "pipefail", "-c", command], cwd=workdir,  # noqa: S603, S607
                                 env=env, check=False)  # fmt: skip
         if result.returncode:
             print(f"✗ {name}: {label}")
@@ -121,21 +175,22 @@ def run_job(name: str, job: dict, base: str) -> bool:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     parser.add_argument("--list", action="store_true", help="print the plan only")
     parser.add_argument("--only", help="comma-separated job names")
     args = parser.parse_args()
 
     workflow = yaml.safe_load(WORKFLOW.read_text())
-    base = git("merge-base", "origin/main", "HEAD").strip()
-    files = changed_files(base)
+    base = git("merge-base", "origin/main", "HEAD")
+    head = snapshot()
+    files = [f for f in git("diff", "--name-only", base, head).splitlines() if f]
     jobs = selected_jobs(workflow, files)
     if args.only:
         jobs = [j for j in jobs if j in args.only.split(",")]
     print(f"{len(files)} changed files since {base[:10]}; jobs: {', '.join(jobs) or 'none'}")
     if args.list:
         return
-    failed = [j for j in jobs if not run_job(j, workflow["jobs"][j], base)]
+    failed = [j for j in jobs if not run_job(j, workflow["jobs"][j], base, head)]
     if failed:
         sys.exit(f"failed: {', '.join(failed)}")
 
