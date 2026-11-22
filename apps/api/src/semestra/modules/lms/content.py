@@ -147,23 +147,6 @@ async def _kept(ctx: Ctx, link: LmsCourseLink) -> dict[str, FilesItem]:
     }
 
 
-async def course_item(ctx: Ctx, link: LmsCourseLink, ref: str) -> FilesItem | None:
-    """The course file the sync keeps for this platform file or page, if any (`_kept` for one
-    ref): the way in to it, read or looked at."""
-    kind, external_id = refs.parse(ref)
-    item_id = await ctx.db.scalar(
-        select(LmsMaterial.item_id).where(
-            LmsMaterial.link_id == link.id,
-            LmsMaterial.state == "synced",
-            LmsMaterial.kind == kind,
-            LmsMaterial.external_id == external_id,
-            LmsMaterial.item_id.is_not(None),
-        )
-    )
-    found = await sources.find_items(ctx, [item_id] if item_id else [])
-    return found[0] if found else None
-
-
 def _readable(item: FilesItem | None) -> FilesItem | None:
     """The item, when its text can be read and searched in the course's files."""
     return item if item is not None and item.active_document_id is not None else None
@@ -697,7 +680,7 @@ async def _read(ctx: Ctx, inp: LmsReadInput) -> LmsContentDetail:
         kind, item_id = refs.parse(ref)
     in_course = None
     if kind in ("file", "page"):
-        in_course = await course_item(ctx, link, refs.make(kind, item_id))
+        in_course = await files.course_item(ctx, link, refs.make(kind, item_id))
         if (in_files := _readable(in_course)) is not None:
             return await _from_files(ctx, refs.make(kind, item_id), kind, in_files)
     detail = await _READERS[kind](ctx, inp, (link, b), item_id)

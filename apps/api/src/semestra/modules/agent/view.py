@@ -113,7 +113,6 @@ async def _source(ctx: Ctx, inp: ViewInput) -> tuple[str, bytes]:
     files have is read there (its local copy, if it has one), like the LMS read tool does."""
     item_id = inp.item_id
     if inp.course_id is not None and inp.ref is not None:
-        from semestra.modules.lms import content as lms_content
         from semestra.modules.lms import files as lms_files
         from semestra.modules.lms import reads, refs
         from semestra.modules.lms import service as lms
@@ -122,7 +121,7 @@ async def _source(ctx: Ctx, inp: ViewInput) -> tuple[str, bytes]:
         if kind != "file":
             raise AppError("agent.view_unsupported", 422)
         linked = await lms.require_link(ctx, inp.course_id)
-        in_course = await lms_content.course_item(ctx, linked[0], inp.ref)
+        in_course = await lms_files.course_item(ctx, linked[0], inp.ref)
         if in_course is None:
             meta = await reads.file(ctx, inp.course_id, file_id, False, linked=linked)
             data = await lms_files.download(ctx, inp.course_id, file_id, meta=meta, linked=linked)

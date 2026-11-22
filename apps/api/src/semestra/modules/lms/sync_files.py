@@ -25,15 +25,19 @@ the course's "Organize", `homes`), a renamed one keeps their name, a deleted one
 back until they restore it (`dismissed`). A folder of a place the user deleted is not made
 again: its new items go to the folder above.
 
-An item gone from the platform (deleted, unpublished), judged only on a run that read every area
-whole, becomes `absent`: one saved in Semestra stays as the user's own file (`handed_over`), one
-read online is removed (`gone`); either comes in again if the platform shows it again. One locked
-on the platform is still there: it stays as it was. What left, and what came in or changed, shows
+An item gone from the platform (deleted, unpublished) becomes `absent`. Where an area of the
+course could not be read whole (hidden, cut short), each item missing from the run is read on
+its own and taken as gone only when the platform says it has no such item (`_check_missing`);
+nothing is judged gone while the course can't be read at all (closed there). One saved in
+Semestra stays as the user's own file (`handed_over`), one read online is removed (`gone`);
+either comes in again if the platform shows it again. One locked on the platform is still
+there: it stays as it was. What left, and what came in or changed, shows
 in the status panel's recent updates (`change`); new ones are marked unseen in the files and told
 by notification. Not until the course has settled (`materials_settled_at`, the first run that
 brought everything in): linking a course is quiet.
 
-A run reads the platform first, then, under the write lock, takes what happened to each material
+A run reads the platform first, then, under the write lock (a batch of new items at a time,
+each in a transaction of its own: `_write`), takes what happened to each material
 to `enter` its next state: the one place that changes `LmsMaterial.state`, keeping what each
 state holds (an item only while `synced`; what was applied from the platform forgotten when it
 left the files) and refusing a change `NEXT` does not list.
@@ -63,7 +67,7 @@ from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.materials import page_shape
 from semestra.modules.lms.models import LmsCourseLink, LmsMaterial, MaterialChange, MaterialState
 from semestra.modules.lms.reads import AREA_REFUSALS, ITEM_ERRORS
-from semestra.modules.lms.schemas.dto import FileMeta, ModuleItem
+from semestra.modules.lms.schemas.dto import FileMeta, ModuleItem, PageDetail
 from semestra.modules.lms.schemas.io import HeldMaterials
 from semestra.modules.lms.service import Bound
 from semestra.modules.lms.settings import materials as material_settings
@@ -73,8 +77,10 @@ from semestra.modules.settings import service as settings_service
 
 MaterialKind = Literal["file", "page", "link"]
 Key = tuple[str, str]
-# New items one run adds; the next run goes on.
-PER_RUN = 100
+Area = Literal["modules", "pages", "files"]
+# New items written in one transaction: a run brings in all it found, a batch at a time, so the
+# write lock is let go between them.
+BATCH = 100
 # Errors that mean an area of the course is hidden from the user: the stage goes on without it.
 SKIPPED = AREA_REFUSALS | {"lms.area_hidden", "lms.feature_unsupported"}
 # Items no list gives a version for (a file only a module or page shows, a page when the pages
@@ -140,17 +146,39 @@ class _Found:
     kept: set[Key] = field(default_factory=lambda: set[Key]())
     # Items locked on the platform: still there, left as they are until they open.
     locked: set[Key] = field(default_factory=lambda: set[Key]())
-    # Every area was read whole: what is not found is gone from the platform.
-    complete: bool = True
+    # Areas read whole, and areas the user can't open or that were cut short.
+    read: set[Area] = field(default_factory=lambda: set[Area]())
+    refused: set[Area] = field(default_factory=lambda: set[Area]())
+    # Items no area showed, read on their own (`_check_missing`): still there (with when they
+    # were read), or not known to be gone (not readable now).
+    confirmed: dict[Key, datetime] = field(default_factory=lambda: {})
+    unsure: set[Key] = field(default_factory=lambda: set[Key]())
+    # Items written by an earlier batch of this run.
+    applied: set[Key] = field(default_factory=lambda: set[Key]())
+
+    @property
+    def complete(self) -> bool:
+        """Every area was read whole: what is not found is gone from the platform."""
+        return not self.refused
 
     def add(self, m: Material) -> None:
         self.materials.setdefault((m.kind, m.external_id), m)
 
+    def seen(self, key: Key) -> bool:
+        """Found on the platform this run, one way or another: not gone."""
+        return (
+            key in self.materials
+            or key in self.kept
+            or key in self.locked
+            or key in self.confirmed
+            or key in self.unsure
+        )
+
     def checked_lately(self, key: Key) -> bool:
-        """Read on its own within `CHECK_EVERY` (an item in the files, or a list page): taken
-        to be as it was."""
+        """Read on its own within `CHECK_EVERY` (an item in the files or one the user deleted,
+        or a list page): taken to be as it was."""
         mat = self.known.get(key)
-        if mat is None or mat.state not in ("synced", "list"):
+        if mat is None or mat.state not in ("synced", "list", "dismissed"):
             return False
         return mat.checked_at is not None and self.now - mat.checked_at < CHECK_EVERY
 
@@ -163,45 +191,44 @@ class _Found:
             self.pages[target] = (target, None, None)
 
 
-async def _optional[T](found: _Found, read: Awaitable[T]) -> T | None:
+async def _optional[T](found: _Found, area: Area, read: Awaitable[T]) -> T | None:
     """A read of one area of the course; None when the user can't open that area (then what is
-    missing from this run can't be told gone)."""
+    missing from it can't be told gone without reading it on its own: `_check_missing`)."""
     try:
         got = await read
     except AppError as exc:
         if exc.code in SKIPPED:
-            found.complete = False
+            found.refused.add(area)
             return None
         raise
     if getattr(got, "truncated", False):
-        found.complete = False
+        found.refused.add(area)
+    else:
+        found.read.add(area)
     return got
 
 
-async def _one[T](found: _Found, read: Awaitable[T]) -> T | None:
-    """A read of one file or page; None when it is gone or not for this user (a link to a
-    deleted file), which says nothing about the rest of the course. Its area refused (hidden,
-    not offered) still leaves this run incomplete."""
-    try:
-        return await read
-    except AppError as exc:
-        if exc.code in ITEM_ERRORS:
-            return None
-        if exc.code in SKIPPED:
-            found.complete = False
-            return None
-        raise
+def _many[T](found: _Found, area: Area, got: T | AppError) -> T | None:
+    """One file or page of a read of several; None when it is gone or not for this user (a link
+    to a deleted file), which says nothing about the rest of the course."""
+    if not isinstance(got, AppError):
+        return got
+    if got.code in SKIPPED - ITEM_ERRORS:
+        found.refused.add(area)
+    return None
 
 
 async def _modules(ctx: Ctx, link: LmsCourseLink, found: _Found) -> None:
-    listed = await _optional(found, reads.modules(ctx, link.course_id, refresh=True))
+    listed = await _optional(found, "modules", reads.modules(ctx, link.course_id, refresh=True))
     if listed is None:
         return
     for module in listed.items:
         items = module.items
         if items is None:
             got = await _optional(
-                found, reads.module_items(ctx, link.course_id, module.external_id, refresh=True)
+                found,
+                "modules",
+                reads.module_items(ctx, link.course_id, module.external_id, refresh=True),
             )
             items = got.items if got is not None else []
         for item in sorted(items, key=lambda i: i.position):
@@ -253,18 +280,23 @@ def _link_url(*candidates: str | None) -> str | None:
 async def _files(ctx: Ctx, link: LmsCourseLink, b: Bound, found: _Found) -> None:
     metas: dict[str, FileMeta] = {}
     if "folders" in b.provider.features:
-        listed = await _optional(found, reads.course_files(ctx, link.course_id, refresh=True))
+        listed = await _optional(
+            found, "files", reads.course_files(ctx, link.course_id, refresh=True)
+        )
         metas = {f.external_id: f for f in listed.items} if listed is not None else {}
     checked: set[str] = set()
-    # Files only a module or a page shows (the files area hidden): one by one, now and then.
+    # Files only a module or a page shows (the files area hidden): on their own, now and then.
+    todo: list[str] = []
     for file_id in found.file_ids:
         if file_id in metas or "files" not in b.provider.features:
             continue
         if found.checked_lately(("file", file_id)):
             found.kept.add(("file", file_id))
             continue
-        meta = await _one(found, reads.file(ctx, link.course_id, file_id, refresh=True))
-        if meta is not None:
+        todo.append(file_id)
+    read = await reads.files_many(ctx, (link, b), todo, refresh=True) if todo else []
+    for file_id, got in zip(todo, read, strict=True):
+        if (meta := _many(found, "files", got)) is not None:
             metas[file_id] = meta
             checked.add(file_id)
     for meta in metas.values():
@@ -289,47 +321,61 @@ async def _files(ctx: Ctx, link: LmsCourseLink, b: Bound, found: _Found) -> None
 
 
 async def _pages(ctx: Ctx, link: LmsCourseLink, b: Bound, found: _Found) -> None:
-    listed = await _optional(found, reads.pages(ctx, link.course_id, refresh=True))
+    listed = await _optional(found, "pages", reads.pages(ctx, link.course_id, refresh=True))
     for page in listed.items if listed is not None else []:
         version = page.updated_at.isoformat() if page.updated_at else None
         found.pages[page.ref] = (page.title, version, page.web_url)
         if page.front_page:
             found.front.add(page.ref)
     done: set[str] = set()
-    # Pages bring in what they link to, other pages among it: until no new page is found.
+    # Pages bring in what they link to, other pages among it: until no new page is found. The
+    # pages of one round that are to be read again are read side by side.
     while todo := [slug for slug in found.pages if slug not in done]:
-        for slug in todo:
-            done.add(slug)
-            await _page(ctx, link, b, found, slug)
+        done.update(todo)
+        unread = [slug for slug in todo if not _page_as_known(found, slug)]
+        details = (
+            await reads.pages_many(ctx, (link, b), [(slug, None) for slug in unread], refresh=True)
+            if unread
+            else []
+        )
+        for slug, got in zip(unread, details, strict=True):
+            _page(link, b, found, slug, _many(found, "pages", got))
 
 
-async def _page(ctx: Ctx, link: LmsCourseLink, b: Bound, found: _Found, slug: str) -> None:
-    title, version, web_url = found.pages[slug]
+def _page_as_known(found: _Found, slug: str) -> bool:
+    """A page unchanged since it was last read (its version the same, or read on its own
+    lately): taken as it was, what it links to still holds. False when it is to be read."""
+    _, version, _ = found.pages[slug]
     key = ("page", slug)
     mat = found.known.get(key)
     unchanged = version is not None and mat is not None and mat.version == version
-    if unchanged or (version is None and found.checked_lately(key)):
-        assert mat is not None
-        # As it was when last read: what it links to still holds.
-        listed = mat.state == "list"
-        for kind, target in mat.links:
-            found.linked(kind, target, slug)
-        if listed:
-            found.add(
-                Material(
-                    "page",
-                    slug,
-                    title,
-                    version or "",
-                    is_list=True,
-                    links=mat.links,
-                    checked_at=mat.checked_at,
-                )
+    if not (unchanged or (version is None and found.checked_lately(key))):
+        return False
+    assert mat is not None
+    for kind, target in mat.links:
+        found.linked(kind, target, slug)
+    if mat.state == "list":
+        found.add(
+            Material(
+                "page",
+                slug,
+                found.pages[slug][0],
+                version or "",
+                is_list=True,
+                links=mat.links,
+                checked_at=mat.checked_at,
             )
-        elif mat.state == "synced":
-            found.kept.add(key)
-        return
-    detail = await _one(found, reads.page(ctx, link.course_id, slug, refresh=True))
+        )
+    elif mat.state == "synced":
+        found.kept.add(key)
+    return True
+
+
+def _page(
+    link: LmsCourseLink, b: Bound, found: _Found, slug: str, detail: PageDetail | None
+) -> None:
+    title, version, web_url = found.pages[slug]
+    key = ("page", slug)
     if detail is not None and detail.locked:
         found.locked.add(key)
     if detail is None or detail.locked:
@@ -366,6 +412,60 @@ async def _page(ctx: Ctx, link: LmsCourseLink, b: Bound, found: _Found, slug: st
             checked_at=found.now,
         )
     )
+
+
+def _missing(found: _Found) -> list[Key]:
+    """Items in the course files (or restored, waiting to come in) that this run did not find."""
+    return [
+        key
+        for key, mat in found.known.items()
+        if (mat.state == "synced" or (mat.state == "absent" and mat.quiet)) and not found.seen(key)
+    ]
+
+
+async def _check_missing(ctx: Ctx, link: LmsCourseLink, b: Bound, found: _Found) -> None:
+    """What this run did not find, where an area could not be read whole: each item is judged
+    on its own, so one hidden area does not keep the whole course from noticing deletions.
+
+    - Nothing of the course could be read (closed on the platform): nothing is judged.
+    - A link: only modules show links, so it is gone when they were read whole.
+    - A file or page: read on its own (not again within `CHECK_EVERY` once read), gone only
+      when the platform says it has no such item; one it refuses is left as it is."""
+    if found.complete:
+        return
+    missing = _missing(found)
+    if not found.read:
+        found.unsure.update(missing)
+        return
+    files: list[str] = []
+    pages: list[str] = []
+    for key in missing:
+        kind, external_id = key
+        if kind == "link":
+            if "modules" in found.refused:
+                found.unsure.add(key)
+        elif found.checked_lately(key):
+            found.kept.add(key)
+        elif kind == "file" and "files" in b.provider.features:
+            files.append(external_id)
+        elif kind == "page" and "pages" in b.provider.features:
+            pages.append(external_id)
+        else:
+            found.unsure.add(key)
+    got: list[tuple[Key, Any]] = []
+    if files:
+        read = await reads.files_many(ctx, (link, b), files, refresh=True)
+        got += [(("file", i), r) for i, r in zip(files, read, strict=True)]
+    if pages:
+        read = await reads.pages_many(ctx, (link, b), [(i, None) for i in pages], refresh=True)
+        got += [(("page", i), r) for i, r in zip(pages, read, strict=True)]
+    for key, result in got:
+        if isinstance(result, AppError) and result.code == "lms.not_found":
+            continue  # gone from the platform
+        if not isinstance(result, AppError) and result.locked:
+            found.locked.add(key)
+        # Still there, or refused now (a course closing): left as it is, read again later.
+        found.confirmed[key] = found.now
 
 
 def _place(found: _Found) -> None:
@@ -578,11 +678,14 @@ def _material(ctx: Ctx, link: LmsCourseLink, m: Material) -> LmsMaterial:
     return mat
 
 
-async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
-    def read_materials() -> Any:
-        return select(LmsMaterial).where(LmsMaterial.link_id == link.id)
+def _copy_due(row: FilesItem, now: datetime) -> bool:
+    """A local copy the platform refused to give (the file unpublished, or not there) is asked
+    for again after `RETRY_AFTER`, not on every run."""
+    return row.copy_error_code not in ITEM_ERRORS or now - row.updated_at >= RETRY_AFTER
 
-    mats = list(await ctx.db.scalars(read_materials()))
+
+async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
+    mats = await ctx.db.scalars(select(LmsMaterial).where(LmsMaterial.link_id == link.id))
     found = _Found({(r.kind, r.external_id): r for r in mats}, ctx.now)
     features = b.provider.features
     if "modules" in features:
@@ -590,16 +693,35 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
     if "pages" in features:
         await _pages(ctx, link, b, found)
     await _files(ctx, link, b, found)
+    await _check_missing(ctx, link, b, found)
     _place(found)
 
+    result = StageResult()
+    # Written a batch at a time, each in a transaction of its own: a large course comes in
+    # whole in one run without holding the write lock all the while.
+    while await _write(ctx, link, b, found, result):
+        await ctx.db.commit()
+    return result
+
+
+async def _write(
+    ctx: Ctx, link: LmsCourseLink, b: Bound, found: _Found, result: StageResult
+) -> bool:
+    """Applies what the run found, under the write lock: up to `BATCH` new items, then (once
+    every one is in) what left the platform and the local copies. True when items are left for
+    another batch."""
     await hold(ctx, link)
     # Under the lock: the user may have turned the sync off (and removed what it left) while the
     # platform was read; bringing it all back now would undo that.
     cfg = await material_settings(ctx, link.course_id)
     if not cfg.sync:
-        return StageResult()
+        return False
     # Read again under the write lock: the user may have answered (deleted, moved) meanwhile.
-    mats = list(await ctx.db.scalars(read_materials().execution_options(populate_existing=True)))
+    mats = await ctx.db.scalars(
+        select(LmsMaterial)
+        .where(LmsMaterial.link_id == link.id)
+        .execution_options(populate_existing=True)
+    )
     known = {(r.kind, r.external_id): r for r in mats}
     rows = {
         r.id: r
@@ -608,25 +730,24 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
         )
     }
     now = ctx.now
-    handed: list[FilesItem] = []
     for mat in known.values():
-        if mat.state != "synced":
-            continue
-        row = rows.get(mat.item_id or "")
-        if row is None:
+        if mat.state == "synced" and mat.item_id not in rows:
             # The user deleted it (told at once by `files.item.deleted`, unless that was missed).
             enter(mat, "dismissed", now)
     # What came in before the course settled is not news.
     settled = link.materials_settled_at is not None
     places = SourceFolders(ctx, link.course_id, "lms", b.provider.display_name)
 
-    result = StageResult()
-    added: list[FilesItem] = []
+    added = 0
     gone: list[FilesItem] = []
     for key, m in found.materials.items():
+        if key in found.applied:
+            continue
         mat = known.get(key)
         row = rows.get(mat.item_id or "") if mat is not None and mat.state == "synced" else None
         if mat is not None and mat.state == "dismissed":
+            _seen(mat, m)  # what it links to is known without reading it every run
+            found.applied.add(key)
             continue
         if m.is_list:
             if mat is None:
@@ -636,26 +757,31 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
             if mat.state != "list":
                 enter(mat, "list", now)
             _seen(mat, m)
+            found.applied.add(key)
             continue
         if mat is not None and row is not None:
             if await _follow(ctx, m, mat, row) and settled:
                 _note(mat, "updated", now)
             _seen(mat, m)
             await places.follow_names(m.path)
+            found.applied.add(key)
             continue
         # New, back on the platform, restored, or a list page that has become a page.
-        if len(added) >= PER_RUN:
-            result.cap_reached = True
-            continue
+        if added == BATCH:
+            await sources.purge_items(ctx, gone)
+            await ctx.db.flush()
+            return True
+        added += 1
         news = settled and not (mat is not None and mat.quiet)
         folder_id = await places.folder_at(m.path)
         row = await _create(ctx, link, b, m, folder_id, unseen=news)
-        added.append(row)
+        rows[row.id] = row
         if mat is None:
             mat = _material(ctx, link, m)
         enter(mat, "synced", now, item_id=row.id)
         _seen(mat, m)
         mat.name, mat.placed_folder_id = row.display_name, folder_id
+        found.applied.add(key)
         # Most likely one of the user's own files: listed, so they can keep just one.
         if m.kind == "file" and await sources.find_duplicate(
             ctx, link.course_id, name=row.display_name, size=m.size, own_only=True
@@ -666,50 +792,56 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
         if news:
             result.notices.append(Notice("material", m.external_id, m.title, item_id=row.id))
 
-    if found.complete:
-        # Gone from the platform (locked is not gone): one saved in Semestra stays as the user's
-        # own file, one read online goes. Either comes in again if the platform shows it again.
-        for key, mat in known.items():
-            if key in found.materials or key in found.kept or key in found.locked:
-                continue
-            if mat.state == "absent" and mat.quiet:
-                if mat.state_at is not None and mat.state_at > found.now:
-                    continue  # restored after this run read: left to the run after it
-                # Restored, but the platform no longer has it: told, not left waiting.
-                enter(mat, "absent", now)
-                _note(mat, "gone", now)
-                continue
-            row = rows.get(mat.item_id or "") if mat.state == "synced" else None
-            if row is None:
-                continue
-            if has_copy(row):
-                handed.append(row)
-                enter(mat, "absent", now, item_id=row.id)
-                _note(mat, "handed_over", now)
-            else:
-                gone.append(row)
-                enter(mat, "absent", now)
-                _note(mat, "gone", now)
+    handed: list[FilesItem] = []
+    for key, mat in known.items():
+        if found.seen(key):
+            if key in found.confirmed and mat.state == "synced":
+                mat.checked_at = found.confirmed[key]
+            continue
+        # Gone from the platform: one saved in Semestra stays as the user's own file, one read
+        # online goes. Either comes in again if the platform shows it again.
+        if mat.state == "absent" and mat.quiet:
+            if mat.state_at is not None and mat.state_at > found.now:
+                continue  # restored after this run read: left to the run after it
+            # Restored, but the platform no longer has it: told, not left waiting.
+            enter(mat, "absent", now)
+            _note(mat, "gone", now)
+            continue
+        row = rows.get(mat.item_id or "") if mat.state == "synced" else None
+        if row is None:
+            continue
+        if has_copy(row):
+            handed.append(row)
+            enter(mat, "absent", now, item_id=row.id)
+            _note(mat, "handed_over", now)
+        else:
+            gone.append(row)
+            enter(mat, "absent", now)
+            _note(mat, "gone", now)
     await sources.purge_items(ctx, gone)
     await sources.detach_from_source(ctx, handed)
     left = {r.id for r in (*gone, *handed)}
 
-    followed = [r for r in (*rows.values(), *added) if r.id not in left]
+    followed = [r for r in rows.values() if r.id not in left]
     for row in followed:
         if _retry_due(row, now):
             await sources.retry_synced(ctx, row)
-    # Copies are let go only on a run that read the whole course: a course closed on the
-    # platform refuses its areas, and its copies may be the only ones left.
+    # A copy is let go only when the platform still has the file: a course closed there refuses
+    # its areas, and its copies may be the only ones left.
+    there = {
+        mat.item_id
+        for key, mat in known.items()
+        if mat.state == "synced" and key not in found.unsure and key not in found.locked
+    }
+    copies = [r for r in followed if _copy_due(r, now)]
+    await sources.apply_copies(ctx, [r for r in copies if r.id in there], cfg.store == "local")
     await sources.apply_copies(
-        ctx,
-        followed,
-        cfg.store == "local",
-        release=found.complete,
+        ctx, [r for r in copies if r.id not in there], cfg.store == "local", release=False
     )
-    if not settled and not result.cap_reached:
+    if not settled:
         link.materials_settled_at = now
     await ctx.db.flush()
-    return result
+    return False
 
 
 async def _enabled(ctx: Ctx, link: LmsCourseLink, b: Bound) -> bool:
