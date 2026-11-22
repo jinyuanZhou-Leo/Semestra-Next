@@ -1,5 +1,6 @@
 ---
 "@semestra/api": patch
+"@semestra/web": patch
 ---
 
 <!-- area: canvas -->

@@ -436,17 +436,11 @@ function matches({ assignment: a }: Row, filter: Filter, query: string): boolean
     case 'all':
       return true
     case 'graded':
-      return s?.state === 'graded' && s.score != null
+      return s?.status === 'graded'
     case 'missing':
       return !!s?.missing
     case 'todo':
-      return (
-        !s?.missing &&
-        s?.state !== 'graded' &&
-        !s?.submitted_at &&
-        s?.state !== 'submitted' &&
-        s?.state !== 'pending_review'
-      )
+      return !s?.missing && (s?.status ?? 'unsubmitted') === 'unsubmitted'
   }
 }
 

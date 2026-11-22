@@ -19985,18 +19985,6 @@ export const SubjectColorInputBodySchema = {
 
 export const SubmissionSchema = {
     properties: {
-        state: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'State',
-            description: 'e.g. submitted, graded, unsubmitted'
-        },
         submitted_at: {
             anyOf: [
                 {
@@ -20182,17 +20170,6 @@ export const SubmissionDetailSchema = {
         assignment_id: {
             type: 'string',
             title: 'Assignment Id'
-        },
-        state: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'State'
         },
         submitted_at: {
             anyOf: [
@@ -25523,18 +25500,6 @@ export const ProviderUpdateInputBodyWritableSchema = {
 
 export const SubmissionWritableSchema = {
     properties: {
-        state: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'State',
-            description: 'e.g. submitted, graded, unsubmitted'
-        },
         submitted_at: {
             anyOf: [
                 {
@@ -25646,17 +25611,6 @@ export const SubmissionDetailWritableSchema = {
         assignment_id: {
             type: 'string',
             title: 'Assignment Id'
-        },
-        state: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'State'
         },
         submitted_at: {
             anyOf: [

@@ -163,7 +163,6 @@ class Announcement(Dto):
 
 
 class Submission(BaseModel):
-    state: str | None = Field(default=None, description="e.g. submitted, graded, unsubmitted")
     submitted_at: datetime | None = None
     graded_at: datetime | None = None
     score: float | None = None
@@ -287,7 +286,6 @@ class SubmissionDetail(Dto):
     teacher's feedback."""
 
     assignment_id: str
-    state: str | None = None
     submitted_at: datetime | None = None
     graded_at: datetime | None = None
     score: float | None = None

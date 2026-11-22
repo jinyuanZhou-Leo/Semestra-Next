@@ -26,7 +26,6 @@ def _handed_in(assignment_id: str, **kw: Any) -> SubmissionDetail:
     return SubmissionDetail(
         external_id=f"s-{assignment_id}",
         assignment_id=assignment_id,
-        state="graded",
         submitted_at=datetime(2026, 2, 5, 20, tzinfo=UTC),
         submission_type="online_upload",
         files=[

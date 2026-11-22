@@ -174,7 +174,6 @@ def _dict(value: Any) -> dict[str, Any]:
 
 def _submission(s: dict[str, Any]) -> Submission:
     return Submission(
-        state=_text(s.get("workflow_state")),
         submitted_at=s.get("submitted_at"),
         graded_at=s.get("graded_at"),
         score=_num(s.get("score")),

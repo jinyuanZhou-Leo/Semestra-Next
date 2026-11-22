@@ -42,7 +42,6 @@ const LAB: AssignmentDetail = {
   submission: {
     external_id: 's1',
     assignment_id: 'a1',
-    state: 'graded',
     status: 'graded',
     score: 9,
     grade: '9',

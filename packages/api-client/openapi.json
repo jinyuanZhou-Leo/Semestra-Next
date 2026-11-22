@@ -39628,18 +39628,6 @@
       },
       "Submission": {
         "properties": {
-          "state": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "State",
-            "description": "e.g. submitted, graded, unsubmitted"
-          },
           "submitted_at": {
             "anyOf": [
               {
@@ -39823,17 +39811,6 @@
           "assignment_id": {
             "type": "string",
             "title": "Assignment Id"
-          },
-          "state": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "State"
           },
           "submitted_at": {
             "anyOf": [

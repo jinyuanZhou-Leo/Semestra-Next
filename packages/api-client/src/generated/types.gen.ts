@@ -11345,12 +11345,6 @@ export type SubjectColorInputBody = {
  */
 export type Submission = {
     /**
-     * State
-     *
-     * e.g. submitted, graded, unsubmitted
-     */
-    state?: string | null;
-    /**
      * Submitted At
      */
     submitted_at?: string | null;
@@ -11449,10 +11443,6 @@ export type SubmissionDetail = {
      * Assignment Id
      */
     assignment_id: string;
-    /**
-     * State
-     */
-    state?: string | null;
     /**
      * Submitted At
      */
@@ -14514,12 +14504,6 @@ export type ProviderUpdateInputBodyWritable = {
  */
 export type SubmissionWritable = {
     /**
-     * State
-     *
-     * e.g. submitted, graded, unsubmitted
-     */
-    state?: string | null;
-    /**
      * Submitted At
      */
     submitted_at?: string | null;
@@ -14582,10 +14566,6 @@ export type SubmissionDetailWritable = {
      * Assignment Id
      */
     assignment_id: string;
-    /**
-     * State
-     */
-    state?: string | null;
     /**
      * Submitted At
      */
