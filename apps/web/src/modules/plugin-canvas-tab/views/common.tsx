@@ -80,7 +80,7 @@ export function SubmissionStatus({
   now: number
 }) {
   const late = isLate ? (
-    <Badge variant="outline">{m.canvas_tab_submission_late_short()}</Badge>
+    <Badge variant="outline">{m.lms_assignment_late()}</Badge>
   ) : null
   switch (state) {
     case 'missing':
