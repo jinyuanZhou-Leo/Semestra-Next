@@ -79,9 +79,7 @@ export function SubmissionStatus({
   dueAt: string | null | undefined
   now: number
 }) {
-  const late = isLate ? (
-    <Badge variant="outline">{m.lms_assignment_late()}</Badge>
-  ) : null
+  const late = isLate ? <Badge variant="outline">{m.lms_assignment_late()}</Badge> : null
   switch (state) {
     case 'missing':
       return <Badge variant="destructive">{STATE_LABELS.missing()}</Badge>
