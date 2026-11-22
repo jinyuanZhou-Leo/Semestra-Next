@@ -1,10 +1,49 @@
 ---
 title: Development tools
-description: Tools for local development and debugging, such as checks before you push, the cloud session setup, screenshots and request counts.
+description: Tools for local development and debugging, such as a demo environment with a fake Canvas and a fake model API, screenshots and request counts, checks before you push and the cloud session setup.
 icon: Wrench
 ---
 
 These tools are for development only and never ship in the production image.
+
+## Demo environment
+
+```bash
+pnpm dev:demo                     # API, web, fake Canvas and fake model API with a seeded account
+pnpm dev:demo --scenario large    # plus a Canvas course with hundreds of files and assignments
+```
+
+`pnpm dev:demo` starts the API and the web app with their own data directory (`apps/api/data/demo`, recreated each time), so your usual development data is untouched. It signs up a demo account with a Program, last term's finished courses, this term's courses with sections, gradebooks, exams and tasks, and next term's plan, all dated relative to today. It then connects a fake Canvas, links this term's courses, starts the first sync (it continues in the background; the sidebar status line shows its progress), and adds a fake model provider for every AI purpose. When it is ready it prints the address and the sign-in (`demo@example.com` / `semestra-demo-1`). `--no-canvas`, `--no-ai` and `--no-web` leave parts out.
+
+The fake Canvas (`127.0.0.1:8090`) answers the same API as a real Canvas, so Semestra's real Canvas provider reads it: announcements, assignments with submissions and feedback, modules, pages, discussions, quizzes, files and folders (including a scanned PDF, a Word document, a locked file and a hidden folder), the syllabus and calendar events. One course has its pages turned off and one its files. The fake model API (`127.0.0.1:8091/v1`) is OpenAI-compatible and answers deterministically: Sem calls a tool and replies in Markdown, extraction returns the dates and weights it finds in the document, images get some plain text, and embeddings are word hashes. Checks against a real model still use a real provider.
+
+While it runs, drive the fakes from `apps/api`:
+
+```bash
+uv run python -m devtools fake faults '{"kind": "rate_limit", "path": "/files", "times": 3}'
+uv run python -m devtools fake faults clear
+uv run python -m devtools fake changes '{"op": "change_due", "assignment": 1048, "due_in_days": 3}'
+uv run python -m devtools fake requests        # requests per route, to spot repeated reads
+uv run python -m devtools fake --server ai faults '{"kind": "payment"}'
+```
+
+Faults are `rate_limit` (429, or Canvas's own 403 with `"style": "403"`), `unauthorized`, `payment`, `server_error`, `slow` and `drop` (a cut-off answer). Changes are what a teacher does: `add_assignment`, `change_due`, `delete_assignment`, `grade`, `announce`, `add_file`, `replace_file` and `delete_file`; `fake state` lists the course ids. `uv run python -m devtools --help` lists everything, including `seed` on its own for any running instance. The Bombadil run uses the same seed.
+
+The tools live in `apps/api/devtools/`, outside the app package, so they never reach the Docker image. `tests/test_fake_canvas.py` runs the Canvas provider contract against the fake, so the fake can't drift from what the provider reads, and `tests/test_fake_ai.py` calls the fake model through M06 and Sem, so it keeps up with their prompts and schemas. File downloads from the fake Canvas redirect back to the same server; real Canvas redirects to its file store on another domain, and that hop is not covered, so check file downloads against a real Canvas.
+
+## Screenshots and requests
+
+Both scripts open pages in a signed-in Chromium against a running Semestra. They default to the demo account, so start `pnpm dev:demo` first, or pass `--email` and `--password` for your own account on `pnpm dev`. Each page opens in a fresh browser with the default interface state (tour and "What's new" already seen); preference and interface-state changes stay in that browser and are never saved to the account.
+
+```bash
+pnpm --filter @semestra/web shot /p/{program}/today /p/{program}/c/{course:ECE201H1}/grades
+pnpm --filter @semestra/web requests /p/{program}/today
+```
+
+Paths can use `{program}`, `{term}`, `{course}` and `{course:CODE}`, filled from the account's data.
+
+- `shot` saves each page in light and dark, in Chinese, at 2x, to `apps/web/.shots/`, with animations off and the clock frozen, so running it twice gives the same images. `--locale`, `--themes`, `--width`, `--height` and `--out` change the defaults.
+- `requests` lists the API requests a page makes when it is opened directly: the count and slowest time per route, failed and cancelled requests, and requests made more than once. Use it to check a change doesn't add requests or fetch the same data twice. It counts a cold open, the shell's requests included, not navigation inside the app, and leaves out the interface-state requests answered in the browser. On `pnpm dev`, React's StrictMode runs effects twice, so a request sent from an effect shows up twice there but once in production (queries are deduplicated and aren't affected).
 
 ## Checks before you push
 
@@ -25,17 +64,3 @@ The script only understands the forms `ci.yml` uses today. If a change to `ci.ym
 `.claude/hooks/session-start.sh` prepares Claude Code cloud sessions: it installs the Node 26 that CI uses and the pnpm version `packageManager` pins, installs both dependency trees, and points `CHROME` at the Chromium that ships with the image. Installs are skipped when no dependency file changed. On a local machine it does nothing.
 
 The Paraglide plugin is a dev dependency in `apps/web/node_modules`, and `project.inlang/settings.json` points at it, so compiling messages needs no CDN.
-
-## Screenshots and requests
-
-Both scripts open pages in a signed-in Chromium against a running Semestra. They default to the demo account, so start `pnpm dev:demo` first, or pass `--email` and `--password` for your own account on `pnpm dev`. Each page opens in a fresh browser with the default interface state (tour and "What's new" already seen); preference and interface-state changes stay in that browser and are never saved to the account.
-
-```bash
-pnpm --filter @semestra/web shot /p/{program}/today /p/{program}/c/{course:ECE201H1}/grades
-pnpm --filter @semestra/web requests /p/{program}/today
-```
-
-Paths can use `{program}`, `{term}`, `{course}` and `{course:CODE}`, filled from the account's data.
-
-- `shot` saves each page in light and dark, in Chinese, at 2x, to `apps/web/.shots/`, with animations off and the clock frozen, so running it twice gives the same images. `--locale`, `--themes`, `--width`, `--height` and `--out` change the defaults.
-- `requests` lists the API requests a page makes when it is opened directly: the count and slowest time per route, failed and cancelled requests, and requests made more than once. Use it to check a change doesn't add requests or fetch the same data twice. It counts a cold open, the shell's requests included, not navigation inside the app, and leaves out the interface-state requests answered in the browser. On `pnpm dev`, React's StrictMode runs effects twice, so a request sent from an effect shows up twice there but once in production (queries are deduplicated and aren't affected).

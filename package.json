@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "pnpm --parallel --filter @semestra/web --filter @semestra/api dev",
+    "dev:demo": "cd apps/api && uv run --no-sync python -m devtools demo",
     "build": "pnpm --filter @semestra/web build",
     "docs:dev": "pnpm --filter @semestra/docs dev",
     "docs:build": "pnpm --filter @semestra/docs build",
