@@ -4877,8 +4877,8 @@ export const lmsAssignmentImport = <ThrowOnError extends boolean = false>(option
 /**
  * Assignments and graded quizzes of a linked course on its LMS (Canvas), with the user's scores and the course total, marked when imported.
  *
- * For "what is due", "what is missing" and "what did I get": filter by `status`
- * or due dates; `include_total` adds the course total. Each has a `ref`: lms.content.read gives
+ * For "what is due", "what is missing" and "what did I get": filter by `state`
+ * and due dates; `include_total` adds the course total. Each has a `ref`: lms.content.read gives
  * its text, rubric and the teacher's feedback. To add them to the gradebook or tasks use
  * lms.assignment.import, never the gradebook or task capabilities directly.
  */

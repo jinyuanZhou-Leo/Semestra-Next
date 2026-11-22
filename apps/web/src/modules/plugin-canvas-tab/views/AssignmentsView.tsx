@@ -97,6 +97,10 @@ function rowsOf(assignments: readonly AssignmentOut[], quizzes: readonly Quiz[])
         lock_explanation: q.lock_explanation,
         allowed_attempts: q.allowed_attempts,
         imported_as: null,
+        online: true,
+        state: 'unsubmitted',
+        // Not graded: no assignment behind it.
+        is_quiz: false,
       },
     })
   }
@@ -433,17 +437,11 @@ function matches({ assignment: a }: Row, filter: Filter, query: string): boolean
     case 'all':
       return true
     case 'graded':
-      return s?.state === 'graded' && s.score != null
+      return s?.status === 'graded'
     case 'missing':
       return !!s?.missing
     case 'todo':
-      return (
-        !s?.missing &&
-        s?.state !== 'graded' &&
-        !s?.submitted_at &&
-        s?.state !== 'submitted' &&
-        s?.state !== 'pending_review'
-      )
+      return !s?.missing && (s?.status ?? 'unsubmitted') === 'unsubmitted'
   }
 }
 

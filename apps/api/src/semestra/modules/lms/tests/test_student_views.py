@@ -58,9 +58,7 @@ async def test_grades_follow_the_platform(api: Api, fake: FakeProvider):
     await api.link(course, "101")
     lab1 = fake.course_assignments["101"][0]
     # Graded before the import: the grade comes along with it.
-    fake.course_assignments["101"][0] = lab1.model_copy(
-        update={"submission": Submission(state="graded", score=8)}
-    )
+    fake.course_assignments["101"][0] = lab1.model_copy(update={"submission": Submission(score=8)})
     started = await held_for_review(api, f"/courses/{course}/lms/imports:assignments", ["a1", "a2"])
     session = await api.call("GET", f"/imports/{started['session_id']}")
     first = by_type(session, "assessment")[0]
@@ -86,9 +84,7 @@ async def test_grades_follow_the_platform(api: Api, fake: FakeProvider):
     assert (await api.sync(program_id))["recent"] == []
 
     # A regrade replaces a grade the user left alone.
-    fake.course_assignments["101"][0] = lab1.model_copy(
-        update={"submission": Submission(state="graded", score=9)}
-    )
+    fake.course_assignments["101"][0] = lab1.model_copy(update={"submission": Submission(score=9)})
     [change] = (await api.sync(program_id))["recent"]
     assert (change["field"], change["old"]) == (
         "score",
@@ -100,7 +96,7 @@ async def test_grades_follow_the_platform(api: Api, fake: FakeProvider):
     lab2 = (await grades())["Lab 2"]
     await api.call("PATCH", f"/assessments/{lab2['id']}", json={"score_percentage": 50})
     fake.course_assignments["101"][1] = fake.course_assignments["101"][1].model_copy(
-        update={"submission": Submission(state="graded", score=15)}
+        update={"submission": Submission(score=15)}
     )
     assert await asked() == []
     assert len((await api.call("GET", f"/programs/{program_id}/lms/sync"))["recent"]) == 1
@@ -109,7 +105,7 @@ async def test_grades_follow_the_platform(api: Api, fake: FakeProvider):
     assert await asked() == []
     # A regrade then asks, with the user's percentage against the platform's points.
     fake.course_assignments["101"][1] = fake.course_assignments["101"][1].model_copy(
-        update={"submission": Submission(state="graded", score=21)}
+        update={"submission": Submission(score=21)}
     )
     [conflict] = await asked()
     assert conflict["conflicts"] == [

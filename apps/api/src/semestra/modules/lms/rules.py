@@ -7,9 +7,10 @@ last applied, its snapshot), ours (the value in Semestra) and theirs (the platfo
 platform value back all go through it, so they never disagree about a field.
 """
 
+from collections.abc import Mapping
 from datetime import datetime
 from enum import StrEnum
-from typing import Any
+from typing import Any, Literal
 from zoneinfo import ZoneInfo
 
 TITLE_MAX = 200
@@ -98,4 +99,80 @@ def diverged(name: str, base: Any, ours: Any, theirs: Any) -> bool:
     return theirs is not None and merge(name, base, ours, theirs, False) in (
         Action.KEEP,
         Action.CONFLICT,
+    )
+
+
+SubmissionStatus = Literal["unsubmitted", "submitted", "graded", "excused"]
+"""Where the user's submission of an assignment stands, the same for every platform."""
+
+# How an assignment is handed in (`Assignment.submission_types`): these ways are not online, so
+# such an assignment has nothing to hand in here and is never missing by its date alone.
+OFFLINE_SUBMISSIONS = frozenset(("on_paper", "none", "not_graded"))
+
+
+def submission_status(
+    *,
+    excused: bool,
+    score: float | None,
+    grade: str | None,
+    submitted_at: datetime | str | None,
+    needs_grading: bool = False,
+) -> SubmissionStatus:
+    """The one rule for a submission's status: excused before graded (a score or a grade, a
+    pass/fail or letter grade included), graded before handed in. Work waiting on the teacher
+    (`needs_grading`: a quiz with questions graded by hand, a resubmission after a grade) is
+    handed in, not graded, even with the score of an earlier attempt. Whether the platform marks
+    it missing or late is a separate flag."""
+    if excused:
+        return "excused"
+    if (score is not None or grade) and not needs_grading:
+        return "graded"
+    if submitted_at is not None or needs_grading:
+        return "submitted"
+    return "unsubmitted"
+
+
+def status_of(submission: Mapping[str, Any] | None) -> SubmissionStatus:
+    """`submission_status` of a submission as the reads give it (a dumped `Submission`), from
+    its own fields: what a cache kept before a field was added reads the same."""
+    s = submission or {}
+    return submission_status(
+        excused=bool(s.get("excused")),
+        score=s.get("score"),
+        grade=s.get("grade"),
+        submitted_at=s.get("submitted_at"),
+        needs_grading=bool(s.get("needs_grading")),
+    )
+
+
+def submits_online(submission_types: list[str]) -> bool:
+    """Whether the assignment is handed in on the platform (no ways given counts as online)."""
+    return not submission_types or not set(submission_types) <= OFFLINE_SUBMISSIONS
+
+
+AssignmentState = Literal["graded", "excused", "submitted", "missing", "offline", "unsubmitted"]
+"""Where the user is with an assignment, the same for every platform and every surface (the app,
+Sem, MCP)."""
+
+
+def assignment_state(status: SubmissionStatus, *, missing: bool, online: bool) -> AssignmentState:
+    """The one rule for an assignment's state: what the submission says when it is handed in
+    (graded, excused, submitted); else missing when the platform marks it missing; else offline
+    when it is not handed in on the platform (on paper, or nothing to hand in); else unsubmitted.
+    Only the platform's flag makes it missing: past due without it, it can still be handed in
+    late. The due date is not part of it: filter on it alongside."""
+    if status != "unsubmitted":
+        return status
+    if missing:
+        return "missing"
+    return "unsubmitted" if online else "offline"
+
+
+def state_of(assignment: Mapping[str, Any]) -> AssignmentState:
+    """`assignment_state` of an assignment as the reads give it (a dumped `Assignment`)."""
+    sub = assignment.get("submission") or {}
+    return assignment_state(
+        status_of(sub),
+        missing=bool(sub.get("missing")),
+        online=submits_online(list(assignment.get("submission_types") or [])),
     )

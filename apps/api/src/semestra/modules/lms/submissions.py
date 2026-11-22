@@ -18,7 +18,9 @@ from semestra.modules.tasks import service as tasks
 
 
 def handed_in(assignments: list[dict[str, Any]]) -> set[str]:
-    """External ids of the assignments the user has submitted on the platform."""
+    """External ids of the assignments the user handed in on the platform (it has a submission
+    time). One graded without being handed in there (on paper, or a zero for a missing one) does
+    not count: the setting is about submitting on the platform."""
     return {
         a["external_id"]
         for a in assignments

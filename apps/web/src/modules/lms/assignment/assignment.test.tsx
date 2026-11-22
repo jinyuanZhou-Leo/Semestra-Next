@@ -28,6 +28,8 @@ const LAB: AssignmentDetail = {
     points: 10,
     group_name: 'Labs',
     submission_types: ['online_upload'],
+    online: true,
+    is_quiz: false,
     rubric: [
       {
         id: 'r',
@@ -40,7 +42,7 @@ const LAB: AssignmentDetail = {
   submission: {
     external_id: 's1',
     assignment_id: 'a1',
-    state: 'graded',
+    status: 'graded',
     score: 9,
     grade: '9',
     attempt: 2,
@@ -52,6 +54,7 @@ const LAB: AssignmentDetail = {
   assessment: { id: 'as1', weight: 5 },
   task: { id: 't1', completed: false },
   targets: [],
+  state: 'graded',
 }
 
 function mount(detail: AssignmentDetail, at = '/?assignment=c1:a1', View = Host) {
