@@ -1151,6 +1151,12 @@ export type AssignmentDetail = {
      */
     targets?: Array<LinkTarget>;
     /**
+     * Due State
+     *
+     * Whether the due date still matters (`rules.due_state`, M09 table 3d): none, upcoming, past (not handed in online) or overdue
+     */
+    due_state: 'none' | 'upcoming' | 'past' | 'overdue';
+    /**
      * State
      *
      * Where the user is with it (`rules.assignment_state`)
@@ -1403,6 +1409,12 @@ export type AssignmentOut = {
      * What it was imported as (an assessment, which has its to-do, or a to-do); null while not imported
      */
     imported_as: ImportTarget | null;
+    /**
+     * Due State
+     *
+     * Whether the due date still matters (`rules.due_state`, M09 table 3d): none, upcoming, past (not handed in online) or overdue
+     */
+    due_state: 'none' | 'upcoming' | 'past' | 'overdue';
     /**
      * Online
      *
@@ -14130,6 +14142,12 @@ export type AssignmentDetailWritable = {
      * What the description's links to course files are in the app
      */
     targets?: Array<LinkTarget>;
+    /**
+     * Due State
+     *
+     * Whether the due date still matters (`rules.due_state`, M09 table 3d): none, upcoming, past (not handed in online) or overdue
+     */
+    due_state: 'none' | 'upcoming' | 'past' | 'overdue';
 };
 
 /**
@@ -14347,6 +14365,12 @@ export type AssignmentOutWritable = {
      * What it was imported as (an assessment, which has its to-do, or a to-do); null while not imported
      */
     imported_as: ImportTarget | null;
+    /**
+     * Due State
+     *
+     * Whether the due date still matters (`rules.due_state`, M09 table 3d): none, upcoming, past (not handed in online) or overdue
+     */
+    due_state: 'none' | 'upcoming' | 'past' | 'overdue';
 };
 
 /**

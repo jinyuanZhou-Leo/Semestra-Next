@@ -22072,6 +22072,17 @@
             "description": "What the description's links to course files are in the app",
             "default": []
           },
+          "due_state": {
+            "type": "string",
+            "enum": [
+              "none",
+              "upcoming",
+              "past",
+              "overdue"
+            ],
+            "title": "Due State",
+            "description": "Whether the due date still matters (`rules.due_state`, M09 table 3d): none, upcoming, past (not handed in online) or overdue"
+          },
           "state": {
             "type": "string",
             "enum": [
@@ -22094,6 +22105,7 @@
           "submission",
           "assessment",
           "task",
+          "due_state",
           "state"
         ],
         "title": "AssignmentDetail",
@@ -22618,6 +22630,17 @@
             ],
             "description": "What it was imported as (an assessment, which has its to-do, or a to-do); null while not imported"
           },
+          "due_state": {
+            "type": "string",
+            "enum": [
+              "none",
+              "upcoming",
+              "past",
+              "overdue"
+            ],
+            "title": "Due State",
+            "description": "Whether the due date still matters (`rules.due_state`, M09 table 3d): none, upcoming, past (not handed in online) or overdue"
+          },
           "online": {
             "type": "boolean",
             "title": "Online",
@@ -22650,6 +22673,7 @@
           "external_id",
           "name",
           "imported_as",
+          "due_state",
           "online",
           "is_quiz",
           "state"

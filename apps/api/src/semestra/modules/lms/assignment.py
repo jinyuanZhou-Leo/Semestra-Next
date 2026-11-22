@@ -18,7 +18,7 @@ from semestra.core.errors import AppError
 from semestra.modules.academics import service as academics
 from semestra.modules.academics.models import AcademicsCourse
 from semestra.modules.grading import service as grading
-from semestra.modules.lms import announcements, reads, service, sync_kept
+from semestra.modules.lms import announcements, reads, rules, service, sync_kept
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.models import LmsCourseLink, LmsImportedRef, LmsKeptAssignment
 from semestra.modules.lms.rules import submission_status, submits_online
@@ -81,6 +81,8 @@ def _practice(provider: str, quiz: Quiz) -> AssignmentDetail:
             "submission": None,
             "quiz": QuizFacts(question_count=quiz.question_count, time_limit=quiz.time_limit),
             "practice": True,
+            # Not graded, nothing to hand in: no due hint (M09 table 3d).
+            "due_state": "none",
             "assessment": None,
             "task": None,
         }
@@ -238,7 +240,13 @@ async def get(ctx: Ctx, course_id: str, ref: str, refresh: bool) -> AssignmentDe
         elif task is not None:
             title = (await ctx.db.get_one(TasksItem, task.id)).title
         answer = _from_kept(kept, title, exc.code)
-    return AssignmentDetail.model_validate({**answer, "assessment": assessment, "task": task})
+    # The due state needs the assignment's state, which the detail works out from its parts.
+    detail = AssignmentDetail.model_validate(
+        {**answer, "assessment": assessment, "task": task, "due_state": "none"}
+    )
+    return detail.model_copy(
+        update={"due_state": rules.due_state(detail.assignment.due_at, detail.state, ctx.now)}
+    )
 
 
 async def targets(ctx: Ctx, program_id: str) -> AssignmentTargets:

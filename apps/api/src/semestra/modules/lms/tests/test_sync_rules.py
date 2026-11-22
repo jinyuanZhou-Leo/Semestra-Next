@@ -1,5 +1,6 @@
 """The per-field sync decision (M09 §4.1), every state combination."""
 
+from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -9,6 +10,7 @@ from semestra.modules.lms.older_backups import materials_from_programs
 from semestra.modules.lms.rules import (
     Action,
     diverged,
+    due_state_of,
     merge,
     platform_value,
     same,
@@ -163,3 +165,30 @@ def test_assignment_state(name: str, assignment: dict[str, Any], state: str):
     """Read from the assignment's own fields, so a list kept in the cache before `state` was
     part of the reads is sorted the same."""
     assert state_of(assignment) == state
+
+
+NOW = "2026-01-15T12:00:00+00:00"
+BEFORE, AFTER = "2026-01-10T12:00:00+00:00", "2026-01-20T12:00:00+00:00"
+
+
+@pytest.mark.parametrize(
+    ("name", "assignment", "due"),
+    [
+        # One case per row of M09 table 3d, in its order.
+        ("no due date", {}, "none"),
+        ("handed in", {"due_at": AFTER, "submission": {"submitted_at": "2026-01-12"}}, "none"),
+        ("graded", {"due_at": BEFORE, "submission": {"score": 9}}, "none"),
+        ("excused", {"due_at": BEFORE, "submission": {"excused": True}}, "none"),
+        ("due later", {"due_at": AFTER}, "upcoming"),
+        ("on paper, due later", {"due_at": AFTER, "submission_types": ["on_paper"]}, "upcoming"),
+        ("on paper, past due", {"due_at": BEFORE, "submission_types": ["on_paper"]}, "past"),
+        ("past due, not handed in", {"due_at": BEFORE}, "overdue"),
+        (
+            "past due, marked missing",
+            {"due_at": BEFORE, "submission": {"missing": True}},
+            "overdue",
+        ),
+    ],
+)
+def test_due_state(name: str, assignment: dict[str, Any], due: str):
+    assert due_state_of(assignment, datetime.fromisoformat(NOW)) == due

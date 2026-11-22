@@ -168,6 +168,28 @@ def assignment_state(status: SubmissionStatus, *, missing: bool, online: bool) -
     return "unsubmitted" if online else "offline"
 
 
+DueState = Literal["none", "upcoming", "past", "overdue"]
+"""Whether an assignment's due date still matters to the user (M09 table 3d)."""
+
+
+def due_state(due_at: datetime | None, state: AssignmentState, now: datetime) -> DueState:
+    """M09 table 3d: nothing to show without a due date or once handed in, graded or excused;
+    `upcoming` before the due date; past it, `past` for work not handed in on the platform
+    (whether it was done can't be known) and `overdue` for the rest."""
+    if due_at is None or state in ("graded", "excused", "submitted"):
+        return "none"
+    if due_at > now:
+        return "upcoming"
+    return "past" if state == "offline" else "overdue"
+
+
+def due_state_of(assignment: Mapping[str, Any], now: datetime) -> DueState:
+    """`due_state` of an assignment as the reads give it (a dumped `Assignment`)."""
+    raw = assignment.get("due_at")
+    due = (raw if isinstance(raw, datetime) else datetime.fromisoformat(raw)) if raw else None
+    return due_state(due, state_of(assignment), now)
+
+
 def state_of(assignment: Mapping[str, Any]) -> AssignmentState:
     """`assignment_state` of an assignment as the reads give it (a dumped `Assignment`)."""
     sub = assignment.get("submission") or {}

@@ -2118,6 +2118,17 @@ export const AssignmentDetailSchema = {
             description: 'What the description\'s links to course files are in the app',
             default: []
         },
+        due_state: {
+            type: 'string',
+            enum: [
+                'none',
+                'upcoming',
+                'past',
+                'overdue'
+            ],
+            title: 'Due State',
+            description: 'Whether the due date still matters (`rules.due_state`, M09 table 3d): none, upcoming, past (not handed in online) or overdue'
+        },
         state: {
             type: 'string',
             enum: [
@@ -2140,6 +2151,7 @@ export const AssignmentDetailSchema = {
         'submission',
         'assessment',
         'task',
+        'due_state',
         'state'
     ],
     title: 'AssignmentDetail',
@@ -2667,6 +2679,17 @@ export const AssignmentOutSchema = {
             ],
             description: 'What it was imported as (an assessment, which has its to-do, or a to-do); null while not imported'
         },
+        due_state: {
+            type: 'string',
+            enum: [
+                'none',
+                'upcoming',
+                'past',
+                'overdue'
+            ],
+            title: 'Due State',
+            description: 'Whether the due date still matters (`rules.due_state`, M09 table 3d): none, upcoming, past (not handed in online) or overdue'
+        },
         online: {
             type: 'boolean',
             title: 'Online',
@@ -2699,6 +2722,7 @@ export const AssignmentOutSchema = {
         'external_id',
         'name',
         'imported_as',
+        'due_state',
         'online',
         'is_quiz',
         'state'
@@ -24699,6 +24723,17 @@ export const AssignmentDetailWritableSchema = {
             title: 'Targets',
             description: 'What the description\'s links to course files are in the app',
             default: []
+        },
+        due_state: {
+            type: 'string',
+            enum: [
+                'none',
+                'upcoming',
+                'past',
+                'overdue'
+            ],
+            title: 'Due State',
+            description: 'Whether the due date still matters (`rules.due_state`, M09 table 3d): none, upcoming, past (not handed in online) or overdue'
         }
     },
     type: 'object',
@@ -24707,7 +24742,8 @@ export const AssignmentDetailWritableSchema = {
         'assignment',
         'submission',
         'assessment',
-        'task'
+        'task',
+        'due_state'
     ],
     title: 'AssignmentDetail',
     description: 'One assignment, whole (M09 §5): as the platform has it now, or, when the platform\ncan\'t be asked, as the last sync kept it (`kept_at`).'
@@ -25187,13 +25223,25 @@ export const AssignmentOutWritableSchema = {
                 }
             ],
             description: 'What it was imported as (an assessment, which has its to-do, or a to-do); null while not imported'
+        },
+        due_state: {
+            type: 'string',
+            enum: [
+                'none',
+                'upcoming',
+                'past',
+                'overdue'
+            ],
+            title: 'Due State',
+            description: 'Whether the due date still matters (`rules.due_state`, M09 table 3d): none, upcoming, past (not handed in online) or overdue'
         }
     },
     type: 'object',
     required: [
         'external_id',
         'name',
-        'imported_as'
+        'imported_as',
+        'due_state'
     ],
     title: 'AssignmentOut'
 } as const;

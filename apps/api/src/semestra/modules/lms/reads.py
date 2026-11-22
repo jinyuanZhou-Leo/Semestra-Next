@@ -245,7 +245,12 @@ async def assignments(ctx: Ctx, inp: AssignmentsInput) -> AssignmentList:
     zone = await course_zone(ctx, course_id) if inp.due_after or inp.due_before else UTC
     after, before = aware(inp.due_after, zone), aware(inp.due_before, zone)
     items = [
-        {**a, "ref": f"assignment:{a['external_id']}", "imported_as": targets.get(a["external_id"])}
+        {
+            **a,
+            "ref": f"assignment:{a['external_id']}",
+            "imported_as": targets.get(a["external_id"]),
+            "due_state": rules.due_state_of(a, ctx.now),
+        }
         for a in data
         if _wanted(a, inp, after, before)
     ]

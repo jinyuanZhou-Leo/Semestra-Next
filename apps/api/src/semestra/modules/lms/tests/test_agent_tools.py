@@ -365,6 +365,9 @@ async def test_each_assignment_is_in_one_state(api: Api, fake: FakeProvider):
     listed = await api.call("GET", f"/courses/{course}/lms/assignments")
     states = {a["name"]: a["state"] for a in listed["items"]}
     assert states == {"Lab 1": "graded", "Lab 2": "excused", "Midterm": "offline"}
+    # Its due state comes with it (table 3d): a paper midterm past its date is past, not overdue.
+    due = {a["name"]: a["due_state"] for a in listed["items"]}
+    assert due == {"Lab 1": "none", "Lab 2": "none", "Midterm": "past"}
 
 
 async def test_a_refusal_is_a_hidden_area_only_when_the_menu_says_so(
