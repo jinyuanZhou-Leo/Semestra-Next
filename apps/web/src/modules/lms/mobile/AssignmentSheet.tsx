@@ -18,7 +18,6 @@ import {
   MySubmission,
   PlatformButton,
 } from '../assignment/parts'
-import { submitsOnline } from '../assignment/status'
 import type { AssignmentTarget, AssignmentView } from '../assignment/target'
 import { useDetails } from '../assignment/use-details'
 import { SubmissionFeedback } from '../components/SubmissionFeedback'
@@ -77,7 +76,7 @@ function Details({ target, onClose }: { target: AssignmentTarget; onClose: () =>
     )
   }
   const { detail, course, provider, practice } = d
-  const { assignment: a, submission: s } = detail
+  const { assignment: a, submission: s, state } = detail
   const tab = practice ? 'details' : view
   return (
     <HideGrades hidden={d.hideGrades}>
@@ -90,10 +89,22 @@ function Details({ target, onClose }: { target: AssignmentTarget; onClose: () =>
         </DrawerHeader>
         <div className="flex min-h-0 flex-col gap-5 overflow-y-auto px-4 pb-[max(env(safe-area-inset-bottom),1rem)]">
           <div className="space-y-3">
-            <AssignmentStatus assignment={a} submission={s} practice={practice} now={d.now} />
-            <PlatformButton assignment={a} submission={s} provider={provider} practice={practice} />
+            <AssignmentStatus
+              assignment={a}
+              submission={s}
+              state={state}
+              practice={practice}
+              now={d.now}
+            />
+            <PlatformButton
+              assignment={a}
+              submission={s}
+              state={state}
+              provider={provider}
+              practice={practice}
+            />
           </div>
-          <AssignmentFacts assignment={a} submission={s} quiz={detail.quiz} />
+          <AssignmentFacts assignment={a} submission={s} state={state} quiz={detail.quiz} />
           <KeptNote detail={detail} provider={provider} />
           {practice ? null : (
             <ToggleGroup
@@ -138,7 +149,7 @@ function Details({ target, onClose }: { target: AssignmentTarget; onClose: () =>
                 courseId={target.courseId}
                 submission={s}
                 kept={detail.kept ?? false}
-                online={submitsOnline(a.submission_types)}
+                online={a.online}
               />
               <SubmissionFeedback
                 submission={s ?? { comments: [], rubric_scores: [] }}

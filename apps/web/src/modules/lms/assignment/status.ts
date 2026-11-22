@@ -1,15 +1,11 @@
-import type { SubmissionDetail } from '@semestra/api-client'
+import type { AssignmentOut } from '@semestra/api-client'
 import { m } from '@/paraglide/messages'
 
-/** Where the user is with an assignment, as its details say it in large type. */
-export type AssignmentState = 'graded' | 'excused' | 'submitted' | 'missing' | 'unsubmitted'
-
-type Handed = Pick<SubmissionDetail, 'status' | 'missing'>
-
-export function assignmentState(s: Handed | null | undefined): AssignmentState {
-  if (s && s.status !== 'unsubmitted') return s.status
-  return s?.missing ? 'missing' : 'unsubmitted'
-}
+/**
+ * Where the user is with an assignment, as the server works it out (`rules.assignment_state`, M09):
+ * the details, the to-do's card and the Canvas tab's badges and filters only show it.
+ */
+export type AssignmentState = AssignmentOut['state']
 
 export const STATE_LABELS: Record<AssignmentState, () => string> = {
   graded: m.lms_assignment_graded,
@@ -17,6 +13,7 @@ export const STATE_LABELS: Record<AssignmentState, () => string> = {
   submitted: m.lms_assignment_submitted,
   missing: m.lms_assignment_missing,
   unsubmitted: m.lms_assignment_unsubmitted,
+  offline: m.lms_assignment_offline,
 }
 
 /** The platform's ways to hand in (`submission_types`), as a student reads them. */
@@ -34,12 +31,6 @@ const SUBMISSION_TYPES: Record<string, () => string> = {
 }
 
 export const submissionTypeLabel = (type: string) => SUBMISSION_TYPES[type]?.() ?? type
-
-/** Nothing to hand in online: no "Submit in …" button, and no "not submitted yet". */
-export function submitsOnline(types: readonly string[] | undefined): boolean {
-  const offline = new Set(['on_paper', 'none', 'not_graded'])
-  return !types?.length || types.some((t) => !offline.has(t))
-}
 
 /** "2 hours", "3 days": how late a submission was. */
 export function latenessLabel(seconds: number): string {

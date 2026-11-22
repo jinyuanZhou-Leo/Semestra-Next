@@ -15,20 +15,19 @@ import { Skeleton } from '@/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import type { Assignment } from './queries'
-import {
-  STATE_LABELS,
-  assignmentState,
-  latenessLabel,
-  submissionTypeLabel,
-  submitsOnline,
-} from './status'
+import { type AssignmentState, STATE_LABELS, latenessLabel, submissionTypeLabel } from './status'
 
 /**
  * The leaves of the assignment details (M09 §7.3), shared by the dialog and the phone's page:
  * where the user is, the facts, what they handed in, where it is in Semestra.
  */
 
-type Shown = { assignment: Assignment; submission: SubmissionDetail | null }
+type Shown = {
+  assignment: Assignment
+  submission: SubmissionDetail | null
+  /** Where the user is with it (the server's `state`). */
+  state: AssignmentState
+}
 
 /** A number of points as the platform has it: "41", "7.5". */
 const points = (value: number) => String(Math.round(value * 100) / 100)
@@ -40,10 +39,10 @@ const points = (value: number) => String(Math.round(value * 100) / 100)
 export function AssignmentStatus({
   assignment: a,
   submission: s,
+  state,
   practice,
   now,
 }: Shown & { practice: boolean; now: number }) {
-  const state = assignmentState(s)
   const late = s?.late
     ? s.points_deducted
       ? m.lms_assignment_late_deducted({ points: points(s.points_deducted) })
@@ -66,7 +65,7 @@ export function AssignmentStatus({
               : null,
             late,
           ]
-        : state === 'excused'
+        : state === 'excused' || state === 'offline'
           ? null
           : due === null
             ? m.lms_assignment_no_due()
@@ -110,17 +109,12 @@ export function AssignmentStatus({
 /** The one way out: to the platform, to hand in or to look. */
 export function PlatformButton({
   assignment: a,
-  submission: s,
+  state,
   provider,
   practice,
 }: Shown & { provider: string; practice: boolean }) {
   if (!a.web_url) return null
-  const state = assignmentState(s)
-  const submit =
-    !practice &&
-    !a.locked &&
-    (state === 'unsubmitted' || state === 'missing') &&
-    submitsOnline(a.submission_types)
+  const submit = !practice && !a.locked && (state === 'unsubmitted' || state === 'missing')
   return (
     <Button
       variant={submit ? 'default' : 'outline'}
@@ -154,10 +148,11 @@ const Aside = ({ children }: { children: ReactNode }) => (
 export function AssignmentFacts({
   assignment: a,
   submission: s,
+  state,
   quiz,
   className,
 }: Shown & { quiz: AssignmentDetail['quiz']; className?: string }) {
-  const graded = assignmentState(s) === 'graded'
+  const graded = state === 'graded'
   const types = (a.submission_types ?? []).map(submissionTypeLabel)
   const extensions = (a.allowed_extensions ?? []).map((e) => `.${e}`).join(' ')
   const limited = a.allowed_attempts != null && a.allowed_attempts > 0
@@ -266,9 +261,8 @@ export function MySubmission({
   /** Whether the assignment is handed in online at all. */
   online: boolean
 }) {
-  const state = assignmentState(s)
   const files = s?.files ?? []
-  const handedIn = s !== null && (state === 'submitted' || state === 'graded')
+  const handedIn = s !== null && (s.status === 'submitted' || s.status === 'graded')
   const heading = <h3 className="text-sm font-medium">{m.lms_assignment_my_submission()}</h3>
   if (!s || !handedIn || (files.length === 0 && !s.body && !s.url && !s.submitted_at)) {
     return (

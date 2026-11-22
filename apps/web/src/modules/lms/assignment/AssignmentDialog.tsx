@@ -22,7 +22,6 @@ import {
   MySubmission,
   PlatformButton,
 } from './parts'
-import { submitsOnline } from './status'
 import type { AssignmentTarget, AssignmentView } from './target'
 import { useDetails } from './use-details'
 
@@ -130,7 +129,7 @@ function Details({ target, onClose }: { target: AssignmentTarget; onClose: () =>
     )
   }
   const { detail, course, provider, practice } = d
-  const { assignment: a, submission: s } = detail
+  const { assignment: a, submission: s, state } = detail
   const tab = practice ? 'details' : view
   return (
     <HideGrades hidden={d.hideGrades}>
@@ -209,7 +208,7 @@ function Details({ target, onClose }: { target: AssignmentTarget; onClose: () =>
                   courseId={target.courseId}
                   submission={s}
                   kept={detail.kept ?? false}
-                  online={submitsOnline(a.submission_types)}
+                  online={a.online}
                 />
                 <SubmissionFeedback
                   submission={s ?? { comments: [], rubric_scores: [] }}
@@ -222,14 +221,27 @@ function Details({ target, onClose }: { target: AssignmentTarget; onClose: () =>
         <aside className="flex w-80 shrink-0 flex-col overflow-y-auto border-l bg-muted/30">
           <div className="space-y-3 p-5">
             <div className="flex items-start justify-between gap-2">
-              <AssignmentStatus assignment={a} submission={s} practice={practice} now={d.now} />
+              <AssignmentStatus
+                assignment={a}
+                submission={s}
+                state={state}
+                practice={practice}
+                now={d.now}
+              />
               {close}
             </div>
-            <PlatformButton assignment={a} submission={s} provider={provider} practice={practice} />
+            <PlatformButton
+              assignment={a}
+              submission={s}
+              state={state}
+              provider={provider}
+              practice={practice}
+            />
           </div>
           <AssignmentFacts
             assignment={a}
             submission={s}
+            state={state}
             quiz={detail.quiz}
             className="border-t px-5 py-4"
           />

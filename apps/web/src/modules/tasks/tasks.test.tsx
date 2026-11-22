@@ -180,6 +180,37 @@ test("a to-do that is a platform assignment opens the assignment's details from 
   expect(router.state.location.search).toEqual({ assignment: 'c1:a7' })
 })
 
+test("a to-do's details say how its assignment stands, from what the sync kept", async () => {
+  server.use(
+    http.get(`${API}/programs/p1/lms/assignment-targets`, () =>
+      HttpResponse.json({
+        items: [
+          {
+            course_id: 'c1',
+            assignment_id: 'a7',
+            assessment_id: null,
+            task_id: 't2',
+            state: 'offline',
+            status: 'unsubmitted',
+            missing: false,
+            late: false,
+            online: false,
+          },
+        ],
+      }),
+    ),
+    http.get(`${API}/courses/c1/lms-link`, () =>
+      HttpResponse.json({ course_id: 'c1', link: null, program_connection_id: null }),
+    ),
+  )
+  renderTasksPage()
+  await userEvent.click(await screen.findByRole('button', { name: 'More actions for Lab report' }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: 'Edit details' }))
+  const sheet = await screen.findByRole('dialog', { name: 'Details' })
+  // Handed in on paper: never "not submitted".
+  expect(await within(sheet).findByText('No online submission')).toBeInTheDocument()
+})
+
 test('a checked-off task waits in place, can be unchecked, and is then completed', async () => {
   renderTasksPage()
   const check = await screen.findByRole('checkbox', { name: 'Complete Lab report' })

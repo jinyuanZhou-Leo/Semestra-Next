@@ -512,6 +512,56 @@ test('ticked assignments open the import review', async () => {
   )
 })
 
+test('each assignment shows the state the server gives it, in its badge and in one filter', async () => {
+  const soon = new Date(Date.now() + 3 * 86_400_000).toISOString()
+  const row = (id: string, name: string, state: string, submission: Record<string, unknown>) => ({
+    external_id: id,
+    name,
+    group_id: 'g1',
+    group_name: 'Labs',
+    points: 10,
+    due_at: soon,
+    online: state !== 'offline',
+    imported_as: null,
+    state,
+    submission: { missing: false, late: false, excused: false, ...submission },
+  })
+  server.use(
+    http.get(`${API}/courses/c1/lms/assignments`, () =>
+      HttpResponse.json({
+        items: [
+          row('e1', 'Excused lab', 'excused', { status: 'excused', excused: true }),
+          // A zero for missing it, under a late policy: graded, not also missing.
+          row('z1', 'Zeroed lab', 'graded', { status: 'graded', missing: true, score: 0 }),
+          row('p1', 'Paper lab', 'offline', { status: 'unsubmitted' }),
+          row('m1', 'Missed lab', 'missing', { status: 'unsubmitted', missing: true }),
+          row('o1', 'Open lab', 'unsubmitted', { status: 'unsubmitted' }),
+        ],
+        new_ids: [],
+        truncated: false,
+      }),
+    ),
+  )
+  renderPage('/?tab=assignments')
+  const cell = async (name: string) => (await screen.findByText(name)).closest('tr')!
+  expect(within(await cell('Excused lab')).getByText('Excused')).toBeInTheDocument()
+  expect(within(await cell('Zeroed lab')).getByText('Graded')).toBeInTheDocument()
+  expect(within(await cell('Zeroed lab')).queryByText('Missing')).toBeNull()
+  expect(within(await cell('Paper lab')).getByText('No online submission')).toBeInTheDocument()
+  expect(within(await cell('Paper lab')).queryByText(/Due/)).toBeNull()
+  expect(within(await cell('Open lab')).getByText(/Due in/)).toBeInTheDocument()
+  const shown = () =>
+    ['Excused lab', 'Zeroed lab', 'Paper lab', 'Missed lab', 'Open lab'].filter(
+      (name) => screen.queryByText(name) !== null,
+    )
+  await userEvent.click(screen.getByRole('button', { name: 'Graded' }))
+  expect(shown()).toEqual(['Zeroed lab'])
+  await userEvent.click(screen.getByRole('button', { name: 'Missing' }))
+  expect(shown()).toEqual(['Missed lab'])
+  await userEvent.click(screen.getByRole('button', { name: 'To do' }))
+  expect(shown()).toEqual(['Open lab'])
+})
+
 test('a to-do can join the gradebook through the review', async () => {
   const body = vi.fn<(path: string, body: unknown) => void>()
   server.use(...assignmentHandlers(body))
