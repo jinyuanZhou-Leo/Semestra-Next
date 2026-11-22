@@ -21,6 +21,7 @@ docs/                设计稿与模块规格
 | `pnpm lint` / `pnpm format` | oxlint + oxfmt；ruff |
 | `pnpm typecheck` | `tsc`（TS 7）；pyright |
 | `pnpm test` | vitest；pytest |
+| `pnpm check` | 本地跑这次改动在 CI 上会跑的检查（`scripts/check.py` 直接读 `ci.yml` 的路径规则和各 job 的步骤，测试只跑受影响的；跳过安装步骤；`--list` 只看计划，`--only api,web` 限定 job）。草稿 PR 推送前用它 |
 | `pnpm gen:api` | 导出 OpenAPI → 重新生成 `packages/api-client`，提交生成结果 |
 | `pnpm --filter @semestra/api migrate` | `alembic upgrade head` |
 | `pnpm --filter @semestra/web e2e` | Playwright 冒烟：注册登录、onboarding、ICS 导入（需先 `pnpm exec playwright install chromium`；默认起 dev 服务器，`E2E_BUILT=1` 则先 `VITE_API_ORIGIN= pnpm build`，由 API 同源托管构建产物，CI 这样跑） |
@@ -28,7 +29,7 @@ docs/                设计稿与模块规格
 
 后端也可直接在 `apps/api` 下用 `uv run semestra dev|serve|openapi`、`uv run alembic ...`、`uv run pytest`（加 `-n auto` 并行，CI 也这样跑，测试之间不能共享文件或全局状态）。
 
-**草稿 PR 不跑 CI（为节省 Actions 额度）**：开 PR 时先建成草稿，迭代期间每次推送前在本地跑相关检查（`pnpm --filter @semestra/web lint`/`typecheck`/`test`，`apps/api` 下 `uv run ruff check . && uv run pyright && uv run pytest -n auto`，改了接口再 `pnpm gen:api`）；自认为完成后把 PR 标成“准备好评审”（ready for review），这时才跑一轮 CI 作为合并门槛。标成就绪后的每次推送都会再跑 CI，所以修改尽量攒到一次推送。CI 按改动路径只跑相关 job（只改前端就不跑 api），同一 PR 的新推送会取消旧运行；`Deploy check` 只在 `deploy/**` 等部署文件变化时运行，`E2E` 只在版本 PR（`changeset-release/*`）上自动跑、或在 Actions 页手动触发。PR 上的测试只跑受影响的部分（`.github/scripts/affected_tests.py`，推到 main 时跑全量兜底）：后端改了 `modules/<m>/` 就跑 `<m>` 和直接引用它的模块（import 或事件/capability 名字符串）的测试，外加 `apps/api/tests/`，改到 core、迁移、依赖或 `testing.py` 跑全量；前端把改动的 `src/` 文件和用到改动文案 key 的文件交给 `vitest related`，改配置、依赖、`packages/` 或测试 setup 跑全量。本地可用 `python3 .github/scripts/affected_tests.py web --base origin/main` 看会选哪些（后端那侧要在 `apps/api` 下用 `uv run python` 跑）。
+**草稿 PR 不跑 CI（为节省 Actions 额度）**：开 PR 时先建成草稿，迭代期间每次推送前在本地跑 `pnpm check`（和 CI 同一份规则选出并执行要跑的检查）；自认为完成后把 PR 标成“准备好评审”（ready for review），这时才跑一轮 CI 作为合并门槛。标成就绪后的每次推送都会再跑 CI，所以修改尽量攒到一次推送。CI 按改动路径只跑相关 job（只改前端就不跑 api），同一 PR 的新推送会取消旧运行；`Deploy check` 只在 `deploy/**` 等部署文件变化时运行，`E2E` 只在版本 PR（`changeset-release/*`）上自动跑、或在 Actions 页手动触发。PR 上的测试只跑受影响的部分（`.github/scripts/affected_tests.py`，推到 main 时跑全量兜底）：后端改了 `modules/<m>/` 就跑 `<m>` 和直接引用它的模块（import 或事件/capability 名字符串）的测试，外加 `apps/api/tests/`，改到 core、迁移、依赖或 `testing.py` 跑全量；前端把改动的 `src/` 文件和用到改动文案 key 的文件交给 `vitest related`，改配置、依赖、`packages/` 或测试 setup 跑全量。本地可用 `python3 .github/scripts/affected_tests.py web --base origin/main` 看会选哪些（后端那侧要在 `apps/api` 下用 `uv run python` 跑）。
 
 ## 写测试的规则
 
@@ -77,6 +78,8 @@ docs/                设计稿与模块规格
 - 仍然手动列出 httptools、uvloop、watchfiles、websockets、python-dotenv，不写 `uvicorn[standard]`（历史原因，见下）。
 - `@hey-api/openapi-ts` 依赖 TypeScript 的 JS API，而 TS 7（原生版）没有它，所以 `packages/api-client` 单独固定 `typescript@6.0.3` 仅供代码生成使用；应用本身用 TS 7。
 - 前端依赖精确版本锁定（`pnpm-workspace.yaml` 里 `savePrefix: ''`）。
+- **Paraglide 的格式插件是本地依赖**：`apps/web/project.inlang/settings.json` 引用 `./node_modules/@inlang/plugin-message-format/dist/index.js`（相对 `apps/web`），不走 CDN；升级插件时改 `apps/web/package.json` 的版本即可。
+- **云端会话**：`.claude/hooks/session-start.sh` 在 Claude Code 云端会话开始时装好 Node 26、`packageManager` 指定的 pnpm 和前后端依赖，并导出 `CHROME=/opt/pw-browsers/chromium`；改了 Node 主版本或安装方式时同步改它。
 - 根目录 `oxlint` 不带路径会异常变慢，lint 脚本都显式指定目录。
 
 ## 已知坑（别再踩）
@@ -139,7 +142,6 @@ docs/                设计稿与模块规格
   新模块从模板开始：`apps/api/src/semestra/modules/_template`、`apps/web/src/modules/_template`（不注册进应用，复制后改名，再加到 `modules/__init__.py` 的 `register_all` 和 `app/registry.ts`）。
 - M01 认证与账户：`apps/api/src/semestra/modules/auth/`（邮箱验证码、密码、Google、Cookie 会话 + CSRF、原生 JWT/refresh、PAT、DB 持久化限流）与 `apps/web/src/modules/auth/`（登录流程、会话过期对话框、`/settings/account` 各分区）。同时落地了 M00 缺的最小 Capability 注册表（`core/capability.py`，生成 REST 路由与 operationId）和邮件渲染（`core/i18n.py`）。
   新模块的受保护路由放在 `routes/_authed.*`；API 调用统一走 `src/app/api.ts`（自动带 CSRF 头、401 时触发会话过期对话框）。
-  本地开发注意：① 沙箱里 Paraglide 的 inlang 插件 CDN 拉不到时，把 `apps/web/project.inlang/settings.json` 临时指向本地副本，且不要提交。
 - M15（部署与运维）：`deploy/docker/Dockerfile`（目标 `api` / `api-office` / `allinone`，上下文是仓库根）、`deploy/selfhost/`（一条命令的 compose，中英 README）、`core/webapp.py`（`SEMESTRA_SERVE_WEB` 同源托管 SPA）、`core/backup.py` 与 `semestra backup`、可选 Sentry。总览见 [deploy/README.md](deploy/README.md)。官方托管版（GCP VM 上 uv + systemd 跑后端，Vercel 托管前端/官网/文档，`/landing`、`/docs` 由 `apps/web/vercel.json` 转发）的脚本与运维手册不放进仓库；`release.yml` 只构建自部署镜像并建 GitHub Release，不部署托管版。托管版前端和文档只在发版时由 Vercel 构建（`scripts/vercel-ignore-build.sh <web|docs|site>`；只有 main 会部署（各 `vercel.json` 的 `git.deploymentEnabled` 关掉了其他分支，PR 没有预览），官网只在它用到的文件有改动时构建，项目新读了仓库里别处的文件要加进脚本的路径表，否则那类改动不会触发构建），后端手动部署：改了接口时，合并版本 PR 之前先部署后端。
   **尚未实现**：`/metrics`、每周 `VACUUM`（M00 的 `@periodic` 已可用，上线前需评估与外部 WAL 复制工具的配合）。
   给其它模块的约定：持久数据只写 `/data`；后端 GET 路径不要与前端路由同名（同源托管时 API 优先）；系统库加在 Dockerfile 的 `api` 目标；新增环境变量同步 `deploy/.env.example`；Docker 里的 pnpm 版本（`PNPM_VERSION`）要与根 `package.json` 的 `packageManager` 一致。

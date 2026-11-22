@@ -1,0 +1,25 @@
+---
+title: Development tools
+description: Tools for local development and debugging, such as checks before you push and the cloud session setup.
+icon: Wrench
+---
+
+These tools are for development only and never ship in the production image.
+
+## Checks before you push
+
+```bash
+pnpm check            # run the checks CI would run for this change
+pnpm check --list     # only list the jobs it would run
+pnpm check --only api,web
+```
+
+`pnpm check` reads `.github/workflows/ci.yml` itself: it picks jobs with the same path filters (comparing against the merge base with `origin/main`, including uncommitted and untracked files) and runs each job's steps in order, with tests narrowed to the affected ones as on a pull request. Draft PRs skip CI, so run it before marking a PR ready for review.
+
+It differs from CI in two places: dependency installs are skipped, and the "nothing to regenerate" check (`git diff --exit-code`) compares against the working tree as it was when the job started, so uncommitted work is fine.
+
+## Cloud sessions
+
+`.claude/hooks/session-start.sh` prepares Claude Code cloud sessions: it installs the Node 26 that CI uses and the pnpm version `packageManager` pins, installs both dependency trees, and points `CHROME` at the Chromium that ships with the image. Installs are skipped when no dependency file changed. On a local machine it does nothing.
+
+The Paraglide plugin is a dev dependency in `apps/web/node_modules`, and `project.inlang/settings.json` points at it, so compiling messages needs no CDN.
