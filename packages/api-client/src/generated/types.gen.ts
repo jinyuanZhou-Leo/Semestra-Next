@@ -1475,6 +1475,12 @@ export type AssignmentTarget = {
      * Submitted At
      */
     submitted_at?: string | null;
+    /**
+     * Online
+     *
+     * Handed in on the platform (not on paper or not at all)
+     */
+    online?: boolean;
 };
 
 /**
@@ -11379,6 +11385,12 @@ export type Submission = {
      */
     excused?: boolean;
     /**
+     * Needs Grading
+     *
+     * Handed in and waiting on the teacher (graded by hand, or resubmitted after a grade)
+     */
+    needs_grading?: boolean;
+    /**
      * Status
      *
      * Where the submission stands (`rules.submission_status`)
@@ -11475,6 +11487,12 @@ export type SubmissionDetail = {
      * Excused
      */
     excused?: boolean;
+    /**
+     * Needs Grading
+     *
+     * Handed in and waiting on the teacher (graded by hand, or resubmitted after a grade)
+     */
+    needs_grading?: boolean;
     /**
      * Seconds Late
      */
@@ -14537,6 +14555,12 @@ export type SubmissionWritable = {
      * Excused
      */
     excused?: boolean;
+    /**
+     * Needs Grading
+     *
+     * Handed in and waiting on the teacher (graded by hand, or resubmitted after a grade)
+     */
+    needs_grading?: boolean;
 };
 
 /**
@@ -14598,6 +14622,12 @@ export type SubmissionDetailWritable = {
      * Excused
      */
     excused?: boolean;
+    /**
+     * Needs Grading
+     *
+     * Handed in and waiting on the teacher (graded by hand, or resubmitted after a grade)
+     */
+    needs_grading?: boolean;
     /**
      * Seconds Late
      */

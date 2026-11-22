@@ -5,7 +5,7 @@ it is cached, so cache hits are clean too."""
 import asyncio
 from collections.abc import AsyncGenerator, AsyncIterator, Collection, Sequence
 from datetime import UTC, datetime, timedelta, tzinfo
-from typing import Any, Literal
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
@@ -13,7 +13,7 @@ from sqlalchemy import select
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError
 from semestra.modules.academics import service as academics
-from semestra.modules.lms import cache, html, service, submissions
+from semestra.modules.lms import cache, html, rules, service, submissions
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.models import LmsCourseLink, LmsImportedRef
 from semestra.modules.lms.schemas.dto import (
@@ -291,28 +291,7 @@ def _wanted(
         return False
     if before and (due is None or due > before):
         return False
-    return inp.status is None or status_filter(a, ctx.now) == inp.status
-
-
-def status_filter(
-    a: dict[str, Any], now: datetime
-) -> Literal["upcoming", "missing", "graded"] | None:
-    """Which of the list's status filters the assignment falls in (at most one), from its
-    submission's status (`rules.submission_status`): graded, then missing (the platform's own
-    flag, else an online assignment past its due date with nothing handed in), then upcoming
-    (nothing handed in, not due yet). Excused and handed-in ones are in none."""
-    sub = a.get("submission") or {}
-    status = sub.get("status") or "unsubmitted"
-    if status == "graded":
-        return "graded"
-    if status != "unsubmitted":
-        return None
-    due = datetime.fromisoformat(a["due_at"]) if a.get("due_at") else None
-    if sub.get("missing") or (not sub and a.get("online", True) and due is not None and due < now):
-        return "missing"
-    if due is None or due > now:
-        return "upcoming"
-    return None
+    return inp.status is None or rules.bucket(a, ctx.now) == inp.status
 
 
 async def grades(ctx: Ctx, course_id: str, refresh: bool) -> GradeList:

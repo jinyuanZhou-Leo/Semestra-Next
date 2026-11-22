@@ -247,7 +247,7 @@ async def _check(
     except AppError as exc:
         # A reachable host without the platform's API answers the profile read with 404.
         if exc.code == "lms.not_found":
-            raise lms_error("lms.invalid_config", field="base_url", reason="not_lms") from exc
+            raise lms_error("lms.invalid_config", field="base_url", reason="not_canvas") from exc
         raise
 
 

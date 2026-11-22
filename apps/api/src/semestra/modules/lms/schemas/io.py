@@ -652,6 +652,9 @@ class AssignmentTarget(BaseModel):
     missing: bool = False
     late: bool = False
     submitted_at: datetime | None = None
+    online: bool = Field(
+        default=True, description="Handed in on the platform (not on paper or not at all)"
+    )
 
 
 class AssignmentTargets(BaseModel):

@@ -7,6 +7,7 @@ last applied, its snapshot), ours (the value in Semestra) and theirs (the platfo
 platform value back all go through it, so they never disagree about a field.
 """
 
+from collections.abc import Mapping
 from datetime import datetime
 from enum import StrEnum
 from typing import Any, Literal
@@ -110,20 +111,68 @@ OFFLINE_SUBMISSIONS = frozenset(("on_paper", "none", "not_graded"))
 
 
 def submission_status(
-    *, excused: bool, score: float | None, grade: str | None, submitted_at: datetime | None
+    *,
+    excused: bool,
+    score: float | None,
+    grade: str | None,
+    submitted_at: datetime | str | None,
+    needs_grading: bool = False,
 ) -> SubmissionStatus:
     """The one rule for a submission's status: excused before graded (a score or a grade, a
-    pass/fail or letter grade included), graded before handed in. Whether the platform marks
+    pass/fail or letter grade included), graded before handed in. Work waiting on the teacher
+    (`needs_grading`: a quiz with questions graded by hand, a resubmission after a grade) is
+    handed in, not graded, even with the score of an earlier attempt. Whether the platform marks
     it missing or late is a separate flag."""
     if excused:
         return "excused"
-    if score is not None or grade:
+    if (score is not None or grade) and not needs_grading:
         return "graded"
-    if submitted_at is not None:
+    if submitted_at is not None or needs_grading:
         return "submitted"
     return "unsubmitted"
+
+
+def status_of(submission: Mapping[str, Any] | None) -> SubmissionStatus:
+    """`submission_status` of a submission as the reads give it (a dumped `Submission`), from
+    its own fields: what a cache kept before a field was added reads the same."""
+    s = submission or {}
+    return submission_status(
+        excused=bool(s.get("excused")),
+        score=s.get("score"),
+        grade=s.get("grade"),
+        submitted_at=s.get("submitted_at"),
+        needs_grading=bool(s.get("needs_grading")),
+    )
 
 
 def submits_online(submission_types: list[str]) -> bool:
     """Whether the assignment is handed in on the platform (no ways given counts as online)."""
     return not submission_types or not set(submission_types) <= OFFLINE_SUBMISSIONS
+
+
+AssignmentBucket = Literal["upcoming", "missing", "graded"]
+
+
+def bucket(assignment: Mapping[str, Any], now: datetime) -> AssignmentBucket | None:
+    """Which of the assignment list's filters an assignment (as the reads give it) falls in, at
+    most one: graded; then missing (the platform's own flag, else, without a submission, an
+    online assignment past its due date); then upcoming (nothing handed in, not due yet).
+    Excused and handed-in ones are in none."""
+    sub = assignment.get("submission")
+    status = status_of(sub)
+    if status == "graded":
+        return "graded"
+    if status != "unsubmitted":
+        return None
+    raw_due = assignment.get("due_at")
+    due = (
+        (raw_due if isinstance(raw_due, datetime) else datetime.fromisoformat(raw_due))
+        if raw_due
+        else None
+    )
+    online = submits_online(list(assignment.get("submission_types") or []))
+    if (sub or {}).get("missing") or (not sub and online and due is not None and due < now):
+        return "missing"
+    if due is None or due > now:
+        return "upcoming"
+    return None

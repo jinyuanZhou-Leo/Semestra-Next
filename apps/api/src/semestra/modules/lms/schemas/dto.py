@@ -171,12 +171,21 @@ class Submission(BaseModel):
     missing: bool = False
     attempt: int | None = Field(default=None, description="Attempts made (quizzes, resubmissions)")
     excused: bool = False
+    needs_grading: bool = Field(
+        default=False,
+        description="Handed in and waiting on the teacher (graded by hand, or resubmitted after a "
+        "grade)",
+    )
 
     @computed_field(description="Where the submission stands (`rules.submission_status`)")
     @property
     def status(self) -> SubmissionStatus:
         return submission_status(
-            excused=self.excused, score=self.score, grade=self.grade, submitted_at=self.submitted_at
+            excused=self.excused,
+            score=self.score,
+            grade=self.grade,
+            submitted_at=self.submitted_at,
+            needs_grading=self.needs_grading,
         )
 
 
@@ -294,13 +303,22 @@ class SubmissionDetail(Dto):
     late: bool = False
     missing: bool = False
     excused: bool = False
+    needs_grading: bool = Field(
+        default=False,
+        description="Handed in and waiting on the teacher (graded by hand, or resubmitted after a "
+        "grade)",
+    )
     seconds_late: int | None = None
 
     @computed_field(description="Where the submission stands (`rules.submission_status`)")
     @property
     def status(self) -> SubmissionStatus:
         return submission_status(
-            excused=self.excused, score=self.score, grade=self.grade, submitted_at=self.submitted_at
+            excused=self.excused,
+            score=self.score,
+            grade=self.grade,
+            submitted_at=self.submitted_at,
+            needs_grading=self.needs_grading,
         )
 
     points_deducted: float | None = Field(default=None, description="Taken off for lateness")
