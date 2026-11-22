@@ -5,6 +5,10 @@ Any non-empty access token is accepted. Lists are paginated with `Link: rel="nex
 (`per_page`, at most 100; the `large` scenario serves 25 a page). Areas a teacher turned off answer
 like Canvas does: pages with 404, files with 401 (no WWW-Authenticate).
 
+File downloads redirect to this same server. Real Canvas redirects to its file store on another
+domain, where the provider drops the Authorization header and checks `FILE_CDN_SUFFIXES`; that
+cross-domain hop is not covered here and needs a real Canvas to verify.
+
 Besides the shared `/_fake/faults` and `/_fake/requests` (see `devtools/control.py`):
 
     GET  /_fake/state     the courses (id, code, name) and the base URL

@@ -7,12 +7,14 @@ Starts, with a fresh data directory (apps/api/data/demo) so your usual dev data 
     Canvas     http://127.0.0.1:8090   (the fake Canvas, see devtools/fake_canvas)
     Model API  http://127.0.0.1:8091   (the fake model server, see devtools/fake_ai.py)
 
-then seeds an account (devtools/seed.py), connects the fake Canvas and the fake model server, runs
-the first LMS sync and prints how to sign in. `--scenario large` serves a course with hundreds of
-files and assignments; `--no-canvas` / `--no-ai` leave them out; `--no-web` skips Vite (e.g. when
-it already runs). Ctrl+C stops everything.
+then seeds an account (devtools/seed.py), connects the fake Canvas and the fake model server,
+starts the first LMS sync (it goes on in the background) and prints how to sign in. `--scenario
+large` serves a course with hundreds of files and assignments; `--no-canvas` / `--no-ai` leave
+them out; `--no-web` skips Vite (e.g. when it already runs). Ctrl+C, closing the terminal or
+SIGTERM stops everything, the processes those started included.
 """
 
+import contextlib
 import os
 import shutil
 import signal
@@ -80,19 +82,26 @@ def run(*, scenario: str, canvas: bool, ai: bool, web: bool) -> None:
     procs: list[subprocess.Popen[bytes]] = []
 
     def start(args: list[str], cwd: Path) -> None:
-        procs.append(subprocess.Popen(args, cwd=cwd, env=env))  # noqa: S603
+        # Each in its own process group, so stopping reaches the uvicorn workers and Vite that
+        # `semestra dev` and pnpm start under them.
+        procs.append(subprocess.Popen(args, cwd=cwd, env=env, start_new_session=True))  # noqa: S603
 
-    def stop(*_: object) -> None:
+    def signal_groups(sig: signal.Signals) -> None:
         for p in procs:
-            if p.poll() is None:
-                p.send_signal(signal.SIGINT)
-        for p in procs:
-            try:
-                p.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                p.kill()
+            with contextlib.suppress(ProcessLookupError, PermissionError):
+                os.killpg(p.pid, sig)
 
-    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+    def stop() -> None:
+        signal_groups(signal.SIGINT)
+        deadline = time.monotonic() + 10
+        for p in procs:
+            with contextlib.suppress(subprocess.TimeoutExpired):
+                p.wait(timeout=max(0.0, deadline - time.monotonic()))
+        # Whatever is left in a group, the leader's children included, goes now.
+        signal_groups(signal.SIGKILL)
+
+    for sig in (signal.SIGTERM, signal.SIGHUP):
+        signal.signal(sig, lambda *_: sys.exit(0))
     try:
         if canvas:
             start(
