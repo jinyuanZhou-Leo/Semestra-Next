@@ -342,6 +342,30 @@ async def test_missing_follows_the_platform_and_skips_work_handed_in_elsewhere(
     assert [a["name"] for a in out["items"]] == ["Lab 1"]
 
 
+async def test_each_assignment_falls_in_one_status_filter_at_most(api: Api, fake: FakeProvider):
+    course, _ = await _linked(api)
+    lab1, lab2, midterm = fake.course_assignments["101"]
+    past = datetime.fromisoformat("2026-01-10T12:00:00+00:00")
+    later = datetime.fromisoformat("2026-02-10T12:00:00+00:00")
+    # Missing on the platform, then graded zero: graded only.
+    lab1.due_at, lab1.submission = past, Submission(missing=True, score=0)
+    # Excused before it was due: neither upcoming nor missing.
+    lab2.due_at, lab2.submission = later, Submission(excused=True)
+    # Handed in on paper, never marked: not missing however late.
+    midterm.due_at, midterm.submission_types, midterm.submission = past, ["on_paper"], None
+
+    async def names(status: str) -> list[str]:
+        out = await api.call("GET", f"/courses/{course}/lms/assignments", params={"status": status})
+        return [a["name"] for a in out["items"]]
+
+    assert await names("graded") == ["Lab 1"]
+    assert await names("missing") == []
+    assert await names("upcoming") == []
+    listed = await api.call("GET", f"/courses/{course}/lms/assignments")
+    statuses = {a["name"]: (a["submission"] or {}).get("status") for a in listed["items"]}
+    assert statuses == {"Lab 1": "graded", "Lab 2": "excused", "Midterm": None}
+
+
 async def test_a_refusal_is_a_hidden_area_only_when_the_menu_says_so(
     api: Api, fake: FakeProvider, monkeypatch: Any
 ):

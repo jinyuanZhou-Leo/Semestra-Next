@@ -97,6 +97,9 @@ function rowsOf(assignments: readonly AssignmentOut[], quizzes: readonly Quiz[])
         lock_explanation: q.lock_explanation,
         allowed_attempts: q.allowed_attempts,
         imported_as: null,
+        online: true,
+        // Not graded: no assignment behind it.
+        is_quiz: false,
       },
     })
   }

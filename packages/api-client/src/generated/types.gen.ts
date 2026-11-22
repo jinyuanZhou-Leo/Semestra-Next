@@ -1255,6 +1255,18 @@ export type AssignmentFacts = {
      * Quiz Id
      */
     quiz_id?: string | null;
+    /**
+     * Online
+     *
+     * Handed in on the platform (not on paper or not at all)
+     */
+    readonly online: boolean;
+    /**
+     * Is Quiz
+     *
+     * A graded quiz
+     */
+    readonly is_quiz: boolean;
 };
 
 /**
@@ -1385,6 +1397,18 @@ export type AssignmentOut = {
      * What it was imported as (an assessment, which has its to-do, or a to-do); null while not imported
      */
     imported_as: ImportTarget | null;
+    /**
+     * Online
+     *
+     * Handed in on the platform (not on paper or not at all)
+     */
+    readonly online: boolean;
+    /**
+     * Is Quiz
+     *
+     * A graded quiz
+     */
+    readonly is_quiz: boolean;
 };
 
 /**
@@ -1433,6 +1457,24 @@ export type AssignmentTarget = {
      * The teacher left comments or rubric scores on the assessment
      */
     feedback?: boolean;
+    /**
+     * Status
+     *
+     * Where the user's submission stands as of the last sync; None until the sync has read it
+     */
+    status?: 'unsubmitted' | 'submitted' | 'graded' | 'excused' | null;
+    /**
+     * Missing
+     */
+    missing?: boolean;
+    /**
+     * Late
+     */
+    late?: boolean;
+    /**
+     * Submitted At
+     */
+    submitted_at?: string | null;
 };
 
 /**
@@ -11342,6 +11384,12 @@ export type Submission = {
      * Excused
      */
     excused?: boolean;
+    /**
+     * Status
+     *
+     * Where the submission stands (`rules.submission_status`)
+     */
+    readonly status: 'unsubmitted' | 'submitted' | 'graded' | 'excused';
 };
 
 /**
@@ -11477,6 +11525,12 @@ export type SubmissionDetail = {
      * Rubric Scores
      */
     rubric_scores?: Array<RubricScore>;
+    /**
+     * Status
+     *
+     * Where the submission stands (`rules.submission_status`)
+     */
+    readonly status: 'unsubmitted' | 'submitted' | 'graded' | 'excused';
 };
 
 /**
@@ -13988,6 +14042,288 @@ export type SemestraModulesScheduleSchemasDeleted = {
 };
 
 /**
+ * AssignmentDetail
+ *
+ * One assignment, whole (M09 §5): as the platform has it now, or, when the platform
+ * can't be asked, as the last sync kept it (`kept_at`).
+ */
+export type AssignmentDetailWritable = {
+    /**
+     * Provider
+     *
+     * The provider it was read from
+     */
+    provider: string;
+    /**
+     * Without `submission`: it is `submission` here
+     */
+    assignment: AssignmentFactsWritable;
+    /**
+     * What the user handed in, with the teacher's feedback; null when unknown
+     */
+    submission: SubmissionDetailWritable | null;
+    /**
+     * Of an assignment that is a quiz
+     */
+    quiz?: QuizFacts | null;
+    /**
+     * Practice
+     *
+     * A quiz without an assignment (a practice quiz): no submission, not importable
+     */
+    practice?: boolean;
+    /**
+     * Kept
+     *
+     * This is what the sync kept, not the platform's answer
+     */
+    kept?: boolean;
+    /**
+     * Kept At
+     *
+     * When the sync read what it kept (unknown for old rows)
+     */
+    kept_at?: string | null;
+    /**
+     * Problem
+     *
+     * Why the platform's answer is missing (an error code)
+     */
+    problem?: string | null;
+    /**
+     * The gradebook row it was imported as
+     */
+    assessment: InGradebook | null;
+    /**
+     * Its to-do
+     */
+    task: InTasks | null;
+    /**
+     * Targets
+     *
+     * What the description's links to course files are in the app
+     */
+    targets?: Array<LinkTarget>;
+};
+
+/**
+ * AssignmentFacts
+ *
+ * The assignment as `AssignmentDetail` gives it (its own name in the API: the AI module has
+ * an `Assignment` too).
+ */
+export type AssignmentFactsWritable = {
+    /**
+     * External Id
+     */
+    external_id: string;
+    /**
+     * Web Url
+     *
+     * Opens the item on the platform
+     */
+    web_url?: string | null;
+    /**
+     * Raw Kind
+     *
+     * The platform's own type (debugging)
+     */
+    raw_kind?: string | null;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Html
+     */
+    html?: string | null;
+    /**
+     * Due At
+     */
+    due_at?: string | null;
+    /**
+     * Unlock At
+     */
+    unlock_at?: string | null;
+    /**
+     * Lock At
+     */
+    lock_at?: string | null;
+    /**
+     * Points
+     */
+    points?: number | null;
+    /**
+     * Group Id
+     */
+    group_id?: string | null;
+    /**
+     * Group Name
+     */
+    group_name?: string | null;
+    /**
+     * Group Weight
+     */
+    group_weight?: number | null;
+    /**
+     * Submission Types
+     */
+    submission_types?: Array<string>;
+    submission?: SubmissionWritable | null;
+    /**
+     * Published
+     */
+    published?: boolean;
+    /**
+     * Updated At
+     */
+    updated_at?: string | null;
+    /**
+     * Locked
+     */
+    locked?: boolean;
+    /**
+     * Lock Explanation
+     *
+     * Why it is locked, as the platform says
+     */
+    lock_explanation?: string | null;
+    /**
+     * Allowed Attempts
+     *
+     * None or -1: unlimited
+     */
+    allowed_attempts?: number | null;
+    /**
+     * Allowed Extensions
+     *
+     * File types an upload takes; empty for any
+     */
+    allowed_extensions?: Array<string>;
+    statistics?: ScoreStatistics | null;
+    /**
+     * Rubric
+     */
+    rubric?: Array<RubricCriterion>;
+    /**
+     * Quiz Id
+     */
+    quiz_id?: string | null;
+};
+
+/**
+ * AssignmentOut
+ */
+export type AssignmentOutWritable = {
+    /**
+     * External Id
+     */
+    external_id: string;
+    /**
+     * Web Url
+     *
+     * Opens the item on the platform
+     */
+    web_url?: string | null;
+    /**
+     * Raw Kind
+     *
+     * The platform's own type (debugging)
+     */
+    raw_kind?: string | null;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Html
+     */
+    html?: string | null;
+    /**
+     * Due At
+     */
+    due_at?: string | null;
+    /**
+     * Unlock At
+     */
+    unlock_at?: string | null;
+    /**
+     * Lock At
+     */
+    lock_at?: string | null;
+    /**
+     * Points
+     */
+    points?: number | null;
+    /**
+     * Group Id
+     */
+    group_id?: string | null;
+    /**
+     * Group Name
+     */
+    group_name?: string | null;
+    /**
+     * Group Weight
+     */
+    group_weight?: number | null;
+    /**
+     * Submission Types
+     */
+    submission_types?: Array<string>;
+    submission?: SubmissionWritable | null;
+    /**
+     * Published
+     */
+    published?: boolean;
+    /**
+     * Updated At
+     */
+    updated_at?: string | null;
+    /**
+     * Locked
+     */
+    locked?: boolean;
+    /**
+     * Lock Explanation
+     *
+     * Why it is locked, as the platform says
+     */
+    lock_explanation?: string | null;
+    /**
+     * Allowed Attempts
+     *
+     * None or -1: unlimited
+     */
+    allowed_attempts?: number | null;
+    /**
+     * Allowed Extensions
+     *
+     * File types an upload takes; empty for any
+     */
+    allowed_extensions?: Array<string>;
+    statistics?: ScoreStatistics | null;
+    /**
+     * Rubric
+     */
+    rubric?: Array<RubricCriterion>;
+    /**
+     * Quiz Id
+     */
+    quiz_id?: string | null;
+    /**
+     * Ref
+     *
+     * For lms.content.read: its text, score and feedback
+     */
+    ref?: string;
+    /**
+     * What it was imported as (an assessment, which has its to-do, or a to-do); null while not imported
+     */
+    imported_as: ImportTarget | null;
+};
+
+/**
  * ConnectionCreateInputBody
  */
 export type ConnectionCreateInputBodyWritable = {
@@ -14171,6 +14507,183 @@ export type ProviderUpdateInputBodyWritable = {
      * Most requests sent to the provider at once; null for the default (4).
      */
     max_concurrency?: number | null;
+};
+
+/**
+ * Submission
+ */
+export type SubmissionWritable = {
+    /**
+     * State
+     *
+     * e.g. submitted, graded, unsubmitted
+     */
+    state?: string | null;
+    /**
+     * Submitted At
+     */
+    submitted_at?: string | null;
+    /**
+     * Graded At
+     */
+    graded_at?: string | null;
+    /**
+     * Score
+     */
+    score?: number | null;
+    /**
+     * Grade
+     */
+    grade?: string | null;
+    /**
+     * Late
+     */
+    late?: boolean;
+    /**
+     * Missing
+     */
+    missing?: boolean;
+    /**
+     * Attempt
+     *
+     * Attempts made (quizzes, resubmissions)
+     */
+    attempt?: number | null;
+    /**
+     * Excused
+     */
+    excused?: boolean;
+};
+
+/**
+ * SubmissionDetail
+ *
+ * The user's own submission of one assignment (what they handed in last), with the
+ * teacher's feedback.
+ */
+export type SubmissionDetailWritable = {
+    /**
+     * External Id
+     */
+    external_id: string;
+    /**
+     * Web Url
+     *
+     * Opens the item on the platform
+     */
+    web_url?: string | null;
+    /**
+     * Raw Kind
+     *
+     * The platform's own type (debugging)
+     */
+    raw_kind?: string | null;
+    /**
+     * Assignment Id
+     */
+    assignment_id: string;
+    /**
+     * State
+     */
+    state?: string | null;
+    /**
+     * Submitted At
+     */
+    submitted_at?: string | null;
+    /**
+     * Graded At
+     */
+    graded_at?: string | null;
+    /**
+     * Score
+     */
+    score?: number | null;
+    /**
+     * Grade
+     */
+    grade?: string | null;
+    /**
+     * Attempt
+     */
+    attempt?: number | null;
+    /**
+     * Late
+     */
+    late?: boolean;
+    /**
+     * Missing
+     */
+    missing?: boolean;
+    /**
+     * Excused
+     */
+    excused?: boolean;
+    /**
+     * Seconds Late
+     */
+    seconds_late?: number | null;
+    /**
+     * Points Deducted
+     *
+     * Taken off for lateness
+     */
+    points_deducted?: number | null;
+    /**
+     * Submission Type
+     *
+     * How it was handed in
+     */
+    submission_type?: string | null;
+    /**
+     * Body
+     *
+     * A text entry's text
+     */
+    body?: string | null;
+    /**
+     * Url
+     *
+     * A website submission's address
+     */
+    url?: string | null;
+    /**
+     * Files
+     */
+    files?: Array<SubmittedFile>;
+    /**
+     * Comments
+     */
+    comments?: Array<SubmissionComment>;
+    /**
+     * Rubric Scores
+     */
+    rubric_scores?: Array<RubricScore>;
+};
+
+/**
+ * AssignmentList
+ */
+export type SemestraModulesLmsSchemasIoAssignmentListWritable = {
+    /**
+     * Items
+     */
+    items: Array<AssignmentOutWritable>;
+    /**
+     * New Ids
+     *
+     * `external_id` of the new assignments: not imported and due later
+     */
+    new_ids: Array<string>;
+    /**
+     * Totals
+     *
+     * The course total as the LMS shows it, with `include_total`
+     */
+    totals?: Array<GradeItem>;
+    /**
+     * Truncated
+     */
+    truncated: boolean;
 };
 
 export type HealthzData = {

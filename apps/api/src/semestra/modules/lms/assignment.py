@@ -21,6 +21,7 @@ from semestra.modules.grading import service as grading
 from semestra.modules.lms import announcements, reads, service, sync_kept
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.models import LmsCourseLink, LmsImportedRef, LmsKeptAssignment
+from semestra.modules.lms.rules import submission_status
 from semestra.modules.lms.schemas.dto import FileMeta, Quiz, SubmissionDetail
 from semestra.modules.lms.schemas.io import (
     AssignmentDetail,
@@ -156,11 +157,7 @@ async def _live(
         except AppError as exc:
             if exc.code not in reads.ITEM_ERRORS:
                 raise
-    quiz = (
-        await _quiz(ctx, course_id, assignment_id, b, refresh)
-        if found.get("raw_kind") == "quiz"
-        else None
-    )
+    quiz = await _quiz(ctx, course_id, assignment_id, b, refresh) if found.get("is_quiz") else None
     return {
         "provider": b.row.provider,
         "assignment": {**found, "submission": None},
@@ -284,23 +281,46 @@ async def targets(ctx: Ctx, program_id: str) -> AssignmentTargets:
             assessment_id=row.assessment_id,
             task_id=row.task_id,
             feedback=sync_kept.has_feedback(row),
+            **_submission_facts(row),
         )
     for ref, course_id in refs:
         graded = ref.target_kind == "assessment"
         kept_target = found.get((course_id, ref.external_id))
+        same = kept_target is not None and (
+            kept_target.assessment_id == ref.target_id
+            if graded
+            else kept_target.task_id == ref.target_id
+        )
         found[course_id, ref.external_id] = AssignmentTarget(
             course_id=course_id,
             assignment_id=ref.external_id,
             assessment_id=ref.target_id if graded else None,
             task_id=None if graded else ref.target_id,
-            feedback=bool(
-                graded
-                and kept_target
-                and kept_target.assessment_id == ref.target_id
-                and kept_target.feedback
+            feedback=bool(graded and same and kept_target and kept_target.feedback),
+            **(
+                kept_target.model_dump(include={"status", "missing", "late", "submitted_at"})
+                if same and kept_target
+                else {}
             ),
         )
     return AssignmentTargets(items=list(found.values()))
+
+
+def _submission_facts(row: LmsKeptAssignment) -> dict[str, Any]:
+    """The submission's status as the sync last kept it (`rules.submission_status`)."""
+    work = row.work or {}
+    submitted_at = work.get("submitted_at")
+    return {
+        "status": submission_status(
+            excused=bool(work.get("excused")),
+            score=row.score,
+            grade=row.grade,
+            submitted_at=submitted_at,
+        ),
+        "missing": bool(work.get("missing")),
+        "late": bool(work.get("late")),
+        "submitted_at": submitted_at,
+    }
 
 
 async def submitted_file(ctx: Ctx, course_id: str, assignment_id: str, file_id: str) -> FileMeta:

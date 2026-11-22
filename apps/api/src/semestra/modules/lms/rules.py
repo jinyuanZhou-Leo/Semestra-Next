@@ -9,7 +9,7 @@ platform value back all go through it, so they never disagree about a field.
 
 from datetime import datetime
 from enum import StrEnum
-from typing import Any
+from typing import Any, Literal
 from zoneinfo import ZoneInfo
 
 TITLE_MAX = 200
@@ -99,3 +99,31 @@ def diverged(name: str, base: Any, ours: Any, theirs: Any) -> bool:
         Action.KEEP,
         Action.CONFLICT,
     )
+
+
+SubmissionStatus = Literal["unsubmitted", "submitted", "graded", "excused"]
+"""Where the user's submission of an assignment stands, the same for every platform."""
+
+# How an assignment is handed in (`Assignment.submission_types`): these ways are not online, so
+# such an assignment has nothing to hand in here and is never missing by its date alone.
+OFFLINE_SUBMISSIONS = frozenset(("on_paper", "none", "not_graded"))
+
+
+def submission_status(
+    *, excused: bool, score: float | None, grade: str | None, submitted_at: datetime | None
+) -> SubmissionStatus:
+    """The one rule for a submission's status: excused before graded (a score or a grade, a
+    pass/fail or letter grade included), graded before handed in. Whether the platform marks
+    it missing or late is a separate flag."""
+    if excused:
+        return "excused"
+    if score is not None or grade:
+        return "graded"
+    if submitted_at is not None:
+        return "submitted"
+    return "unsubmitted"
+
+
+def submits_online(submission_types: list[str]) -> bool:
+    """Whether the assignment is handed in on the platform (no ways given counts as online)."""
+    return not submission_types or not set(submission_types) <= OFFLINE_SUBMISSIONS

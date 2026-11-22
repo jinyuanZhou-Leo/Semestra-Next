@@ -28,6 +28,8 @@ const LAB: AssignmentDetail = {
     points: 10,
     group_name: 'Labs',
     submission_types: ['online_upload'],
+    online: true,
+    is_quiz: false,
     rubric: [
       {
         id: 'r',
@@ -41,6 +43,7 @@ const LAB: AssignmentDetail = {
     external_id: 's1',
     assignment_id: 'a1',
     state: 'graded',
+    status: 'graded',
     score: 9,
     grade: '9',
     attempt: 2,

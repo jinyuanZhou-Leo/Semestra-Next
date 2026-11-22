@@ -7,6 +7,7 @@ from pydantic import BaseModel, BeforeValidator, Field, SecretStr
 
 from semestra.core.capability import HTTP_ONLY
 from semestra.modules.academics.schemas import Id
+from semestra.modules.lms.rules import SubmissionStatus
 from semestra.modules.lms.schemas.dto import (
     Assignment,
     Attachment,
@@ -643,6 +644,14 @@ class AssignmentTarget(BaseModel):
         default=False,
         description="The teacher left comments or rubric scores on the assessment",
     )
+    status: SubmissionStatus | None = Field(
+        default=None,
+        description="Where the user's submission stands as of the last sync; None until the "
+        "sync has read it",
+    )
+    missing: bool = False
+    late: bool = False
+    submitted_at: datetime | None = None
 
 
 class AssignmentTargets(BaseModel):

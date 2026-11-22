@@ -11,12 +11,14 @@ from pydantic import (
     Field,
     SerializationInfo,
     SerializerFunctionWrapHandler,
+    computed_field,
     model_serializer,
 )
 from pydantic_core import to_jsonable_python
 
 from semestra.core.agent_output import ForAgents
 from semestra.modules.lms.markdown import to_markdown
+from semestra.modules.lms.rules import SubmissionStatus, submission_status, submits_online
 
 # Cleaned HTML; agents and MCP clients get it as Markdown, under `markdown`.
 Html = Annotated[str | None, ForAgents(to_markdown, "markdown")]
@@ -171,6 +173,13 @@ class Submission(BaseModel):
     attempt: int | None = Field(default=None, description="Attempts made (quizzes, resubmissions)")
     excused: bool = False
 
+    @computed_field(description="Where the submission stands (`rules.submission_status`)")
+    @property
+    def status(self) -> SubmissionStatus:
+        return submission_status(
+            excused=self.excused, score=self.score, grade=self.grade, submitted_at=self.submitted_at
+        )
+
 
 class ScoreStatistics(BaseModel):
     """How the class did, when the instructor lets students see it."""
@@ -223,6 +232,16 @@ class Assignment(Dto):
     rubric: list[RubricCriterion] = Field(default_factory=list)
     # The quiz this is the assignment of (`Quiz.external_id`), for a graded quiz.
     quiz_id: str | None = None
+
+    @computed_field(description="Handed in on the platform (not on paper or not at all)")
+    @property
+    def online(self) -> bool:
+        return submits_online(self.submission_types)
+
+    @computed_field(description="A graded quiz")
+    @property
+    def is_quiz(self) -> bool:
+        return self.quiz_id is not None
 
 
 class CommentAttachment(BaseModel):
@@ -278,6 +297,14 @@ class SubmissionDetail(Dto):
     missing: bool = False
     excused: bool = False
     seconds_late: int | None = None
+
+    @computed_field(description="Where the submission stands (`rules.submission_status`)")
+    @property
+    def status(self) -> SubmissionStatus:
+        return submission_status(
+            excused=self.excused, score=self.score, grade=self.grade, submitted_at=self.submitted_at
+        )
+
     points_deducted: float | None = Field(default=None, description="Taken off for lateness")
     submission_type: str | None = Field(default=None, description="How it was handed in")
     body: Html = Field(default=None, description="A text entry's text")

@@ -6,7 +6,14 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from semestra.modules.lms.older_backups import materials_from_programs
-from semestra.modules.lms.rules import Action, diverged, merge, platform_value, same
+from semestra.modules.lms.rules import (
+    Action,
+    diverged,
+    merge,
+    platform_value,
+    same,
+    submission_status,
+)
 
 A, B, C = "A1", "A1 (revised)", "A1 (final)"
 
@@ -101,3 +108,18 @@ def test_materials_settings_per_program_become_the_accounts_or_the_courses():
     account, per_course = materials_from_programs(alike, courses, {"c2": {"sync": True}})
     assert account == {"store": "local"}
     assert per_course == {"c1": {"sync": False}}
+
+
+@pytest.mark.parametrize(
+    ("name", "kw", "status"),
+    [
+        ("nothing yet", {}, "unsubmitted"),
+        ("handed in", {"submitted_at": "2026-02-01"}, "submitted"),
+        ("graded without handing in", {"score": 0}, "graded"),
+        ("a letter grade only", {"grade": "complete"}, "graded"),
+        ("excused over a score", {"excused": True, "score": 0}, "excused"),
+    ],
+)
+def test_submission_status(name: str, kw: dict[str, Any], status: str):
+    facts: dict[str, Any] = {"excused": False, "score": None, "grade": None, "submitted_at": None}
+    assert submission_status(**(facts | kw)) == status

@@ -2354,12 +2354,26 @@ export const AssignmentFactsSchema = {
                 }
             ],
             title: 'Quiz Id'
+        },
+        online: {
+            type: 'boolean',
+            title: 'Online',
+            description: 'Handed in on the platform (not on paper or not at all)',
+            readOnly: true
+        },
+        is_quiz: {
+            type: 'boolean',
+            title: 'Is Quiz',
+            description: 'A graded quiz',
+            readOnly: true
         }
     },
     type: 'object',
     required: [
         'external_id',
-        'name'
+        'name',
+        'online',
+        'is_quiz'
     ],
     title: 'AssignmentFacts',
     description: 'The assignment as `AssignmentDetail` gives it (its own name in the API: the AI module has\nan `Assignment` too).'
@@ -2637,13 +2651,27 @@ export const AssignmentOutSchema = {
                 }
             ],
             description: 'What it was imported as (an assessment, which has its to-do, or a to-do); null while not imported'
+        },
+        online: {
+            type: 'boolean',
+            title: 'Online',
+            description: 'Handed in on the platform (not on paper or not at all)',
+            readOnly: true
+        },
+        is_quiz: {
+            type: 'boolean',
+            title: 'Is Quiz',
+            description: 'A graded quiz',
+            readOnly: true
         }
     },
     type: 'object',
     required: [
         'external_id',
         'name',
-        'imported_as'
+        'imported_as',
+        'online',
+        'is_quiz'
     ],
     title: 'AssignmentOut'
 } as const;
@@ -2715,6 +2743,46 @@ export const AssignmentTargetSchema = {
             title: 'Feedback',
             description: 'The teacher left comments or rubric scores on the assessment',
             default: false
+        },
+        status: {
+            anyOf: [
+                {
+                    type: 'string',
+                    enum: [
+                        'unsubmitted',
+                        'submitted',
+                        'graded',
+                        'excused'
+                    ]
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Status',
+            description: 'Where the user\'s submission stands as of the last sync; None until the sync has read it'
+        },
+        missing: {
+            type: 'boolean',
+            title: 'Missing',
+            default: false
+        },
+        late: {
+            type: 'boolean',
+            title: 'Late',
+            default: false
+        },
+        submitted_at: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date-time'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Submitted At'
         }
     },
     type: 'object',
@@ -20001,9 +20069,24 @@ export const SubmissionSchema = {
             type: 'boolean',
             title: 'Excused',
             default: false
+        },
+        status: {
+            type: 'string',
+            enum: [
+                'unsubmitted',
+                'submitted',
+                'graded',
+                'excused'
+            ],
+            title: 'Status',
+            description: 'Where the submission stands (`rules.submission_status`)',
+            readOnly: true
         }
     },
     type: 'object',
+    required: [
+        'status'
+    ],
     title: 'Submission'
 } as const;
 
@@ -20262,12 +20345,25 @@ export const SubmissionDetailSchema = {
             },
             type: 'array',
             title: 'Rubric Scores'
+        },
+        status: {
+            type: 'string',
+            enum: [
+                'unsubmitted',
+                'submitted',
+                'graded',
+                'excused'
+            ],
+            title: 'Status',
+            description: 'Where the submission stands (`rules.submission_status`)',
+            readOnly: true
         }
     },
     type: 'object',
     required: [
         'external_id',
-        'assignment_id'
+        'assignment_id',
+        'status'
     ],
     title: 'SubmissionDetail',
     description: 'The user\'s own submission of one assignment (what they handed in last), with the\nteacher\'s feedback.'
@@ -24456,6 +24552,605 @@ export const semestra__modules__schedule__schemas__DeletedSchema = {
     title: 'Deleted'
 } as const;
 
+export const AssignmentDetailWritableSchema = {
+    properties: {
+        provider: {
+            type: 'string',
+            title: 'Provider',
+            description: 'The provider it was read from'
+        },
+        assignment: {
+            $ref: '#/components/schemas/AssignmentFactsWritable',
+            description: 'Without `submission`: it is `submission` here'
+        },
+        submission: {
+            anyOf: [
+                {
+                    $ref: '#/components/schemas/SubmissionDetailWritable'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            description: 'What the user handed in, with the teacher\'s feedback; null when unknown'
+        },
+        quiz: {
+            anyOf: [
+                {
+                    $ref: '#/components/schemas/QuizFacts'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            description: 'Of an assignment that is a quiz'
+        },
+        practice: {
+            type: 'boolean',
+            title: 'Practice',
+            description: 'A quiz without an assignment (a practice quiz): no submission, not importable',
+            default: false
+        },
+        kept: {
+            type: 'boolean',
+            title: 'Kept',
+            description: 'This is what the sync kept, not the platform\'s answer',
+            default: false
+        },
+        kept_at: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date-time'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Kept At',
+            description: 'When the sync read what it kept (unknown for old rows)'
+        },
+        problem: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Problem',
+            description: 'Why the platform\'s answer is missing (an error code)'
+        },
+        assessment: {
+            anyOf: [
+                {
+                    $ref: '#/components/schemas/InGradebook'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            description: 'The gradebook row it was imported as'
+        },
+        task: {
+            anyOf: [
+                {
+                    $ref: '#/components/schemas/InTasks'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            description: 'Its to-do'
+        },
+        targets: {
+            items: {
+                $ref: '#/components/schemas/LinkTarget'
+            },
+            type: 'array',
+            title: 'Targets',
+            description: 'What the description\'s links to course files are in the app',
+            default: []
+        }
+    },
+    type: 'object',
+    required: [
+        'provider',
+        'assignment',
+        'submission',
+        'assessment',
+        'task'
+    ],
+    title: 'AssignmentDetail',
+    description: 'One assignment, whole (M09 §5): as the platform has it now, or, when the platform\ncan\'t be asked, as the last sync kept it (`kept_at`).'
+} as const;
+
+export const AssignmentFactsWritableSchema = {
+    properties: {
+        external_id: {
+            type: 'string',
+            title: 'External Id'
+        },
+        web_url: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Web Url',
+            description: 'Opens the item on the platform'
+        },
+        raw_kind: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Raw Kind',
+            description: 'The platform\'s own type (debugging)'
+        },
+        name: {
+            type: 'string',
+            title: 'Name'
+        },
+        html: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Html'
+        },
+        due_at: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date-time'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Due At'
+        },
+        unlock_at: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date-time'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Unlock At'
+        },
+        lock_at: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date-time'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Lock At'
+        },
+        points: {
+            anyOf: [
+                {
+                    type: 'number'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Points'
+        },
+        group_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Group Id'
+        },
+        group_name: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Group Name'
+        },
+        group_weight: {
+            anyOf: [
+                {
+                    type: 'number'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Group Weight'
+        },
+        submission_types: {
+            items: {
+                type: 'string'
+            },
+            type: 'array',
+            title: 'Submission Types'
+        },
+        submission: {
+            anyOf: [
+                {
+                    $ref: '#/components/schemas/SubmissionWritable'
+                },
+                {
+                    type: 'null'
+                }
+            ]
+        },
+        published: {
+            type: 'boolean',
+            title: 'Published',
+            default: true
+        },
+        updated_at: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date-time'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Updated At'
+        },
+        locked: {
+            type: 'boolean',
+            title: 'Locked',
+            default: false
+        },
+        lock_explanation: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Lock Explanation',
+            description: 'Why it is locked, as the platform says'
+        },
+        allowed_attempts: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Allowed Attempts',
+            description: 'None or -1: unlimited'
+        },
+        allowed_extensions: {
+            items: {
+                type: 'string'
+            },
+            type: 'array',
+            title: 'Allowed Extensions',
+            description: 'File types an upload takes; empty for any'
+        },
+        statistics: {
+            anyOf: [
+                {
+                    $ref: '#/components/schemas/ScoreStatistics'
+                },
+                {
+                    type: 'null'
+                }
+            ]
+        },
+        rubric: {
+            items: {
+                $ref: '#/components/schemas/RubricCriterion'
+            },
+            type: 'array',
+            title: 'Rubric'
+        },
+        quiz_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Quiz Id'
+        }
+    },
+    type: 'object',
+    required: [
+        'external_id',
+        'name'
+    ],
+    title: 'AssignmentFacts',
+    description: 'The assignment as `AssignmentDetail` gives it (its own name in the API: the AI module has\nan `Assignment` too).'
+} as const;
+
+export const AssignmentOutWritableSchema = {
+    properties: {
+        external_id: {
+            type: 'string',
+            title: 'External Id'
+        },
+        web_url: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Web Url',
+            description: 'Opens the item on the platform'
+        },
+        raw_kind: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Raw Kind',
+            description: 'The platform\'s own type (debugging)'
+        },
+        name: {
+            type: 'string',
+            title: 'Name'
+        },
+        html: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Html'
+        },
+        due_at: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date-time'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Due At'
+        },
+        unlock_at: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date-time'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Unlock At'
+        },
+        lock_at: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date-time'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Lock At'
+        },
+        points: {
+            anyOf: [
+                {
+                    type: 'number'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Points'
+        },
+        group_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Group Id'
+        },
+        group_name: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Group Name'
+        },
+        group_weight: {
+            anyOf: [
+                {
+                    type: 'number'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Group Weight'
+        },
+        submission_types: {
+            items: {
+                type: 'string'
+            },
+            type: 'array',
+            title: 'Submission Types'
+        },
+        submission: {
+            anyOf: [
+                {
+                    $ref: '#/components/schemas/SubmissionWritable'
+                },
+                {
+                    type: 'null'
+                }
+            ]
+        },
+        published: {
+            type: 'boolean',
+            title: 'Published',
+            default: true
+        },
+        updated_at: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date-time'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Updated At'
+        },
+        locked: {
+            type: 'boolean',
+            title: 'Locked',
+            default: false
+        },
+        lock_explanation: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Lock Explanation',
+            description: 'Why it is locked, as the platform says'
+        },
+        allowed_attempts: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Allowed Attempts',
+            description: 'None or -1: unlimited'
+        },
+        allowed_extensions: {
+            items: {
+                type: 'string'
+            },
+            type: 'array',
+            title: 'Allowed Extensions',
+            description: 'File types an upload takes; empty for any'
+        },
+        statistics: {
+            anyOf: [
+                {
+                    $ref: '#/components/schemas/ScoreStatistics'
+                },
+                {
+                    type: 'null'
+                }
+            ]
+        },
+        rubric: {
+            items: {
+                $ref: '#/components/schemas/RubricCriterion'
+            },
+            type: 'array',
+            title: 'Rubric'
+        },
+        quiz_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Quiz Id'
+        },
+        ref: {
+            type: 'string',
+            title: 'Ref',
+            description: 'For lms.content.read: its text, score and feedback',
+            default: ''
+        },
+        imported_as: {
+            anyOf: [
+                {
+                    $ref: '#/components/schemas/ImportTarget'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            description: 'What it was imported as (an assessment, which has its to-do, or a to-do); null while not imported'
+        }
+    },
+    type: 'object',
+    required: [
+        'external_id',
+        'name',
+        'imported_as'
+    ],
+    title: 'AssignmentOut'
+} as const;
+
 export const ConnectionCreateInputBodyWritableSchema = {
     properties: {
         provider: {
@@ -24824,4 +25519,342 @@ export const ProviderUpdateInputBodyWritableSchema = {
     },
     type: 'object',
     title: 'ProviderUpdateInputBody'
+} as const;
+
+export const SubmissionWritableSchema = {
+    properties: {
+        state: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'State',
+            description: 'e.g. submitted, graded, unsubmitted'
+        },
+        submitted_at: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date-time'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Submitted At'
+        },
+        graded_at: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date-time'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Graded At'
+        },
+        score: {
+            anyOf: [
+                {
+                    type: 'number'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Score'
+        },
+        grade: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Grade'
+        },
+        late: {
+            type: 'boolean',
+            title: 'Late',
+            default: false
+        },
+        missing: {
+            type: 'boolean',
+            title: 'Missing',
+            default: false
+        },
+        attempt: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Attempt',
+            description: 'Attempts made (quizzes, resubmissions)'
+        },
+        excused: {
+            type: 'boolean',
+            title: 'Excused',
+            default: false
+        }
+    },
+    type: 'object',
+    title: 'Submission'
+} as const;
+
+export const SubmissionDetailWritableSchema = {
+    properties: {
+        external_id: {
+            type: 'string',
+            title: 'External Id'
+        },
+        web_url: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Web Url',
+            description: 'Opens the item on the platform'
+        },
+        raw_kind: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Raw Kind',
+            description: 'The platform\'s own type (debugging)'
+        },
+        assignment_id: {
+            type: 'string',
+            title: 'Assignment Id'
+        },
+        state: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'State'
+        },
+        submitted_at: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date-time'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Submitted At'
+        },
+        graded_at: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date-time'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Graded At'
+        },
+        score: {
+            anyOf: [
+                {
+                    type: 'number'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Score'
+        },
+        grade: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Grade'
+        },
+        attempt: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Attempt'
+        },
+        late: {
+            type: 'boolean',
+            title: 'Late',
+            default: false
+        },
+        missing: {
+            type: 'boolean',
+            title: 'Missing',
+            default: false
+        },
+        excused: {
+            type: 'boolean',
+            title: 'Excused',
+            default: false
+        },
+        seconds_late: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Seconds Late'
+        },
+        points_deducted: {
+            anyOf: [
+                {
+                    type: 'number'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Points Deducted',
+            description: 'Taken off for lateness'
+        },
+        submission_type: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Submission Type',
+            description: 'How it was handed in'
+        },
+        body: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Body',
+            description: 'A text entry\'s text'
+        },
+        url: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Url',
+            description: 'A website submission\'s address'
+        },
+        files: {
+            items: {
+                $ref: '#/components/schemas/SubmittedFile'
+            },
+            type: 'array',
+            title: 'Files'
+        },
+        comments: {
+            items: {
+                $ref: '#/components/schemas/SubmissionComment'
+            },
+            type: 'array',
+            title: 'Comments'
+        },
+        rubric_scores: {
+            items: {
+                $ref: '#/components/schemas/RubricScore'
+            },
+            type: 'array',
+            title: 'Rubric Scores'
+        }
+    },
+    type: 'object',
+    required: [
+        'external_id',
+        'assignment_id'
+    ],
+    title: 'SubmissionDetail',
+    description: 'The user\'s own submission of one assignment (what they handed in last), with the\nteacher\'s feedback.'
+} as const;
+
+export const semestra__modules__lms__schemas__io__AssignmentListWritableSchema = {
+    properties: {
+        items: {
+            items: {
+                $ref: '#/components/schemas/AssignmentOutWritable'
+            },
+            type: 'array',
+            title: 'Items'
+        },
+        new_ids: {
+            items: {
+                type: 'string'
+            },
+            type: 'array',
+            title: 'New Ids',
+            description: '`external_id` of the new assignments: not imported and due later'
+        },
+        totals: {
+            items: {
+                $ref: '#/components/schemas/GradeItem'
+            },
+            type: 'array',
+            title: 'Totals',
+            description: 'The course total as the LMS shows it, with `include_total`'
+        },
+        truncated: {
+            type: 'boolean',
+            title: 'Truncated'
+        }
+    },
+    type: 'object',
+    required: [
+        'items',
+        'new_ids',
+        'truncated'
+    ],
+    title: 'AssignmentList'
 } as const;

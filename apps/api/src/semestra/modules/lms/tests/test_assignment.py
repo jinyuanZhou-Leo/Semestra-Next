@@ -119,6 +119,11 @@ async def test_an_assignment_opens_from_the_platform_then_from_what_was_kept(
             "task_id": None,
             # The teacher's comment: the gradebook opens the details on the feedback.
             "feedback": True,
+            # How it stands as of the last sync, so the gradebook shows it without asking.
+            "status": "graded",
+            "missing": False,
+            "late": False,
+            "submitted_at": "2026-02-05T20:00:00Z",
         }
     ]
 
