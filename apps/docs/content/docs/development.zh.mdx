@@ -31,6 +31,18 @@ uv run python -m devtools fake --server ai faults '{"kind": "payment"}'
 
 这些工具在 `apps/api/devtools/`，不在应用的包里，所以不会进 Docker 镜像。`tests/test_fake_canvas.py` 用 Canvas provider 的契约测试检查假 Canvas，避免它和 provider 读取的内容脱节；`tests/test_fake_ai.py` 经 M06 和 Sem 调用假模型，让它跟上二者的提示与 schema。假 Canvas 的文件下载跳转回同一个服务器，而真实 Canvas 会跳转到另一个域名上的文件存储，这一跳没有覆盖，文件下载要用真实 Canvas 验证。
 
+## 录制真实的 Canvas
+
+假 Canvas 按我们对 Canvas 的理解写成。要和真实学校的 Canvas 对照，可以用自己的访问令牌只读地录下它的回应：
+
+```bash
+cd apps/api
+CANVAS_TOKEN=... uv run python -m devtools record-canvas --base-url https://school.instructure.com --course 12345 \
+  --item file:678:unpublished --item page:week-1:locked
+```
+
+它只发 GET 请求，不保存令牌。它会录下课程本身、课程导航、每个栏目列表的第一页、每类条目一个不存在的 id，以及一次用错误令牌的请求；每个 `--item 类型:ID:标签` 再加一种你在课程里找到的情况（取消发布的文件、锁定的页面、隐藏的文件夹）。保存到 `src/semestra/modules/lms/tests/fixtures/canvas/` 之前，姓名、邮箱、用户 id、学校地址和下载链接都会被替换。提交前请自己检查一遍这些文件。
+
 ## 截图与请求统计
 
 两个脚本都在已登录的 Chromium 里打开正在运行的 Semestra。默认用演示账户，先运行 `pnpm dev:demo`；在 `pnpm dev` 上用自己的账户时传 `--email` 和 `--password`。每个页面在新的浏览器里打开，界面状态都是默认值（引导和“更新了什么”视为已看过）；页面上改的偏好和界面状态只留在这个浏览器里，不会存进账户。

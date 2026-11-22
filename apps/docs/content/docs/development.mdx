@@ -31,6 +31,18 @@ Faults are `rate_limit` (429, or Canvas's own 403 with `"style": "403"`), `unaut
 
 The tools live in `apps/api/devtools/`, outside the app package, so they never reach the Docker image. `tests/test_fake_canvas.py` runs the Canvas provider contract against the fake, so the fake can't drift from what the provider reads, and `tests/test_fake_ai.py` calls the fake model through M06 and Sem, so it keeps up with their prompts and schemas. File downloads from the fake Canvas redirect back to the same server; real Canvas redirects to its file store on another domain, and that hop is not covered, so check file downloads against a real Canvas.
 
+## Recording a real Canvas
+
+The fake Canvas follows what we believe Canvas does. To check that against a real school, record how its Canvas answers, read-only, with your own access token:
+
+```bash
+cd apps/api
+CANVAS_TOKEN=... uv run python -m devtools record-canvas --base-url https://school.instructure.com --course 12345 \
+  --item file:678:unpublished --item page:week-1:locked
+```
+
+It only sends GET requests and never saves the token. It records the course, its navigation, the first page of every area, an id that doesn't exist in each kind, and one request with a wrong token; each `--item KIND:ID:LABEL` adds one situation you set up in the course (an unpublished file, a locked page, a hidden folder). Names, emails, people's ids, the school's address and download links are replaced before saving to `src/semestra/modules/lms/tests/fixtures/canvas/`. Look the files over before committing them.
+
 ## Screenshots and requests
 
 Both scripts open pages in a signed-in Chromium against a running Semestra. They default to the demo account, so start `pnpm dev:demo` first, or pass `--email` and `--password` for your own account on `pnpm dev`. Each page opens in a fresh browser with the default interface state (tour and "What's new" already seen); preference and interface-state changes stay in that browser and are never saved to the account.
