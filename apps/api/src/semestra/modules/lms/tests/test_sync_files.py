@@ -669,6 +669,38 @@ async def test_a_hidden_area_still_tells_what_left(api: Api, fake: FakeProvider,
     assert ("file", "201") not in fake.calls
 
 
+async def test_an_item_refused_where_its_area_is_hidden_has_left(
+    api: Api, fake: FakeProvider, clock: Clock
+):
+    """Refused on its own while the course opens (the teacher unpublished it) is the same as
+    missing from an area read whole: a saved copy is handed over, not dropped with the
+    storage setting."""
+    _materials(fake)
+    program_id, course = await _course(api)
+    await _materials_setting(api, course, store="local")
+    await api.sync(program_id)
+    await api.run_jobs()
+    orig = fake.file
+
+    async def file(io: Any, cfg: Any, creds: Any, course_id: str, file_id: str) -> Any:
+        if file_id == "201":
+            raise lms_error("lms.forbidden")
+        return await orig(io, cfg, creds, course_id, file_id)
+
+    fake.file = file
+    fake.files_hidden = True
+    await _materials_setting(api, course, store="online")
+    clock.advance(minutes=1)
+    await api.sync(program_id)
+    await api.run_jobs()
+    _, items = await _files(api, course)
+    assert items["Lecture 1.pdf"]["stored"]
+    status = await api.call("GET", f"/programs/{program_id}/lms/sync")
+    assert "Lecture 1.pdf" in {
+        m["title"] for m in status["materials"] if m["change"] == "handed_over"
+    }
+
+
 async def test_a_large_course_comes_in_whole_in_one_run(
     api: Api, fake: FakeProvider, monkeypatch: pytest.MonkeyPatch, clock: Clock
 ):

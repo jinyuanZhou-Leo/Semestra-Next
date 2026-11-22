@@ -423,14 +423,21 @@ def _missing(found: _Found) -> list[Key]:
     ]
 
 
+# What an item read on its own says when it is no longer there for the user. The course was
+# open in this run (an area was read), so a refusal is about the item, not the course.
+_GONE = frozenset(("lms.not_found", "lms.forbidden"))
+
+
 async def _check_missing(ctx: Ctx, link: LmsCourseLink, b: Bound, found: _Found) -> None:
     """What this run did not find, where an area could not be read whole: each item is judged
     on its own, so one hidden area does not keep the whole course from noticing deletions.
 
     - Nothing of the course could be read (closed on the platform): nothing is judged.
     - A link: only modules show links, so it is gone when they were read whole.
-    - A file or page: read on its own (not again within `CHECK_EVERY` once read), gone only
-      when the platform says it has no such item; one it refuses is left as it is."""
+    - A file or page: read on its own (not again within `CHECK_EVERY` once read). Gone when
+      the platform says it has no such item or refuses it (unpublished, no longer shown to the
+      user), as when it is missing from an area read whole; one it can't answer for now
+      (unreachable, rate limited) is left as it is, its copy kept."""
     if found.complete:
         return
     missing = _missing(found)
@@ -460,11 +467,12 @@ async def _check_missing(ctx: Ctx, link: LmsCourseLink, b: Bound, found: _Found)
         read = await reads.pages_many(ctx, (link, b), [(i, None) for i in pages], refresh=True)
         got += [(("page", i), r) for i, r in zip(pages, read, strict=True)]
     for key, result in got:
-        if isinstance(result, AppError) and result.code == "lms.not_found":
-            continue  # gone from the platform
-        if not isinstance(result, AppError) and result.locked:
+        if isinstance(result, AppError):
+            if result.code not in _GONE:
+                found.unsure.add(key)  # asked again next run
+            continue
+        if result.locked:
             found.locked.add(key)
-        # Still there, or refused now (a course closing): left as it is, read again later.
         found.confirmed[key] = found.now
 
 
