@@ -30,6 +30,7 @@ const LAB: AssignmentDetail = {
     submission_types: ['online_upload'],
     online: true,
     is_quiz: false,
+    state: 'unsubmitted',
     rubric: [
       {
         id: 'r',

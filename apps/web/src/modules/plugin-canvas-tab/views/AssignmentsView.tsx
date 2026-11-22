@@ -98,6 +98,7 @@ function rowsOf(assignments: readonly AssignmentOut[], quizzes: readonly Quiz[])
         allowed_attempts: q.allowed_attempts,
         imported_as: null,
         online: true,
+        state: 'unsubmitted',
         // Not graded: no assignment behind it.
         is_quiz: false,
       },
