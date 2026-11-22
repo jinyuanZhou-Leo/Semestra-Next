@@ -41,7 +41,9 @@ CANVAS_TOKEN=... uv run python -m devtools record-canvas --base-url https://scho
   --item file:678:unpublished --item page:week-1:locked
 ```
 
-It only sends GET requests and never saves the token. It records the course, its navigation, the first page of every area, an id that doesn't exist in each kind, and one request with a wrong token; each `--item KIND:ID:LABEL` adds one situation you set up in the course (an unpublished file, a locked page, a hidden folder). Names, emails, people's ids, the school's address and download links are replaced before saving to `src/semestra/modules/lms/tests/fixtures/canvas/`. Look the files over before committing them.
+It only sends GET requests and never saves the token. It records the course, its navigation, the first page of every area (including the calendar), an id that doesn't exist in each kind, and one request with a wrong token. Each `--item KIND:ID:LABEL` adds one situation you find in the course; record as many of these as you can: an unpublished file, page and assignment; a file shown only by link; a file in a hidden folder; a locked file and page; and items in an area the teacher hid from the course menu (for example a file linked from a module while Files is hidden), both published and unpublished.
+
+What is saved: the status, a few headers, and the shape of each response with its flags, numbers, dates and the platform's state names. Every other text (names, titles, page and comment text, addresses) is replaced, people's ids and your scores become 1, and a redirect only says whether it goes to the school's Canvas or elsewhere. The files go to `src/semestra/modules/lms/tests/fixtures/canvas/`. The repository is public: look them over before committing.
 
 ## Screenshots and requests
 

@@ -5,19 +5,30 @@
         [--item file:678:unpublished --item page:week-1:hidden ...] [--out DIR]
 
 Only GET requests. The token is read from the `CANVAS_TOKEN` environment variable, never from the
-command line, and is not written anywhere. Each response is saved as one JSON file: status, the
-headers table 2 depends on, and the body cut to its first items, with names, emails, ids of people,
-the school's address and download verifiers replaced. Look the files over before committing them.
+command line, and is not written anywhere. Each response is saved as one JSON file: the status, the
+headers table 2 depends on, and the body cut to its first items. What is kept from a body: its
+shape, numbers and flags (ids of items, `locked_for_user`, `hidden_for_user`, `published`, …), and,
+in the keys of `KEEP_STRINGS`, the platform's kinds, states and dates. Every other string
+(names, titles, HTML, comments, slugs, addresses) becomes "[text]", ids of people and my scores and
+grades become 1 (only whether they are there is kept), and a redirect keeps only whether it goes to
+the school's Canvas or to another host. Look the files over before committing them: the repository
+is public.
 
 What it records:
 - the course itself, its navigation (which areas are hidden), and the first page of every area list
-  (files, folders, pages, modules, assignments, quizzes, announcements, discussions, calendar
-  events, my submissions);
-- each `--item KIND:ID:LABEL` the owner picks to show one situation of table 2 (KIND is file, page,
-  assignment, quiz, discussion, module or folder; LABEL names the situation, e.g. unpublished,
-  locked, hidden, deleted). A file is also asked for its download, without following it;
+  (files, folders, pages, modules, assignments, quizzes, announcements, discussions, my
+  submissions, and the course's calendar events);
 - an id that does not exist in each kind (a deleted item), and one request with a wrong token (an
-  expired token's 401).
+  expired token's 401);
+- each `--item KIND:ID:LABEL` (KIND is file, page, assignment, quiz, discussion, module or folder;
+  LABEL names the situation). A file is also asked for its download, without following it. Table 2
+  needs these situations, as many as the course has:
+    an unpublished file, page and assignment (`unpublished`);
+    a file shown only by link (`link-only`) and a file in a hidden folder (`hidden-folder`);
+    a locked file and page (`locked`);
+    a file, page or assignment whose area the teacher hid from the course menu, e.g. a file
+    linked from a module while Files is hidden (`in-hidden-area`), both one that is published and
+    one that is not (`in-hidden-area-unpublished`).
 Rate limiting is not provoked.
 """
 
@@ -34,25 +45,43 @@ import httpx
 
 LIST_ITEMS = 3
 HEADERS = ("www-authenticate", "x-rate-limit-remaining", "retry-after", "content-type", "location")
-# Keys whose values name or reach a person: replaced in every body.
-PERSONAL = frozenset(
+# Strings kept as they are: the platform's own words for kinds and states (an enum, never free
+# text). Every other string becomes "[text]" (names, titles, HTML, comments, slugs, addresses), so
+# nothing a teacher or student wrote, and no address with a person's id, reaches the file.
+KEEP_STRINGS = frozenset(
     (
-        "sortable_name",
-        "email",
-        "login_id",
-        "avatar_url",
-        "avatar_image_url",
-        "pronouns",
-        "user_name",
-        "author_name",
-        "sis_user_id",
-        "integration_id",
+        "workflow_state",
+        "state",
+        "type",
+        "submission_types",
+        "grading_type",
+        "visibility",
+        "context_type",
+        "mime_class",
+        "content-type",
+        "submission_type",
+        "lock_at",
+        "unlock_at",
+        "due_at",
+        "created_at",
+        "updated_at",
+        "modified_at",
+        "posted_at",
+        "submitted_at",
+        "graded_at",
+        "start_at",
+        "end_at",
+        "delayed_post_at",
+        "completed_at",
     )
 )
+ENUM = re.compile(r"^[a-z][a-z_]{0,39}$")
+STAMP = re.compile(r"^\d{4}-\d\d-\d\dT[\d:.]+(Z|[+-]\d\d:\d\d)?$")
+# My result on an assignment: only whether it is there is kept.
+GRADES = frozenset(("score", "entered_score", "grade", "entered_grade", "points_deducted"))
+# Ids that point to a person (in these keys, and every id inside these objects).
 PEOPLE_IDS = frozenset(("user_id", "author_id", "grader_id", "submitter_id"))
-# Item names stay (they tell the situations apart) unless they are a person's: inside these.
 PEOPLE = frozenset(("author", "user", "teachers", "participants", "grader", "assessor"))
-IN_PEOPLE = frozenset(("name", "display_name", "short_name", "id", "html_url"))
 AREAS = {
     "course": ("", {"include[]": ["term"]}),
     "navigation": ("/tabs", {}),
@@ -69,6 +98,13 @@ AREAS = {
         {"per_page": "10", "include[]": ["submission_comments", "rubric_assessment"]},
     ),
 }
+# Areas not under /courses/:id.
+OTHER_AREAS = {
+    "calendar-events": (
+        "/api/v1/calendar_events",
+        {"type": "event", "all_events": "true", "per_page": "10"},
+    ),
+}
 ITEMS = {
     "file": "/files/{id}",
     "folder": "/folders/{id}",
@@ -79,8 +115,6 @@ ITEMS = {
     "module": "/modules/{id}",
 }
 MISSING_ID = "999999999"
-# Query parameters that let anyone download a file.
-SECRET_PARAMS = r"([?&](?:verifier|download_frd|access_token|sf_verifier)=)[^&\"#]*"
 
 
 @dataclass
@@ -99,33 +133,38 @@ class Item:
 
 
 class Redactor:
-    """Replaces what identifies the school or a person, keeping the shape of the response."""
+    """Keeps the shape of a response and the platform's kinds, states, dates and flags; replaces
+    everything written by people or pointing at them, the school's address and the token."""
 
     def __init__(self, base_url: str, token: str) -> None:
         self.host = urlsplit(base_url).netloc
         self.token = token
 
-    def text(self, value: str) -> str:
-        if self.token:
-            value = value.replace(self.token, "[token]")
-        value = re.sub(SECRET_PARAMS, r"\1x", value)
-        return value.replace(self.host, "canvas.example") if self.host else value
+    def header(self, name: str, value: str) -> str:
+        if name == "location":
+            # A redirect keeps only where it goes (the school's Canvas or another host, such as a
+            # file CDN); its path and query can hold a download credential.
+            host = urlsplit(value).netloc
+            return "canvas.example/[path]" if host in ("", self.host) else "other-host/[path]"
+        return value.replace(self.token, "[token]") if self.token else value
 
-    def body(self, value: Any, *, personal: bool = False) -> Any:
+    def body(self, value: Any, key: str = "", *, person: bool = False) -> Any:
         if isinstance(value, dict):
-            out: dict[str, Any] = {}
-            for key, item in value.items():
-                if key in PERSONAL or (personal and key in IN_PEOPLE):
-                    out[key] = "[redacted]" if item is not None else None
-                elif key in PEOPLE_IDS:
-                    out[key] = 1 if item is not None else None
-                else:
-                    out[key] = self.body(item, personal=personal or key in PEOPLE)
-            return out
+            return {k: self.body(v, k, person=person or k in PEOPLE) for k, v in value.items()}
         if isinstance(value, list):
-            return [self.body(v, personal=personal) for v in value[:LIST_ITEMS]]
+            return [self.body(v, key, person=person) for v in value[:LIST_ITEMS]]
+        if value is None or isinstance(value, bool):
+            return value
+        if key in GRADES:
+            return 1
+        if key in PEOPLE_IDS or (person and key == "id"):
+            return 1
         if isinstance(value, str):
-            return self.text(value)
+            if value == "":
+                return ""
+            if key in KEEP_STRINGS and (ENUM.match(value) or STAMP.match(value)):
+                return value
+            return "[text]"
         return value
 
 
@@ -146,9 +185,11 @@ def _record(
     total = len(body) if isinstance(body, list) else None
     return {
         "case": case,
-        "request": {"method": "GET", "path": redact.text(path), "params": params},
+        "request": {"method": "GET", "path": path, "params": params},
         "status": response.status_code,
-        "headers": {h: redact.text(response.headers[h]) for h in HEADERS if h in response.headers},
+        "headers": {
+            h: redact.header(h, response.headers[h]) for h in HEADERS if h in response.headers
+        },
         "link_next": 'rel="next"' in response.headers.get("link", ""),
         "items_in_page": total,
         "body": redact.body(body),
@@ -158,6 +199,10 @@ def _record(
 def cases(course: str, items: Iterable[Item]) -> list[tuple[str, str, dict[str, Any]]]:
     root = f"/api/v1/courses/{course}"
     out = [(f"area-{name}", root + path, params) for name, (path, params) in AREAS.items()]
+    out += [
+        (f"area-{name}", path, {**params, "context_codes[]": [f"course_{course}"]})
+        for name, (path, params) in OTHER_AREAS.items()
+    ]
     out += [
         (f"missing-{kind}", root + path.format(id=MISSING_ID), {}) for kind, path in ITEMS.items()
     ]

@@ -88,6 +88,7 @@ class LmsProvider(Protocol):
 |---|---|---|---|---|---|---|
 | 课程元数据（代码、名称、学期、地址） | 平台课程 | `lms_course_links` 的 `external_*`、`web_url` | 同步阶段 `course` | 镜像 | 排这门课的同步 | 现状 |
 | 各区域这一轮的读取结果（表 2 的区域结果，含从课程导航得出的 `hidden`） | 同步各阶段读区域列表的结果 | `lms_course_links.area_reads` | 读这个区域的同步阶段 | 只有同步自己读（表 3c 的输入） | 每轮同步覆盖 | PR 3 |
+| 单独读取一项的最近一次结果 | 同步对单项的读取 | `lms_item_checks` | 读这一项的同步阶段 | 表 3c 的输入；读不到的资料列在同步面板（3c 注） | 每次单独读覆盖 | PR 3 |
 | 作业（说明、截止、开放与关闭时间、分值、作业组、提交方式、测验的事实） | 平台作业列表 | `lms_assignments`（关联课程的全部作业，不只已导入的；§3.2） | 同步阶段 `assignments` | 镜像：作业详情、成绩册作业列、待办卡片、Canvas 标签页的作业与测验视图、`lms.assignment.list`、Sem、MCP | 排这门课的 `assignments` 阶段 | PR 4（现在：未导入的作业实时读，已导入的另存 `lms_imported_refs.snapshot` 与 `lms_kept_assignments`） |
 | 我的提交与老师反馈（提交时间、得分、等级、是否等批改、免交、缺交、迟交、评语、评分细则得分、提交的文件名） | 平台提交列表（整门课一次） | `lms_assignments` 同一行 | 同步阶段 `assignments`（与作业同一次读取） | 镜像 | 同上 | PR 4（现在：`lms_kept_assignments`，只存已导入的） |
 | 作业与 Semestra 对象的对应、三方合并的快照、冲突、忽略 | Semestra | `lms_imported_refs`（不存平台内容） | 导入、绑定、同步阶段 `assignments`、用户回答 | 镜像 | — | PR 4 |
@@ -143,7 +144,7 @@ lms_course_links
 
 lms_assignments                      # 平台作业、本人的提交与反馈，只存事实（PR 4，合并 lms_kept_assignments 与 lms_imported_refs.snapshot）
   id, user_id,
-  link_id? → lms_course_links (SET NULL),   # 镜像行：关联课程在平台上的作业，随同步变化
+  link_id? → lms_course_links (CASCADE),     # 镜像行：关联课程在平台上的作业，随同步变化
   held_for_kind? ('assessment'|'task'), held_for_id?,   # 留给对象的行：对象已不再对应平台作业，这份内容解释它的成绩（随对象删除）
   course_id → academics_courses (CASCADE), provider, external_id,
   作业的事实（name, html, due_at, unlock_at, lock_at, points, group, submission_types, allowed_attempts, quiz {…}, rubric, web_url, updated_at, locked, lock_explanation）,
@@ -154,7 +155,7 @@ lms_assignments                      # 平台作业、本人的提交与反馈�
 
 lms_imported_refs                    # 平台上的作业与它在 Semestra 里的对象（同步的依据），只放作业
   id, user_id, link_id, external_id,
-  target_kind? ('assessment'|'task'), target_id?, imported_at?,   # 都为空 = 还没导入的新作业
+  target_kind? ('assessment'|'task'), target_id?, imported_at?,   # 都为空 = 用户忽略了的作业（表 4b；“新作业”是派生值，表 3e）
   snapshot,                          # 三方合并的快照：上次应用的平台值（标题、截止、权重、成绩），不是平台内容的副本
   conflicts {字段: {value, raw}}, removed_at?, dismissed_at?, submitted_at?
   UNIQUE(link_id, external_id)   # 一个作业只对应一个 Semestra 对象
@@ -163,7 +164,7 @@ lms_materials                        # 课程资料与它在课程文件里的�
   id, user_id, link_id, kind ('file'|'page'|'link'), external_id,
   item_id?, title?, version?, name?, path?, placed_folder_id?,
   state ('synced'|'list'|'dismissed'|'absent'), state_at?, quiet,
-  links [[kind, id]], checked_at?,
+  links [[kind, id]],
   imported_at?, change? ('added'|'duplicate'|'updated'|'gone'|'handed_over'), changed_at?
   UNIQUE(link_id, kind, external_id)
 
@@ -179,6 +180,12 @@ lms_calendar_events                  # 平台日历事件（PR 5）
   title, html?, location?, web_url?, start_at, end_at?, all_day, all_day_date?
   UNIQUE(link_id, external_id)
 
+lms_item_checks                      # 单独读取一项的最近一次结果（表 3c 的输入，PR 3；取代 lms_materials.checked_at）
+  id, user_id, link_id → lms_course_links (CASCADE), kind, external_id,
+  result ('present'|'gone'|'unavailable'), reason?,   # unavailable 的原因（错误码），如 lms.area_hidden
+  at, unavailable_since?             # 第一次连续读到 unavailable 的时间（读到 present 或 gone 时清空）
+  UNIQUE(link_id, kind, external_id)
+
 lms_sync_changes                     # 同步写过的字段（面板里可撤销）与新反馈（field = feedback），保留 14 天
   id, user_id, ref_id → lms_imported_refs (CASCADE), field, old?, new?, at, reverted_at?
 ```
@@ -189,7 +196,7 @@ lms_sync_changes                     # 同步写过的字段（面板里可撤�
 - 年课（跨多个学期的一门课程）只有一个关联，这与 M02 的课程模型一致。
 - **`lms_assignments` 的两种行**（PR 4）：
   - **镜像行**（`link_id` 非空）只随平台变化：同步按 (`link_id`, `external_id`) 写入；表 3c 判为已离开时删除，除非它对应着一个对象且用户还没回答删除项（表 4b “平台上已删除”，这时留到用户回答）。考核或待办被删除不影响镜像行。
-  - **留给对象的行**（`held_for_*` 非空）属于一个考核或待办，不再更新，随对象删除（订阅 `grading.assessment.deleting`、`tasks.item.deleted`）。对象与平台作业的对应结束时（表 4b 转到“无记录”且对象留下：用户解绑、取消关联、删除项回答“保留”），把那一刻的镜像行复制成留给这个对象的行；取消关联时镜像行随关联删除（外键置空后由同一事务删掉），留给对象的行不受影响。
+  - **留给对象的行**（`held_for_*` 非空）属于一个考核或待办，不再更新，随对象删除（订阅 `grading.assessment.deleting`、`tasks.item.deleted`）。对象与平台作业的对应结束时（表 4b 转到“无记录”且对象留下：用户解绑、取消关联、删除项回答“保留”），把那一刻的镜像行复制成留给这个对象的行；取消关联时，`lms.course.unlinking`（与删除关联同一事务、在删除之前）先为每个已导入的对象复制出留给它的行，镜像行再随关联级联删除；留给对象的行没有 `link_id`，不受影响。
   - 一个对象最多一行留给它的内容；它再次导入或绑定（又对应上平台作业）时，删掉留给它的那行，改读镜像行。取消关联后又关联回同一门平台课程时，同步新建镜像行，旧的留给对象的行在对象重新绑定前继续给出它的作业内容。
   - 读取一个对象的作业内容：有对应（`lms_imported_refs`）读镜像行，否则读留给它的行，否则没有。`lms.assignment.targets` 列出两种（已导入的与留着内容的）。
   - 迁移与旧备份：`lms_kept_assignments` 的每一行（以及 2.0 以来备份里的 `feedback` 列表），对象有对应的成为镜像行，没有对应的成为留给对象的行；作业的事实取自同一份作业的 `lms_imported_refs.snapshot` 与这一行的 `details`。
@@ -217,8 +224,8 @@ Canvas 的映射（`providers/canvas/`）。同一个 HTTP 回应只对应一种
 | 2 | 课程 | 401 不带 `WWW-Authenticate`、403（非限流）、404 | 课程已结束、被移出、课程被删（待确认各是哪一种） | `unavailable`（这一轮结束） | PR 3 |
 | 3 | 单项 | 200 | 在（含 `locked_for_user: true` 的锁定项；含只能凭链接打开的隐藏文件：列表里没有，直接读得到） | `present`（锁定的带 `locked`） | 现状 |
 | 4 | 单项 | 404 | 删除，或对学生取消发布（待确认：页面、作业取消发布是不是 404） | `gone` | 现状 |
-| 5 | 单项 | 401 不带 `WWW-Authenticate`、403（非限流），且它所在的区域这一轮不是 `hidden` | 取消发布或对本人隐藏的文件（待确认） | `gone` | PR 3 |
-| 6 | 单项 | 同第 5 行，但它所在的区域这一轮是 `hidden` | 分不清是这一项不在，还是整个区域被关掉 | `unavailable`（PR 7 确认 Canvas 对关闭区域里的单项回什么后再看能否改成 `gone`） | PR 3（现在：#419 算作已离开） |
+| 5 | 单项 | 401 不带 `WWW-Authenticate`、403（非限流），且它的类型所属的区域（见下）这一轮不是 `hidden` | 取消发布或对本人隐藏的文件（待确认） | `gone` | PR 3 |
+| 6 | 单项 | 同第 5 行，但它的类型所属的区域这一轮是 `hidden` | 分不清是这一项不在，还是整个区域被关掉 | `unavailable`（PR 7 确认 Canvas 对关闭区域里的单项回什么后再看能否改成 `gone`） | PR 3（现在：#419 算作已离开） |
 | 7 | 区域列表 | 404、401 不带 `WWW-Authenticate`、403（非限流），且同一轮课程导航里这个区域缺失或隐藏 | 老师关闭了这个区域（Canvas `tab_enabled?`） | `hidden` | 现状（`reads._area_hidden`） |
 | 8 | 区域列表 | 同第 7 行，但导航里这个区域开着，或这一轮导航读不到 | 原因不明 | `unavailable` | 现状 |
 | 9 | 区域列表 | 200，最后一页 | — | `whole`；带 `hidden_for_user` 的文件与文件夹（以及隐藏文件夹里的文件）不算列出 | 现状 |
@@ -229,6 +236,7 @@ Canvas 的映射（`providers/canvas/`）。同一个 HTTP 回应只对应一种
 | 14 | 任意 | 3xx | 地址不是 Canvas API | `unavailable`（`lms.invalid_config`，记到连接上） | 现状 |
 | 15 | provider 没有这个功能 | — | — | 区域 `unsupported`，单项不读 | 现状 |
 
+- **类型所属的区域**：单项的读取接口属于哪个区域，只看类型，不看它在哪里被列出或链接：文件 → 文件区，文件夹 → 文件区，页面 → 页面，作业 → 作业，测验 → 测验，讨论与公告 → 讨论与公告，单元 → 单元。同一份文件同时出现在隐藏的文件区和开着的单元里时，它的类型所属的区域是文件区。
 - `unavailable` 的原因就是错误码（§9），界面与 Sem 按它说明；`lms.forbidden` 与 `lms.not_found` 只在 provider 内部用来区分上面的行，共享代码不再分别处理它们（PR 3）。
 - 第二个平台的 provider 写自己的这张表，契约测试 `tests/provider_contract.py` 对每个 provider 逐行检查。
 
@@ -282,13 +290,19 @@ Canvas 的映射（`providers/canvas/`）。同一个 HTTP 回应只对应一种
 | 4 | 这一轮单独读了：`present` | 在 |
 | 5 | 这一轮单独读了：`gone` | 已离开 |
 | 6 | 这一轮单独读了：`unavailable` | 不判断 |
-| 7 | 这一轮没单独读，但在 `CHECK_EVERY`（1 天）内单独读到过 `present` | 在（只能单独读到的项：只被页面链接、只凭链接打开的隐藏文件） |
-| 8 | 可能出现的区域都是 `whole` | 已离开 |
-| 9 | 可能出现的区域有 `hidden`，其余都是 `whole` | 这一轮单独读一次，按第 4–6 行；这一轮单独读的已到上限（每门课每轮 `CHECKS_PER_RUN` = 100 项）时不判断，下一轮继续 |
-| 10 | 其余（有 `partial` 或 `unavailable`） | 不判断 |
+| 7 | 这一轮没单独读，最近一次单独读取（`lms_item_checks`）在 `CHECK_EVERY`（1 天）内，结果是 `present` | 在（只能单独读到的项：只被页面链接、只凭链接打开的隐藏文件） |
+| 8 | 这一轮没单独读，最近一次单独读取在 1 天内，结果是 `unavailable` | 不判断（1 天内不再重读） |
+| 9 | 可能出现的区域都是 `whole` | 已离开 |
+| 10 | 可能出现的区域有 `hidden`，其余都是 `whole` | 这一轮单独读一次，按第 4–6 行；名额见下 |
+| 11 | 其余（有 `partial` 或 `unavailable`） | 不判断 |
+
+- 只看**最近一次**单独读取：最近一次是 `unavailable` 时，更早读到过 `present` 也不算（第 8 行）；超过 1 天的结果不用（落到第 9–11 行）。
+- **单独读的名额**：每门课每轮最多单独读 `CHECKS_PER_RUN` = 100 项，第 10 行和资料发现（§4.6：页面链接、只在单元里的文件）共用，按最近一次单独读取的时间从早到晚排（从没读过的最先）；没轮到的这一轮不判断，下一轮先读。最近一次是 `unavailable` 的项 1 天才重读一次（第 8 行），不会每轮占名额。
+- **读不到的资料，用户看得到**：单独读取一直是 `unavailable` 的资料（`lms_item_checks.unavailable_since` 不为空），同步面板“读不到的资料”里按课程列出名称与原因（例如 `lms.area_hidden`：“{平台} 上的「文件」栏目已关闭，这份资料读不到，保留在课程文件里”），用户可以在那里移除（等于删掉那一项，表 4a 转到 `dismissed`）；有本地副本的照常打开，在线读取的打开时报同一个原因，不是笼统的失败。平台上又读得到时自动从列表里消失。
 
 - “已离开”之后做什么由各自的状态转移表决定（表 4a、4b），本表只回答在不在。
 - 用户在这一轮读取期间恢复的资料（`state_at` 晚于这一轮开始读的时间）不在这一轮判断。
+- 第 2–11 行的“在这一轮的区域列表里”“单独读”对作业与公告同样适用；它们的单独读取同样记进 `lms_item_checks`。
 - “本轮资料读全了”指资料可能出现的区域都是 `whole`；放掉本地副本（§4.6）只在这样的一轮里做。
 
 **3d 是否到期 `due_state`**（截止时间、作业状态或单元条目的完成情况、现在；按顺序取第一行）
@@ -381,7 +395,7 @@ Canvas 的映射（`providers/canvas/`）。同一个 HTTP 回应只对应一种
 - **解绑、取消关联、平台上删除后保留**（owner 2026-11-18：评语解释成绩，成绩留下评语也留下）：对象得到一份留给它的作业内容（§3.2），保持最后一次读到的样子，不再更新；平台名与“在 {平台} 中打开”用行里存的 `provider` 与 `web_url`。
 
 ### 4.6 课程资料
-- **范围**：`files` 阶段把平台上课程的文件（`folders`）、页面（`pages`）、syllabus（作为一份页面，PR 4）和单元里的文件、页面、外部链接与外部工具（`modules`）带进 M07 的课程文件；页面里链接到的文件和页面、只在单元里出现的文件也带进来（逐个读取；单独读的一天最多查一次，期间按表 3c 第 7 行算“在”）。只看 provider 的 `features`。设置在 M11 命名空间 `lms.materials`（`sync` 开关与 `store` 保存方式，全局与课程两级，默认开、`online`）。
+- **范围**：`files` 阶段把平台上课程的文件（`folders`）、页面（`pages`）、syllabus（作为一份页面，PR 4）和单元里的文件、页面、外部链接与外部工具（`modules`）带进 M07 的课程文件；页面里链接到的文件和页面、只在单元里出现的文件也带进来（逐个读取，占表 3c 的单独读名额；单独读的一天最多查一次，期间按表 3c 第 7、8 行）。只看 provider 的 `features`。设置在 M11 命名空间 `lms.materials`（`sync` 开关与 `store` 保存方式，全局与课程两级，默认开、`online`）。
 - **不占存储**：文件与页面建成 M07 的远程文件（`source_kind="lms"`），内容经 M07 的内容源在打开、预览、建索引时从平台读；链接建成 M07 的链接项。锁定的项算“在”（表 3c 第 3 行），在开放之前不建新项。
 - **按平台目录放**：每项第一次带进来时按它在平台上的位置（所在单元，否则文件区里的文件夹，否则第一个链接它的页面的位置加上该页面；首页不算）放进由 M07 `SourceFolders` 建立并记住的文件夹，最多三级；不按周归类，不调用模型。只有链接、自身文字不到 160 字的页面是列表页，不保存。
 - **用户优先**：每项只放一次，用户移动、改名、删除都不会被同步改回；平台改了名而用户没改的才跟着改名（按 M07 `sources.name_from_source` 得到的名字与 `name` 比较）；平台上换了位置的由 M07 的「整理」提议移回。版本变了的文件重新处理。每次最多新建 100 项。
@@ -526,7 +540,7 @@ Agent 与 MCP 只看到 11 个按任务设计的工具，而不是每个平台�
 ## 10. 导出
 注册 M13 适配器：
 - 导出：连接（不含凭证，导入后状态为"需要重新填写凭证"）、Program 绑定、课程关联（含 `watched_at` 与课程总成绩，PR 4）、导入记录、`lms_assignments` 的两种行（§3.2）、资料（§4.6）、公告（§4.7）、日历事件（PR 5）。
-- 不导出：凭证、内存缓存、每轮同步的运行记录（`area_reads`、`sync_errors`），导入后第一次同步重新得出。
+- 不导出：凭证、内存缓存、同步的运行记录（`area_reads`、`sync_errors`、`lms_item_checks`），导入后第一次同步重新得出。
 - 2.0 以来备份里的 `feedback` 列表照旧能读，按 §3.2 的迁移规则读进 `lms_assignments`；备份格式版本不变（lms v2）。
 
 ## 11. 测试
@@ -633,7 +647,7 @@ lms_course_links
 
 lms_imported_refs                    # 平台上的作业与它在 Semestra 里的对象（同步的依据），只放作业
   id, user_id, link_id, external_id,
-  target_kind? ('assessment'|'task'), target_id?, imported_at?,   # 都为空 = 还没导入的新作业
+  target_kind? ('assessment'|'task'), target_id?, imported_at?,   # 都为空 = 用户忽略了的作业（表 4b；“新作业”是派生值，表 3e）
   snapshot, conflicts {字段: {value, raw}}, removed_at?, dismissed_at?, submitted_at?
   UNIQUE(link_id, external_id)   # 一个作业只对应一个 Semestra 对象
 
