@@ -75,7 +75,7 @@ function Card({
 }
 
 function status({ submission: s }: AssignmentOut): string {
-  if (s?.state === 'graded') return m.lms_task_graded()
+  if (s?.status === 'graded') return m.lms_task_graded()
   if (s?.submitted_at)
     return m.lms_task_submitted({ time: formatDateTime(new Date(s.submitted_at)) })
   if (s?.missing) return m.lms_task_missing()
