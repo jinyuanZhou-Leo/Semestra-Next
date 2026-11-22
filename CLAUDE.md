@@ -21,11 +21,12 @@ docs/                设计稿与模块规格
 | `pnpm lint` / `pnpm format` | oxlint + oxfmt；ruff |
 | `pnpm typecheck` | `tsc`（TS 7）；pyright |
 | `pnpm test` | vitest；pytest |
+| `pnpm dev:demo` | 演示环境（`apps/api/devtools/`，不进镜像）：用独立数据目录 `apps/api/data/demo` 起 API、Web、假 Canvas（:8090）和兼容 OpenAI 的假模型接口（:8091），建好演示账户（`demo@example.com` / `semestra-demo-1`，三个学期、课程、成绩册、课表、待办，日期相对今天），连上假 Canvas 并完成首次同步，AI 各用途指向假模型。`--scenario large` 加一门几百个文件和作业的课；运行中在 `apps/api` 下用 `uv run python -m devtools fake faults/changes/requests …` 注入故障（429、Canvas 403 限流、401、402、5xx、慢、断开）、模拟老师改动、看每个接口的请求次数。详见文档站“开发工具” |
 | `pnpm check` | 本地跑这次改动在 CI 上会跑的检查（`scripts/check.py` 直接读 `ci.yml` 的路径规则和各 job 的步骤，测试只跑受影响的；跳过安装步骤；`--list` 只看计划，`--only api,web` 限定 job）。草稿 PR 推送前用它 |
 | `pnpm gen:api` | 导出 OpenAPI → 重新生成 `packages/api-client`，提交生成结果 |
 | `pnpm --filter @semestra/api migrate` | `alembic upgrade head` |
 | `pnpm --filter @semestra/web e2e` | Playwright 冒烟：注册登录、onboarding、ICS 导入（需先 `pnpm exec playwright install chromium`；默认起 dev 服务器，`E2E_BUILT=1` 则先 `VITE_API_ORIGIN= pnpm build`，由 API 同源托管构建产物，CI 这样跑） |
-| `pnpm --filter @semestra/web bombadil` | Bombadil 随机探索检查（只在本地跑，不进 CI；需要本机的 Chrome，或用 `CHROME` 指定，后端依赖要先 `uv sync`）：构建 SPA，在 :8010 起一个数据目录独立的同源实例并通过 API 建好账号与数据，再让 Bombadil 带着会话随机点击、输入、后退、刷新约 2 分钟，每一步检查 `apps/web/bombadil/spec.ts` 的属性（无未捕获异常/console error、API 无 5xx 与登录状态下的 401/403、等加载时 10 s 内结束、纵向滚动区不横向溢出、按钮与链接有可读名称，以及下面 UI 约定里能在运行时看到的几条：内容不自己跳动、对话框/抽屉有标题、设置里不用 Tabs、红色菜单项先弹确认）。参数传给 Bombadil，如 `-- --time-limit 10m`、`-- --width 375 --height 812`（手机外壳）；退出码 2 表示有属性失败，轨迹与截图在 `bombadil/.runs/<时间>/`，用 `pnpm exec bombadil browser inspect <目录>` 逐步看。它打印的 “Reproduce” 命令用不了：实例已经关掉，且 React 生成的元素 id 每次不同，回放会对不上。改 UI 后自检可以跑一次；新属性要先植入一个故障确认它会失败 |
+| `pnpm --filter @semestra/web bombadil` | Bombadil 随机探索检查（只在本地跑，不进 CI；需要本机的 Chrome，或用 `CHROME` 指定，后端依赖要先 `uv sync`）：构建 SPA，在 :8010 起一个数据目录独立的同源实例并用 `devtools seed`（与 `pnpm dev:demo` 同一份数据）通过 API 建好账号与数据，再让 Bombadil 带着会话随机点击、输入、后退、刷新约 2 分钟，每一步检查 `apps/web/bombadil/spec.ts` 的属性（无未捕获异常/console error、API 无 5xx 与登录状态下的 401/403、等加载时 10 s 内结束、纵向滚动区不横向溢出、按钮与链接有可读名称，以及下面 UI 约定里能在运行时看到的几条：内容不自己跳动、对话框/抽屉有标题、设置里不用 Tabs、红色菜单项先弹确认）。参数传给 Bombadil，如 `-- --time-limit 10m`、`-- --width 375 --height 812`（手机外壳）；退出码 2 表示有属性失败，轨迹与截图在 `bombadil/.runs/<时间>/`，用 `pnpm exec bombadil browser inspect <目录>` 逐步看。它打印的 “Reproduce” 命令用不了：实例已经关掉，且 React 生成的元素 id 每次不同，回放会对不上。改 UI 后自检可以跑一次；新属性要先植入一个故障确认它会失败 |
 
 后端也可直接在 `apps/api` 下用 `uv run semestra dev|serve|openapi`、`uv run alembic ...`、`uv run pytest`（加 `-n auto` 并行，CI 也这样跑，测试之间不能共享文件或全局状态）。
 
@@ -79,6 +80,7 @@ docs/                设计稿与模块规格
 - `@hey-api/openapi-ts` 依赖 TypeScript 的 JS API，而 TS 7（原生版）没有它，所以 `packages/api-client` 单独固定 `typescript@6.0.3` 仅供代码生成使用；应用本身用 TS 7。
 - 前端依赖精确版本锁定（`pnpm-workspace.yaml` 里 `savePrefix: ''`）。
 - **Paraglide 的格式插件是本地依赖**：`apps/web/project.inlang/settings.json` 引用 `./node_modules/@inlang/plugin-message-format/dist/index.js`（相对 `apps/web`），不走 CDN；升级插件时改 `apps/web/package.json` 的版本即可。
+- **假 Canvas 与假模型接口**（`apps/api/devtools/`）：在应用包外，Docker 只拷 `src` 所以不进镜像；`tests/test_fake_canvas.py` 拿真实的 Canvas provider 跑契约测试。Canvas provider 开始读新的接口或字段时，同步给假 Canvas（`fake_canvas/app.py`、`world.py`）补上，否则 `pnpm dev:demo` 里看不到。假模型的回答是固定的，只用来走通 Semestra 这边的流程，模型质量仍用真实服务商验证。
 - **云端会话**：`.claude/hooks/session-start.sh` 在 Claude Code 云端会话开始时装好 Node 26、`packageManager` 指定的 pnpm 和前后端依赖，并导出 `CHROME=/opt/pw-browsers/chromium`；改了 Node 主版本或安装方式时同步改它。
 - 根目录 `oxlint` 不带路径会异常变慢，lint 脚本都显式指定目录。
 

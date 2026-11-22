@@ -1,7 +1,7 @@
 // Runs the Bombadil specification (spec.ts) against a throwaway instance: the API serves the
-// built SPA on one origin, as the all-in-one image does, with a fresh data directory. An account
-// with a Program, a term running today, courses, assessments and tasks is created over HTTP, and
-// Bombadil starts from `/` with its session cookies.
+// built SPA on one origin, as the all-in-one image does, with a fresh data directory. The demo
+// account of `pnpm dev:demo` (apps/api/devtools/seed.py) is created over HTTP, and Bombadil starts
+// from `/` with its session cookies.
 //
 //   pnpm --filter @semestra/web bombadil [-- <bombadil options>]
 //
@@ -10,7 +10,7 @@
 // bombadil/.runs/<time>/; `pnpm exec bombadil browser inspect <dir>` shows them step by step.
 // The exit code is Bombadil's: 0 nothing failed, 2 a property failed, 1 something else went wrong.
 import { spawn } from 'node:child_process'
-import { mkdirSync, readFileSync, rmSync } from 'node:fs'
+import { mkdirSync, rmSync } from 'node:fs'
 import path from 'node:path'
 import { parseArgs } from 'node:util'
 import account from './account.json' with { type: 'json' }
@@ -83,105 +83,37 @@ async function waitUntilReady(server) {
   throw new Error(`the API did not become ready on ${origin}`)
 }
 
-/** A tiny HTTP client that keeps the session cookies and sends the CSRF header like the SPA. */
-function session() {
-  const cookies = new Map()
-  async function call(method, url, body) {
-    const headers = { 'content-type': 'application/json' }
-    if (cookies.size) headers.cookie = [...cookies].map(([k, v]) => `${k}=${v}`).join('; ')
-    if (cookies.has('semestra_csrf')) headers['x-semestra-csrf'] = cookies.get('semestra_csrf')
-    const response = await fetch(`${origin}${url}`, {
-      method,
-      headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
-    })
-    for (const line of response.headers.getSetCookie()) {
-      const [pair] = line.split(';')
-      const at = pair.indexOf('=')
-      cookies.set(pair.slice(0, at), pair.slice(at + 1))
-    }
-    if (!response.ok)
-      throw new Error(`${method} ${url}: ${response.status} ${await response.text()}`)
-    return response.status === 204 ? null : response.json()
-  }
-  return { cookies, post: (url, body) => call('POST', url, body) }
-}
-
-function signInCode(email) {
-  let lines = []
-  try {
-    lines = readFileSync(outbox, 'utf8').trim().split('\n')
-  } catch {
-    return null
-  }
-  for (const line of lines.reverse()) {
-    const mail = JSON.parse(line)
-    if (mail.to === email) return /\b(\d{6})\b/.exec(mail.text)?.[1] ?? null
-  }
-  return null
-}
-
-function isoDate(date) {
-  return date.toISOString().slice(0, 10)
-}
-
-/** An account with enough data that every page has something to show. */
+/**
+ * The shared demo account (apps/api/devtools/seed.py: a Program with three terms, courses,
+ * sections, gradebooks, events and tasks), created over HTTP; returns its session cookies.
+ */
 async function seed() {
-  const http = session()
-  const { email, password, name } = account
-  await http.post('/auth/email/start', { email })
-  let code = null
-  for (let i = 0; i < 40 && !code; i++) {
-    code = signInCode(email)
-    if (!code) await new Promise((resolve) => setTimeout(resolve, 100))
-  }
-  if (!code) throw new Error('no sign-in code in the outbox')
-  const verified = await http.post('/auth/email/verify', { email, code })
-  await http.post('/auth/register/complete', {
-    registration_token: verified.registration_token,
-    display_name: name,
-    // spec.ts signs back in with it after a random click signs out.
-    password,
-  })
-
-  const program = await http.post('/programs', {
-    name: 'Computer Engineering',
-    institution: 'University of Toronto',
-    timezone: 'America/Toronto',
-  })
-  const today = new Date()
-  const { term, course_ids: courses } = await http.post(`/programs/${program.id}/terms`, {
-    name: 'This term',
-    start_date: isoDate(new Date(today.getFullYear(), today.getMonth() - 1, 1)),
-    end_date: isoDate(new Date(today.getFullYear(), today.getMonth() + 2, 15)),
-    courses: [
-      { code: 'APS105H1', title: 'Computer Fundamentals' },
-      { code: 'MAT188H1', title: 'Linear Algebra' },
-      { code: 'ECE110H1', title: 'Electrical Fundamentals' },
+  const child = uv(
+    [
+      'python',
+      '-m',
+      'devtools',
+      'seed',
+      '--origin',
+      origin,
+      '--outbox',
+      outbox,
+      '--email',
+      account.email,
+      // spec.ts signs back in with it after a random click signs out.
+      '--password',
+      account.password,
+      '--name',
+      account.name,
     ],
-  })
-  const inDays = (days) => isoDate(new Date(today.getTime() + days * 86_400_000))
-  await http.post(`/courses/${courses[0]}/assessments:batch`, {
-    assessments: [
-      { title: 'Lab 1', weight: 10, score_percentage: 92, due_date: inDays(-14) },
-      { title: 'Midterm', weight: 30, score_percentage: 78, due_date: inDays(-3) },
-      { title: 'Lab 2', weight: 10, due_date: inDays(4) },
-      { title: 'Final exam', weight: 50, due_date: inDays(30) },
-    ],
-  })
-  for (const [title, course, due] of [
-    ['Read chapter 3', courses[1], inDays(1)],
-    ['Problem set 4', courses[2], inDays(2)],
-    ['Email the TA', null, null],
-  ]) {
-    await http.post(`/programs/${program.id}/tasks`, {
-      title,
-      course_id: course,
-      term_id: course ? term.id : null,
-      due_date: due,
-    })
-  }
-  return http.cookies
+    { stdio: ['ignore', 'pipe', 'inherit'] },
+  )
+  let printed = ''
+  child.stdout.on('data', (chunk) => (printed += chunk))
+  const code = await exited(child)
+  if (code !== 0) throw new Error(`seeding failed (${code})`)
+  const made = JSON.parse(printed.trim().split('\n').at(-1))
+  return new Map(Object.entries(made.cookies))
 }
 
 // Another server on the port would answer the readiness check and get the seed data instead.

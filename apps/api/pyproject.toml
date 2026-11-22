@@ -103,6 +103,8 @@ dev = [
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests", "src"]
+# `devtools/` (the fake servers behind `pnpm dev:demo`) is importable from the tests.
+pythonpath = ["."]
 markers = [
     "live: hits real external services; skipped in CI",
     "streamed: AI tests whose fake Claude answers stream (see ai/tests/conftest.py)",
@@ -123,7 +125,7 @@ filterwarnings = [
 [tool.ruff]
 line-length = 100
 target-version = "py314"
-src = ["src", "tests"]
+src = ["src", "tests", "."]
 extend-exclude = ["migrations/versions"]
 
 [tool.ruff.lint]
@@ -132,9 +134,11 @@ ignore = ["S101"]
 
 [tool.ruff.lint.per-file-ignores]
 "**/tests/**" = ["S105", "S106"]
+# The fake servers and seed: made-up credentials and Chinese sample text.
+"devtools/**" = ["S105", "S106", "RUF001"]
 
 [tool.pyright]
-include = ["src", "tests"]
+include = ["src", "tests", "devtools"]
 pythonVersion = "3.14"
 typeCheckingMode = "basic"
 strict = ["src/semestra/core"]
