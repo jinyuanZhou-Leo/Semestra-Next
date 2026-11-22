@@ -7,8 +7,8 @@
     "dev": "vite",
     "build": "pnpm typecheck && vite build",
     "preview": "vite preview",
-    "lint": "oxlint src bombadil && oxfmt --check src bombadil && pnpm i18n:lint && pnpm compiler:check && pnpm entry:check",
-    "format": "oxfmt src bombadil",
+    "lint": "oxlint src bombadil scripts/dev && oxfmt --check src bombadil scripts/dev && pnpm i18n:lint && pnpm compiler:check && pnpm entry:check",
+    "format": "oxfmt src bombadil scripts/dev",
     "typecheck": "pnpm i18n:compile && tsc --noEmit",
     "test": "pnpm i18n:compile && vitest run",
     "test:related": "pnpm i18n:compile && vitest related --run --passWithNoTests",
@@ -19,7 +19,9 @@
     "entry:check": "node scripts/check-entry.mjs",
     "manifest:export": "pnpm i18n:compile && UPDATE_MANIFEST=1 vitest run src/app/manifest-export.test.ts",
     "e2e": "playwright test",
-    "bombadil": "VITE_API_ORIGIN= pnpm build && node bombadil/run.mjs"
+    "bombadil": "VITE_API_ORIGIN= pnpm build && node bombadil/run.mjs",
+    "shot": "node scripts/dev/shot.mjs",
+    "requests": "node scripts/dev/requests.mjs"
   },
   "dependencies": {
     "@base-ui/react": "1.9.0",

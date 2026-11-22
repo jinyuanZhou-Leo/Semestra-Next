@@ -1,6 +1,6 @@
 ---
 title: Development tools
-description: Tools for local development and debugging, such as checks before you push and the cloud session setup.
+description: Tools for local development and debugging, such as checks before you push, the cloud session setup, screenshots and request counts.
 icon: Wrench
 ---
 
@@ -25,3 +25,17 @@ The script only understands the forms `ci.yml` uses today. If a change to `ci.ym
 `.claude/hooks/session-start.sh` prepares Claude Code cloud sessions: it installs the Node 26 that CI uses and the pnpm version `packageManager` pins, installs both dependency trees, and points `CHROME` at the Chromium that ships with the image. Installs are skipped when no dependency file changed. On a local machine it does nothing.
 
 The Paraglide plugin is a dev dependency in `apps/web/node_modules`, and `project.inlang/settings.json` points at it, so compiling messages needs no CDN.
+
+## Screenshots and requests
+
+Both scripts open pages in a signed-in Chromium against a running Semestra. They default to the demo account, so start `pnpm dev:demo` first, or pass `--email` and `--password` for your own account on `pnpm dev`.
+
+```bash
+pnpm --filter @semestra/web shot /p/{program}/today /p/{program}/c/{course:ECE201H1}/grades
+pnpm --filter @semestra/web requests /p/{program}/today
+```
+
+Paths can use `{program}`, `{term}`, `{course}` and `{course:CODE}`, filled from the account's data.
+
+- `shot` saves each page in light and dark, in Chinese, at 2x, to `apps/web/.shots/`. The account's theme and language are switched for the shots and put back afterwards, and the clock is frozen so both themes show the same times. `--locale`, `--themes`, `--width`, `--height` and `--out` change the defaults.
+- `requests` lists the API requests a page makes when it opens: the count and slowest time per route, failures, and requests made more than once. Use it to check a change doesn't add requests or fetch the same data twice.

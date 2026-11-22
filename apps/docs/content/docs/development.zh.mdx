@@ -1,6 +1,6 @@
 ---
 title: 开发工具
-description: 本地开发与调试用的工具，例如推送前的检查和云端会话的环境。
+description: 本地开发与调试用的工具，例如推送前的检查、云端会话的环境、截图与请求统计。
 icon: Wrench
 ---
 
@@ -25,3 +25,17 @@ pnpm check --only api,web
 仓库的 `.claude/hooks/session-start.sh` 会在 Claude Code 的云端会话开始时准备环境：安装 CI 用的 Node 26 和 `packageManager` 指定的 pnpm，再安装前后端依赖，并把 `CHROME` 指向镜像里自带的 Chromium。依赖文件没变时会跳过安装。本机运行时它什么都不做。
 
 Paraglide 的插件作为开发依赖安装在 `apps/web/node_modules` 里，`project.inlang/settings.json` 直接引用它，编译文案不需要访问 CDN。
+
+## 截图与请求统计
+
+两个脚本都在已登录的 Chromium 里打开正在运行的 Semestra。默认用演示账户，先运行 `pnpm dev:demo`；在 `pnpm dev` 上用自己的账户时传 `--email` 和 `--password`。
+
+```bash
+pnpm --filter @semestra/web shot /p/{program}/today /p/{program}/c/{course:ECE201H1}/grades
+pnpm --filter @semestra/web requests /p/{program}/today
+```
+
+路径里可以写 `{program}`、`{term}`、`{course}` 和 `{course:CODE}`，按账户里的数据填入。
+
+- `shot` 把每个页面以浅色和深色、中文、2 倍分辨率截图，存到 `apps/web/.shots/`。截图期间临时切换账户的主题和语言，结束后改回；时钟固定在开始时刻，两种主题显示的时间一致。`--locale`、`--themes`、`--width`、`--height`、`--out` 可改默认值。
+- `requests` 列出页面打开时发出的 API 请求：每个路由的次数与最慢耗时、失败的请求，以及重复发出的请求。用来确认改动没有多发请求，也没有重复读取同一份数据。
