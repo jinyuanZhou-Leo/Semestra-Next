@@ -29,7 +29,6 @@ import { InputGroup, InputGroupAddon, InputGroupInput } from '@/ui/input-group'
 import { RadioGroup, RadioGroupItem } from '@/ui/radio-group'
 import { Spinner } from '@/ui/spinner'
 import { useProgramProviderName } from '../providers'
-import { invalidateLms } from '../queries'
 
 /**
  * Picks the assignment an assessment made by hand follows from now on (M09 §4): the course's
@@ -72,7 +71,8 @@ function AssignmentChoice({ assessment, close }: { assessment: Assessment; close
     onError: toastError,
     onSuccess: async () => {
       close()
-      await Promise.all([invalidateGrading(queryClient), invalidateLms(queryClient, { courseId })])
+      // The assignment's "imported as" follows the change's event (`lms.course.imports_recorded`).
+      await invalidateGrading(queryClient)
     },
   })
   const open = (assignments.data?.items ?? []).filter((a) => a.imported_as == null)
@@ -197,10 +197,7 @@ export function UnbindDialog({
     onError: toastError,
     onSuccess: async () => {
       close()
-      await Promise.all([
-        invalidateGrading(queryClient),
-        invalidateLms(queryClient, { courseId: assessment?.course_id }),
-      ])
+      await invalidateGrading(queryClient)
     },
   })
   return (

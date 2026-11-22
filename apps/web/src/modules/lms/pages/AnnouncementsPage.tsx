@@ -1,17 +1,15 @@
-import { type AnnouncementAttachment, type Course, lmsSyncRequest } from '@semestra/api-client'
+import { type Course, lmsSyncRequest } from '@semestra/api-client'
 import { lmsCourseLinkGetOptions } from '@semestra/api-client/react-query'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { Link, useCanGoBack, useNavigate, useRouter, useSearch } from '@tanstack/react-router'
+import { useCanGoBack, useNavigate, useRouter, useSearch } from '@tanstack/react-router'
 import { ArrowLeft, CircleAlert, Megaphone, SearchX } from 'lucide-react'
 import type { PageProps } from '@/app/extensions'
 import { useNow } from '@/hooks/use-now'
-import { formatBytes, formatDateTime } from '@/lib/format'
+import { formatDateTime } from '@/lib/format'
 import { toastError } from '@/lib/errors'
 import { FRAMED_SCROLLBAR } from '@/lib/scroll-area'
 import { cn } from '@/lib/utils'
 import { courseColor, courseLabel } from '@/modules/academics/color'
-import { FileIcon } from '@/modules/files/components/FileIcon'
-import { filePath } from '@/modules/files/location'
 import { m } from '@/paraglide/messages'
 import { Alert, AlertTitle } from '@/ui/alert'
 import { Button } from '@/ui/button'
@@ -23,7 +21,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/ui/empty'
-import { Item, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from '@/ui/item'
+import { Item, ItemContent, ItemDescription, ItemGroup, ItemTitle } from '@/ui/item'
 import {
   Select,
   SelectContent,
@@ -40,7 +38,7 @@ import { postedLabel, postKey } from '../announcements'
 import { type LmsContent, LmsContentContext, type LmsDisplay } from '../content/context'
 import { useLmsDisplay } from '../content/display'
 import { useLmsLinkOpener } from '../content/link-opener'
-import { fileContentUrl } from '../content/file-url'
+import { Attachments } from '../content/Attachments'
 import { LmsHtml, ViewHeader } from '../content/LmsContent'
 import { type Post, useAnnouncements } from '../posts'
 import { useProviderName } from '../providers'
@@ -367,72 +365,15 @@ function Reading({
         <ScrollArea className={cn('min-h-0 flex-1', FRAMED_SCROLLBAR)}>
           <div className="flex flex-col gap-4 @page-lg/main:px-6 @page-lg/main:pb-6">
             {a.html ? <LmsHtml html={a.html} /> : null}
-            <Attachments files={a.attachments ?? []} course={course} />
+            <Attachments
+              files={a.attachments ?? []}
+              programId={course.program_id}
+              courseId={course.id}
+            />
           </div>
         </ScrollArea>
       </article>
     </LmsContentContext>
-  )
-}
-
-/**
- * The files attached to an announcement: the course's own copy opens in the file preview; one
- * the course's files do not have opens from the platform through Semestra, in a new tab.
- */
-function Attachments({ files, course }: { files: AnnouncementAttachment[]; course: Course }) {
-  if (files.length === 0) return null
-  return (
-    <section className="flex flex-col gap-2 border-t border-border pt-4">
-      <h3 className="text-xs text-muted-foreground">
-        {m.lms_announcements_attachments({ count: files.length })}
-      </h3>
-      <ItemGroup className="grid gap-2 @page-lg/main:grid-cols-2">
-        {files.map((file) => (
-          <Item
-            key={file.external_id}
-            variant="outline"
-            size="sm"
-            render={
-              file.file ? (
-                <Link
-                  to={filePath(course.program_id, {
-                    ...file.file,
-                    folder_id: file.file.folder_id ?? null,
-                  })}
-                  className="hover:bg-muted/50"
-                />
-              ) : (
-                // oxlint-disable-next-line jsx-a11y/anchor-has-content, jsx-a11y/control-has-associated-label -- the children label it
-                <a
-                  href={fileContentUrl(course.id, file.external_id)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:bg-muted/50"
-                />
-              )
-            }
-          >
-            <ItemMedia>
-              <FileIcon
-                item={{ kind: 'file', mime_type: file.mime_type ?? null }}
-                aria-hidden
-                className="size-4 text-muted-foreground"
-              />
-            </ItemMedia>
-            <ItemContent className="min-w-0 gap-0">
-              <ItemTitle className="w-full">
-                <span className="truncate">{file.name}</span>
-              </ItemTitle>
-              {file.size_bytes != null ? (
-                <ItemDescription className="text-xs">
-                  {formatBytes(file.size_bytes)}
-                </ItemDescription>
-              ) : null}
-            </ItemContent>
-          </Item>
-        ))}
-      </ItemGroup>
-    </section>
   )
 }
 

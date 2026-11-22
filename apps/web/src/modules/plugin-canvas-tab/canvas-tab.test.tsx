@@ -502,10 +502,13 @@ test('ticked assignments open the import review', async () => {
     'aria-disabled',
     'true',
   )
-  const importButton = screen.getByRole('button', { name: 'Import' })
-  expect(importButton).toBeDisabled()
+  // The actions take the filters' place once something is ticked.
+  const toolbar = screen.getByRole('toolbar', { name: 'Actions on the selected assignments' })
+  expect(toolbar).toHaveAttribute('inert')
   await userEvent.click(screen.getByRole('checkbox', { name: 'Select Lab 1' }))
-  await userEvent.click(screen.getByRole('button', { name: 'Import 1' }))
+  expect(toolbar).not.toHaveAttribute('inert')
+  expect(within(toolbar).getByText('1 selected')).toBeInTheDocument()
+  await userEvent.click(within(toolbar).getByRole('button', { name: 'Import' }))
   await waitFor(() => expect(body).toHaveBeenCalledWith('assignments', { external_ids: ['x1'] }))
   expect(openImport).toHaveBeenCalledWith(
     expect.objectContaining({ programId: 'p1', source: 'session', sessionId: 's1' }),
@@ -600,6 +603,37 @@ test('opening an unread announcement marks it read', async () => {
   await userEvent.click(screen.getByRole('button', { name: 'Back' }))
   expect(await screen.findByText('Midterm room change')).toBeInTheDocument()
   expect(screen.queryByText('Unread')).toBeNull()
+})
+
+test('an announcement lists its attachments: the course copy, or the file on Canvas', async () => {
+  const attached = {
+    ...ANNOUNCEMENTS.items[0],
+    unread: false,
+    attachments: [
+      {
+        external_id: 'f1',
+        name: 'Rooms.pdf',
+        mime_type: 'application/pdf',
+        size_bytes: 2048,
+        file: { kind: 'file', id: 'i1', course_id: 'c1', folder_id: null },
+      },
+      { external_id: 'f2', name: 'Seating.xlsx', mime_type: null, size_bytes: null, file: null },
+    ],
+  }
+  server.use(
+    http.get(`${API}/courses/c1/lms/announcements`, () =>
+      HttpResponse.json({ ...ANNOUNCEMENTS, items: [attached] }),
+    ),
+  )
+  renderPage('/?tab=announcements&ref=a1')
+  const copy = (await screen.findByText('Rooms.pdf')).closest('a')!
+  expect(copy).toHaveAttribute('href', expect.stringContaining('/p/p1/c/c1/files'))
+  const online = screen.getByText('Seating.xlsx').closest('a')!
+  expect(online).toHaveAttribute(
+    'href',
+    expect.stringContaining('/courses/c1/lms/files/f2/content'),
+  )
+  expect(online).toHaveAttribute('target', '_blank')
 })
 
 test('an assignment opens its details over the list', async () => {

@@ -11,27 +11,13 @@ import {
   tableFeatures,
   useTable,
 } from '@tanstack/react-table'
-import {
-  ArrowDown,
-  ArrowUp,
-  File,
-  FileArchive,
-  FileImage,
-  FileSpreadsheet,
-  FileText,
-  FileVideo,
-  Folder,
-  FolderOpen,
-  Lock,
-  Presentation,
-  Search,
-  X,
-} from 'lucide-react'
+import { ArrowDown, ArrowUp, Folder, FolderOpen, Lock, Search, X } from 'lucide-react'
 import { Fragment, useState } from 'react'
 import { useUiPref } from '@/app/ui-pref'
 import { formatBytes, formatDateTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useDebounced } from '@/hooks/use-debounced'
+import { FileIcon } from '@/modules/files/components/FileIcon'
 import { m } from '@/paraglide/messages'
 import {
   Breadcrumb,
@@ -66,29 +52,17 @@ function compareText(a: string, b: string) {
   return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
 }
 
-/** A file's icon by its type: documents, slides, sheets, archives, images, video, the rest. */
-function FileIcon({ file }: { file: FileMeta }) {
-  const mime = file.mime_type ?? ''
-  const name = file.name.toLowerCase()
-  let Icon = File
-  if (mime.startsWith('image/')) Icon = FileImage
-  else if (mime.startsWith('video/')) Icon = FileVideo
-  else if (/presentationml|powerpoint/.test(mime) || /\.pptx?$/.test(name)) Icon = Presentation
-  else if (/spreadsheetml|ms-excel|csv/.test(mime) || /\.(xlsx?|csv)$/.test(name))
-    Icon = FileSpreadsheet
-  else if (/zip|compressed|gzip|x-tar/.test(mime) || /\.(zip|gz|tar|7z|rar)$/.test(name))
-    Icon = FileArchive
-  else if (/pdf|wordprocessingml|msword|^text\//.test(mime)) Icon = FileText
-  return <Icon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-}
-
 /** The name opens the preview, as in the modules; a locked file's name is plain text. */
 function NameCell({ row }: CellProps) {
   const { openFile } = useCanvasPage()
   const f = row.original
   const label = (
     <>
-      <FileIcon file={f} />
+      <FileIcon
+        item={{ kind: 'file', mime_type: f.mime_type ?? null }}
+        aria-hidden
+        className="size-4 shrink-0 text-muted-foreground"
+      />
       <span className="truncate">{f.name}</span>
     </>
   )
