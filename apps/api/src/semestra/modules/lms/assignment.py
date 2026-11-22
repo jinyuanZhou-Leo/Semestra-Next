@@ -21,7 +21,7 @@ from semestra.modules.grading import service as grading
 from semestra.modules.lms import announcements, reads, service, sync_kept
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.models import LmsCourseLink, LmsImportedRef, LmsKeptAssignment
-from semestra.modules.lms.rules import submission_status
+from semestra.modules.lms.rules import submission_status, submits_online
 from semestra.modules.lms.schemas.dto import FileMeta, Quiz, SubmissionDetail
 from semestra.modules.lms.schemas.io import (
     AssignmentDetail,
@@ -157,7 +157,7 @@ async def _live(
         except AppError as exc:
             if exc.code not in reads.ITEM_ERRORS:
                 raise
-    quiz = await _quiz(ctx, course_id, assignment_id, b, refresh) if found.get("is_quiz") else None
+    quiz = await _quiz(ctx, course_id, assignment_id, b, refresh) if found.get("quiz_id") else None
     return {
         "provider": b.row.provider,
         "assignment": {**found, "submission": None},
@@ -298,7 +298,9 @@ async def targets(ctx: Ctx, program_id: str) -> AssignmentTargets:
             task_id=None if graded else ref.target_id,
             feedback=bool(graded and same and kept_target and kept_target.feedback),
             **(
-                kept_target.model_dump(include={"status", "missing", "late", "submitted_at"})
+                kept_target.model_dump(
+                    include={"status", "missing", "late", "submitted_at", "online"}
+                )
                 if same and kept_target
                 else {}
             ),
@@ -316,10 +318,12 @@ def _submission_facts(row: LmsKeptAssignment) -> dict[str, Any]:
             score=row.score,
             grade=row.grade,
             submitted_at=submitted_at,
+            needs_grading=bool(work.get("needs_grading")),
         ),
         "missing": bool(work.get("missing")),
         "late": bool(work.get("late")),
         "submitted_at": submitted_at,
+        "online": submits_online(list((row.details or {}).get("submission_types") or [])),
     }
 
 

@@ -2783,6 +2783,12 @@ export const AssignmentTargetSchema = {
                 }
             ],
             title: 'Submitted At'
+        },
+        online: {
+            type: 'boolean',
+            title: 'Online',
+            description: 'Handed in on the platform (not on paper or not at all)',
+            default: true
         }
     },
     type: 'object',
@@ -20058,6 +20064,12 @@ export const SubmissionSchema = {
             title: 'Excused',
             default: false
         },
+        needs_grading: {
+            type: 'boolean',
+            title: 'Needs Grading',
+            description: 'Handed in and waiting on the teacher (graded by hand, or resubmitted after a grade)',
+            default: false
+        },
         status: {
             type: 'string',
             enum: [
@@ -20241,6 +20253,12 @@ export const SubmissionDetailSchema = {
         excused: {
             type: 'boolean',
             title: 'Excused',
+            default: false
+        },
+        needs_grading: {
+            type: 'boolean',
+            title: 'Needs Grading',
+            description: 'Handed in and waiting on the teacher (graded by hand, or resubmitted after a grade)',
             default: false
         },
         seconds_late: {
@@ -25572,6 +25590,12 @@ export const SubmissionWritableSchema = {
             type: 'boolean',
             title: 'Excused',
             default: false
+        },
+        needs_grading: {
+            type: 'boolean',
+            title: 'Needs Grading',
+            description: 'Handed in and waiting on the teacher (graded by hand, or resubmitted after a grade)',
+            default: false
         }
     },
     type: 'object',
@@ -25682,6 +25706,12 @@ export const SubmissionDetailWritableSchema = {
         excused: {
             type: 'boolean',
             title: 'Excused',
+            default: false
+        },
+        needs_grading: {
+            type: 'boolean',
+            title: 'Needs Grading',
+            description: 'Handed in and waiting on the teacher (graded by hand, or resubmitted after a grade)',
             default: false
         },
         seconds_late: {

@@ -123,6 +123,7 @@ async def test_an_assignment_opens_from_the_platform_then_from_what_was_kept(
             "missing": False,
             "late": False,
             "submitted_at": "2026-02-05T20:00:00Z",
+            "online": True,
         }
     ]
 

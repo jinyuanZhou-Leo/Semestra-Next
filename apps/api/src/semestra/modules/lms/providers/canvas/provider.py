@@ -182,6 +182,9 @@ def _submission(s: dict[str, Any]) -> Submission:
         missing=bool(s.get("missing")),
         attempt=_opt_int(s.get("attempt")),
         excused=bool(s.get("excused")),
+        # Handed in after the last grade (a resubmission), or held for grading by hand.
+        needs_grading=s.get("workflow_state") == "pending_review"
+        or (s.get("workflow_state") == "submitted" and s.get("submitted_at") is not None),
     )
 
 

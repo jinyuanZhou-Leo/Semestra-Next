@@ -1,5 +1,6 @@
 """The per-field sync decision (M09 §4.1), every state combination."""
 
+from datetime import UTC, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -8,6 +9,7 @@ import pytest
 from semestra.modules.lms.older_backups import materials_from_programs
 from semestra.modules.lms.rules import (
     Action,
+    bucket,
     diverged,
     merge,
     platform_value,
@@ -118,8 +120,28 @@ def test_materials_settings_per_program_become_the_accounts_or_the_courses():
         ("graded without handing in", {"score": 0}, "graded"),
         ("a letter grade only", {"grade": "complete"}, "graded"),
         ("excused over a score", {"excused": True, "score": 0}, "excused"),
+        (
+            "resubmitted after a grade",
+            {"score": 7, "submitted_at": "2026-02-03", "needs_grading": True},
+            "submitted",
+        ),
+        ("held for grading by hand", {"score": 4, "needs_grading": True}, "submitted"),
     ],
 )
 def test_submission_status(name: str, kw: dict[str, Any], status: str):
     facts: dict[str, Any] = {"excused": False, "score": None, "grade": None, "submitted_at": None}
     assert submission_status(**(facts | kw)) == status
+
+
+def test_the_filter_reads_the_submission_itself():
+    """A list read before `status` was part of the reads (still in the cache) is sorted the
+    same: from the submission's own fields."""
+    now = datetime(2026, 1, 15, tzinfo=UTC)
+    graded = {"due_at": "2026-01-10T12:00:00+00:00", "submission": {"score": 9}}
+    waiting = {"submission": {"score": 9, "needs_grading": True, "submitted_at": "2026-01-12"}}
+    on_paper = {"due_at": "2026-01-10T12:00:00+00:00", "submission_types": ["on_paper"]}
+    late = {"due_at": "2026-01-10T12:00:00+00:00", "submission_types": ["online_upload"]}
+    assert bucket(graded, now) == "graded"
+    assert bucket(waiting, now) is None
+    assert bucket(on_paper, now) is None
+    assert bucket(late, now) == "missing"
