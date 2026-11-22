@@ -35,6 +35,15 @@ def _canvas(request: httpx.Request) -> httpx.Response:
                 }
             ],
         )  # fmt: skip
+    if path.endswith("/pages"):
+        return httpx.Response(
+            200,
+            json=[{"url": "week-1", "last_edited_by": {"id": 31337, "display_name": "Prof X"},
+                   "editor": {"id": 31338, "avatar_image_url": "https://a.example/p.png"}}],
+        )  # fmt: skip
+    if path == "/api/v1/calendar_events":
+        assert request.url.params.get_list("context_codes[]") == ["course_12"]
+        return httpx.Response(200, json=[])
     if path.endswith("/files/678"):
         return httpx.Response(401, json={"status": "unauthorized"})
     if path.endswith("/files/678/download"):
@@ -67,8 +76,8 @@ def test_recording_reads_only_and_hides_people_school_and_token(tmp_path: Path):
     )
     saved = "".join(p.read_text() for p in written)
     for secret in (
-        TOKEN, "Ada Lovelace", "Grace Hopper", "4242", "87.5", "school.instructure.com",
-        "verifier", "token-in-path", "notes0.pdf",
+        TOKEN, "Ada Lovelace", "Grace Hopper", "4242", "31337", "31338", "Prof X", "87.5",
+        "school.instructure.com", "verifier", "token-in-path", "notes0.pdf",
     ):  # fmt: skip
         assert secret not in saved
 
@@ -88,6 +97,7 @@ def test_recording_reads_only_and_hides_people_school_and_token(tmp_path: Path):
     assert "www-authenticate" not in case("file-unpublished")["headers"]
     download = case("file-unpublished-download")
     assert (download["status"], download["headers"]["location"]) == (302, "other-host/[path]")
-    assert case("area-calendar-events")["request"]["params"]["context_codes[]"] == ["course_12"]
+    # The course's calendar, not the user's own.
+    assert case("area-calendar-events")["status"] == 200
     assert case("missing-page")["status"] == 404
     assert case("bad-token")["headers"]["www-authenticate"] == "Bearer"

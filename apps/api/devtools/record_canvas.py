@@ -81,7 +81,11 @@ STAMP = re.compile(r"^\d{4}-\d\d-\d\dT[\d:.]+(Z|[+-]\d\d:\d\d)?$")
 GRADES = frozenset(("score", "entered_score", "grade", "entered_grade", "points_deducted"))
 # Ids that point to a person (in these keys, and every id inside these objects).
 PEOPLE_IDS = frozenset(("user_id", "author_id", "grader_id", "submitter_id"))
-PEOPLE = frozenset(("author", "user", "teachers", "participants", "grader", "assessor"))
+PEOPLE = frozenset(
+    ("author", "user", "teachers", "participants", "grader", "assessor", "last_edited_by", "editor")
+)
+# Any object with one of these keys is a person, whatever key it sits under.
+PERSON_KEYS = frozenset(("avatar_image_url", "avatar_url", "sortable_name", "pronouns"))
 AREAS = {
     "course": ("", {"include[]": ["term"]}),
     "navigation": ("/tabs", {}),
@@ -150,6 +154,7 @@ class Redactor:
 
     def body(self, value: Any, key: str = "", *, person: bool = False) -> Any:
         if isinstance(value, dict):
+            person = person or bool(PERSON_KEYS & value.keys())
             return {k: self.body(v, k, person=person or k in PEOPLE) for k, v in value.items()}
         if isinstance(value, list):
             return [self.body(v, key, person=person) for v in value[:LIST_ITEMS]]
