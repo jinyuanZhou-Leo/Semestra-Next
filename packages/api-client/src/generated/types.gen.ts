@@ -1150,6 +1150,12 @@ export type AssignmentDetail = {
      * What the description's links to course files are in the app
      */
     targets?: Array<LinkTarget>;
+    /**
+     * State
+     *
+     * Where the user is with it (`rules.assignment_state`)
+     */
+    readonly state: 'graded' | 'excused' | 'submitted' | 'missing' | 'offline' | 'unsubmitted';
 };
 
 /**
@@ -1267,12 +1273,6 @@ export type AssignmentFacts = {
      * A graded quiz
      */
     readonly is_quiz: boolean;
-    /**
-     * State
-     *
-     * Where the user is with it (`rules.assignment_state`)
-     */
-    readonly state: 'graded' | 'excused' | 'submitted' | 'missing' | 'offline' | 'unsubmitted';
 };
 
 /**
@@ -21313,9 +21313,9 @@ export type LmsAssignmentListData = {
         /**
          * Fields
          *
-         * Agent/MCP only: return just these fields of each item (and its external_id); default name, due_at, points, group_name, submission, imported_as. `markdown` (or `html`) is the body, as Markdown
+         * Agent/MCP only: return just these fields of each item (and its external_id); default name, due_at, points, group_name, submission, imported_as, state. `markdown` (or `html`) is the body, as Markdown
          */
-        fields?: Array<'web_url' | 'name' | 'html' | 'markdown' | 'due_at' | 'unlock_at' | 'lock_at' | 'points' | 'group_id' | 'group_name' | 'group_weight' | 'submission_types' | 'submission' | 'published' | 'updated_at' | 'locked' | 'lock_explanation' | 'allowed_attempts' | 'rubric' | 'imported_as'> | null;
+        fields?: Array<'web_url' | 'name' | 'html' | 'markdown' | 'due_at' | 'unlock_at' | 'lock_at' | 'points' | 'group_id' | 'group_name' | 'group_weight' | 'submission_types' | 'submission' | 'published' | 'updated_at' | 'locked' | 'lock_explanation' | 'allowed_attempts' | 'rubric' | 'imported_as' | 'state'> | null;
     };
     url: '/courses/{course_id}/lms/assignments';
 };

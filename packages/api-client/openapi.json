@@ -12220,7 +12220,7 @@
           "lms"
         ],
         "summary": "Assignments and graded quizzes of a linked course on its LMS (Canvas), with the user's scores and the course total, marked when imported.",
-        "description": "For \"what is due\", \"what is missing\" and \"what did I get\": filter by `status`\nor due dates; `include_total` adds the course total. Each has a `ref`: lms.content.read gives\nits text, rubric and the teacher's feedback. To add them to the gradebook or tasks use\nlms.assignment.import, never the gradebook or task capabilities directly.",
+        "description": "For \"what is due\", \"what is missing\" and \"what did I get\": filter by `state`\nand due dates; `include_total` adds the course total. Each has a `ref`: lms.content.read gives\nits text, rubric and the teacher's feedback. To add them to the gradebook or tasks use\nlms.assignment.import, never the gradebook or task capabilities directly.",
         "operationId": "lmsAssignmentList",
         "security": [
           {
@@ -12362,7 +12362,8 @@
                       "lock_explanation",
                       "allowed_attempts",
                       "rubric",
-                      "imported_as"
+                      "imported_as",
+                      "state"
                     ],
                     "type": "string"
                   }
@@ -12371,10 +12372,10 @@
                   "type": "null"
                 }
               ],
-              "description": "Agent/MCP only: return just these fields of each item (and its external_id); default name, due_at, points, group_name, submission, imported_as. `markdown` (or `html`) is the body, as Markdown",
+              "description": "Agent/MCP only: return just these fields of each item (and its external_id); default name, due_at, points, group_name, submission, imported_as, state. `markdown` (or `html`) is the body, as Markdown",
               "title": "Fields"
             },
-            "description": "Agent/MCP only: return just these fields of each item (and its external_id); default name, due_at, points, group_name, submission, imported_as. `markdown` (or `html`) is the body, as Markdown"
+            "description": "Agent/MCP only: return just these fields of each item (and its external_id); default name, due_at, points, group_name, submission, imported_as, state. `markdown` (or `html`) is the body, as Markdown"
           }
         ],
         "responses": {
@@ -22070,6 +22071,20 @@
             "title": "Targets",
             "description": "What the description's links to course files are in the app",
             "default": []
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "graded",
+              "excused",
+              "submitted",
+              "missing",
+              "offline",
+              "unsubmitted"
+            ],
+            "title": "State",
+            "description": "Where the user is with it (`rules.assignment_state`)",
+            "readOnly": true
           }
         },
         "type": "object",
@@ -22078,7 +22093,8 @@
           "assignment",
           "submission",
           "assessment",
-          "task"
+          "task",
+          "state"
         ],
         "title": "AssignmentDetail",
         "description": "One assignment, whole (M09 §5): as the platform has it now, or, when the platform\ncan't be asked, as the last sync kept it (`kept_at`)."
@@ -22318,20 +22334,6 @@
             "title": "Is Quiz",
             "description": "A graded quiz",
             "readOnly": true
-          },
-          "state": {
-            "type": "string",
-            "enum": [
-              "graded",
-              "excused",
-              "submitted",
-              "missing",
-              "offline",
-              "unsubmitted"
-            ],
-            "title": "State",
-            "description": "Where the user is with it (`rules.assignment_state`)",
-            "readOnly": true
           }
         },
         "type": "object",
@@ -22339,8 +22341,7 @@
           "external_id",
           "name",
           "online",
-          "is_quiz",
-          "state"
+          "is_quiz"
         ],
         "title": "AssignmentFacts",
         "description": "The assignment as `AssignmentDetail` gives it (its own name in the API: the AI module has\nan `Assignment` too)."

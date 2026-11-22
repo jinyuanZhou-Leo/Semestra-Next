@@ -18,13 +18,7 @@ from pydantic_core import to_jsonable_python
 
 from semestra.core.agent_output import ForAgents
 from semestra.modules.lms.markdown import to_markdown
-from semestra.modules.lms.rules import (
-    AssignmentState,
-    SubmissionStatus,
-    assignment_state,
-    submission_status,
-    submits_online,
-)
+from semestra.modules.lms.rules import SubmissionStatus, submission_status, submits_online
 
 # Cleaned HTML; agents and MCP clients get it as Markdown, under `markdown`.
 Html = Annotated[str | None, ForAgents(to_markdown, "markdown")]
@@ -256,16 +250,6 @@ class Assignment(Dto):
     @property
     def is_quiz(self) -> bool:
         return self.quiz_id is not None
-
-    @computed_field(description="Where the user is with it (`rules.assignment_state`)")
-    @property
-    def state(self) -> AssignmentState:
-        sub = self.submission
-        return assignment_state(
-            sub.status if sub else "unsubmitted",
-            missing=bool(sub and sub.missing),
-            online=self.online,
-        )
 
 
 class CommentAttachment(BaseModel):

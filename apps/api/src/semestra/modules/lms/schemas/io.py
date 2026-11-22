@@ -429,11 +429,21 @@ class AssignmentOut(Assignment):
         "null while not imported"
     )
 
+    @computed_field(description="Where the user is with it (`rules.assignment_state`)")
+    @property
+    def state(self) -> AssignmentState:
+        sub = self.submission
+        return assignment_state(
+            sub.status if sub else "unsubmitted",
+            missing=bool(sub and sub.missing),
+            online=self.online,
+        )
+
 
 AssignmentField = Literal[
     "web_url", "name", "html", "markdown", "due_at", "unlock_at", "lock_at", "points", "group_id",
     "group_name", "group_weight", "submission_types", "submission", "published", "updated_at",
-    "locked", "lock_explanation", "allowed_attempts", "rubric", "imported_as",
+    "locked", "lock_explanation", "allowed_attempts", "rubric", "imported_as", "state",
 ]  # fmt: skip
 
 
@@ -456,7 +466,7 @@ class AssignmentsInput(CourseReadInput):
     fields: list[AssignmentField] | None = Field(
         default=None,
         description=f"{_FIELDS}; default name, due_at, points, group_name, submission, "
-        f"imported_as. {_BODY}",
+        f"imported_as, state. {_BODY}",
     )
 
 
@@ -632,6 +642,16 @@ class AssignmentDetail(BaseModel):
     targets: list[LinkTarget] = Field(
         default=[], description="What the description's links to course files are in the app"
     )
+
+    @computed_field(description="Where the user is with it (`rules.assignment_state`)")
+    @property
+    def state(self) -> AssignmentState:
+        sub = self.submission
+        return assignment_state(
+            sub.status if sub else "unsubmitted",
+            missing=bool(sub and sub.missing),
+            online=self.assignment.online,
+        )
 
 
 class AssignmentTarget(BaseModel):

@@ -2117,6 +2117,20 @@ export const AssignmentDetailSchema = {
             title: 'Targets',
             description: 'What the description\'s links to course files are in the app',
             default: []
+        },
+        state: {
+            type: 'string',
+            enum: [
+                'graded',
+                'excused',
+                'submitted',
+                'missing',
+                'offline',
+                'unsubmitted'
+            ],
+            title: 'State',
+            description: 'Where the user is with it (`rules.assignment_state`)',
+            readOnly: true
         }
     },
     type: 'object',
@@ -2125,7 +2139,8 @@ export const AssignmentDetailSchema = {
         'assignment',
         'submission',
         'assessment',
-        'task'
+        'task',
+        'state'
     ],
     title: 'AssignmentDetail',
     description: 'One assignment, whole (M09 §5): as the platform has it now, or, when the platform\ncan\'t be asked, as the last sync kept it (`kept_at`).'
@@ -2366,20 +2381,6 @@ export const AssignmentFactsSchema = {
             title: 'Is Quiz',
             description: 'A graded quiz',
             readOnly: true
-        },
-        state: {
-            type: 'string',
-            enum: [
-                'graded',
-                'excused',
-                'submitted',
-                'missing',
-                'offline',
-                'unsubmitted'
-            ],
-            title: 'State',
-            description: 'Where the user is with it (`rules.assignment_state`)',
-            readOnly: true
         }
     },
     type: 'object',
@@ -2387,8 +2388,7 @@ export const AssignmentFactsSchema = {
         'external_id',
         'name',
         'online',
-        'is_quiz',
-        'state'
+        'is_quiz'
     ],
     title: 'AssignmentFacts',
     description: 'The assignment as `AssignmentDetail` gives it (its own name in the API: the AI module has\nan `Assignment` too).'
