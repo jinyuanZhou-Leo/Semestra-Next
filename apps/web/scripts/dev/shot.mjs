@@ -5,8 +5,9 @@
 //
 // Paths may use {program}, {term}, {course} and {course:CODE}. Options: --out <dir> (default
 // .shots/), --locale en|zh-CN, --themes light,dark, --width/--height (1440×900), --web/--api,
-// --email/--password. The account's theme and language are switched for the shots and put back
-// afterwards; the clock is frozen at the start so both themes show the same times.
+// --email/--password. Theme, language and reduced motion are set in the browser, not saved to the
+// account; each page starts from the default interface state (see browser.mjs), with animations
+// off and the clock frozen at the start so both themes show the same times.
 import { mkdirSync } from 'node:fs'
 import path from 'node:path'
 import { options, resolvePaths, settled, signedIn } from './browser.mjs'
@@ -17,16 +18,17 @@ const opts = options({
   themes: { type: 'string', default: 'light,dark' },
 })
 mkdirSync(opts.out, { recursive: true })
-const { browser, context, api } = await signedIn(opts, { scale: 2 })
-const before = await api('GET', '/me/preferences')
+const { browser, api, page: open } = await signedIn(opts, { scale: 2 })
 const now = new Date()
 const written = []
 try {
   const paths = await resolvePaths(api, opts.paths)
   for (const theme of opts.themes.split(',')) {
-    await api('PATCH', '/me/preferences', { theme, locale: opts.locale })
     for (const [i, url] of paths.entries()) {
-      const page = await context.newPage()
+      const page = await open({
+        preferences: { theme, locale: opts.locale, reduce_motion: 'on' },
+        reducedMotion: 'reduce',
+      })
       await page.clock.setFixedTime(now)
       await page.addInitScript(
         ([t, l]) => {
@@ -42,13 +44,12 @@ try {
         .replace(/[^\w.-]+/g, '-')
         .replace(/^-|-$/g, '')
       const file = path.join(opts.out, `${name || 'home'}-${theme}.png`)
-      await page.screenshot({ path: file })
+      await page.screenshot({ path: file, animations: 'disabled' })
       written.push(file)
-      await page.close()
+      await page.context().close()
     }
   }
 } finally {
-  await api('PATCH', '/me/preferences', { theme: before.theme, locale: before.locale })
   await browser.close()
 }
 for (const file of written) console.log(file)

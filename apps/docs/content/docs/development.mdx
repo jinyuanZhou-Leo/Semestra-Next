@@ -28,7 +28,7 @@ The Paraglide plugin is a dev dependency in `apps/web/node_modules`, and `projec
 
 ## Screenshots and requests
 
-Both scripts open pages in a signed-in Chromium against a running Semestra. They default to the demo account, so start `pnpm dev:demo` first, or pass `--email` and `--password` for your own account on `pnpm dev`.
+Both scripts open pages in a signed-in Chromium against a running Semestra. They default to the demo account, so start `pnpm dev:demo` first, or pass `--email` and `--password` for your own account on `pnpm dev`. Each page opens in a fresh browser with the default interface state (tour and "What's new" already seen); preference and interface-state changes stay in that browser and are never saved to the account.
 
 ```bash
 pnpm --filter @semestra/web shot /p/{program}/today /p/{program}/c/{course:ECE201H1}/grades
@@ -37,5 +37,5 @@ pnpm --filter @semestra/web requests /p/{program}/today
 
 Paths can use `{program}`, `{term}`, `{course}` and `{course:CODE}`, filled from the account's data.
 
-- `shot` saves each page in light and dark, in Chinese, at 2x, to `apps/web/.shots/`. The account's theme and language are switched for the shots and put back afterwards, and the clock is frozen so both themes show the same times. `--locale`, `--themes`, `--width`, `--height` and `--out` change the defaults.
-- `requests` lists the API requests a page makes when it opens: the count and slowest time per route, failures, and requests made more than once. Use it to check a change doesn't add requests or fetch the same data twice.
+- `shot` saves each page in light and dark, in Chinese, at 2x, to `apps/web/.shots/`, with animations off and the clock frozen, so running it twice gives the same images. `--locale`, `--themes`, `--width`, `--height` and `--out` change the defaults.
+- `requests` lists the API requests a page makes when it is opened directly: the count and slowest time per route, failed and cancelled requests, and requests made more than once. Use it to check a change doesn't add requests or fetch the same data twice. It counts a cold open, the shell's requests included, not navigation inside the app.

@@ -28,7 +28,7 @@ Paraglide 的插件作为开发依赖安装在 `apps/web/node_modules` 里，`pr
 
 ## 截图与请求统计
 
-两个脚本都在已登录的 Chromium 里打开正在运行的 Semestra。默认用演示账户，先运行 `pnpm dev:demo`；在 `pnpm dev` 上用自己的账户时传 `--email` 和 `--password`。
+两个脚本都在已登录的 Chromium 里打开正在运行的 Semestra。默认用演示账户，先运行 `pnpm dev:demo`；在 `pnpm dev` 上用自己的账户时传 `--email` 和 `--password`。每个页面在新的浏览器里打开，界面状态都是默认值（引导和“更新了什么”视为已看过）；页面上改的偏好和界面状态只留在这个浏览器里，不会存进账户。
 
 ```bash
 pnpm --filter @semestra/web shot /p/{program}/today /p/{program}/c/{course:ECE201H1}/grades
@@ -37,5 +37,5 @@ pnpm --filter @semestra/web requests /p/{program}/today
 
 路径里可以写 `{program}`、`{term}`、`{course}` 和 `{course:CODE}`，按账户里的数据填入。
 
-- `shot` 把每个页面以浅色和深色、中文、2 倍分辨率截图，存到 `apps/web/.shots/`。截图期间临时切换账户的主题和语言，结束后改回；时钟固定在开始时刻，两种主题显示的时间一致。`--locale`、`--themes`、`--width`、`--height`、`--out` 可改默认值。
-- `requests` 列出页面打开时发出的 API 请求：每个路由的次数与最慢耗时、失败的请求，以及重复发出的请求。用来确认改动没有多发请求，也没有重复读取同一份数据。
+- `shot` 把每个页面以浅色和深色、中文、2 倍分辨率截图，存到 `apps/web/.shots/`。截图时关闭动画、固定时钟，同样的页面连跑两次得到的图片相同。`--locale`、`--themes`、`--width`、`--height`、`--out` 可改默认值。
+- `requests` 列出直接打开页面时发出的 API 请求：每个路由的次数与最慢耗时、失败和被取消的请求，以及重复发出的请求。用来确认改动没有多发请求，也没有重复读取同一份数据。它统计的是冷启动打开（含外壳的请求），不是应用内的跳转。
