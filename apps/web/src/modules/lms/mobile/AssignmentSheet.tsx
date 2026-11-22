@@ -18,7 +18,6 @@ import {
   MySubmission,
   PlatformButton,
 } from '../assignment/parts'
-import { submitsOnline } from '../assignment/status'
 import type { AssignmentTarget, AssignmentView } from '../assignment/target'
 import { useDetails } from '../assignment/use-details'
 import { SubmissionFeedback } from '../components/SubmissionFeedback'
@@ -138,7 +137,7 @@ function Details({ target, onClose }: { target: AssignmentTarget; onClose: () =>
                 courseId={target.courseId}
                 submission={s}
                 kept={detail.kept ?? false}
-                online={submitsOnline(a.submission_types)}
+                online={a.online}
               />
               <SubmissionFeedback
                 submission={s ?? { comments: [], rubric_scores: [] }}

@@ -1,6 +1,7 @@
 import type { Submission } from '@semestra/api-client'
 import { ExternalLink, Lock } from 'lucide-react'
 import { formatDaysUntil } from '@/lib/format'
+import { STATE_LABELS, assignmentState } from '@/modules/lms/assignment/status'
 import { m } from '@/paraglide/messages'
 import { Alert, AlertDescription, AlertTitle } from '@/ui/alert'
 import { Badge } from '@/ui/badge'
@@ -64,52 +65,58 @@ const DUE_SOON_DAYS = 7
 const DAY_MS = 86_400_000
 
 /**
- * Where the user's submission stands, as badges: missing, graded, submitted (late), or due soon;
- * the same in the assignments, quizzes and grades (M16 §4). `now` is read once by the caller.
+ * Where the user's submission stands, as badges, by the same rule as the assignment's details
+ * (`assignmentState`): graded or submitted (late), excused, missing, due soon, not submitted, or
+ * not submitted online (never "due"); the same in the assignments, quizzes and grades (M16 §4).
+ * `now` is read once by the caller.
  */
 export function SubmissionStatus({
   submission: s,
+  online,
   dueAt,
   now,
 }: {
   submission: Submission | null | undefined
+  online: boolean
   dueAt: string | null | undefined
   now: number
 }) {
   if (!s) return null
+  const state = assignmentState(s, online)
   const late = s.late ? (
     <Badge variant="outline">{m.canvas_tab_submission_late_short()}</Badge>
   ) : null
-  if (s.missing) {
-    return <Badge variant="destructive">{m.canvas_tab_submission_missing()}</Badge>
+  switch (state) {
+    case 'missing':
+      return <Badge variant="destructive">{STATE_LABELS.missing()}</Badge>
+    case 'graded':
+    case 'submitted':
+      return (
+        <span className="flex items-center gap-1">
+          <Badge variant="secondary">{STATE_LABELS[state]()}</Badge>
+          {late}
+        </span>
+      )
+    case 'excused':
+      return <Badge variant="secondary">{STATE_LABELS.excused()}</Badge>
+    case 'offline':
+      return (
+        <span className="whitespace-nowrap text-muted-foreground">{STATE_LABELS.offline()}</span>
+      )
+    case 'unsubmitted': {
+      const due = dueAt ? new Date(dueAt).getTime() : null
+      if (due != null && due > now && due - now <= DUE_SOON_DAYS * DAY_MS) {
+        return (
+          <Badge variant="outline" className="border-primary/40 text-primary">
+            {m.canvas_tab_due_relative({ time: formatDaysUntil(new Date(due), now) })}
+          </Badge>
+        )
+      }
+      return (
+        <span className="whitespace-nowrap text-muted-foreground">
+          {STATE_LABELS.unsubmitted()}
+        </span>
+      )
+    }
   }
-  if (s.status === 'graded') {
-    return (
-      <span className="flex items-center gap-1">
-        <Badge variant="secondary">{m.canvas_tab_submission_graded()}</Badge>
-        {late}
-      </span>
-    )
-  }
-  if (s.status === 'submitted') {
-    return (
-      <span className="flex items-center gap-1">
-        <Badge variant="secondary">{m.canvas_tab_submission_submitted()}</Badge>
-        {late}
-      </span>
-    )
-  }
-  const due = dueAt ? new Date(dueAt).getTime() : null
-  if (due != null && due > now && due - now <= DUE_SOON_DAYS * DAY_MS) {
-    return (
-      <Badge variant="outline" className="border-primary/40 text-primary">
-        {m.canvas_tab_due_relative({ time: formatDaysUntil(new Date(due), now) })}
-      </Badge>
-    )
-  }
-  return (
-    <span className="whitespace-nowrap text-muted-foreground">
-      {m.canvas_tab_submission_unsubmitted()}
-    </span>
-  )
 }

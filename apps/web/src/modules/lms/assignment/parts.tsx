@@ -18,9 +18,9 @@ import type { Assignment } from './queries'
 import {
   STATE_LABELS,
   assignmentState,
+  isOpen,
   latenessLabel,
   submissionTypeLabel,
-  submitsOnline,
 } from './status'
 
 /**
@@ -43,7 +43,7 @@ export function AssignmentStatus({
   practice,
   now,
 }: Shown & { practice: boolean; now: number }) {
-  const state = assignmentState(s)
+  const state = assignmentState(s, a.online)
   const late = s?.late
     ? s.points_deducted
       ? m.lms_assignment_late_deducted({ points: points(s.points_deducted) })
@@ -66,7 +66,7 @@ export function AssignmentStatus({
               : null,
             late,
           ]
-        : state === 'excused'
+        : state === 'excused' || state === 'offline'
           ? null
           : due === null
             ? m.lms_assignment_no_due()
@@ -115,12 +115,7 @@ export function PlatformButton({
   practice,
 }: Shown & { provider: string; practice: boolean }) {
   if (!a.web_url) return null
-  const state = assignmentState(s)
-  const submit =
-    !practice &&
-    !a.locked &&
-    (state === 'unsubmitted' || state === 'missing') &&
-    submitsOnline(a.submission_types)
+  const submit = !practice && !a.locked && isOpen(assignmentState(s, a.online))
   return (
     <Button
       variant={submit ? 'default' : 'outline'}

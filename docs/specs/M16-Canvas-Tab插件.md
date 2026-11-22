@@ -140,3 +140,4 @@ defineModule({
   - 文件图标与课程文件共用 `files/components/FileIcon`；测验的 `quiz:` 编码只在 `lms/assignment/queries.ts` 的 `quizRef`。
   - 作业表的勾选改用 `useRowSelection` + `SelectionToolbar` + memo 行，勾选时只重绘该行；`useAssignmentDetails` 不再订阅地址，点开时才读路由。
   - 页面 `prefetch`（`prefetch.ts`）：按记住的位置（`app/ui-pref.ts` 的 `cachedUiPref`）与概览并行预取当前视图的数据，首次打开不再先等概览再发列表请求。
+- **提交状态只有一条规则**（2026-11-22，M09 统一提交状态之后）：徽章与筛选都用 M09 的 `assignmentState(submission, online)`（`lms/assignment/status.ts`，与作业详情、待办卡片同一份）：已评分（缺交被扣成 0 分也只算已评分）、已提交（可带“迟交”）、免交、缺交、未提交（7 天内截止显示“N 天后截止”）、不在线提交（`online=false`，不显示截止）。每行最多落在一个筛选里：已出分 = 已评分，缺交 = 缺交，待完成 = 未提交；免交与不在线提交只在“全部”里。

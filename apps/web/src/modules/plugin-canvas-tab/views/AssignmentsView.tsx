@@ -59,6 +59,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { CanvasBoundary } from '../CanvasBoundary'
 import { useCanvasPage } from '../context'
 import { ViewHeader } from '@/modules/lms/content/LmsContent'
+import { assignmentState } from '@/modules/lms/assignment/status'
 import { ScoreText, SubmissionStatus } from './common'
 
 /**
@@ -289,7 +290,9 @@ const ScoreCell = ({ row }: CellProps) => (
 function StatusCell({ row }: CellProps) {
   const { now } = useTableState()
   const a = row.original.assignment
-  return <SubmissionStatus submission={a.submission} dueAt={a.due_at} now={now} />
+  return (
+    <SubmissionStatus submission={a.submission} online={a.online} dueAt={a.due_at} now={now} />
+  )
 }
 
 type SortValue = string | number | null
@@ -415,16 +418,17 @@ const FILTER_LABELS: Record<Filter, () => string> = {
 
 function matches({ assignment: a }: Row, filter: Filter, query: string): boolean {
   if (query && !a.name.toLocaleLowerCase().includes(query)) return false
-  const s = a.submission
+  // Each row in at most one of the filters: by the same rule as its badge.
+  const state = assignmentState(a.submission, a.online)
   switch (filter) {
     case 'all':
       return true
     case 'graded':
-      return s?.status === 'graded'
+      return state === 'graded'
     case 'missing':
-      return !!s?.missing
+      return state === 'missing'
     case 'todo':
-      return !s?.missing && (s?.status ?? 'unsubmitted') === 'unsubmitted'
+      return state === 'unsubmitted'
   }
 }
 
