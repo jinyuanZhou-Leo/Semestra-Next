@@ -94,6 +94,9 @@ function track(page) {
   for (const done of ['requestfinished', 'requestfailed']) page.on(done, (r) => open.delete(r))
 }
 
+/** Requests answered in the browser without reaching the server (see `pinState`). */
+export const answeredLocally = new WeakSet()
+
 const SEEN = { 'onboarding.tour_done': true, 'release.last_seen': version }
 
 async function pinState(context, apiUrl, preferences) {
@@ -102,21 +105,32 @@ async function pinState(context, apiUrl, preferences) {
   const route = (match, handle) =>
     context.route(match, (r) => Promise.resolve(handle(r)).catch(() => {}))
   const at = (pathname) => (url) => url.origin === api && url.pathname === pathname
-  // Changes made on the page show on the page (later reads included) but aren't saved.
+  // Changes made on the page show on the page (later reads included) but aren't saved. The read
+  // that follows such a change (its query is refreshed) is answered here too: the server would
+  // only repeat what it already said.
   let changes = {}
   let current = {}
+  let refreshAfterChange = false
   await route(at('/me/preferences'), async (r) => {
     const request = r.request()
     if (request.method() === 'GET') {
+      if (refreshAfterChange) {
+        refreshAfterChange = false
+        answeredLocally.add(request)
+        return r.fulfill({ json: current })
+      }
       const response = await r.fetch()
       current = { ...(await response.json()), ...changes, ...preferences }
       return r.fulfill({ response, json: current })
     }
+    answeredLocally.add(request)
     changes = { ...changes, ...request.postDataJSON() }
     current = { ...current, ...changes, ...preferences }
+    refreshAfterChange = true
     return r.fulfill({ json: current })
   })
   await route(at('/me/ui-state:get'), (r) => {
+    answeredLocally.add(r.request())
     const { keys = [], prefixes = [] } = r.request().postDataJSON() ?? {}
     const items = Object.fromEntries(
       Object.entries(SEEN).filter(
@@ -128,6 +142,7 @@ async function pinState(context, apiUrl, preferences) {
   await route(
     (url) => url.origin === api && url.pathname.startsWith('/me/ui-state/'),
     (r) => {
+      answeredLocally.add(r.request())
       const key = decodeURIComponent(new URL(r.request().url()).pathname.split('/').pop())
       return r.fulfill({ json: { key, value: r.request().postDataJSON()?.value ?? null } })
     },
