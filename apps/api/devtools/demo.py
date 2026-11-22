@@ -100,7 +100,9 @@ def run(*, scenario: str, canvas: bool, ai: bool, web: bool) -> None:
         # Whatever is left in a group, the leader's children included, goes now.
         signal_groups(signal.SIGKILL)
 
-    for sig in (signal.SIGTERM, signal.SIGHUP):
+    # SIGINT too: a shell that starts this in the background ignores it, so Python wouldn't turn
+    # it into KeyboardInterrupt.
+    for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
         signal.signal(sig, lambda *_: sys.exit(0))
     try:
         if canvas:
@@ -143,7 +145,5 @@ def run(*, scenario: str, canvas: bool, ai: bool, web: bool) -> None:
         print("\n".join(lines), flush=True)
         while all(p.poll() is None for p in procs):
             time.sleep(0.5)
-    except KeyboardInterrupt:
-        pass
     finally:
         stop()
