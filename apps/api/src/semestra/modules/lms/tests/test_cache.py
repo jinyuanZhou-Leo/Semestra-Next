@@ -91,6 +91,7 @@ async def test_modules_carry_their_items(api: Api):
     week1, week2 = out["items"]
     assert [i["title"] for i in week1["items"]] == ["Intro"]
     assert week1["items"][0]["lock_explanation"] == "Opens Monday"  # shown as text
+    assert week1["items"][0]["due_state"] == "none"  # worked out as read (table 3d)
     assert week2["items"] is None
 
 

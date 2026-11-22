@@ -11,6 +11,7 @@ from semestra.modules.lms.rules import (
     Action,
     diverged,
     due_state_of,
+    item_due_state,
     merge,
     platform_value,
     same,
@@ -192,3 +193,25 @@ BEFORE, AFTER = "2026-01-10T12:00:00+00:00", "2026-01-20T12:00:00+00:00"
 )
 def test_due_state(name: str, assignment: dict[str, Any], due: str):
     assert due_state_of(assignment, datetime.fromisoformat(NOW)) == due
+
+
+@pytest.mark.parametrize(
+    ("name", "item", "due"),
+    [
+        ("no due date", {"completion": {"type": "must_submit"}}, "none"),
+        ("no requirement", {"due_at": BEFORE}, "none"),
+        (
+            "done",
+            {"due_at": BEFORE, "completion": {"type": "must_view", "completed": True}},
+            "none",
+        ),
+        ("due later", {"due_at": AFTER, "completion": {"type": "must_submit"}}, "upcoming"),
+        (
+            "past due, not done",
+            {"due_at": BEFORE, "completion": {"type": "must_submit"}},
+            "overdue",
+        ),
+    ],
+)
+def test_module_item_due_state(name: str, item: dict[str, Any], due: str):
+    assert item_due_state(item, datetime.fromisoformat(NOW)) == due

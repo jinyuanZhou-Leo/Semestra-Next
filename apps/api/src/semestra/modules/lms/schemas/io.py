@@ -491,8 +491,21 @@ class GradeList(BaseModel):
     truncated: bool
 
 
+class ModuleItemOut(ModuleItem):
+    due_state: DueState = Field(
+        description="Whether the due date still matters (`rules.item_due_state`, M09 table 3d)"
+    )
+
+
+class ModuleOut(Module):
+    items: list[ModuleItemOut] | None = Field(  # pyright: ignore[reportIncompatibleVariableOverride]
+        default=None,
+        description="The module's items when the platform sent them along (None: ask for them)",
+    )
+
+
 class ModuleList(BaseModel):
-    items: list[Module]
+    items: list[ModuleOut]
     truncated: bool
 
 
@@ -501,7 +514,7 @@ class ModuleItemsInput(CourseReadInput):
 
 
 class ModuleItemList(BaseModel):
-    items: list[ModuleItem]
+    items: list[ModuleItemOut]
     truncated: bool
 
 

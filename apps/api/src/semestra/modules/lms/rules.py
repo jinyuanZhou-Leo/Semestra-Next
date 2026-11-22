@@ -183,6 +183,17 @@ def due_state(due_at: datetime | None, state: AssignmentState, now: datetime) ->
     return "past" if state == "offline" else "overdue"
 
 
+def item_due_state(item: Mapping[str, Any], now: datetime) -> DueState:
+    """M09 table 3d for a module item (as the reads give it): nothing without a due date, a
+    completion requirement, or once done; else `upcoming` or, past the date, `overdue`."""
+    raw = item.get("due_at")
+    completion = item.get("completion")
+    if not raw or not completion or completion.get("completed"):
+        return "none"
+    due = raw if isinstance(raw, datetime) else datetime.fromisoformat(raw)
+    return "upcoming" if due > now else "overdue"
+
+
 def due_state_of(assignment: Mapping[str, Any], now: datetime) -> DueState:
     """`due_state` of an assignment as the reads give it (a dumped `Assignment`)."""
     raw = assignment.get("due_at")
