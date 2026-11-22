@@ -127,6 +127,7 @@ def select_api(files: list[str]) -> str:
     names = {p.name for p in MODULES.iterdir() if p.is_dir() and not p.name.startswith("__")}
     changed: set[str] = set()
     messages = False
+    devtools = False
     core = core_modules()
     for f in files:
         if f in SHARED:
@@ -141,6 +142,9 @@ def select_api(files: list[str]) -> str:
                 return "all"
             if m in names:
                 changed.add(m)
+        elif f.startswith("apps/api/devtools/"):
+            # Dev-only tools; their contract tests (fake Canvas, fake model API) are in tests/.
+            devtools = True
         elif f.startswith("apps/api/"):
             return "all"
     refs = module_references(names)
@@ -149,7 +153,7 @@ def select_api(files: list[str]) -> str:
     if messages:
         paths += [p for p in API_MESSAGE_TESTS if p not in paths]
     if not changed and not messages:
-        return "none"
+        return "tests" if devtools else "none"
     return " ".join(paths)
 
 
