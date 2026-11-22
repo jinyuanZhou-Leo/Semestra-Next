@@ -90,10 +90,13 @@ export function preloadPage(
   {
     preload: hovered = false,
     modules = installedModules(queryClient),
+    search,
   }: {
     /** From the loader's context: a hovered link rather than a navigation. */
     preload?: boolean
     modules?: readonly ModuleManifest[]
+    /** The address's search params, passed on to the page's prefetch. */
+    search?: Record<string, unknown>
   } = {},
 ): Promise<void> {
   const parts: unknown[] = []
@@ -112,7 +115,7 @@ export function preloadPage(
         continue
       }
       parts.push(page.component)
-      page.prefetch?.(scope, queryClient, { preload: hovered, modules })
+      page.prefetch?.(scope, queryClient, { preload: hovered, modules, search })
       if (page.board) preloadBoardCards(scope, page.board, queryClient, modules, hovered)
     }
   }

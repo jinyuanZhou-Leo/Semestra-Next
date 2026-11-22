@@ -98,7 +98,12 @@ export type PageContribution = {
   prefetch?: (
     scope: Scope,
     queryClient: QueryClient,
-    options: { preload: boolean; modules: readonly ModuleManifest[] },
+    options: {
+      preload: boolean
+      modules: readonly ModuleManifest[]
+      /** The search params of the address being opened, for pages that keep their place there. */
+      search?: Record<string, unknown>
+    },
   ) => void
   order: number
   /** `data` is what `availabilityQuery` loaded (undefined without one). */

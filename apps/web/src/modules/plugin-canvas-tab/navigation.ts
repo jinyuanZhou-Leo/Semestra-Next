@@ -37,6 +37,23 @@ function isNative(kind: string): kind is NativeView {
  */
 export type CanvasLocation = { tab: string; ref?: string }
 
+/**
+ * Where the tab opens (M16 §3): the URL's `?tab=&ref=` (a shared link, a notification), else
+ * where the user left it, else the course's home. The page and its prefetch both choose by this.
+ */
+export function canvasLocation(
+  search: { tab?: unknown; ref?: unknown },
+  saved: CanvasLocation | null,
+): CanvasLocation {
+  if (typeof search.tab === 'string' && search.tab) {
+    return {
+      tab: search.tab,
+      ...(typeof search.ref === 'string' && search.ref ? { ref: search.ref } : {}),
+    }
+  }
+  return saved ?? { tab: 'home' }
+}
+
 export type NavEntry =
   | { key: NativeView; kind: 'native'; label: string; tab: NavTab }
   | { key: string; kind: 'external' | 'unknown'; label: string; tab: NavTab }

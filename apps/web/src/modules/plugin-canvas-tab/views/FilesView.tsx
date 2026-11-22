@@ -1,6 +1,6 @@
 import type { FileMeta, Folder as FolderOut } from '@semestra/api-client'
 import { clearOnEscape, clearSearch } from '@/lib/search-input'
-import { lmsFileSearchOptions, lmsFolderGetOptions } from '@semestra/api-client/react-query'
+import { lmsFileSearchOptions } from '@semestra/api-client/react-query'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import {
   type CellContext,
@@ -35,6 +35,7 @@ import { CanvasBoundary } from '../CanvasBoundary'
 import { useCanvasPage } from '../context'
 import { FileActions } from './FilePreview'
 import { ViewHeader } from '@/modules/lms/content/LmsContent'
+import { viewQueries } from '../queries'
 
 /** Canvas needs two characters to search (`search_term`). */
 const MIN_TERM = 2
@@ -187,10 +188,7 @@ export function FilesView({ selected }: { selected?: string }) {
 function FolderView({ folderId }: { folderId?: string }) {
   const { courseId, go } = useCanvasPage()
   const listing = useQuery({
-    ...lmsFolderGetOptions({
-      path: { course_id: courseId },
-      query: { folder_id: folderId },
-    }),
+    ...viewQueries.folder(courseId, folderId),
     placeholderData: keepPreviousData,
   })
   return (

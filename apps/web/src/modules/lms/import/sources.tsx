@@ -135,7 +135,7 @@ export const assignmentSource: AssessmentImportSource = {
 
 /**
  * The gradebook's "Import from… → {provider} syllabus": the grading scheme and dates read from
- * the course's syllabus on the platform, reviewed in the dialog. The Canvas tab's "Smart import"
+ * the course's syllabus on the platform, reviewed in the dialog. The Canvas tab's "Read syllabus"
  * next to the syllabus starts the same import (`SyllabusImportButton`).
  */
 export const syllabusSource: AssessmentImportSource = {
