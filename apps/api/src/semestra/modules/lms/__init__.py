@@ -20,6 +20,7 @@ from semestra.modules.lms import (  # noqa: F401  (registers on import)
     capabilities,
     imports,
     labels,
+    material_items,
     models,
     older_backups,
     portability,

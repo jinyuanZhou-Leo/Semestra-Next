@@ -39,6 +39,7 @@ from semestra.modules.lms.schemas.io import (
 )
 from semestra.modules.lms.service import Bound
 from semestra.modules.lms.sync import Applied, StageResult, hold, register_sync_stage
+from semestra.modules.lms.sync_round import SyncRound
 from semestra.modules.tasks.models import TasksItem
 
 # The gradebook's feedback refetches on it.
@@ -114,7 +115,7 @@ async def _quiz_facts(
     }
 
 
-async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
+async def run(ctx: Ctx, link: LmsCourseLink, b: Bound, sync_round: SyncRound) -> StageResult:
     ext = link.external_course_id
     found, truncated = await service.call(
         ctx, b, lambda i: b.provider.submissions(i, b.cfg, b.creds, ext)
@@ -123,7 +124,16 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
         s.body = b.clean(s.body, None, ext)
     subs = {s.assignment_id: s.model_dump(mode="json") for s in found}
     # Read by the assignments stage just before (the in-process cache), for the rest.
-    listed, cut = await reads.raw_assignments(ctx, link.course_id, False, linked=(link, b))
+    # An assignment list that gave nothing this round says as little as a cut-off one.
+    got = await sync_round.area(
+        ctx,
+        link,
+        b,
+        "assignments",
+        lambda: reads.raw_assignments(ctx, link.course_id, False, linked=(link, b)),
+        truncated=lambda r: r[1],
+    )
+    listed, cut = got if got is not None else ([], True)
     assignments = {str(a["external_id"]): a for a in listed}
     quizzes = await _quiz_facts(ctx, link, b, assignments)
     await hold(ctx, link)

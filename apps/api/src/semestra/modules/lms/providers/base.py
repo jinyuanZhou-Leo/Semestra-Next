@@ -8,12 +8,14 @@ an `Io` (the outbound HTTP client and a place to report truncated lists).
 from collections.abc import AsyncIterator, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, ClassVar, Protocol, runtime_checkable
+from typing import Any, ClassVar, Literal, Protocol, runtime_checkable
 
 import httpx
 from pydantic import BaseModel
 
 from semestra.core.config import Settings
+from semestra.core.errors import AppError
+from semestra.modules.lms.answers import AreaResult, Gone, Unavailable
 from semestra.modules.lms.schemas.dto import (
     Announcement,
     Assignment,
@@ -68,6 +70,21 @@ class LmsProvider(Protocol):
         """What an (absolute) address in the platform's HTML points at, if the app can open it."""
         ...
 
+    def item_answer(self, error: AppError, *, area: AreaResult | None) -> Gone | Unavailable:
+        """What a failed read of one item means (M09 §4.1, table 2): gone from the user's view, or
+        not known. `area`: this round's result of the item's area (`answers.AREA_OF`), None when
+        it was not read: a refusal tells the item is gone only where the area was read, as it
+        may be about the whole area otherwise."""
+        ...
+
+    def area_answer(
+        self, error: AppError, *, nav_closed: bool | None
+    ) -> Literal["hidden", "unavailable"]:
+        """What a failed read of an area's list means: closed to the user, or not known.
+        `nav_closed`: the course's navigation this round leaves the area out or hides it (None:
+        it could not be read)."""
+        ...
+
     async def validate(self, io: Io, cfg: BaseModel, creds: BaseModel) -> ConnectionSummary: ...
     async def list_courses(
         self, io: Io, cfg: BaseModel, creds: BaseModel, *, include_past: bool
@@ -85,15 +102,22 @@ class LmsProvider(Protocol):
         creds: BaseModel,
         course_ids: Sequence[str],
         *,
-        since: datetime | None = None,
+        since: datetime,
     ) -> list[Announcement]:
-        """Announcements of several courses at once (a term's board), each naming its course in
+        """Announcements of several courses posted since `since`, each naming its course in
         `external_course_id`."""
         ...
 
     async def assignments(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> list[Assignment]: ...
+    async def assignment(
+        self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, assignment_id: str
+    ) -> Assignment:
+        """One assignment read on its own (whether it is still there when its list is closed,
+        M09 §4.2 table 3c); its group's weight is not given."""
+        ...
+
     async def grade_totals(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> list[GradeItem]:

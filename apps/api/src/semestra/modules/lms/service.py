@@ -33,6 +33,7 @@ from semestra.modules.lms.models import (
     LmsConnection,
     LmsCourseLink,
     LmsImportedRef,
+    LmsItemCheck,
     LmsMaterial,
     LmsProgramBinding,
 )
@@ -881,7 +882,10 @@ async def link_state(ctx: Ctx, course_id: str) -> CourseLinkState:
     binding = await binding_row(ctx, course.program_id)
     out = counts = None
     if link is not None:
-        from semestra.modules.lms.sync_files import has_copy, synced_items  # imports this module
+        from semestra.modules.lms.material_items import (
+            has_copy,
+            synced_items,
+        )  # imports this module
 
         conn = await get_connection_row(ctx, link.connection_id)
         out = link_out(link, conn.provider)
@@ -1026,9 +1030,11 @@ async def refresh_link(ctx: Ctx, link: LmsCourseLink, b: Bound) -> None:
 
 
 async def _forget_tracked(ctx: Ctx, link: LmsCourseLink) -> None:
-    """The assignments, materials and announcements the sync kept for the link."""
-    for model in (LmsImportedRef, LmsMaterial, LmsAnnouncement):
+    """The assignments, materials and announcements the sync kept for the link, and what it read
+    of the platform course."""
+    for model in (LmsImportedRef, LmsMaterial, LmsAnnouncement, LmsItemCheck):
         await ctx.db.execute(delete(model).where(model.link_id == link.id))
+    link.area_reads = {}
 
 
 async def _remove_link(ctx: Ctx, link: LmsCourseLink) -> None:

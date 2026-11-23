@@ -6,6 +6,8 @@ import {
   lmsSyncFieldResolve,
   lmsSyncMaterialRestore,
   lmsSyncMaterialRestoreAll,
+  lmsSyncMaterialRemove,
+  lmsSyncMaterialRemoveAll,
   lmsSyncResolve,
 } from '@semestra/api-client'
 import { lmsSyncStatusQueryKey } from '@semestra/api-client/react-query'
@@ -69,6 +71,16 @@ export function useSyncAnswers(programId: string) {
     restore: (id: string) =>
       void answer([id], () =>
         lmsSyncMaterialRestore({ path: { material_id: id }, throwOnError: true }),
+      ),
+    /** A material that can't be read for now, read from the platform: removed. */
+    removeMaterial: (id: string) =>
+      void answer([id], () =>
+        lmsSyncMaterialRemove({ path: { material_id: id }, throwOnError: true }),
+      ),
+    /** Every such material of the Program (`ids`: the rows it removes). */
+    removeAllMaterials: (ids: readonly string[]) =>
+      void answer(ids, () =>
+        lmsSyncMaterialRemoveAll({ path: { program_id: programId }, throwOnError: true }),
       ),
     /** Every removed material of the Program, also those past the rows listed. */
     restoreAll: (ids: readonly string[]) =>

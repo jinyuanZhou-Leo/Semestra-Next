@@ -12,10 +12,13 @@ from semestra.core.context import Ctx
 from semestra.modules.academics import service as academics
 from semestra.modules.files import sources
 from semestra.modules.files.models import FilesItem
-from semestra.modules.lms import rules, service, sync, sync_kept
+from semestra.modules.lms import material_items, rules, service, sync, sync_kept
+from semestra.modules.lms.answers import AREA_HIDDEN, AREA_OF
 from semestra.modules.lms.models import (
+    LmsAnnouncement,
     LmsCourseLink,
     LmsImportedRef,
+    LmsItemCheck,
     LmsMaterial,
     LmsSyncChange,
     MaterialChange,
@@ -32,6 +35,7 @@ from semestra.modules.lms.schemas.sync import (
     SyncRemovedMaterial,
     SyncRound,
     SyncStatus,
+    SyncUnreadable,
 )
 from semestra.modules.lms.settings import account
 from semestra.modules.lms.settings import materials as material_settings
@@ -71,6 +75,7 @@ async def status(ctx: Ctx, program_id: str) -> SyncStatus:
         materials=[],
         removed_materials=[],
         removed_count=0,
+        unreadable=[],
         errors=[],
         calendar_waiting=0,
         calendar_unreadable=0,
@@ -210,6 +215,9 @@ async def status(ctx: Ctx, program_id: str) -> SyncStatus:
     materials, removed, removed_count = await _materials(
         ctx, [li for li in by_link.values() if li.id not in paused], label
     )
+    unreadable = await _unreadable(
+        ctx, [li for li in by_link.values() if li.id not in paused], label
+    )
     errors = [
         SyncCourseError(course_id=li.course_id, course=label(li.course_id), stage=stage, code=code)
         for li in links
@@ -247,6 +255,7 @@ async def status(ctx: Ctx, program_id: str) -> SyncStatus:
             "materials": materials,
             "removed_materials": removed,
             "removed_count": removed_count,
+            "unreadable": unreadable,
             "errors": errors,
             **_calendars(list(by_link.values()), connection.provider, error),
         }
@@ -366,6 +375,114 @@ async def _materials(
         for m in removed_rows
     ]
     return recent, removed, removed_count
+
+
+def _whole_at(link: LmsCourseLink, area: str) -> datetime | None:
+    raw = ((link.area_reads or {}).get(area) or {}).get("whole_at")
+    return datetime.fromisoformat(raw) if raw else None
+
+
+async def _unreadable(
+    ctx: Ctx, links: list[LmsCourseLink], label: Callable[[str], str]
+) -> list[SyncUnreadable]:
+    """What the sync can't read since its area is closed on the platform (M09 table 3c, note):
+    the materials (`material_items.unreadable`) and imported assignments whose last single read
+    was refused for it, and each course's announcements while their list is closed, as one row.
+    Gone from the list by itself once the platform shows it (or tells it gone) again."""
+    if not links:
+        return []
+    by_id = {li.id: li for li in links}
+    out: list[SyncUnreadable] = []
+    for m, row in await material_items.unreadable(ctx, links):
+        course_id = by_id[m.link_id].course_id
+        out.append(
+            SyncUnreadable(
+                kind="material",
+                id=m.id,
+                course_id=course_id,
+                course=label(course_id),
+                area=AREA_OF.get(m.kind, "files"),
+                title=m.title or m.name or "",
+                count=1,
+                since=None,
+                item_id=row.id if row is not None else None,
+                removable=material_items.removable(m, row),
+            )
+        )
+    held = {
+        c.external_id: c
+        for c in await ctx.db.scalars(
+            select(LmsItemCheck).where(
+                LmsItemCheck.user_id == ctx.user_id,
+                LmsItemCheck.link_id.in_(list(by_id)),
+                LmsItemCheck.kind == "assignment",
+                LmsItemCheck.result == "unavailable",
+                LmsItemCheck.reason == AREA_HIDDEN,
+            )
+        )
+    }
+    refs = list(
+        await ctx.db.scalars(
+            select(LmsImportedRef).where(
+                LmsImportedRef.user_id == ctx.user_id, LmsImportedRef.link_id.in_(list(by_id))
+            )
+        )
+    )
+    for ref in refs:
+        check = held.get(ref.external_id)
+        if ref.target_id is None or ref.removed_at is not None or check is None:
+            continue
+        course_id = by_id[ref.link_id].course_id
+        out.append(
+            SyncUnreadable(
+                kind="assignment",
+                id=ref.id,
+                course_id=course_id,
+                course=label(course_id),
+                area="assignments",
+                title=str(ref.snapshot.get("title") or ""),
+                count=1,
+                since=None,
+                item_id=ref.target_id,
+                external_id=ref.external_id,
+            )
+        )
+    closed = {
+        (li.id, area)
+        for li in links
+        for area, read in (li.area_reads or {}).items()
+        if (read or {}).get("result") == "hidden"
+    }
+    announced: dict[str, int] = dict(
+        (
+            await ctx.db.execute(
+                select(LmsAnnouncement.link_id, func.count())
+                .where(
+                    LmsAnnouncement.user_id == ctx.user_id,
+                    LmsAnnouncement.link_id.in_(
+                        [link_id for link_id, area in closed if area == "announcements"]
+                    ),
+                )
+                .group_by(LmsAnnouncement.link_id)
+            )
+        ).all()
+    )
+    for link_id, count in announced.items():
+        li = by_id[link_id]
+        out.append(
+            SyncUnreadable(
+                kind="announcements",
+                id=None,
+                course_id=li.course_id,
+                course=label(li.course_id),
+                area="announcements",
+                title=None,
+                count=count,
+                since=_whole_at(li, "announcements"),
+            )
+        )
+    out.sort(key=lambda u: (u.course, u.kind, (u.title or "").casefold()))
+    return out
 
 
 async def forget_old_changes(ctx: Ctx) -> None:

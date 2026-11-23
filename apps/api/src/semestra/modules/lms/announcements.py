@@ -39,7 +39,8 @@ from semestra.modules.lms.models import (
     LmsImportedRef,
     LmsMaterial,
 )
-from semestra.modules.lms.schemas.dto import FileMeta
+from semestra.modules.lms.rules import presence
+from semestra.modules.lms.schemas.dto import Announcement, FileMeta
 from semestra.modules.lms.schemas.io import (
     AnnouncementAttachment,
     AnnouncementList,
@@ -60,12 +61,15 @@ from semestra.modules.lms.sync import (
     hold,
     register_sync_stage,
 )
+from semestra.modules.lms.sync_round import SyncRound
 
 log = structlog.get_logger()
 
 # How far back the stage reads. Announcements posted before that stay as they are: the platform
 # was not asked about them.
 LOOKBACK = timedelta(days=180)
+AREA = "announcements"
+KIND = "announcement"
 # A new announcement posted longer ago than this is not reported (the course was paused, the
 # server was down): it is still unread.
 STALE = timedelta(days=2)
@@ -79,15 +83,34 @@ _MARK = re.compile(r'data-lms-kind="([^"]*)" data-lms-ref="([^"]*)"')
 # --- the sync stage -------------------------------------------------------------------------
 
 
-async def stage(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
+async def stage(ctx: Ctx, link: LmsCourseLink, b: Bound, sync_round: SyncRound) -> StageResult:
     now = ctx.now
     since = now - LOOKBACK
     ext = link.external_course_id
-    found, truncated = await service.call(
-        ctx, b, lambda i: b.provider.announcements(i, b.cfg, b.creds, [ext], since=since)
-    )
+
+    async def read_list() -> tuple[list[Announcement], bool]:
+        return await service.call(
+            ctx, b, lambda i: b.provider.announcements(i, b.cfg, b.creds, [ext], since=since)
+        )
+
+    got = await sync_round.area(ctx, link, b, AREA, read_list, truncated=lambda r: r[1])
+    found = got[0] if got is not None else []
     platform_marks = "mark_read" in b.provider.features and await writes_allowed(ctx)
+    listed = {a.external_id for a in found}
+    sync_round.listed(KIND, listed)
+    # Not listed this round: gone only as `rules.presence` says (one read alone when the list is
+    # closed); posted before the window, never asked about.
+    stored = list(
+        await ctx.db.scalars(select(LmsAnnouncement).where(LmsAnnouncement.link_id == link.id))
+    )
+    unlisted = {
+        r.external_id: (r.posted_at is not None and r.posted_at < since)
+        for r in stored
+        if r.external_id not in listed
+    }
+    gone = await _gone(ctx, link, b, sync_round, unlisted)
     await hold(ctx, link)
+    await sync_round.save(ctx, link, ["announcement"])
     rows = {
         r.external_id: r
         for r in await ctx.db.scalars(
@@ -134,18 +157,54 @@ async def stage(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
         if platform_marks and not a.unread and row.read_at is None:
             row.read_at = now
             changed = True
-    # Gone from the platform: deleted with it, quietly. A list cut short says nothing of what
-    # it left out, nor does the platform of what was posted before `since`.
-    if not truncated:
-        for external_id, row in rows.items():
-            if external_id not in seen and (row.posted_at is None or row.posted_at >= since):
-                await ctx.db.delete(row)
-                changed = True
-    link.watched_at = now
+    # Gone from the platform: deleted with it, quietly.
+    for external_id in gone:
+        if (row := rows.get(external_id)) is not None and external_id not in seen:
+            await ctx.db.delete(row)
+            changed = True
+    # A first read of a course whose list was closed has read nothing yet.
+    if got is not None:
+        link.watched_at = now
     # The first read also changes what the lists say (no longer "not read yet").
     if changed or first:
         await _updated(ctx, link)
     return result
+
+
+async def _gone(
+    ctx: Ctx, link: LmsCourseLink, b: Bound, sync_round: SyncRound, unlisted: dict[str, bool]
+) -> set[str]:
+    """Of the stored announcements not listed this round (each with whether it was posted
+    before the window read), the ones gone from the platform (M09 table 3c). A closed list is
+    asked about one announcement at a time, within the round's budget."""
+    areas = sync_round.results([AREA])
+    ext = link.external_course_id
+    out: set[str] = set()
+    pending: list[str] = []
+    for external_id, before in unlisted.items():
+        last = await sync_round.last(ctx, link, KIND, external_id)
+        verdict = presence(
+            listed=False, areas=areas, now=ctx.now, last=last, before_lookback=before
+        )
+        if verdict == "gone":
+            out.add(external_id)
+        elif verdict == "check" and "discussions" in b.provider.features:
+            pending.append(external_id)
+    for _, external_id in await sync_round.oldest_first(ctx, link, [(KIND, e) for e in pending]):
+
+        async def one(topic: str = external_id) -> object:
+            got, _ = await service.call(
+                ctx, b, lambda i: b.provider.discussion(i, b.cfg, b.creds, ext, topic)
+            )
+            return got
+
+        answer = await sync_round.read(ctx, b, KIND, external_id, one)
+        if (
+            answer is not None
+            and presence(listed=False, areas=areas, now=ctx.now, read=answer) == "gone"
+        ):
+            out.add(external_id)
+    return out
 
 
 async def _updated(ctx: Ctx, link: LmsCourseLink) -> None:

@@ -174,6 +174,7 @@ export function academicsHandlers(world: World) {
         materials: [],
         removed_materials: [],
         removed_count: 0,
+        unreadable: [],
         calendar_waiting: 0,
         calendar_unreadable: 0,
         errors: [],

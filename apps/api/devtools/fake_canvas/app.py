@@ -22,6 +22,8 @@ Besides the shared `/_fake/faults` and `/_fake/requests` (see `devtools/control.
         {"op": "add_file", "course": "ECE201H1", "name": "Notes.pdf", "folder": "Lectures"}
         {"op": "replace_file", "file": 1234}
         {"op": "delete_file", "file": 1234}
+        {"op": "hide_area", "course": "ECE201H1", "area": "files"}   (a teacher turns a tab off)
+        {"op": "show_area", "course": "ECE201H1", "area": "files"}
 """
 
 from collections.abc import Awaitable, Callable
@@ -152,7 +154,7 @@ class FakeCanvas:
         return out
 
     def tabs(self, request: Request) -> list[Json]:
-        return self.course(request).tabs
+        return [t for t in self.course(request).tabs if not t.get("hidden")]
 
     def announcements(self, request: Request) -> list[Json]:
         codes = set(request.query_params.getlist("context_codes[]"))
@@ -355,6 +357,18 @@ class FakeCanvas:
             sub.pop("rubric_assessment", None)
         return sub
 
+    def assignment(self, request: Request) -> Json:
+        course = self.course(request, "assignments")
+        aid = int(request.path_params["aid"])
+        for a in course.assignments:
+            if a["id"] == aid:
+                a = dict(a)
+                a.pop("score_statistics", None)
+                if "submission" in request.query_params.getlist("include[]"):
+                    a["submission"] = course.submissions.get(aid)
+                return a
+        raise CanvasError(404, "The specified resource does not exist.")
+
     def my_submission(self, request: Request) -> Json:
         course = self.course(request, "assignments")
         aid = int(request.path_params["aid"])
@@ -512,6 +526,14 @@ class FakeCanvas:
                 course.files.remove(f)
                 w.blobs.pop(f["id"], None)
                 return {"deleted": f["id"]}
+            case "hide_area" | "show_area":
+                course = w.course(body["course"])
+                area, hide = body["area"], body["op"] == "hide_area"
+                course.hidden = course.hidden | {area} if hide else course.hidden - {area}
+                for tab in course.tabs:
+                    if tab["id"] == area:
+                        tab["hidden"] = hide  # students don't see a tab turned off
+                return {"hidden": sorted(course.hidden)}
         raise ValueError(f"unknown op {body.get('op')!r}")
 
     # --- the app ------------------------------------------------------------------------------
@@ -546,6 +568,7 @@ class FakeCanvas:
             Route(f"{course}/folders/{{fid}}", e(self.folder)),
             Route(f"{api}/folders/{{fid}}/folders", e(self.subfolders)),
             Route(f"{api}/folders/{{fid}}/files", e(self.folder_files)),
+            Route(f"{course}/assignments/{{aid}}", e(self.assignment)),
             Route(f"{course}/assignments/{{aid}}/submissions/self", e(self.my_submission)),
             Route(f"{course}/students/submissions", e(self.my_submissions)),
             Route(f"{api}/calendar_events", e(self.calendar_events)),

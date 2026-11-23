@@ -7,12 +7,12 @@ from semestra.modules.lms import (
     announcements,
     assignment,
     imports,
+    material_items,
     previews,
     reads,
     service,
     sync,
     sync_assignments,
-    sync_files,
     sync_status,
 )
 from semestra.modules.lms.schemas.dto import (
@@ -871,7 +871,7 @@ async def sync_field_resolve(ctx: Ctx, inp: SyncFieldResolveInput) -> SyncStatus
     tags=TAGS,
 )
 async def sync_material_restore(ctx: Ctx, inp: MaterialRef) -> SyncStatus:
-    program_id = await sync_files.restore(ctx, inp.material_id)
+    program_id = await material_items.restore(ctx, inp.material_id)
     return await sync_status.status(ctx, program_id)
 
 
@@ -886,7 +886,37 @@ materials don't sync are left alone).""",
     tags=TAGS,
 )
 async def sync_material_restore_all(ctx: Ctx, inp: ProgramRef) -> SyncStatus:
-    await sync_files.restore_all(ctx, inp.program_id)
+    await material_items.restore_all(ctx, inp.program_id)
+    return await sync_status.status(ctx, inp.program_id)
+
+
+@capability(
+    name="lms.sync.material.remove",
+    summary="Remove a course material that can't be read since its area is closed.",
+    description="""Only one read from the platform (no copy saved in Semestra): its course file is
+deleted, and it is not brought back until restored.""",
+    effect="destructive",
+    http=Http("POST", "/lms/sync/materials/{material_id}:remove"),
+    expose=HTTP_ONLY,
+    tags=TAGS,
+)
+async def sync_material_remove(ctx: Ctx, inp: MaterialRef) -> SyncStatus:
+    program_id = await material_items.remove_unreadable(ctx, inp.material_id)
+    return await sync_status.status(ctx, program_id)
+
+
+@capability(
+    name="lms.sync.material.remove_all",
+    summary="Remove every course material of a Program that can't be read for now.",
+    description="""Only those read from the platform (no copy saved in Semestra); those with a copy
+are left alone.""",
+    effect="destructive",
+    http=Http("POST", "/programs/{program_id}/lms/sync/materials:remove"),
+    expose=HTTP_ONLY,
+    tags=TAGS,
+)
+async def sync_material_remove_all(ctx: Ctx, inp: ProgramRef) -> SyncStatus:
+    await material_items.remove_all_unreadable(ctx, inp.program_id)
     return await sync_status.status(ctx, inp.program_id)
 
 
@@ -901,7 +931,7 @@ or every linked course.""",
     tags=TAGS,
 )
 async def materials_held(ctx: Ctx, inp: MaterialsScope) -> HeldMaterials:
-    return await sync_files.held(ctx, inp.course_id)
+    return await material_items.held(ctx, inp.course_id)
 
 
 @capability(
@@ -915,7 +945,7 @@ on again brings them back.""",
     tags=TAGS,
 )
 async def materials_remove(ctx: Ctx, inp: MaterialsScope) -> HeldMaterials:
-    return await sync_files.remove_held(ctx, inp.course_id)
+    return await material_items.remove_held(ctx, inp.course_id)
 
 
 @capability(

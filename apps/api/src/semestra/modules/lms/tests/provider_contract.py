@@ -1,9 +1,12 @@
 """The contract every LMS provider passes (M09 §11). A new provider's tests call
 `check_provider` against a fake of its platform with one course that has a bit of everything."""
 
+from datetime import UTC, datetime
+
 from pydantic import BaseModel
 
 from semestra.core.config import Settings
+from semestra.modules.lms.announcements import LOOKBACK
 from semestra.modules.lms.providers import Io, LmsProvider
 from semestra.modules.lms.schemas import dto
 
@@ -42,11 +45,17 @@ async def check_provider(
     if "navigation" in f:
         reads.append(("navigation", await provider.navigation(io, cfg, creds, course_id)))
     if "announcements" in f:
-        found = await provider.announcements(io, cfg, creds, [course_id])
+        found = await provider.announcements(
+            io, cfg, creds, [course_id], since=datetime.now(UTC) - LOOKBACK
+        )
         assert all(a.external_course_id == course_id for a in found)
         reads.append(("announcements", found))
     if "assignments" in f:
-        reads.append(("assignments", await provider.assignments(io, cfg, creds, course_id)))
+        listed = await provider.assignments(io, cfg, creds, course_id)
+        reads.append(("assignments", listed))
+        if listed:  # one read on its own is the same assignment (M09 table 3c)
+            one = await provider.assignment(io, cfg, creds, course_id, listed[0].external_id)
+            assert one.external_id == listed[0].external_id
     if "grades" in f:
         totals = await provider.grade_totals(io, cfg, creds, course_id)
         assert all(t.kind == "total" for t in totals)

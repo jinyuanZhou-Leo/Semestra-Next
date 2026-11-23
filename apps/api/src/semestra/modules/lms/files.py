@@ -15,11 +15,11 @@ from semestra.modules.files.parse.detect import DOCX, PPTX, XLSX
 from semestra.modules.files.parse.isolated import Parsed, parse_isolated
 from semestra.modules.lms import cache, reads, refs, service
 from semestra.modules.lms.errors import lms_error
+from semestra.modules.lms.materials import enter, file_version, source_ref
 from semestra.modules.lms.models import LmsCourseLink, LmsMaterial
 from semestra.modules.lms.schemas.dto import FileMeta
 from semestra.modules.lms.schemas.io import FilePreview, FileSaveInput, SavedFile
 from semestra.modules.lms.service import Bound
-from semestra.modules.lms.sync_files import enter, file_version, source_ref
 
 
 async def save_to_course(ctx: Ctx, inp: FileSaveInput) -> SavedFile:

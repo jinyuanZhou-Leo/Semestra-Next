@@ -20,8 +20,10 @@ from semestra.modules.academics import service as academics
 from semestra.modules.academics.schemas import Course
 from semestra.modules.lms import html, service
 from semestra.modules.lms.models import LmsCalendarEvent, LmsCourseLink
+from semestra.modules.lms.rules import presence
 from semestra.modules.lms.service import Bound
-from semestra.modules.lms.sync import StageResult, hold, record_area, register_sync_stage
+from semestra.modules.lms.sync import StageResult, hold, register_sync_stage
+from semestra.modules.lms.sync_round import SyncRound
 from semestra.modules.schedule.calendar import (
     Occurrence,
     OccurrenceMeta,
@@ -41,15 +43,24 @@ _DAY = timedelta(days=1)
 # --- the sync stage -------------------------------------------------------------------------
 
 
-async def stage(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
+async def stage(ctx: Ctx, link: LmsCourseLink, b: Bound, this_round: SyncRound) -> StageResult:
     if "calendar" not in b.provider.features:
+        this_round.unsupported(AREA)
         await hold(ctx, link)
-        record_area(ctx, link, AREA, "unsupported")
+        await this_round.save(ctx, link)
         return StageResult()
     ext = link.external_course_id
-    found, truncated = await service.call(
-        ctx, b, lambda i: b.provider.calendar_events(i, b.cfg, b.creds, [ext])
+    read = await this_round.area(
+        ctx,
+        link,
+        b,
+        AREA,
+        lambda: service.call(
+            ctx, b, lambda i: b.provider.calendar_events(i, b.cfg, b.creds, [ext])
+        ),
+        truncated=lambda got: got[1],
     )
+    found = read[0] if read is not None else []
     await hold(ctx, link)
     rows = {
         r.external_id: r
@@ -86,13 +97,15 @@ async def stage(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
             if getattr(row, name) != value:
                 setattr(row, name, value)
                 changed = True
-    # Gone from the platform (表 3c 第 9 行): only a list read whole says so.
-    if not truncated:
-        for external_id, row in rows.items():
-            if external_id not in seen:
-                await ctx.db.delete(row)
-                changed = True
-    record_area(ctx, link, AREA, "partial" if truncated else "whole")
+    # Gone from the platform: the one rule (表 3c). Events are only ever in this list and never
+    # read on their own, so only a list read whole says so.
+    areas = this_round.results([AREA])
+    for external_id, row in rows.items():
+        listed = external_id in seen
+        if presence(listed=listed, areas=areas, now=ctx.now) == "gone":
+            await ctx.db.delete(row)
+            changed = True
+    await this_round.save(ctx, link)
     if changed:
         await events.publish(ctx, "calendar.changed", {"program_id": link.program_id})
     return StageResult()

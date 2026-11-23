@@ -12168,6 +12168,12 @@ export type SyncStatus = {
      */
     removed_count: number;
     /**
+     * Unreadable
+     *
+     * What can't be read since its area is closed on the platform, by course
+     */
+    unreadable: Array<SyncUnreadable>;
+    /**
      * Errors
      */
     errors: Array<SyncCourseError>;
@@ -12183,6 +12189,76 @@ export type SyncStatus = {
      * Courses whose calendar the sync tried and never could read
      */
     calendar_unreadable: number;
+};
+
+/**
+ * SyncUnreadable
+ *
+ * What the sync can't read because its area is closed on the platform (M09 table 3c, note):
+ * kept as last read, judged again once the area opens. Materials and imported assignments one
+ * by one; a course's announcements as one row.
+ */
+export type SyncUnreadable = {
+    /**
+     * Kind
+     */
+    kind: 'material' | 'assignment' | 'announcements';
+    /**
+     * Id
+     *
+     * The material's id (`material`) or the imported assignment's sync item id (`assignment`); none for a course's row
+     */
+    id: string | null;
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * Course
+     */
+    course: string;
+    /**
+     * Area
+     *
+     * The closed area of the course on the platform
+     */
+    area: string;
+    /**
+     * Title
+     *
+     * Its name on the platform; none for a course's row
+     */
+    title: string | null;
+    /**
+     * Count
+     *
+     * How many it stands for (1 for one item)
+     */
+    count: number;
+    /**
+     * Since
+     *
+     * Announcements: when their list was last read whole (none if never)
+     */
+    since: string | null;
+    /**
+     * Item Id
+     *
+     * A material's course file, or an imported assignment's object
+     */
+    item_id?: string | null;
+    /**
+     * External Id
+     *
+     * An assignment's id on the platform
+     */
+    external_id?: string | null;
+    /**
+     * Removable
+     *
+     * A followed material read from the platform (no copy saved in Semestra): it can be removed (lms.sync.material.remove)
+     */
+    removable?: boolean;
 };
 
 /**
@@ -22910,13 +22986,77 @@ export type LmsSyncFieldResolveResponses = {
 
 export type LmsSyncFieldResolveResponse = LmsSyncFieldResolveResponses[keyof LmsSyncFieldResolveResponses];
 
+export type LmsSyncMaterialRemoveData = {
+    body?: never;
+    path: {
+        /**
+         * Material Id
+         *
+         * A material's id (lms.sync.status)
+         */
+        material_id: string;
+    };
+    query?: never;
+    url: '/lms/sync/materials/{material_id}:remove';
+};
+
+export type LmsSyncMaterialRemoveErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsSyncMaterialRemoveError = LmsSyncMaterialRemoveErrors[keyof LmsSyncMaterialRemoveErrors];
+
+export type LmsSyncMaterialRemoveResponses = {
+    /**
+     * Successful Response
+     */
+    200: SyncStatus;
+};
+
+export type LmsSyncMaterialRemoveResponse = LmsSyncMaterialRemoveResponses[keyof LmsSyncMaterialRemoveResponses];
+
+export type LmsSyncMaterialRemoveAllData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/lms/sync/materials:remove';
+};
+
+export type LmsSyncMaterialRemoveAllErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsSyncMaterialRemoveAllError = LmsSyncMaterialRemoveAllErrors[keyof LmsSyncMaterialRemoveAllErrors];
+
+export type LmsSyncMaterialRemoveAllResponses = {
+    /**
+     * Successful Response
+     */
+    200: SyncStatus;
+};
+
+export type LmsSyncMaterialRemoveAllResponse = LmsSyncMaterialRemoveAllResponses[keyof LmsSyncMaterialRemoveAllResponses];
+
 export type LmsSyncMaterialRestoreData = {
     body?: never;
     path: {
         /**
          * Material Id
          *
-         * A removed material's id (lms.sync.status)
+         * A material's id (lms.sync.status)
          */
         material_id: string;
     };

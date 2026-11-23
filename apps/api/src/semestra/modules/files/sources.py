@@ -44,8 +44,9 @@ from semestra.modules.files import content, items, service
 from semestra.modules.files.folders import folder_names
 from semestra.modules.files.items import (
     create_link,
-    find_duplicate,
     normalize_url,
+    own_files,
+    same_file,
     save_bytes_as_file,
 )
 from semestra.modules.files.models import FilesDocument, FilesDocumentPage, FilesItem
@@ -62,18 +63,19 @@ __all__ = [
     "detach_from_source",
     "document_pages",
     "drop_copy",
-    "find_duplicate",
     "find_items",
     "folder_names",
     "get_folder",
     "keep_copy",
     "name_from_source",
     "normalize_url",
+    "own_files",
     "purge_items",
     "remote",
     "rename_synced",
     "reset_copy_choices",
     "retry_synced",
+    "same_file",
     "save_bytes_as_file",
     "store_from_source",
     "update_link",
@@ -129,11 +131,13 @@ async def add_remote_file(
     modified_at: datetime | None,
     unseen: bool,
     source_kind: SourceKind = "lms",
+    auto_index: bool | None = None,
 ) -> FilesItem:
     """An item for a file kept by another module (`content.py`): stored nowhere, so it takes
     no quota. `version` names the source's version of the bytes (it changes when they do), `url`
     where the source shows the file, `modified_at` when the source last changed it; `unseen`
-    marks it new until the user opens it. Processed like an upload."""
+    marks it new until the user opens it. Processed like an upload; `auto_index` is the course's
+    setting when the caller read it once for a batch (`reads_text`)."""
     status, error = _remote_status(ctx, name, mime, size)
     clean = service.name_from_source(name, "file")
     row = FilesItem(
@@ -162,9 +166,16 @@ async def add_remote_file(
     ctx.db.add(row)
     await ctx.db.flush()
     if row.doc_status != "unsupported":
-        await service.request_read(ctx, row, "source")
+        await service.request_read(ctx, row, "source", auto_index=auto_index)
     await events.publish(ctx, "files.item.created", {"item_id": row.id, "course_id": course_id})
     return row
+
+
+async def reads_text(ctx: Ctx, course_id: str) -> bool:
+    """Whether the course reads the text of new files by itself (its `auto_index` setting)."""
+    from semestra.modules.files.settings import auto_index
+
+    return await auto_index(ctx, course_id)
 
 
 async def update_remote_file(

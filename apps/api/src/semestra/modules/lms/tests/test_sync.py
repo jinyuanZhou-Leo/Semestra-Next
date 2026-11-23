@@ -299,6 +299,31 @@ async def test_an_assignment_gone_from_the_platform_is_kept_or_deleted(
     ]
 
 
+async def test_imported_assignments_are_read_alone_while_their_list_is_closed(
+    api: Api, fake: FakeProvider, clock: Clock
+):
+    """The assignments closed on the platform (M09 table 3c, row 10): each imported one is read
+    on its own. Not found: gone, asked about. Refused: can't be told, kept and listed as
+    unreadable. There: as it was."""
+    program_id, course = await _course(api, "a1", "a2", "a3")
+    fake.assignments_hidden = True
+    labs = fake.course_assignments["101"]
+    del labs[0]
+    fake.refused_assignments = {"a2"}
+    clock.advance(days=2)
+    status = await api.sync(program_id)
+    assert [(i["kind"], i["title"]) for i in status["pending"]] == [("removed", "Lab 1")]
+    assert [(u["kind"], u["title"]) for u in status["unreadable"]] == [("assignment", "Lab 2")]
+    assert {"a2", "a3"} <= set(await _assessments(api, course))
+
+    # Open again: listed, so there; nothing is unreadable any more.
+    fake.assignments_hidden = False
+    fake.refused_assignments = set()
+    clock.advance(minutes=1)
+    status = await api.sync(program_id)
+    assert status["unreadable"] == []
+
+
 async def test_a_bound_assessment_fills_in_what_it_lacks_and_asks_about_the_rest(
     api: Api, fake: FakeProvider
 ):

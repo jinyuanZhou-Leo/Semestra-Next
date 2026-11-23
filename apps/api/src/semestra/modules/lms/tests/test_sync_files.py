@@ -28,7 +28,13 @@ from semestra.modules.files.tests.conftest import FakeAi, make_pdf
 from semestra.modules.lms import sync_files
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.models import LmsMaterial
-from semestra.modules.lms.schemas.dto import FileMeta, InternalRef, Module, ModuleItem, PageSummary
+from semestra.modules.lms.schemas.dto import (
+    FileMeta,
+    InternalRef,
+    Module,
+    ModuleItem,
+    PageSummary,
+)
 from semestra.modules.lms.tests.conftest import Api, FakeProvider
 from semestra.modules.lms.tests.test_lms import setup_program
 from semestra.testing import API_DIR, Clock
@@ -669,26 +675,21 @@ async def test_a_hidden_area_still_tells_what_left(api: Api, fake: FakeProvider,
     assert ("file", "201") not in fake.calls
 
 
-async def test_an_item_refused_where_its_area_is_hidden_has_left(
+async def test_an_item_deleted_where_its_area_is_hidden_is_handed_over(
     api: Api, fake: FakeProvider, clock: Clock
 ):
-    """Refused on its own while the course opens (the teacher unpublished it) is the same as
-    missing from an area read whole: a saved copy is handed over, not dropped with the
-    storage setting."""
+    """Read on its own and not on the platform any more while its area is closed (table 3c,
+    row 10): gone like one missing from an area read whole, so a saved copy is handed over, not
+    dropped with the storage setting. (A refusal there can't be told apart from the area's, so
+    it judges nothing: table 2, row 6.)"""
     _materials(fake)
     program_id, course = await _course(api)
     await _materials_setting(api, course, store="local")
     await api.sync(program_id)
     await api.run_jobs()
-    orig = fake.file
 
-    async def file(io: Any, cfg: Any, creds: Any, course_id: str, file_id: str) -> Any:
-        if file_id == "201":
-            raise lms_error("lms.forbidden")
-        return await orig(io, cfg, creds, course_id, file_id)
-
-    fake.file = file
     fake.files_hidden = True
+    fake.deleted_files.add("201")
     await _materials_setting(api, course, store="online")
     clock.advance(minutes=1)
     await api.sync(program_id)
@@ -2018,3 +2019,84 @@ def test_migration_to_a_source_side_and_a_copy_side(tmp_path: Path):
         ("h5", None, None, None, None, 0),
         ("h6", None, None, None, None, 0),
     ]
+
+
+async def test_what_a_closed_area_hides_is_listed_until_it_opens(
+    api: Api, fake: FakeProvider, clock: Clock
+):
+    """The files area closed and a file refused on its own (M09 table 3c, rows 6, 8, 10 and its
+    note): it stays as it was, listed in the panel; a saved copy can't be removed from there; a
+    material restored meanwhile is listed too; all leave the list once the platform shows them."""
+    _materials(fake)
+    program_id, course = await _course(api)
+    await _materials_setting(api, course, store="local")
+    await api.sync(program_id)
+    await api.run_jobs()
+    fake.files_hidden = True
+    fake.refused_files = {"201", "203", "205"}
+    clock.advance(days=2)
+    status = await api.sync(program_id)
+    rows = {u["title"]: u for u in status["unreadable"]}
+    assert set(rows) == {"Lecture 1.pdf", "Midterm 2025.pdf", "data.zip"}
+    assert {(u["kind"], u["area"], u["removable"]) for u in rows.values()} == {
+        ("material", "files", False)
+    }
+    _, items = await _files(api, course)
+    assert {"Lecture 1.pdf", "Midterm 2025.pdf"} <= set(items)  # kept as they were
+    # Not read again within a day: the area is closed, reading again tells nothing new.
+    fake.calls.clear()
+    clock.advance(hours=1)
+    await api.sync(program_id)
+    assert ("file", "201") not in fake.calls
+
+    # The copy may be the user's only one: not removed from here.
+    lecture_id = rows["Lecture 1.pdf"]["id"]
+    error = await api.call("POST", f"/lms/sync/materials/{lecture_id}:remove", status=409)
+    assert error["error"]["code"] == "lms.sync_nothing_to_resolve"
+
+    # Deleted by the user, then restored while the area is closed: listed, waiting.
+    await api.call("DELETE", f"/files/{items['Midterm 2025.pdf']['id']}")
+    midterm_id = rows["Midterm 2025.pdf"]["id"]
+    await api.call("POST", f"/lms/sync/materials/{midterm_id}:restore")
+    status = await api.sync(program_id)
+    waiting = {u["title"]: u for u in status["unreadable"]}
+    assert set(waiting) == set(rows)
+    assert waiting["Midterm 2025.pdf"]["removable"] is False
+
+    # The area opens again: listed, so there; gone from the panel by itself.
+    fake.files_hidden = False
+    fake.refused_files = set()
+    clock.advance(minutes=1)
+    status = await api.sync(program_id)
+    assert status["unreadable"] == []
+
+
+async def test_what_a_closed_area_hides_read_online_is_removed(
+    api: Api, fake: FakeProvider, clock: Clock
+):
+    """Read from the platform, it can't open while the area is closed: removed one by one or all
+    at once (M09 table 3c, note; table 4a), and not brought back until restored."""
+    _materials(fake)
+    program_id, course = await _course(api)
+    await api.sync(program_id)
+    await api.run_jobs()
+    fake.files_hidden = True
+    fake.refused_files = {"201", "203", "205"}
+    clock.advance(days=2)
+    status = await api.sync(program_id)
+    rows = {u["title"]: u for u in status["unreadable"]}
+    assert len(rows) == 3
+    assert all(u["removable"] for u in rows.values())
+
+    midterm_id = rows["Midterm 2025.pdf"]["id"]
+    status = await api.call("POST", f"/lms/sync/materials/{midterm_id}:remove")
+    assert {u["title"] for u in status["unreadable"]} == set(rows) - {"Midterm 2025.pdf"}
+    assert [r["title"] for r in status["removed_materials"]] == ["Midterm 2025.pdf"]
+
+    url = f"/programs/{program_id}/lms/sync/materials:remove"
+    status = await api.call("POST", url)
+    assert status["unreadable"] == []
+    assert {r["title"] for r in status["removed_materials"]} == set(rows)
+    assert not set(rows) & set((await _files(api, course))[1])
+    error = await api.call("POST", url, status=409)
+    assert error["error"]["code"] == "lms.sync_nothing_to_resolve"

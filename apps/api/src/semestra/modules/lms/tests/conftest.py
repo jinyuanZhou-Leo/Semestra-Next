@@ -3,7 +3,7 @@ for the LMS tests (M09 §11)."""
 
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterator, Sequence
 from datetime import datetime, timedelta
-from typing import Any, ClassVar, cast
+from typing import Any, ClassVar, Literal, cast
 
 import pytest
 import respx
@@ -11,10 +11,13 @@ from httpx import AsyncClient, Response
 from pydantic import BaseModel, Field, SecretStr
 
 from semestra.core.config import Settings
+from semestra.core.errors import AppError
 from semestra.modules.files.tests.conftest import fake_ai  # noqa: F401 (a fixture)
 from semestra.modules.lms import sync
+from semestra.modules.lms.answers import AreaResult, Gone, Unavailable
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.providers import Io, register_lms_provider, unregister_lms_provider
+from semestra.modules.lms.providers.canvas import answers as canvas_answers
 from semestra.modules.lms.providers.canvas import provider as canvas_module
 from semestra.modules.lms.schemas.dto import (
     ALL_FEATURES,
@@ -78,6 +81,10 @@ class FakeProvider:
         self.calendar_truncated = False  # the calendar list is cut off
         self.calendar_error: str | None = None  # why the calendar list cannot be read
         self.down = False  # the platform does not answer (assignment lists)
+        # The instructor closed the assignments: their list is refused; one alone is not,
+        # unless it is hidden from the user too (`refused_assignments`).
+        self.assignments_hidden = False
+        self.refused_assignments: set[str] = set()
         self.valid_tokens = {"good-token-1", "good-token-2"}
         self.courses = [
             LmsCourse(external_id="101", name="Computer Fundamentals", code="APS105H1 S LEC0101",
@@ -120,6 +127,17 @@ class FakeProvider:
         self.fail_downloads = False
         # Files deleted from the course: reading one is refused as not found.
         self.deleted_files: set[str] = set()
+        # Files `file` serves that no list shows (only a module or a page links to them).
+        self.unlisted_files: list[FileMeta] = []
+        # Files hidden from the user: reading one is refused (403).
+        self.refused_files: set[str] = set()
+        # The platform does not answer reads of the materials (files, modules, pages).
+        self.materials_down = False
+        # Reads the platform throttles ("navigation", "file", "course_files", "pages", "page",
+        # "modules"), and how many times it did; the course navigation refused.
+        self.throttled: set[str] = set()
+        self.throttle_hits = 0
+        self.nav_refused = False
         # What a file holds, by id; any other file reads "hello".
         self.file_bytes: dict[str, bytes] = {}
         # Downloads started and those whose connection was closed (ended, or closed early).
@@ -181,9 +199,17 @@ class FakeProvider:
                 return c.model_copy(update={"web_url": f"https://fake/courses/{course_id}"})
         raise lms_error("lms.forbidden")
 
+    def _throttle(self, read: str) -> None:
+        if read in self.throttled:
+            self.throttle_hits += 1
+            raise lms_error("lms.rate_limited", retry_after=60)
+
     async def navigation(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> list[NavTab]:
+        self._throttle("navigation")
+        if self.nav_refused:
+            raise lms_error("lms.forbidden")
         return list(self.nav)
 
     async def announcements(
@@ -193,7 +219,7 @@ class FakeProvider:
         creds: BaseModel,
         course_ids: Sequence[str],
         *,
-        since: datetime | None = None,
+        since: datetime,
     ) -> list[Announcement]:
         self.calls.append(("announcements", list(course_ids)))
         return [
@@ -212,8 +238,32 @@ class FakeProvider:
         self.calls.append(("assignments", course_id))
         if self.down:
             raise lms_error("lms.unreachable")
+        if self.assignments_hidden:
+            raise lms_error("lms.not_found")
         io.truncated |= self.truncated
         return [a.model_copy() for a in self.course_assignments.get(course_id, [])]
+
+    async def assignment(
+        self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, assignment_id: str
+    ) -> Assignment:
+        self.calls.append(("assignment", assignment_id))
+        if self.down:
+            raise lms_error("lms.unreachable")
+        if assignment_id in self.refused_assignments:
+            raise lms_error("lms.forbidden")
+        for a in self.course_assignments.get(course_id, []):
+            if a.external_id == assignment_id:
+                return a.model_copy(update={"group_weight": None})
+        raise lms_error("lms.not_found")
+
+    # The platform's refusals mean what Canvas's do (table 2).
+    def item_answer(self, error: AppError, *, area: AreaResult | None) -> Gone | Unavailable:
+        return canvas_answers.item_answer(error, area=area)
+
+    def area_answer(
+        self, error: AppError, *, nav_closed: bool | None
+    ) -> Literal["hidden", "unavailable"]:
+        return canvas_answers.area_answer(error, nav_closed=nav_closed)
 
     async def grade_totals(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
@@ -225,6 +275,9 @@ class FakeProvider:
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> list[Module]:
         self.calls.append(("modules", course_id))
+        self._throttle("modules")
+        if self.materials_down:
+            raise lms_error("lms.unreachable")
         if self.closed:
             raise lms_error("lms.forbidden")
         if self.module_list is not None:
@@ -247,6 +300,9 @@ class FakeProvider:
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> list[PageSummary]:
         self.calls.append(("pages", course_id))
+        self._throttle("pages")
+        if self.materials_down:
+            raise lms_error("lms.unreachable")
         if self.closed:
             raise lms_error("lms.forbidden")
         if self.pages_hidden:
@@ -259,6 +315,7 @@ class FakeProvider:
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, page_ref: str
     ) -> PageDetail:
         self.calls.append(("page", page_ref))
+        self._throttle("page")
         if self.closed:
             raise lms_error("lms.forbidden")
         if page_ref in self.page_texts:
@@ -286,11 +343,16 @@ class FakeProvider:
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, file_id: str
     ) -> FileMeta:
         self.calls.append(("file", file_id))
+        self._throttle("file")
+        if self.materials_down:
+            raise lms_error("lms.unreachable")
         if self.closed:
             raise lms_error("lms.forbidden")
         if file_id in self.deleted_files:
             raise lms_error("lms.not_found")
-        for meta in self.course_file_list:
+        if file_id in self.refused_files:
+            raise lms_error("lms.forbidden")
+        for meta in (*self.course_file_list, *self.unlisted_files):
             if meta.external_id == file_id:
                 return meta.model_copy(
                     update={"download_url": f"https://lms.example/files/{file_id}/download"}
@@ -376,6 +438,9 @@ class FakeProvider:
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> list[FileMeta]:
         self.calls.append(("course_files", course_id))
+        self._throttle("course_files")
+        if self.materials_down:
+            raise lms_error("lms.unreachable")
         if self.closed:
             raise lms_error("lms.forbidden")
         if self.files_hidden:
@@ -539,6 +604,11 @@ def canvas_api(router: respx.MockRouter) -> None:
                                 "graded_at": "2026-02-10T12:00:00Z"}},
             ]},
         ])
+    )  # fmt: skip
+    router.get(f"{api}/courses/101/assignments/11").mock(
+        return_value=ok({"id": 11, "name": "Lab 1", "due_at": "2026-02-07T04:59:00Z",
+                         "points_possible": 10, "assignment_group_id": 1,
+                         "html_url": f"{CANVAS}/courses/101/assignments/11"})
     )  # fmt: skip
     router.get(f"{api}/courses/101/enrollments").mock(
         return_value=ok([{"id": 7, "type": "StudentEnrollment",

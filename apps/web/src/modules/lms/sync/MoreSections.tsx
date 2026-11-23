@@ -8,13 +8,15 @@ import { Button } from '@/ui/button'
 import type { SyncAnswers } from './answers'
 import { fieldLabel, formatValue } from './labels'
 import { type CourseOf, fieldIcon } from './rows'
+import { UnreadableList } from './UnreadableList'
 
 /**
- * The folded lists at the panel's end (M09 §4.1): fields the user set apart from the platform
- * (each can take the platform's value again), materials the user removed and new items the user
- * ignored (each can be restored).
+ * The folded lists at the panel's end (M09 §4.1): what can't be read since its area is closed on
+ * the platform, fields the user set apart from the platform (each can take the platform's value
+ * again), materials the user removed and new items the user ignored (each can be restored).
  */
 export function MoreSections({
+  programId,
   status,
   provider,
   broken,
@@ -22,7 +24,9 @@ export function MoreSections({
   answers,
   course,
   onImport,
+  onClose,
 }: {
+  programId: string
   status: SyncStatus
   provider: string
   broken: boolean
@@ -30,12 +34,28 @@ export function MoreSections({
   answers: SyncAnswers
   course: CourseOf
   onImport: (items: SyncItem[]) => void
+  onClose: () => void
 }) {
   const { busy, leaving } = answers
-  const { different, removed_materials: removed, ignored } = status
-  if (different.length === 0 && ignored.length === 0 && removed.length === 0) return null
+  const { different, removed_materials: removed, ignored, unreadable } = status
+  if (
+    different.length === 0 &&
+    ignored.length === 0 &&
+    removed.length === 0 &&
+    unreadable.length === 0
+  )
+    return null
   return (
     <section className="flex flex-col gap-0.5 border-t px-2 pt-2">
+      <UnreadableList
+        programId={programId}
+        unreadable={unreadable}
+        provider={provider}
+        now={now}
+        answers={answers}
+        course={course}
+        onClose={onClose}
+      />
       {different.length > 0 ? (
         <PanelMoreList label={m.lms_sync_different({ provider })} count={different.length}>
           {different.map((d) => (
