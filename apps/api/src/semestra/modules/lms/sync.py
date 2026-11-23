@@ -25,7 +25,7 @@ from datetime import timedelta
 
 import structlog
 from pydantic import BaseModel
-from sqlalchemy import or_, select, update
+from sqlalchemy import func, or_, select, update
 from starlette.datastructures import State
 
 from semestra.core.context import Ctx, run_as_system
@@ -34,7 +34,7 @@ from semestra.core.events import events
 from semestra.core.jobs import CoreJob, JobCtx, enqueue, job_handler, periodic
 from semestra.modules.academics import service as academics
 from semestra.modules.auth import service as auth
-from semestra.modules.lms import service
+from semestra.modules.lms import rules, service
 from semestra.modules.lms.models import LmsConnection, LmsCourseLink
 from semestra.modules.lms.service import Bound
 from semestra.modules.lms.settings import account, floor, interval
@@ -108,22 +108,37 @@ class SyncStage:
     order: int
     run: StageRun
     enabled: StageEnabled | None = None
+    # The area whose list the stage reads (`LmsCourseLink.area_reads`, M09 表 3c): a round that
+    # fails it, or ends before it, records it `unavailable`.
+    area: str | None = None
 
 
 _stages: dict[str, SyncStage] = {}
 
 
 def register_sync_stage(
-    name: str, run: StageRun, *, order: int, enabled: StageEnabled | None = None
+    name: str,
+    run: StageRun,
+    *,
+    order: int,
+    enabled: StageEnabled | None = None,
+    area: str | None = None,
 ) -> None:
     """Adds a stage to every course sync. `run(ctx, link, b)` reads the platform, then writes in
     `ctx`'s transaction (committed after it returns; rolled back if it raises), taking the write
     lock with `hold` before it reads what it compares. An `AppError` is
     recorded as the stage's error; the other stages still run. `enabled(ctx, link, b)` skips the
-    stage for a course (its settings, the provider's features)."""
+    stage for a course (its settings, the provider's features). A stage with an `area` records
+    how its list read with `record_area`."""
     if name in _stages:
         raise ValueError(f"duplicate sync stage {name!r}")
-    _stages[name] = SyncStage(name, order, run, enabled)
+    _stages[name] = SyncStage(name, order, run, enabled, area)
+
+
+def record_area(ctx: Ctx, link: LmsCourseLink, area: str, result: rules.AreaResult) -> None:
+    """Notes how an area's list read this round (M09 表 3c, §4.8)."""
+    entry = rules.area_entry(link.area_reads.get(area), result, ctx.now)
+    link.area_reads = {**link.area_reads, area: entry}
 
 
 async def hold(ctx: Ctx, link: LmsCourseLink) -> None:
@@ -147,6 +162,8 @@ def stages() -> list[SyncStage]:
 class SyncPayload(BaseModel):
     course_id: str
     manual: bool = False
+    # Only these stages (by name); None runs them all.
+    stages: list[str] | None = None
 
 
 class SyncOutcome(BaseModel):
@@ -166,7 +183,9 @@ async def sync_job(ctx: JobCtx, payload: SyncPayload) -> SyncOutcome:
     async def progress(done: int, total: int) -> None:
         await ctx.stage("syncing", current=done, total=total)
 
-    return await sync_course(ctx.state, ctx.user_id, payload.course_id, payload.manual, progress)
+    return await sync_course(
+        ctx.state, ctx.user_id, payload.course_id, payload.manual, progress, payload.stages
+    )
 
 
 async def sync_course(
@@ -175,11 +194,13 @@ async def sync_course(
     course_id: str,
     manual: bool = False,
     progress: Callable[[int, int], Awaitable[None]] | None = None,
+    only: Sequence[str] | None = None,
 ) -> SyncOutcome:
-    """Runs every stage for one course, each in a transaction of its own."""
-    todo = stages()
+    """Runs every stage for one course (or `only` these), each in a transaction of its own."""
+    todo = [s for s in stages() if only is None or s.name in only]
     results: list[StageResult] = []
     errors: dict[str, str] = {}
+    ran: set[str] = set()
     for n, stage in enumerate(todo):
         if progress is not None:
             await progress(n, len(todo))
@@ -191,6 +212,7 @@ async def sync_course(
             b = await service.bound(sys, await service.get_connection_row(sys, link.connection_id))
             if stage.enabled is not None and not await stage.enabled(sys, link, b):
                 return
+            ran.add(stage.name)
             with service.memory_cache():
                 results.append(await stage.run(sys, link, b))
 
@@ -216,8 +238,14 @@ async def sync_course(
         link = await service.link_row(sys, course_id)
         if link is None:
             return
-        link.synced_at = sys.now
-        link.sync_errors = errors
+        if only is None:
+            link.synced_at = sys.now
+        link.sync_errors = errors if only is None else {**link.sync_errors, **errors}
+        # An area whose stage failed, or that the round never reached (the course could not be
+        # read), was not read this round.
+        for stage in todo:
+            if stage.area and (stage.name in errors or stage.name not in ran):
+                record_area(sys, link, stage.area, "unavailable")
         await events.publish(
             sys,
             SYNCED,
@@ -259,8 +287,14 @@ async def sync_course(
 # --- queueing --------------------------------------------------------------------------------
 
 
-def _dedupe(course_id: str) -> str:
-    return f"{JOB}:{course_id}"
+def _dedupe(course_id: str, only: Sequence[str] | None = None) -> str:
+    # A sync of some stages only is queued apart: it must not stand in for a whole one.
+    return f"{JOB}:{course_id}" + (f":{'+'.join(only)}" if only else "")
+
+
+# The first read of a course's calendar when its term ended long ago: the course and its
+# calendar, nothing that would change its grades or fetch its files (M09 §4.8).
+CALENDAR_ONLY = ("course", "calendar")
 
 
 async def syncable_links(
@@ -287,18 +321,69 @@ async def syncable_links(
     return [li for li in links if li.course_id in active]
 
 
+async def first_calendar_reads(
+    ctx: Ctx, program_id: str | None = None
+) -> tuple[list[LmsCourseLink], list[LmsCourseLink]]:
+    """Linked courses whose calendar was never tried (M09 §4.8), on a connection that works:
+    those of an active term (a whole sync) and those of a term long ended (`CALENDAR_ONLY`)."""
+    query = (
+        select(LmsCourseLink)
+        .join(LmsConnection, LmsConnection.id == LmsCourseLink.connection_id)
+        .where(
+            LmsCourseLink.user_id == ctx.user_id,
+            LmsCourseLink.sync_enabled,
+            LmsConnection.credentials_encrypted.is_not(None),
+            LmsConnection.status == "connected",
+            func.json_extract(LmsCourseLink.area_reads, "$.calendar").is_(None),
+        )
+    )
+    if program_id is not None:
+        query = query.where(LmsCourseLink.program_id == program_id)
+    links = list(await ctx.db.scalars(query))
+    if not links:
+        return [], []
+    active = await active_course_ids(ctx)
+    return (
+        [li for li in links if li.course_id in active],
+        [li for li in links if li.course_id not in active],
+    )
+
+
+async def _queue_first_calendar_reads(
+    ctx: Ctx, links: tuple[list[LmsCourseLink], list[LmsCourseLink]], room: int
+) -> int:
+    """Queues these first reads, the active term's first, at most `room`; skips courses with a
+    sync queued or running already."""
+    current, ended = links
+    busy = await syncing_courses(ctx, [li.course_id for li in current + ended])
+    current = [li for li in current if li.course_id not in busy][:room]
+    ended = [li for li in ended if li.course_id not in busy][: room - len(current)]
+    queued = await queue(ctx, current) if current else 0
+    if ended:
+        queued += await queue(ctx, ended, stages=CALENDAR_ONLY)
+    return queued
+
+
 async def active_course_ids(ctx: Ctx) -> set[str]:
     """Courses the sync keeps up on its own: of a term not ended more than `RECENT` ago."""
     return set(await academics.course_ids_active_since(ctx, (ctx.now - RECENT).date()))
 
 
-async def queue(ctx: Ctx, links: Sequence[LmsCourseLink], *, manual: bool = False) -> int:
-    """Queues a sync of each link's course: one job per course. A course already queued is not
-    queued twice; one syncing now syncs again once it ends, as that run may have read the course
-    before what this asks for (a restore, a changed setting). Returns how many were queued."""
+async def queue(
+    ctx: Ctx,
+    links: Sequence[LmsCourseLink],
+    *,
+    manual: bool = False,
+    stages: Sequence[str] | None = None,
+) -> int:
+    """Queues a sync of each link's course (or only of `stages`): one job per course. A course
+    already queued is not queued twice; one syncing now syncs again once it ends, as that run
+    may have read the course before what this asks for (a restore, a changed setting). Returns
+    how many were queued."""
+    only = list(stages) if stages is not None else None
     for link in links:
-        payload = SyncPayload(course_id=link.course_id, manual=manual)
-        await enqueue(ctx, JOB, payload, dedupe_key=_dedupe(link.course_id), again=True)
+        payload = SyncPayload(course_id=link.course_id, manual=manual, stages=only)
+        await enqueue(ctx, JOB, payload, dedupe_key=_dedupe(link.course_id, only), again=True)
     for program_id in {li.program_id for li in links}:
         await events.publish(ctx, UPDATED, {"program_id": program_id})
     return len(links)
@@ -327,12 +412,21 @@ async def request_sync(
         # Opening the app asks for nothing new: a course syncing now is left to that run.
         busy = await syncing_courses(ctx, [li.course_id for li in links])
         links = [li for li in links if li.course_id not in busy]
-    return await queue(ctx, links, manual=force)
+    queued = await queue(ctx, links, manual=force) if links else 0
+    if course_id is None and not force:
+        # A course whose calendar was never read is read now, whenever it last synced (§4.8).
+        current, ended = await first_calendar_reads(ctx, program_id)
+        picked = {li.course_id for li in links}
+        current = [li for li in current if li.course_id not in picked]
+        queued += await _queue_first_calendar_reads(
+            ctx, (current, ended), len(current) + len(ended)
+        )
+    return queued
 
 
 async def syncing_courses(ctx: Ctx, course_ids: Sequence[str]) -> set[str]:
-    """Which of these courses have a sync queued or running."""
-    keys = {_dedupe(c): c for c in course_ids}
+    """Which of these courses have a sync queued or running (whole, or its calendar only)."""
+    keys = {_dedupe(c): c for c in course_ids} | {_dedupe(c, CALENDAR_ONLY): c for c in course_ids}
     if not keys:
         return set()
     rows = await ctx.db.scalars(
@@ -396,7 +490,11 @@ async def sync_due(ctx: Ctx) -> None:
             .where(
                 LmsCourseLink.sync_enabled,
                 LmsConnection.credentials_encrypted.is_not(None),
-                or_(LmsCourseLink.synced_at.is_(None), LmsCourseLink.synced_at <= since),
+                or_(
+                    LmsCourseLink.synced_at.is_(None),
+                    LmsCourseLink.synced_at <= since,
+                    func.json_extract(LmsCourseLink.area_reads, "$.calendar").is_(None),
+                ),
             )
             .distinct()
         )
@@ -413,6 +511,9 @@ async def sync_due(ctx: Ctx) -> None:
             nonlocal queued
             if listens and (await notifications.settings_of(sys)).lms == "off":
                 return  # away and not told: nothing to sync for
+            # Calendars never read go first (§4.8).
+            queued = await _queue_first_calendar_reads(sys, await first_calendar_reads(sys), room)
+            room -= queued
             every = interval(sys, await account(sys))
             links = [
                 li
@@ -421,7 +522,7 @@ async def sync_due(ctx: Ctx) -> None:
             ]
             busy = await syncing_courses(sys, [li.course_id for li in links])
             links = [li for li in links if li.course_id not in busy][:room]
-            queued = await queue(sys, links)
+            queued += await queue(sys, links) if links else 0
 
         try:
             await run_as_system(ctx.state, user_id, due)

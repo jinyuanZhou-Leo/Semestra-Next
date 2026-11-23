@@ -176,3 +176,37 @@ def state_of(assignment: Mapping[str, Any]) -> AssignmentState:
         missing=bool(sub.get("missing")),
         online=submits_online(list(assignment.get("submission_types") or [])),
     )
+
+
+# --- areas and the calendar (M09 表 3c, §4.8) -------------------------------------------------
+
+AreaResult = Literal["whole", "partial", "unavailable", "unsupported"]
+# A list that came back: what the sync keeps of it is the platform's as of then.
+READ_BACK: frozenset[str] = frozenset(("whole", "partial"))
+
+
+def area_entry(
+    previous: Mapping[str, Any] | None, result: AreaResult, at: datetime
+) -> dict[str, str]:
+    """How an area's list read this round (`LmsCourseLink.area_reads[area]`): the result and
+    when, and when it last came back at all (`read_at`), which an unreadable round keeps."""
+    entry = {"result": result, "at": at.isoformat()}
+    read_at = at.isoformat() if result in READ_BACK else (previous or {}).get("read_at")
+    if read_at:
+        entry["read_at"] = read_at
+    return entry
+
+
+CalendarRead = Literal["read", "waiting", "unreadable", "unsupported"]
+
+
+def calendar_read(entry: Mapping[str, Any] | None) -> CalendarRead:
+    """Where a course's calendar stands (§4.8, first row that holds): read once at least, never
+    tried, tried and never read back; a platform without calendars counts as none of these."""
+    if entry and entry.get("read_at"):
+        return "read"
+    if not entry:
+        return "waiting"
+    if entry.get("result") == "unsupported":
+        return "unsupported"
+    return "unreadable"

@@ -56,6 +56,8 @@ function status(overrides: Partial<SyncStatus> = {}): SyncStatus {
     materials: [],
     removed_materials: [],
     removed_count: 0,
+    calendar_waiting: 0,
+    calendar_unreadable: 0,
     errors: [],
     ...overrides,
   }

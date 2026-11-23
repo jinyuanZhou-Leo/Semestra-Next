@@ -164,6 +164,12 @@ class SyncStatus(BaseModel):
     )
     removed_count: int = Field(description="How many materials the user deleted, all told")
     errors: list[SyncCourseError]
+    calendar_waiting: int = Field(
+        description="Courses whose calendar the sync has not read yet (M09 §4.8)"
+    )
+    calendar_unreadable: int = Field(
+        description="Courses whose calendar the sync tried and never could read"
+    )
 
 
 class SyncResolveInput(BaseModel):

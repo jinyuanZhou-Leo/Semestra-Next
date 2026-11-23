@@ -75,6 +75,8 @@ class FakeProvider:
     def __init__(self) -> None:
         self.calls: list[tuple[str, Any]] = []
         self.truncated = False  # assignment lists report a cut-off page
+        self.calendar_truncated = False  # the calendar list is cut off
+        self.calendar_down = False  # the calendar list cannot be read
         self.down = False  # the platform does not answer (assignment lists)
         self.valid_tokens = {"good-token-1", "good-token-2"}
         self.courses = [
@@ -384,10 +386,11 @@ class FakeProvider:
         cfg: BaseModel,
         creds: BaseModel,
         course_ids: Sequence[str],
-        start: datetime,
-        end: datetime,
     ) -> list[LmsCalendarEvent]:
         self.calls.append(("calendar_events", sorted(course_ids)))
+        if self.calendar_down:
+            raise lms_error("lms.unreachable")
+        io.truncated |= self.calendar_truncated
         return [e for e in self.events if e.external_course_id in course_ids]
 
 

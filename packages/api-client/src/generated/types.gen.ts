@@ -12153,6 +12153,18 @@ export type SyncStatus = {
      * Errors
      */
     errors: Array<SyncCourseError>;
+    /**
+     * Calendar Waiting
+     *
+     * Courses whose calendar the sync has not read yet (M09 §4.8)
+     */
+    calendar_waiting: number;
+    /**
+     * Calendar Unreadable
+     *
+     * Courses whose calendar the sync tried and never could read
+     */
+    calendar_unreadable: number;
 };
 
 /**

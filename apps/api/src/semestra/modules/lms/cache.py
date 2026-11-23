@@ -36,10 +36,6 @@ TTL = timedelta(minutes=5)
 LRU_BYTES = 64 * 1024 * 1024
 
 
-# The calendar overlay mixes a connection's courses; a course refresh drops it too.
-CALENDAR_SCOPE = "calendar"
-
-
 def course_scope(external_course_id: str) -> str:
     return f"course:{external_course_id}"
 

@@ -14,7 +14,6 @@ from semestra.modules.lms import imports as lms_imports
 from semestra.modules.lms import service
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.models import LmsConnection, LmsImportedRef
-from semestra.modules.lms.schemas.dto import LmsCalendarEvent
 from semestra.modules.lms.schemas.io import CoursesImportInput
 from semestra.modules.lms.tests.conftest import Api, FakeProvider
 from semestra.testing import collect_events
@@ -401,46 +400,6 @@ async def test_import_assignments_once(api: Api, app: FastAPI, fake: FakeProvide
     assert again["count"] >= 1
 
 
-async def test_calendar_overlay(api: Api, fake: FakeProvider, app: FastAPI):
-    program_id, term_id, _ = await setup_program(api)
-    course_a = await api.course(program_id, term_id)
-    course_b = await api.course(program_id, term_id, code="MAT186H1", title="Calculus")
-    await api.link(course_a, "101")
-    await api.link(course_b, "102")
-    when = datetime(2026, 2, 6, 15, 0, tzinfo=UTC)
-    fake.events = [
-        LmsCalendarEvent(external_id="e1", external_course_id="101",
-                         title="Review session", start_at=when, html="<p>Room <b>5</b></p>"),
-        LmsCalendarEvent(external_id="e2", external_course_id="102",
-                         title="Tutorial", start_at=when),
-    ]  # fmt: skip
-
-    async def overlay() -> list[dict[str, Any]]:
-        out = await api.call(
-            "GET",
-            f"/programs/{program_id}/calendar?start=2026-02-01&end=2026-02-10&sources=lms.events",
-        )
-        return out["items"]
-
-    fake.calls.clear()
-    items = await overlay()
-    assert sorted(i["title"] for i in items) == [
-        "APS105H1 · Review session",
-        "MAT186H1 · Tutorial",
-    ]
-    review = next(i for i in items if i["title"].endswith("Review session"))
-    assert review["meta"]["note"] == "Room 5"
-    assert review["kind"] == "event"
-    # Both courses in one call to the provider.
-    assert [c for c in fake.calls if c[0] == "calendar_events"] == [
-        ("calendar_events", ["101", "102"])
-    ]
-
-    # Sync off: the course leaves the overlay.
-    await api.call("PATCH", f"/courses/{course_b}/lms-link", json={"sync_enabled": False})
-    assert [i["title"] for i in await overlay()] == ["APS105H1 · Review session"]
-
-
 async def test_deleting_a_course_removes_its_link(api: Api, app: FastAPI):
     program_id, term_id, _ = await setup_program(api)
     course = await api.course(program_id, term_id)
@@ -507,7 +466,7 @@ async def test_portability_round_trip(api: Api, app: FastAPI):
     assert "good-token-1" not in str(writer.payload)
     assert await portability.preview(writer.payload) == {
         "connections": 1, "bindings": 1, "links": 1, "refs": 0, "materials": 0,
-        "announcements": 0, "feedback": 0,
+        "announcements": 0, "calendar_events": 0, "feedback": 0,
     }  # fmt: skip
     identity = {program_id: program_id, course: course}
     async with system_ctx(app.state, user_id) as ctx:
@@ -515,7 +474,7 @@ async def test_portability_round_trip(api: Api, app: FastAPI):
         await ctx.db.commit()
     assert report.imported == {
         "connections": 1, "bindings": 1, "links": 1, "refs": 0, "materials": 0,
-        "announcements": 0, "feedback": 0,
+        "announcements": 0, "calendar_events": 0, "feedback": 0,
     }  # fmt: skip
     listed = (await api.call("GET", "/lms/connections"))["items"]
     assert len(listed) == 1
