@@ -290,7 +290,16 @@ Canvas 的映射（`providers/canvas/`）。同一个 HTTP 回应只对应一种
 | 缺交 | 平台标了缺交，且状态是 `graded`（缺交按 0 分计入） | “缺交”（标红） |
 | 迟交 | 平台标了迟交，且状态是 `graded` 或 `submitted` | “迟交” |
 
-- 用在：作业详情（对话框与侧栏）、待办的提交行、Canvas 标签页的作业表与单元条目、Sem 与 MCP 的作业文本。状态与标记只按本表显示，各处不另写规则。
+- 用在：作业详情（对话框与侧栏）、待办的提交行、Canvas 标签页的作业表、Sem 与 MCP 的作业文本（单元条目只显示完成要求与 3d 的截止提示，不显示状态与标记）。状态与标记只按本表显示，各处不另写规则。
+- 标记和状态一样是派生值：`rules.marks(state, missing, late)` 按本表给出列表 `marks`（按表中顺序，取值 `missing`、`late`；状态为空时为空列表），作为计算字段跟着 `state` 返回。平台的 `missing`、`late` 只是 `rules` 的输入，前端不读它们来决定显示什么：
+
+  | 显示的地方 | 读的接口与字段 | 改之前 |
+  |---|---|---|
+  | 作业详情：标题下的状态行（“已评分 · 缺交 · 迟交（扣 N 分）”“已提交 · 迟交”） | `lms.assignment.get` 的 `marks`；扣分 `submission.points_deducted` 只在有 `late` 时显示 | 前端按 `submission.missing`、`late` 自己判断，迟交不看状态 |
+  | 作业详情：“我的提交”里的迟交时长 | 同上；时长 `submission.seconds_late` 只在有 `late` 时显示 | 前端按 `submission.late` |
+  | 待办的提交行 | `lms.assignment.targets` 每项的 `marks` | 前端按 `missing`、`late` 与状态自己判断 |
+  | Canvas 标签页的作业表 | `lms.assignment.list` 每项的 `marks` | 前端按 `submission.missing`、`late` 与状态自己判断 |
+  | Sem 与 MCP 的作业文本（`lms.content.read(assignment:…)`） | 后端同一个组装：写状态（表 3b）与标记 | 写提交状态（`status_of`），列出平台所有的 `late`、`missing` 标志，不按本表 |
 - 只有平台的缺交标志算缺交：过了截止但平台没标的仍可迟交，是 `unsubmitted`，再由 3d 给出 `overdue`。
 - 状态只有一个，用于筛选与计数（一个作业只落在一个筛选里）；缺交与迟交另外作为标记并列显示：缺交按 0 分计入的作业状态是 `graded`，同时显示“缺交”标记，与平台一致。
 - 作业状态在作业对象上（作业列表的每项、作业详情、`lms.assignment.targets`、Sem 与 MCP 的作业文本），作业本身的 DTO 不带它。落地：#417（后端）、PR 1（前端只显示）。
