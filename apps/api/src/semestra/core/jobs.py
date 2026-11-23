@@ -547,19 +547,25 @@ def _in_lanes(lanes: frozenset[Lane]) -> ColumnElement[bool]:
     return true()
 
 
-def _first(lanes: frozenset[Lane], users: Sequence[str]) -> tuple[Subquery | None, tuple[Any, ...]]:
-    """The order due jobs of these lanes are taken in (M00 §3.7): higher priority; then, when
-    several `users` have due jobs, the one whose last turn in these lanes (the latest
+def _first(
+    lanes: frozenset[Lane], due: ColumnElement[bool], several: bool
+) -> tuple[Subquery | None, tuple[Any, ...]]:
+    """The order `due` jobs of these lanes are taken in (M00 §3.7): higher priority; then, when
+    `several` users have due jobs, the one whose last turn in these lanes (the latest
     `claimed_at` of their jobs there) is the oldest, one never served first, so users take
     turns; then the oldest; then the first made. Returns the users' last turns (to outer-join on
     `user_id`; none for a single user) and the order."""
     ranked = {kind: h.priority for kind, h in _handlers.items() if h.priority}
     priority = (case(ranked, value=CoreJob.kind, else_=0).desc(),) if ranked else ()
-    if len(users) < 2:
+    if not several:
         return None, (*priority, CoreJob.run_after, CoreJob.id)
     turns = (
         select(CoreJob.user_id.label("user_id"), func.max(CoreJob.claimed_at).label("at"))
-        .where(CoreJob.user_id.in_(users), CoreJob.claimed_at.is_not(None), _in_lanes(lanes))
+        .where(
+            CoreJob.user_id.in_(select(CoreJob.user_id).where(due).distinct()),
+            CoreJob.claimed_at.is_not(None),
+            _in_lanes(lanes),
+        )
         .group_by(CoreJob.user_id)
         .subquery("turns")
     )
@@ -728,7 +734,7 @@ class JobRunner:
                 users = (
                     await db.scalars(select(CoreJob.user_id).where(due).distinct().limit(2))
                 ).all()
-                turns, order = _first(lanes, users)
+                turns, order = _first(lanes, due, len(users) > 1)
                 pick = select(CoreJob.id).where(due).order_by(*order).limit(1)
                 if turns is not None:
                     pick = pick.outerjoin(turns, turns.c.user_id == CoreJob.user_id)

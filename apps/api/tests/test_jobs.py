@@ -568,6 +568,16 @@ async def test_users_take_turns(app: FastAPI, make_user: MakeUser, clock: Clock)
     assert await claimed_names(app, clock, 4) == ["a1", "b1", "a2", "a3"]
 
 
+async def test_every_user_with_due_jobs_takes_turns(
+    app: FastAPI, make_user: MakeUser, clock: Clock
+):
+    users = [await make_user(email=f"{name}@example.com") for name in "abc"]
+    for user, name in zip(users, "abc", strict=True):
+        for index in range(2):
+            await start(app, user.id, "test.ok", name=f"{name}{index}")
+    assert await claimed_names(app, clock, 6) == ["a0", "b0", "c0", "a1", "b1", "c1"]
+
+
 async def test_turns_count_only_in_the_lanes_claimed_and_never_before_priority(
     app: FastAPI, make_user: MakeUser, clock: Clock
 ):
