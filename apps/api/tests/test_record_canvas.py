@@ -24,6 +24,7 @@ def _canvas(request: httpx.Request) -> httpx.Response:
                     "id": 5,
                     "user_id": 4242,
                     "assignment_id": 7,
+                    "sis_user_id": "smithj",
                     "cached_due_date": "2026-02-08T04:59:59Z",
                     "workflow_state": "graded",
                     "score": 87.5,
@@ -42,6 +43,18 @@ def _canvas(request: httpx.Request) -> httpx.Response:
             json=[{"url": "week-1", "last_edited_by": {"id": 31337, "display_name": "Prof X"},
                    "editor": {"id": 31338, "avatar_image_url": "https://a.example/p.png"}}],
         )  # fmt: skip
+    if path.endswith("/tabs"):
+        return httpx.Response(
+            200,
+            json=[{"id": t, "label": "Ada's tab", "type": "internal"}
+                  for t in ("home", "modules", "assignments", "grades", "context_external_tool_9")],
+        )  # fmt: skip
+    if path.endswith("/modules"):
+        return httpx.Response(
+            200,
+            json=[{"id": 3, "items": [{"id": 4, "type": "File", "content_id": 678,
+                                      "title": "Notes by Ada"}]}],
+        )  # fmt: skip
     if path == "/api/v1/calendar_events":
         assert request.url.params.get_list("context_codes[]") == ["course_12"]
         assert "/" not in request.url.params.get_list("context_codes[]")[0]
@@ -56,6 +69,7 @@ def _canvas(request: httpx.Request) -> httpx.Response:
             json={
                 "id": 678,
                 "size": 734521,
+                "content-type": "application/pdf",
                 "url": "https://school.instructure.com/files/678/download?verifier=v",
             },
         )
@@ -95,7 +109,7 @@ def test_recording_reads_only_and_hides_people_school_and_token(tmp_path: Path):
     for secret in (
         TOKEN, "Ada Lovelace", "Grace Hopper", "4242", "31337", "31338", "Prof X", "87.5",
         "school.instructure.com", "verifier", "token-in-path", "notes0.pdf", "week-1", "678",
-        "734521",
+        "734521", "smithj",
     ):  # fmt: skip
         assert secret not in saved
 
@@ -115,6 +129,15 @@ def test_recording_reads_only_and_hides_people_school_and_token(tmp_path: Path):
     assert mine["cached_due_date"] == "2026-02-08T04:59:59Z"
     locked = case("assignment-locked")
     assert locked["body"] == {"id": mine["assignment_id"], "locked_for_user": True}
+    # The menu is whole, with its tabs' ids: which areas are open.
+    tabs = case("area-navigation")["body"]
+    assert [t["id"] for t in tabs] == ["home", "modules", "assignments", "grades", "[text]"]
+    assert tabs[0]["label"] == "[text]"
+    # A module item keeps its kind, and points at the file by the same number.
+    [item] = case("area-modules")["body"][0]["items"]
+    file = case("file-in-hidden-area")["body"]
+    assert (item["type"], item["content_id"], item["title"]) == ("File", file["id"], "[text]")
+    assert (file["content-type"], file["size"]) == ("application/pdf", 1)
     # The request names the course and the item, not their ids or a page's title.
     assert locked["request"]["path"] == "/api/v1/courses/{course}/assignments/{item}"
     assert case("page-in-hidden-area")["request"]["path"] == "/api/v1/courses/{course}/pages/{item}"

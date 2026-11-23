@@ -8,7 +8,8 @@ Only GET requests. The token is read from the `CANVAS_TOKEN` environment variabl
 command line, and is not written anywhere. Each response is saved as one JSON file: the status, the
 headers table 2 depends on, and the body cut to its first items. What is kept from a body: its
 shape, numbers and flags (ids of items, `locked_for_user`, `hidden_for_user`, `published`, …), and,
-in the keys of `KEEP_STRINGS`, the platform's kinds, states and dates. Every other string
+in the keys of `KEEP_STRINGS`, the platform's kinds, states, dates and file types; the course menu
+is kept whole with its tabs' ids (which areas are open). Every other string
 (names, titles, HTML, comments, slugs, addresses) becomes "[text]", ids of people, my scores and
 grades and file sizes become 1 (only whether they are there is kept), every other id is renumbered
 (the same id gets the same number in every file of one recording, so references between them still
@@ -61,6 +62,8 @@ KEEP_STRINGS = frozenset(
         "visibility",
         "context_type",
         "mime_class",
+        "quiz_type",
+        "discussion_type",
         "content-type",
         "submission_type",
         "lock_at",
@@ -80,7 +83,9 @@ KEEP_STRINGS = frozenset(
 )
 # Besides those, any key that names a time keeps a date (`cached_due_date`, …).
 DATE_KEY = re.compile(r"(_at|_date)$")
-ENUM = re.compile(r"^[a-z][a-z_]{0,39}$")
+# The platform's words: `online_upload`, `File`, `ExternalUrl`, a menu tab's id (`files`)...
+ENUM = re.compile(r"^[A-Za-z][A-Za-z_]{0,39}$")
+MIME = re.compile(r"^[a-z]+/[a-z0-9.+-]{1,60}$")
 STAMP = re.compile(r"^\d{4}-\d\d-\d\dT[\d:.]+(Z|[+-]\d\d:\d\d)?$")
 # My result on an assignment: only whether it is there is kept.
 GRADES = frozenset(("score", "entered_score", "grade", "entered_grade", "points_deducted"))
@@ -156,11 +161,14 @@ class Redactor:
         """The id's number in this recording: the same id is the same number in every file."""
         return self.ids.setdefault(str(raw), 1001 + len(self.ids))
 
-    def _id(self, value: Any) -> Any:
+    def _id(self, value: Any, key: str) -> Any:
         if isinstance(value, bool) or not isinstance(value, int | str):
             return value
         if isinstance(value, str) and not value.isdigit():
-            return "[text]" if value else value
+            # A menu tab's own id is the platform's word (`files`); any other id that is not a
+            # number can be someone's (`sis_user_id`: a login name).
+            word = key == "id" and ENUM.match(value) and value.islower()
+            return value if not value or word else "[text]"
         n = self.renumber(value)
         return n if isinstance(value, int) else str(n)
 
@@ -172,12 +180,17 @@ class Redactor:
             return "canvas.example/[path]" if host in ("", self.host) else "other-host/[path]"
         return value.replace(self.token, "[token]") if self.token else value
 
-    def body(self, value: Any, key: str = "", *, person: bool = False) -> Any:
+    def body(
+        self, value: Any, key: str = "", *, person: bool = False, items: int | None = LIST_ITEMS
+    ) -> Any:
         if isinstance(value, dict):
             person = person or bool(PERSON_KEYS & value.keys())
-            return {k: self.body(v, k, person=person or k in PEOPLE) for k, v in value.items()}
+            return {
+                k: self.body(v, k, person=person or k in PEOPLE, items=items)
+                for k, v in value.items()
+            }
         if isinstance(value, list):
-            return [self.body(v, key, person=person) for v in value[:LIST_ITEMS]]
+            return [self.body(v, key, person=person, items=items) for v in value[:items]]
         if value is None or isinstance(value, bool):
             return value
         if key in GRADES or (key in SIZES and isinstance(value, int)):
@@ -185,12 +198,12 @@ class Redactor:
         if key in PEOPLE_IDS or (person and key == "id"):
             return 1
         if key == "id" or key.endswith(("_id", "_ids")):
-            return self._id(value)
+            return self._id(value, key)
         if isinstance(value, str):
             if value == "":
                 return ""
             kept = key in KEEP_STRINGS or DATE_KEY.search(key)
-            if kept and (ENUM.match(value) or STAMP.match(value)):
+            if kept and (ENUM.match(value) or STAMP.match(value) or MIME.match(value)):
                 return value
             return "[text]"
         return value
@@ -203,6 +216,7 @@ class Case:
     shown: str  # what the file says was requested: `{course}` and `{item}` for the real ids
     params: dict[str, Any]
     headers: dict[str, str] | None = None
+    whole: bool = False  # every item of the list kept (the course menu: which areas are open)
 
 
 def _record(client: httpx.Client, redact: Redactor, case: Case) -> tuple[dict[str, Any], Any]:
@@ -228,7 +242,7 @@ def _record(client: httpx.Client, redact: Redactor, case: Case) -> tuple[dict[st
         },
         "link_next": 'rel="next"' in response.headers.get("link", ""),
         "items_in_page": total,
-        "body": redact.body(body),
+        "body": redact.body(body, items=None if case.whole else LIST_ITEMS),
     }
     return saved, body
 
@@ -236,7 +250,7 @@ def _record(client: httpx.Client, redact: Redactor, case: Case) -> tuple[dict[st
 def cases(course: str, items: Iterable[Item]) -> list[Case]:
     root, shown = f"/api/v1/courses/{course}", "/api/v1/courses/{course}"
     out = [
-        Case(f"area-{name}", root + path, shown + path, params)
+        Case(f"area-{name}", root + path, shown + path, params, whole=name == "navigation")
         for name, (path, params) in AREAS.items()
     ]
     out += [
