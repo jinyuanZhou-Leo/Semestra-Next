@@ -5,6 +5,7 @@
     uv run python -m devtools fake faults|requests|changes|state ...   drive a running fake
     uv run python -m devtools seed --origin URL --outbox FILE [--canvas URL] [--ai URL]
     uv run python -m devtools demo [--scenario large] [--no-canvas] [--no-ai] [--no-web]
+    CANVAS_TOKEN=... uv run python -m devtools record-canvas --base-url URL --course ID [--item ...]
 
 `pnpm dev:demo` at the repository root runs `demo`.
 """
@@ -84,6 +85,21 @@ def main() -> None:
     demo.add_argument("--no-canvas", action="store_true")
     demo.add_argument("--no-ai", action="store_true")
     demo.add_argument("--no-web", action="store_true")
+    rec = sub.add_parser(
+        "record-canvas",
+        help="record a real Canvas's answers, read-only (token in CANVAS_TOKEN)",
+        description="examples:\n  --item file:678:unpublished --item page:week-1:locked",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    rec.add_argument("--base-url", required=True, help="the school's Canvas address")
+    rec.add_argument("--course", required=True, help="the Canvas course id")
+    rec.add_argument("--item", action="append", default=[], help="KIND:ID:LABEL, repeatable")
+    rec.add_argument(
+        "--out",
+        type=Path,
+        default=Path("src/semestra/modules/lms/tests/fixtures/canvas"),
+        help="where to save the responses",
+    )
     args = parser.parse_args()
 
     match args.command:
@@ -108,6 +124,10 @@ def main() -> None:
 
             account = Account(email=args.email, password=args.password, name=args.name)
             print(json.dumps(run_seed(args.origin, args.outbox, account, args.canvas, args.ai)))
+        case "record-canvas":
+            from devtools.record_canvas import main as record
+
+            record(args.base_url, args.course, args.item, args.out)
         case "demo":
             from devtools.demo import run
 
