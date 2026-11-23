@@ -7,11 +7,12 @@
 Only GET requests. The token is read from the `CANVAS_TOKEN` environment variable, never from the
 command line, and is not written anywhere. Each response is saved as one JSON file: the status, the
 headers table 2 depends on, and the body cut to its first items. What is kept from a body: its
-shape, numbers and flags (ids of items, `locked_for_user`, `hidden_for_user`, `published`, …), and,
-in the keys of `KEEP_STRINGS`, the platform's kinds, states, dates and file types; the course menu
-is kept whole with its tabs' ids (which areas are open). Every other string
-(names, titles, HTML, comments, slugs, addresses) becomes "[text]", ids of people, my scores and
-grades and file sizes become 1 (only whether they are there is kept), every other id is renumbered
+shape and flags (ids of items, `locked_for_user`, `hidden_for_user`, `published`, …), and, in the
+keys of `KEEP_STRINGS`, the platform's kinds, states and file types; the course menu is kept whole
+with its tabs' ids (which areas are open). Every other string (names, titles, HTML, comments, slugs,
+addresses) becomes "[text]", every time becomes the same `TIME` (only whether there is one is
+kept), ids of people and every number other than 0, -1 and an item's position (scores, grades,
+sizes, attempts, counts, quotas) become 1, every other id is renumbered
 (the same id gets the same number in every file of one recording, so references between them still
 match), the recorded request names the course and item as `{course}` and `{item}`, and a redirect
 keeps only whether it goes to the school's Canvas or to another host. Look the files over before
@@ -87,6 +88,10 @@ DATE_KEY = re.compile(r"(_at|_date)$")
 ENUM = re.compile(r"^[A-Za-z][A-Za-z_]{0,39}$")
 MIME = re.compile(r"^[a-z]+/[a-z0-9.+-]{1,60}$")
 STAMP = re.compile(r"^\d{4}-\d\d-\d\dT[\d:.]+(Z|[+-]\d\d:\d\d)?$")
+# Every time becomes this one.
+TIME = "2000-01-01T00:00:00Z"
+# Numbers kept as they are: an item's place in its list.
+KEEP_NUMBERS = frozenset(("position", "indent"))
 # My result on an assignment: only whether it is there is kept.
 GRADES = frozenset(("score", "entered_score", "grade", "entered_grade", "points_deducted"))
 # A file's exact size would match one file: only whether it is there is kept.
@@ -149,7 +154,7 @@ class Item:
 
 
 class Redactor:
-    """Keeps the shape of a response and the platform's kinds, states, dates and flags; replaces
+    """Keeps the shape of a response and the platform's kinds, states and flags; replaces
     everything written by people or pointing at them, the school's address and the token."""
 
     def __init__(self, base_url: str, token: str) -> None:
@@ -195,6 +200,10 @@ class Redactor:
             return value
         if key in GRADES or (key in SIZES and isinstance(value, int)):
             return 1
+        if isinstance(value, int | float) and not key.endswith(("_id", "_ids")) and key != "id":
+            # A count, score or limit can single out a course or a student (my attempts, the
+            # school's quota): only none (0), unlimited (-1) and an order are kept.
+            return value if value in (0, -1) or key in KEEP_NUMBERS else 1
         if key in PEOPLE_IDS or (person and key == "id"):
             return 1
         if key == "id" or key.endswith(("_id", "_ids")):
@@ -203,7 +212,11 @@ class Redactor:
             if value == "":
                 return ""
             kept = key in KEEP_STRINGS or DATE_KEY.search(key)
-            if kept and (ENUM.match(value) or STAMP.match(value) or MIME.match(value)):
+            if kept and STAMP.match(value):
+                # When something was posted, submitted or due would date the course and my
+                # work: only that there is a time is kept.
+                return TIME
+            if kept and (ENUM.match(value) or MIME.match(value)):
                 return value
             return "[text]"
         return value

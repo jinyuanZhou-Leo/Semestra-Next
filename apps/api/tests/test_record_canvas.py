@@ -6,7 +6,7 @@ from pathlib import Path
 
 import httpx
 
-from devtools.record_canvas import Item, record
+from devtools.record_canvas import TIME, Item, record
 
 TOKEN = "7~secret-token-value"
 
@@ -28,6 +28,8 @@ def _canvas(request: httpx.Request) -> httpx.Response:
                     "cached_due_date": "2026-02-08T04:59:59Z",
                     "workflow_state": "graded",
                     "score": 87.5,
+                    "attempt": 3,
+                    "seconds_late": 0,
                     "body": "<p>My essay, Grace Hopper</p>",
                     "preview_url": "https://school.instructure.com/courses/12/assignments/7/submissions/4242?preview=1",
                     "submission_comments": [
@@ -117,16 +119,17 @@ def test_recording_reads_only_and_hides_people_school_and_token(tmp_path: Path):
         return json.loads((tmp_path / f"{name}.json").read_text())
 
     files = case("area-files")
-    # The shape, flags and dates stay; what people wrote does not. A list keeps its first items.
+    # The shape and flags stay; what people wrote and when do not. A list keeps its first items.
     # Ids are renumbered, the same id the same number in every file.
     assert files["body"][0] == {
         "id": 1001, "display_name": "[text]", "hidden_for_user": False,
-        "updated_at": "2026-02-01T10:00:00Z", "url": "[text]",
+        "updated_at": "2000-01-01T00:00:00Z", "url": "[text]",
     }  # fmt: skip
     assert (len(files["body"]), files["items_in_page"], files["link_next"]) == (3, 5, True)
     mine = case("area-submissions")["body"][0]
     assert (mine["workflow_state"], mine["score"], mine["user_id"]) == ("graded", 1, 1)
-    assert mine["cached_due_date"] == "2026-02-08T04:59:59Z"
+    # A time is only there; a number other than none is only there.
+    assert (mine["cached_due_date"], mine["attempt"], mine["seconds_late"]) == (TIME, 1, 0)
     locked = case("assignment-locked")
     assert locked["body"] == {"id": mine["assignment_id"], "locked_for_user": True}
     # The menu is whole, with its tabs' ids: which areas are open.

@@ -28,8 +28,8 @@
       "publish_final_grade": false,
       "prerequisite_module_ids": [],
       "state": "completed",
-      "completed_at": "2026-08-28T16:07:07Z",
-      "items_count": 6,
+      "completed_at": "2000-01-01T00:00:00Z",
+      "items_count": 1,
       "items_url": "[text]",
       "items": [
         {
@@ -82,8 +82,8 @@
       "publish_final_grade": false,
       "prerequisite_module_ids": [],
       "state": "completed",
-      "completed_at": "2026-08-28T16:07:07Z",
-      "items_count": 13,
+      "completed_at": "2000-01-01T00:00:00Z",
+      "items_count": 1,
       "items_url": "[text]",
       "items": [
         {
@@ -137,8 +137,8 @@
       "publish_final_grade": false,
       "prerequisite_module_ids": [],
       "state": "completed",
-      "completed_at": "2026-08-28T16:07:07Z",
-      "items_count": 5,
+      "completed_at": "2000-01-01T00:00:00Z",
+      "items_count": 1,
       "items_url": "[text]",
       "items": [
         {

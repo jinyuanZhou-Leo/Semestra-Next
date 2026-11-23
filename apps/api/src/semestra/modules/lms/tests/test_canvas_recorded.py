@@ -114,10 +114,10 @@ async def test_a_closed_area_and_what_is_read_in_it(
     # The modules that link them read as they are.
     assert await p.modules(io, cfg, creds, COURSE)
 
-    # Row 4: an id the course does not have is 404 for every kind: gone.
+    # Row 4: an id the course does not have is 404: gone. (Pages are left out: with the area closed
+    # in both courses, a missing page's 404 is also the closed area's.)
     for read in (
         p.file(io, cfg, creds, COURSE, "999999999"),
-        p.page(io, cfg, creds, COURSE, "999999999"),
         p.assignment(io, cfg, creds, COURSE, "999999999"),
         p.discussion(io, cfg, creds, COURSE, "999999999"),
         p.folder(io, cfg, creds, COURSE, "999999999"),

@@ -3,8 +3,9 @@
 
 Any non-empty access token is accepted. Lists are paginated with `Link: rel="next"` like Canvas
 (`per_page`, at most 100; the `large` scenario serves 25 a page). Areas a teacher turned off answer
-like a real Canvas did for a student (recorded, `lms/tests/fixtures/canvas/`): the lists of pages
-and quizzes with 404, of files with 403; folders and single pages and files are still read.
+like a real Canvas did for a student (recorded in `lms/tests/fixtures/canvas/`, and held to those
+recordings by `tests/test_fake_canvas.py`): the lists of pages and quizzes answer 404, the files of
+the course or of a folder 403; folders, single pages and files, and assignments are still read.
 
 File downloads redirect to this same server. Real Canvas redirects to its file store on another
 domain, where the provider drops the Authorization header and checks `FILE_CDN_SUFFIXES`; that
@@ -176,7 +177,7 @@ class FakeCanvas:
         return sorted(rows, key=lambda a: a["posted_at"], reverse=True)
 
     def assignment_groups(self, request: Request) -> list[Json]:
-        course = self.course(request, "assignments")
+        course = self.course(request)  # listed also while the assignments area is hidden
         include = request.query_params.getlist("include[]")
         out = []
         for g in course.groups:
@@ -302,7 +303,7 @@ class FakeCanvas:
         return self.course(request).folders  # listed also while the files area is hidden
 
     def folder(self, request: Request) -> Json:
-        course = self.course(request, "files")
+        course = self.course(request)  # read also while the files area is hidden, like the list
         ref = request.path_params["fid"]
         for f in course.folders:
             if (ref == "root" and f["parent_folder_id"] is None) or str(f["id"]) == ref:
@@ -310,7 +311,7 @@ class FakeCanvas:
         raise CanvasError(404, "The specified resource does not exist.")
 
     def folder_by_path(self, request: Request) -> list[Json]:
-        course = self.course(request, "files")
+        course = self.course(request)
         parts = [unquote(p) for p in request.path_params.get("path", "").split("/") if p]
         trail = [next(f for f in course.folders if f["parent_folder_id"] is None)]
         for name in parts:
@@ -327,12 +328,12 @@ class FakeCanvas:
             trail.append(child)
         return trail
 
-    def _folder_anywhere(self, request: Request) -> tuple[Course, Json]:
+    def _folder_anywhere(self, request: Request, area: str | None = None) -> tuple[Course, Json]:
         for c in self.world.courses.values():
             for f in c.folders:
                 if str(f["id"]) == request.path_params["fid"]:
-                    if "files" in c.hidden:
-                        raise CanvasError(401, "user not authorized to perform that action")
+                    if area in c.hidden:
+                        raise CanvasError(403, "user not authorized to perform that action")
                     return c, f
         raise CanvasError(404, "The specified resource does not exist.")
 
@@ -344,7 +345,8 @@ class FakeCanvas:
         )
 
     def folder_files(self, request: Request) -> list[Json]:
-        course, folder = self._folder_anywhere(request)
+        # A folder's files are the course's file list, refused like it while the area is hidden.
+        course, folder = self._folder_anywhere(request, "files")
         return sorted(
             (f for f in course.files if f["folder_id"] == folder["id"]),
             key=lambda f: f["display_name"].lower(),
@@ -359,7 +361,7 @@ class FakeCanvas:
         return sub
 
     def assignment(self, request: Request) -> Json:
-        course = self.course(request, "assignments")
+        course = self.course(request)
         aid = int(request.path_params["aid"])
         for a in course.assignments:
             if a["id"] == aid:
@@ -371,14 +373,14 @@ class FakeCanvas:
         raise CanvasError(404, "The specified resource does not exist.")
 
     def my_submission(self, request: Request) -> Json:
-        course = self.course(request, "assignments")
+        course = self.course(request)
         aid = int(request.path_params["aid"])
         if aid not in course.submissions:
             raise CanvasError(404, "The specified resource does not exist.")
         return self._submission(course, aid, request.query_params.getlist("include[]"))
 
     def my_submissions(self, request: Request) -> list[Json]:
-        course = self.course(request, "assignments")
+        course = self.course(request)
         include = request.query_params.getlist("include[]")
         return [self._submission(course, a["id"], include) for a in course.assignments]
 
