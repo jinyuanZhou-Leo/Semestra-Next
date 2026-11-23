@@ -1,5 +1,79 @@
 # @semestra/api
 
+## 2.7.0
+
+### Minor Changes
+
+- 59b6170: <!-- area: api -->
+  <!-- en -->
+  The HTTP-only grade list endpoint of the LMS integration is removed, and dismissing new assignments in the sync now takes assignment ids.
+  <!-- zh -->
+  移除 LMS 集成仅限 HTTP 的成绩列表接口，同步中忽略新作业改为传入作业 ID。
+- 59b6170: <!-- area: canvas -->
+  <!-- improved -->
+  <!-- en -->
+  Canvas assignments are saved in Semestra with each sync, so assignment details open instantly and stay available when Canvas can't be reached.
+  <!-- zh -->
+  Canvas 作业随同步保存在 Semestra 中，作业详情即开即看，Canvas 无法连接时也可查阅。
+- 69b94e1: <!-- area: canvas -->
+  <!-- en -->
+  Canvas calendar events are saved with each sync, show up even when Canvas can't be reached, and now include events for your section.
+  <!-- zh -->
+  Canvas 日历事件随同步保存，Canvas 连不上时也能显示，并包含只给你所在 Section 的事件。
+- 4422eac: <!-- area: canvas -->
+  <!-- en -->
+  When a teacher turns off an area on Canvas, its materials are no longer treated as deleted. They are listed under “Not syncing for now” in the sync status, where materials read from Canvas can be removed one by one or all at once.
+  <!-- zh -->
+  老师在 Canvas 上关闭某个栏目后，其中的资料不再被当作已删除，而是列在同步状态的“暂时无法同步”里，从 Canvas 读取的资料可以逐项或一次性移除。
+
+### Patch Changes
+
+- 8df8d28: <!-- area: self-hosting -->
+  <!-- en -->
+  On servers shared by several people, background work now takes turns between users, so one person's large sync no longer delays everyone else.
+  <!-- zh -->
+  多人共用的服务器上，后台任务在用户之间轮流处理，一个人的大量同步不再拖慢其他人。
+- 2545142: <!-- area: canvas -->
+  <!-- en -->
+  Assignment status and due dates read the same in assignment details, to-dos and the Canvas tab; paper assignments stay under To do until they are due.
+  <!-- zh -->
+  作业状态与截止提示在作业详情、待办和 Canvas 标签中保持一致；纸质作业在截止前留在「待完成」中。
+- 6656162: <!-- area: canvas -->
+  <!-- en -->
+  Files that only appear in modules while the Files tab is closed no longer flicker in and out of “Not syncing for now”.
+  <!-- zh -->
+  “文件”栏目关闭时，只出现在单元里的文件不再在“暂时无法同步”中反复出现又消失。
+- aa10a0a: <!-- area: canvas -->
+  <!-- en -->
+  Faster course material sync: large courses come in with the first sync, saved files are downloaded only once, and the Canvas tab opens saved files from Semestra.
+  <!-- zh -->
+  课程资料同步更快：资料多的课程在第一次同步时一次带进，保存在 Semestra 的文件只下载一次，Canvas 标签页直接从 Semestra 打开已保存的文件。
+- 5487327: <!-- area: files -->
+  <!-- en -->
+  Files kept after a course material leaves Canvas or the course is unlinked are now fully your own, and files saved by Sem count as your own when checking for duplicates and organizing.
+  <!-- zh -->
+  课程资料从 Canvas 删除或取消关联后留下的文件完全成为你自己的文件；Sem 存下的文件在查重和整理时也按你自己的文件处理。
+- aa10a0a: <!-- area: canvas -->
+  <!-- en -->
+  Course materials deleted on Canvas are now removed even when the course hides its Files or Pages page.
+  <!-- zh -->
+  即使课程隐藏了文件页或页面列表，在 Canvas 上删除的课程资料也会同步移除。
+- 03fbcd5: <!-- area: canvas -->
+  <!-- en -->
+  Sem, MCP and the app now agree on where each assignment stands: missing only when Canvas marks it missing, work handed in on paper is not counted as unsubmitted, and missing work that was later graded counts as graded.
+  <!-- zh -->
+  Sem、MCP 与应用对作业状态的判断保持一致：只有 Canvas 标记缺交的才算缺交，纸质提交的作业不再显示为未提交，缺交后补评的作业算作已评分。
+- 9a7015d: <!-- area: canvas -->
+  <!-- en -->
+  Assignments now show every missing or late mark Canvas gives them, including work not yet submitted or handed in on paper, the same in assignment details, tasks, the Canvas tab and Sem.
+  <!-- zh -->
+  作业会显示 Canvas 标出的所有缺交与迟交标记，包括尚未提交和纸质提交的作业，作业详情、待办、Canvas 标签页和 Sem 中显示一致。
+- 5e23ced: <!-- area: canvas -->
+  <!-- en -->
+  When a course hides both its files and its pages, the sync now checks the pages too instead of spending every round on the files.
+  <!-- zh -->
+  课程同时隐藏了文件和页面时，同步也会轮流检查页面，不再每轮只查文件。
+
 ## 2.6.0
 
 ### Minor Changes

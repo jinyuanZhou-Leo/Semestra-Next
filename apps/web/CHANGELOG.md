@@ -1,5 +1,66 @@
 # @semestra/web
 
+## 2.7.0
+
+### Minor Changes
+
+- 59b6170: <!-- area: canvas -->
+  <!-- improved -->
+  <!-- en -->
+  Canvas assignments are saved in Semestra with each sync, so assignment details open instantly and stay available when Canvas can't be reached.
+  <!-- zh -->
+  Canvas 作业随同步保存在 Semestra 中，作业详情即开即看，Canvas 无法连接时也可查阅。
+- 69b94e1: <!-- area: canvas -->
+  <!-- en -->
+  Canvas calendar events are saved with each sync, show up even when Canvas can't be reached, and now include events for your section.
+  <!-- zh -->
+  Canvas 日历事件随同步保存，Canvas 连不上时也能显示，并包含只给你所在 Section 的事件。
+- 008e862: <!-- area: grades -->
+  <!-- improved -->
+  <!-- en -->
+  Import the grading scheme and dates from a course's syllabus on your LMS right from the gradebook.
+  <!-- zh -->
+  可以在成绩册里直接从 LMS 上的课程大纲导入评分方案和日期。
+- 4422eac: <!-- area: canvas -->
+  <!-- en -->
+  When a teacher turns off an area on Canvas, its materials are no longer treated as deleted. They are listed under “Not syncing for now” in the sync status, where materials read from Canvas can be removed one by one or all at once.
+  <!-- zh -->
+  老师在 Canvas 上关闭某个栏目后，其中的资料不再被当作已删除，而是列在同步状态的“暂时无法同步”里，从 Canvas 读取的资料可以逐项或一次性移除。
+
+### Patch Changes
+
+- 008e862: <!-- area: canvas -->
+  <!-- en -->
+  Announcements in the Canvas tab show their attachments.
+  <!-- zh -->
+  Canvas 标签中的公告会显示附件。
+- 2545142: <!-- area: canvas -->
+  <!-- en -->
+  Assignment status and due dates read the same in assignment details, to-dos and the Canvas tab; paper assignments stay under To do until they are due.
+  <!-- zh -->
+  作业状态与截止提示在作业详情、待办和 Canvas 标签中保持一致；纸质作业在截止前留在「待完成」中。
+- 008e862: <!-- area: canvas -->
+  <!-- en -->
+  The Canvas tab opens faster.
+  <!-- zh -->
+  Canvas 标签打开更快。
+- 5487327: <!-- area: files -->
+  <!-- en -->
+  Files kept after a course material leaves Canvas or the course is unlinked are now fully your own, and files saved by Sem count as your own when checking for duplicates and organizing.
+  <!-- zh -->
+  课程资料从 Canvas 删除或取消关联后留下的文件完全成为你自己的文件；Sem 存下的文件在查重和整理时也按你自己的文件处理。
+- 03fbcd5: <!-- area: canvas -->
+  <!-- en -->
+  Sem, MCP and the app now agree on where each assignment stands: missing only when Canvas marks it missing, work handed in on paper is not counted as unsubmitted, and missing work that was later graded counts as graded.
+  <!-- zh -->
+  Sem、MCP 与应用对作业状态的判断保持一致：只有 Canvas 标记缺交的才算缺交，纸质提交的作业不再显示为未提交，缺交后补评的作业算作已评分。
+- 9a7015d: <!-- area: canvas -->
+  <!-- en -->
+  Assignments now show every missing or late mark Canvas gives them, including work not yet submitted or handed in on paper, the same in assignment details, tasks, the Canvas tab and Sem.
+  <!-- zh -->
+  作业会显示 Canvas 标出的所有缺交与迟交标记，包括尚未提交和纸质提交的作业，作业详情、待办、Canvas 标签页和 Sem 中显示一致。
+- @semestra/api-client@2.7.0
+
 ## 2.6.0
 
 ### Minor Changes

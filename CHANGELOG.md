@@ -3,6 +3,33 @@
 Generated from `release-notes/*.json` by `scripts/release.mjs`; do not edit by hand.
 The same notes in Chinese are in the JSON files and on the docs site.
 
+## 2.7.0 (2026-11-23)
+
+### New
+
+- **Canvas:** Canvas calendar events are saved with each sync, show up even when Canvas can't be reached, and now include events for your section.
+- **Canvas:** When a teacher turns off an area on Canvas, its materials are no longer treated as deleted. They are listed under “Not syncing for now” in the sync status, where materials read from Canvas can be removed one by one or all at once.
+- **API & MCP:** The HTTP-only grade list endpoint of the LMS integration is removed, and dismissing new assignments in the sync now takes assignment ids.
+
+### Improved
+
+- **Grades:** Import the grading scheme and dates from a course's syllabus on your LMS right from the gradebook.
+- **Canvas:** Canvas assignments are saved in Semestra with each sync, so assignment details open instantly and stay available when Canvas can't be reached.
+
+### Fixed
+
+- **Files:** Files kept after a course material leaves Canvas or the course is unlinked are now fully your own, and files saved by Sem count as your own when checking for duplicates and organizing.
+- **Canvas:** Announcements in the Canvas tab show their attachments.
+- **Canvas:** Assignment status and due dates read the same in assignment details, to-dos and the Canvas tab; paper assignments stay under To do until they are due.
+- **Canvas:** Files that only appear in modules while the Files tab is closed no longer flicker in and out of “Not syncing for now”.
+- **Canvas:** The Canvas tab opens faster.
+- **Canvas:** Faster course material sync: large courses come in with the first sync, saved files are downloaded only once, and the Canvas tab opens saved files from Semestra.
+- **Canvas:** Course materials deleted on Canvas are now removed even when the course hides its Files or Pages page.
+- **Canvas:** Sem, MCP and the app now agree on where each assignment stands: missing only when Canvas marks it missing, work handed in on paper is not counted as unsubmitted, and missing work that was later graded counts as graded.
+- **Canvas:** Assignments now show every missing or late mark Canvas gives them, including work not yet submitted or handed in on paper, the same in assignment details, tasks, the Canvas tab and Sem.
+- **Canvas:** When a course hides both its files and its pages, the sync now checks the pages too instead of spending every round on the files.
+- **Self-hosting:** On servers shared by several people, background work now takes turns between users, so one person's large sync no longer delays everyone else.
+
 ## 2.6.0 (2026-11-20)
 
 ### New
