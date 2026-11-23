@@ -196,7 +196,6 @@ async def detail(ctx: Ctx, f: Facts, link: LmsCourseLink | None) -> AssignmentDe
     assessment, task = await _places(ctx, link, f)
     st = state(f)
     mirror = f.source.kind == "mirror" and f.held_for is None
-    area = ((link.area_reads if link else {}).get(facts.AREA) or {}).get("result")
     return AssignmentDetail.model_validate(
         {
             "provider": f.provider,
@@ -207,7 +206,7 @@ async def detail(ctx: Ctx, f: Facts, link: LmsCourseLink | None) -> AssignmentDe
             "as_of": f.source.as_of,
             "held": f.held_for is not None,
             "sync_failed": bool(mirror and link and "assignments" in link.sync_errors),
-            "area_hidden": mirror and area == "hidden",
+            "area_hidden": bool(mirror and link and rules.area_closed(link.area_reads, facts.AREA)),
             "assessment": assessment,
             "task": task,
             "targets": (

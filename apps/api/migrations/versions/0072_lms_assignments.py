@@ -17,6 +17,7 @@ Create Date: 2026-11-23 06:00:00.000000
 """
 
 from collections.abc import Sequence
+from datetime import datetime
 from typing import Any
 
 import sqlalchemy as sa
@@ -83,6 +84,15 @@ mirror = sa.table(
 
 # What a kept row's columns were of the submission (the rest was in `work`).
 SUBMISSION_COLUMNS = ("score", "grade", "attempt", "graded_at", "comments", "rubric_scores")
+
+
+def assignments_closed(entry: dict[str, Any]) -> bool:
+    """Whether the assignments area is closed to the user (`rules.area_closed`, as of 0071)."""
+    read_at, hidden_at = entry.get("read_at"), entry.get("hidden_at")
+    return entry.get("result") == "hidden" or (
+        bool(hidden_at)
+        and (not read_at or datetime.fromisoformat(hidden_at) > datetime.fromisoformat(read_at))
+    )
 
 
 def _iso(value: Any) -> Any:
@@ -198,11 +208,20 @@ def upgrade() -> None:
         op.bulk_insert(mirror, rows)
     op.execute(refs.delete().where(refs.c.target_id.is_(None), refs.c.dismissed_at.is_(None)))
     # The mirror holds only what was imported until a sync reads the whole list: till then the
-    # course's assignments are read from the platform (§3.1, no `read_at` of the area).
-    op.execute(
-        "UPDATE lms_course_links SET area_reads = json_remove(area_reads, '$.assignments') "
-        "WHERE json_extract(area_reads, '$.assignments') IS NOT NULL"
+    # course's assignments are read from the platform (§3.1, no read of the area). A course whose
+    # area is closed keeps its read: the platform would refuse them, so the saved ones open from
+    # the mirror and stay under "Not syncing for now" (`rules.area_closed`).
+    links = sa.table(
+        "lms_course_links", sa.column("id", sa.String()), sa.column("area_reads", sa.JSON())
     )
+    for link_id, area_reads in bind.execute(sa.select(links.c.id, links.c.area_reads)).all():
+        entry = (area_reads or {}).get("assignments")
+        if entry is not None and not assignments_closed(entry):
+            op.execute(
+                links.update()
+                .where(links.c.id == link_id)
+                .values(area_reads={k: v for k, v in area_reads.items() if k != "assignments"})
+            )
 
     with op.batch_alter_table("lms_kept_assignments", schema=None) as batch_op:
         batch_op.drop_index("ix_lms_kept_assignments_user_id")

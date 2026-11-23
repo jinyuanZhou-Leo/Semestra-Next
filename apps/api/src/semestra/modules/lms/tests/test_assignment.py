@@ -273,11 +273,32 @@ async def test_a_to_do_deleted_a_moment_ago_does_not_fail_the_sync(
     assert (await api.call("GET", f"/programs/{program_id}/lms/assignment-targets"))["items"]
 
 
+async def test_the_closed_area_note_holds_through_a_round_that_cannot_tell(
+    api: Api, fake: FakeProvider, clock: Clock
+):
+    """The note over the body says the area is closed exactly while "Not syncing for now"
+    does (`rules.area_closed`, §7.3): also through a round that could not tell."""
+    program_id, course = await _course(api, "a1")
+    await api.sync(program_id)
+    assert (await _open(api, course, "a1"))["area_hidden"] is False
+
+    fake.assignments_hidden = True
+    clock.advance(minutes=1)
+    await api.sync(program_id)
+    assert (await _open(api, course, "a1"))["area_hidden"] is True
+
+    fake.nav_refused = True  # the list refused and no menu to tell why: `unavailable`
+    clock.advance(minutes=1)
+    await api.sync(program_id)
+    assert (await _open(api, course, "a1"))["area_hidden"] is True
+
+
 def test_migration_moves_what_was_kept_into_the_mirror(tmp_path: Path):
     """0072 (M09 §3.2): a kept assignment whose object is still imported from it becomes its
     mirror row, the others are held for their object; refs kept for new assignments go. The
     mirror holds only what was imported, so the course reads its assignments from the platform
-    until a sync reads the whole list (no `read_at` of the area, §3.1)."""
+    until a sync reads the whole list (no `read_at` of the area, §3.1), unless the area is
+    closed (`rules.area_closed`)."""
     path = tmp_path / "m.db"
     cfg = Config(str(API_DIR / "alembic.ini"))
     cfg.set_main_option("script_location", str(API_DIR / "migrations"))
@@ -291,6 +312,14 @@ def test_migration_moves_what_was_kept_into_the_mirror(tmp_path: Path):
         " external_course_id, sync_enabled, area_reads, sync_errors, created_at, updated_at)"
         " VALUES ('l1', 'u1', 'c1', 'p1', 'n1', '101', 1, ?, '{}', '2026-01-01', '2026-01-01')",
         (json.dumps(reads),),
+    )
+    closed = {"assignments": {"result": "hidden", "at": "2026-01-10T00:00:00+00:00",
+                              "read_at": "2026-01-09T00:00:00+00:00"}}  # fmt: skip
+    db.execute(
+        "INSERT INTO lms_course_links (id, user_id, course_id, program_id, connection_id,"
+        " external_course_id, sync_enabled, area_reads, sync_errors, created_at, updated_at)"
+        " VALUES ('l2', 'u1', 'c2', 'p1', 'n1', '102', 1, ?, '{}', '2026-01-01', '2026-01-01')",
+        (json.dumps(closed),),
     )
     for ref_id, ext, kind, target, dismissed in (
         ("r1", "a1", "assessment", "x1", None),
@@ -336,9 +365,11 @@ def test_migration_moves_what_was_kept_into_the_mirror(tmp_path: Path):
             " submission, quiz FROM lms_assignments"
         )
     }
-    (area_reads,) = db.execute("SELECT area_reads FROM lms_course_links").fetchone()
+    area_reads = dict(db.execute("SELECT id, area_reads FROM lms_course_links"))
     db.close()
-    assert set(json.loads(area_reads)) == {"files"}
+    assert set(json.loads(area_reads["l1"])) == {"files"}
+    # A closed area keeps its read: still closed, its saved assignments open from the mirror.
+    assert json.loads(area_reads["l2"]) == closed
     link_id, kind, held_for, seen_at, assignment, submission, quiz = rows["a1"]
     assert (link_id, kind, held_for, seen_at) == ("l1", None, None, "2026-01-10 00:00:00.000000")
     assert json.loads(assignment)["name"] == "Lab 1"

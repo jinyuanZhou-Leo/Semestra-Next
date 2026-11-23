@@ -17,6 +17,7 @@ from collections.abc import Mapping, Sequence
 from datetime import datetime
 from typing import Any
 
+from semestra.modules.lms import rules
 from semestra.modules.portability.registry import OlderArchive, register_reshape
 from semestra.modules.settings.portability import move_rows
 
@@ -290,8 +291,12 @@ def _0072(lms: Row, archive: OlderArchive) -> Row:
         "links": [
             {
                 **li,
+                # Read from the platform until a sync fills the mirror, unless the area is
+                # closed (the platform would refuse them; as 0072).
                 "area_reads": {
-                    k: v for k, v in (li.get("area_reads") or {}).items() if k != "assignments"
+                    k: v
+                    for k, v in (li.get("area_reads") or {}).items()
+                    if k != "assignments" or rules.area_closed(li.get("area_reads"), k)
                 },
             }
             for li in _rows(lms, "links")
