@@ -275,14 +275,18 @@ async def _write(ctx: Ctx, r: _Run) -> bool:
             if added == BATCH:
                 return True
             added += 1
-        created = dropped = None
+        created = dropped = notice = None
         async with one_item(ctx, link, result, m.kind, m.external_id) as item:
-            created, dropped = await _found(ctx, w, m, mat)
+            created, dropped, notice = await _found(ctx, w, m, mat)
         _done(ctx, w, key, item.ok)
-        if item.ok and created is not None:
+        if not item.ok:
+            continue  # what it made went back with it, its notice too
+        if created is not None:
             rows[created.id], keys[created.id] = created, key
-        if item.ok and dropped is not None:
+        if dropped is not None:
             left.add(dropped.id)
+        if notice is not None:
+            result.notices.append(notice)
 
     # Gone from the platform (table 3c): one saved in Semestra stays as the user's own file, one
     # read online goes. Either comes in again if the platform shows it again.
@@ -306,6 +310,7 @@ async def _write(ctx: Ctx, r: _Run) -> bool:
         key = keys[item_id]
         if item_id in left or key in r.failed:  # a failed one's objects went back expired
             continue
+        before = room.left
         async with one_item(ctx, link, result, *key) as item:
             if _retry_due(row, w.now):
                 await sources.retry_synced(ctx, row)
@@ -313,6 +318,7 @@ async def _write(ctx: Ctx, r: _Run) -> bool:
                 await sources.apply_copies(ctx, [row], store, release=row.id in there, room=room)
         if not item.ok:
             r.failed.add(key)
+            room.left = before  # its copy went back: so does the room it took
     if not w.settled and not r.sync_round.out_of_budget:
         link.materials_settled_at = w.now
     await ctx.db.flush()
@@ -330,9 +336,10 @@ def _done(ctx: Ctx, w: _Batch, key: Key, ok: bool) -> None:
 
 async def _found(
     ctx: Ctx, w: _Batch, m: Material, mat: LmsMaterial | None
-) -> tuple[FilesItem | None, FilesItem | None]:
+) -> tuple[FilesItem | None, FilesItem | None, Notice | None]:
     """A material the platform has this round: table 4a's `appeared` or `list`. The item it
-    brought in, and the one it no longer follows."""
+    brought in, the one it no longer follows, and its notice for the user: the caller keeps
+    them once the material is written."""
     link, now = w.r.link, w.now
     row = None
     if mat is not None and mat.state == "synced":
@@ -346,7 +353,7 @@ async def _found(
         _seen(mat, m)
         if row is not None:  # a page that has become a list of links
             await sources.purge_items(ctx, [row])
-        return None, row
+        return None, row, None
     if mat is not None and mat.state in ("synced", "dismissed"):
         enter(mat, "appeared", now)  # kept
         if row is not None:
@@ -354,7 +361,7 @@ async def _found(
                 note(mat, "updated", now)
             await w.places.follow_names(m.path)
         _seen(mat, m)  # a dismissed one: what it links to is known without reading it every run
-        return None, None
+        return None, None, None
     news = w.settled and not (mat is not None and mat.quiet)
     folder_id = await w.places.folder_at(m.path)
     auto_index = await w.auto_index.get()
@@ -371,9 +378,8 @@ async def _found(
         note(mat, "duplicate", now)
     elif news:
         note(mat, "added", now)
-    if news:
-        w.r.result.notices.append(Notice("material", m.external_id, m.title, item_id=row.id))
-    return row, None
+    notice = Notice("material", m.external_id, m.title, item_id=row.id) if news else None
+    return row, None, notice
 
 
 async def _gone(ctx: Ctx, w: _Batch, mat: LmsMaterial, row: FilesItem | None) -> None:

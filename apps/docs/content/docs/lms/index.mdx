@@ -97,11 +97,11 @@ updates from the last 14 days can be undone.
 Values you changed that no longer match Canvas are listed separately, and each can go back to the
 Canvas value in one step.
 
-If one item runs into a problem during a sync (for example, a file on Canvas can't be opened right
-now), only that item isn't updated this time; everything else syncs as usual, and the item is tried
-again on the next sync. The sync status lists the courses that didn't sync fully and why. A sync
-stops early only when the Canvas account or connection itself has a problem, such as an expired
-access token or too many requests.
+When part of a sync runs into a problem, only that part is affected and everything else syncs as
+usual. If Canvas can't give one item right now, Semestra keeps it as it was and reads it again next
+sync; if one item can't be saved in Semestra, the sync status lists its course and the item is
+tried again next sync. A sync stops early only when the Canvas account or connection itself has a
+problem, such as an expired access token or too many requests.
 
 ## Assignment details
 

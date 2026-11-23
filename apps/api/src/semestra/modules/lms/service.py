@@ -15,7 +15,7 @@ from urllib.parse import urljoin
 
 import structlog
 from cryptography.fernet import InvalidToken
-from pydantic import BaseModel, SecretStr
+from pydantic import BaseModel, SecretStr, ValidationError
 from sqlalchemy import delete, func, select, update
 from starlette.datastructures import State
 
@@ -587,19 +587,24 @@ async def call[T](ctx: Ctx, b: Bound, fn: Callable[[Io], Awaitable[T]]) -> tuple
                 result = await fn(i)
             except AppError:
                 raise
-            except Exception:
-                raise not_understood(b) from None
+            except Exception as exc:
+                raise provider_failure(b, exc) from None
             return result, i.truncated
 
     return await attempt(ctx, b, run)
 
 
-def not_understood(b: Bound) -> AppError:
-    """An answer the provider could not make sense of (M09 table 2, row 19), in the `except`
-    block that caught it: about this read, like one the platform did not give. Logged: the
-    provider is to fix."""
-    log.error("lms.provider_payload", exc_info=True, provider=b.row.provider)
-    return lms_error("lms.unreachable", reason="payload")
+def provider_failure(b: Bound, exc: Exception) -> AppError:
+    """What a provider call raised other than an answer (`AppError`), in the `except` block that
+    caught it; about this read only, and logged. A value of the platform's answer that its DTO
+    cannot take (`ValidationError`) is an answer not understood, `lms.unreachable` (M09 table 2,
+    row 19); anything else is Semestra's own bug, `common.internal` (row 21), never told as the
+    platform's."""
+    if isinstance(exc, ValidationError):
+        log.error("lms.provider_payload", exc_info=True, provider=b.row.provider)
+        return lms_error("lms.unreachable", reason="payload")
+    log.error("lms.provider_failed", exc_info=True, provider=b.row.provider)
+    return AppError("common.internal", 500)
 
 
 class NotCached(Exception):

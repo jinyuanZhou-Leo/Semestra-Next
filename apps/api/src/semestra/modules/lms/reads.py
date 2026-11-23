@@ -398,8 +398,8 @@ async def read_many(
                 if exc.code in STOPPING:
                     raise
                 return exc  # about this item only
-            except Exception:
-                return service.not_understood(b)  # about this item only too
+            except Exception as exc:
+                return service.provider_failure(b, exc)  # about this item only too
 
     async def run(i: Any) -> list[Any]:
         return await asyncio.gather(*(one(i, n) for n in missing))

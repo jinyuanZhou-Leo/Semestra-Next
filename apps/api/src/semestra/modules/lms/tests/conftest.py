@@ -132,6 +132,7 @@ class FakeProvider:
         self.deleted_files: set[str] = set()
         # Files `file` serves that no list shows (only a module or a page links to them).
         self.unlisted_files: list[FileMeta] = []
+        self.total: CourseTotal | None = CourseTotal(score=91.5, grade="A")
         # Files hidden from the user: reading one is refused (403).
         self.refused_files: set[str] = set()
         # The platform does not answer reads of the materials (files, modules, pages).
@@ -291,7 +292,7 @@ class FakeProvider:
     ) -> CourseTotal | None:
         self._fault("course_total")
         self.calls.append(("course_total", course_id))
-        return CourseTotal(score=91.5, grade="A")
+        return self.total
 
     async def modules(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
@@ -507,7 +508,9 @@ class FakeProvider:
 
 # What the sync logs when it skipped a part (M09 table 5b): a test that meets one without
 # asking for it (`expect_sync_failures`) fails, so a part can never fail unnoticed (M09 §11).
-SYNC_FAILURES = frozenset({"lms.sync_stage_failed", "lms.sync_item_failed", "lms.provider_payload"})
+SYNC_FAILURES = frozenset(
+    {"lms.sync_stage_failed", "lms.sync_item_failed", "lms.provider_payload", "lms.provider_failed"}
+)
 
 
 class SyncFailures:

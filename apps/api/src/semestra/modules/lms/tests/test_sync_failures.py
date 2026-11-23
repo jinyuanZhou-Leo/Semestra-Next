@@ -8,11 +8,13 @@ from typing import Any, Literal
 
 import pytest
 from fastapi import FastAPI
+from pydantic import ValidationError
 from sqlalchemy import event, select
 from sqlalchemy.orm import Session
 
 from semestra.core.context import system_ctx
 from semestra.modules.files import sources
+from semestra.modules.lms import sync
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.models import (
     LmsAnnouncement,
@@ -310,6 +312,8 @@ async def test_row7_an_item_that_fails_is_left_as_it_was(
         status = await api.sync(program_id)
     assert _errors(status) == {stage: "common.internal"}
     assert expect_sync_failures.items() == [(*expected, "common.internal")]
+    [synced] = [m["data"] for m in pushed if m["type"] == sync.SYNCED]
+    assert expected[1] not in {n["external_id"] for n in synced["notices"]}  # never told of it
     seen = await _seen(app, api)
     assert all(seen.wrote(s) for s in STAGES[1:])  # the rest of its stage too
     match stage:
@@ -419,6 +423,7 @@ ANSWERS: dict[str, str | None] = {
     "invalid_credentials": "lms.invalid_credentials",
     "invalid_config": "lms.invalid_config",
     "payload": "lms.unreachable",  # an answer not understood
+    "bug": "common.internal",  # Semestra's own, in the provider: never told as the platform's
 }
 STOPPING = {"rate_limited", "invalid_credentials", "invalid_config"}
 # The item each single read is about, still there.
@@ -430,13 +435,27 @@ ITEM_KEPT = {
 }
 
 
+LOGGED = {"payload": "lms.provider_payload", "bug": "lms.provider_failed"}
+
+
+def _not_understood() -> ValidationError:
+    """What a provider raises when a value of the platform's answer does not fit its DTO."""
+    try:
+        FileMeta.model_validate({"external_id": "f1", "name": None})
+    except ValidationError as exc:
+        return exc
+    raise AssertionError("a file with no name was taken")
+
+
 def _answer(fake: FakeProvider, read: Read, answer: str) -> None:
     code = ANSWERS[answer]
     if code is None:
         return
     match answer:
         case "payload":
-            fake.faults[read.method] = RuntimeError("not understood")
+            fake.faults[read.method] = _not_understood()
+        case "bug":
+            fake.faults[read.method] = RuntimeError("a bug")
         case "rate_limited":
             fake.faults[read.method] = lms_error(code, retry_after=60)
         case "invalid_config":
@@ -507,7 +526,7 @@ async def test_matrix(
         assert entry["result"] == ("hidden" if hidden else "unavailable")
         if not hidden:
             assert entry["reason"] == code
-    # An answer not understood is logged each time (the navigation is read for the round and
-    # for the course's overview).
+    # An answer not understood and a bug are logged each time (the navigation is read for the
+    # round and for the course's overview).
     logged = set(expect_sync_failures.events())
-    assert logged == ({"lms.provider_payload"} if answer == "payload" else set())
+    assert logged == ({LOGGED[answer]} if answer in LOGGED else set())

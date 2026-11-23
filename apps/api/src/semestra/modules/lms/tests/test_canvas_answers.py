@@ -1,7 +1,6 @@
 """Every read the Canvas provider makes for the sync, by every HTTP answer Canvas can give, to the
-code of M09 table 2 (M09 §11). An answer the provider cannot make sense of may raise anything
-but an `AppError` other than `lms.unreachable`: `service.call` makes it `lms.unreachable`
-(table 2, row 19)."""
+code of M09 table 2 (M09 §11). An answer the provider cannot make sense of is `lms.unreachable`,
+or a `ValidationError` that `service.call` makes it (table 2, row 19)."""
 
 from collections.abc import AsyncIterator, Awaitable, Callable
 from datetime import UTC, datetime
@@ -11,6 +10,7 @@ import httpx
 import pytest
 import respx
 from httpx import Response
+from pydantic import ValidationError
 
 from semestra.core.config import Settings
 from semestra.core.errors import AppError
@@ -93,8 +93,11 @@ async def test_canvas_answer(
         await READS[read](p, io, cfg, creds)
     error = raised.value
     if code == PAYLOAD:
-        # Anything but a refusal or an answer about the account: never read as "none there".
-        assert not isinstance(error, AppError) or error.code == "lms.unreachable", error
+        # Told as not understood (table 2, row 19), never read as "none there", and never as a
+        # bug of Semestra's (row 20): `lms.unreachable`, or a value its DTO cannot take.
+        assert isinstance(error, ValidationError) or (
+            isinstance(error, AppError) and error.code == "lms.unreachable"
+        ), error
     else:
         assert isinstance(error, AppError), error
         assert error.code == code

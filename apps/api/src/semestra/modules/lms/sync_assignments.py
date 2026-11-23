@@ -316,9 +316,13 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound, sync_round: SyncRound) ->
     }
     rows = {r.external_id: r for r in await facts.mirror_rows(ctx, link.id)}
     result = StageResult(error=side.errors[0] if side.errors else None)
+    # The course total is the stage's own record (table 5b, row 8): what shows it refreshes.
+    changed = False
     if side.total_read:
         total = side.total or {}
-        link.total_score, link.total_grade = total.get("score"), total.get("grade")
+        if (link.total_score, link.total_grade) != (total.get("score"), total.get("grade")):
+            link.total_score, link.total_grade = total.get("score"), total.get("grade")
+            changed = True
 
     async def zone() -> ZoneInfo:
         return ZoneInfo((await academics.get_program_row(ctx, link.program_id)).timezone)
@@ -332,7 +336,6 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound, sync_round: SyncRound) ->
     s = _Shared(
         Shared(zone), Shared(weights), Shared(follow), Shared(lambda: completes_submitted(ctx))
     )
-    changed = False
     for ext in dict.fromkeys([*by_id, *refs, *rows]):
         out = _Done()
         async with one_item(ctx, link, result, KIND, ext) as item:

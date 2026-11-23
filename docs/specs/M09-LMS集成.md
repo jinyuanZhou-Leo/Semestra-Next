@@ -241,11 +241,12 @@ Canvas 的映射（`providers/canvas/`）。同一个 HTTP 回应只对应一种
 | 16 | 日历列表（`/calendar_events?type=event&all_events=true&context_codes[]=course_<id>`） | 200，最后一页 / 分页超过上限 | — | `whole` / `partial` | 现状 |
 | 17 | 日历列表 | 401 不带 `WWW-Authenticate`、403（非限流）、404 | 读不到这门课的日历（待确认 Canvas 对读不到的 `context_codes` 回哪一种） | `unavailable`（日历不在课程导航里，没有 `hidden`；不按第 7、8 行判断；`answers.OFF_NAV`） | 现状 |
 | 18 | 日历列表里的一项 | `context_code` 为 `course_section_<id>`（只给某个 Section 的事件），`effective_context_code` 为 `course_<id>` | 分节事件（待确认：学生查询课程 context 时 Canvas 是否返回本人所在 Section 的子事件，以及 `effective_context_code` 是否总有） | 属于 `effective_context_code` 的课程；没有 `effective_context_code` 时丢弃这一项 | 现状 |
-| 19 | 任意 | 200，但回应读不懂（不是 JSON，或 JSON 的结构不是 provider 要的） | 平台或中间的代理出了问题 | `unavailable`（`lms.unreachable`，原因 `payload`，同第 13 行；结构不对时另记日志 `lms.provider_payload`，它是 provider 的问题，§11 的测试规则会报出） | 2026-11-23 |
+| 19 | 任意 | 200，但回应读不懂（不是 JSON，JSON 的结构不对：列表不是列表、对象缺它的 id；或某个值放不进 provider 的 DTO，即 `ValidationError`） | 平台或中间的代理出了问题 | `unavailable`（`lms.unreachable`，原因 `payload`，同第 13 行）。Canvas 在 `_get`/`_list` 里自己判断前两种；值放不进 DTO 的由 `service.provider_failure` 判断并记日志 `lms.provider_payload`（§11 的测试规则会报出） | 2026-11-23 |
+| 20 | 任意 | provider 抛出的其他异常 | Semestra 自己的程序错误，不是平台的回答 | `unavailable`（`common.internal`），只关于这一次读取，同样不结束本轮；记日志 `lms.provider_failed`。经 HTTP 读（Canvas 标签页、Sem、MCP）时是 500 `common.internal`，界面说“出了点问题”，不说“连不上平台” | 2026-11-23 |
 
 - **类型所属的区域**：单项的读取接口属于哪个区域，只看类型，不看它在哪里被列出或链接：文件 → 文件区，文件夹 → 文件区，页面 → 页面，syllabus → syllabus，单元里的外部链接与外部工具 → 单元，作业 → 作业，测验 → 测验，讨论 → 讨论，公告 → 公告，单元 → 单元，日历事件 → 日历（只在列表里读，不单独读）。同一份文件同时出现在隐藏的文件区和开着的单元里时，它的类型所属的区域是文件区。
 - `unavailable` 的原因就是错误码（§9），界面与 Sem 按它说明；`lms.forbidden` 与 `lms.not_found` 只在 provider 内部用来区分上面的行，共享代码不再分别处理它们（第 6b 行记下的原因 `lms.forbidden` 只存在 `lms_item_checks`，不出现在界面上）。
-- **`STOPPING`**（`answers.STOPPING`）只含关于账户或连接的回答：第 11、12、14 行，以及没有凭证、地址被拦。连不上与读不懂（第 13、19 行）关于那一次读取：同步里按表 5b 第 3、4 行只影响那一个区域或那一项（2026-11-23 之前它们也算 `STOPPING`）。
+- **`STOPPING`**（`answers.STOPPING`）只含关于账户或连接的回答：第 11、12、14 行，以及没有凭证、地址被拦。连不上、读不懂与 provider 里的程序错误（第 13、19、20 行）关于那一次读取：同步里按表 5b 第 3、4 行只影响那一个区域或那一项（2026-11-23 之前它们也算 `STOPPING`）。
 - **判断区域是否关闭（第 7、8 行）只有一条规则**：`answers.nav_closed`（导航里缺失或隐藏）。读导航时遇到 `STOPPING` 照常抛出（表 5b 第 2 行）；导航本身被拒、连不上等其他错误算“读不到”（第 8 行）。
 - 第二个平台的 provider 写自己的这张表，契约测试 `tests/provider_contract.py` 对每个 provider 逐行检查。
 
@@ -505,7 +506,7 @@ Canvas 的映射（`providers/canvas/`）。同一个 HTTP 回应只对应一种
 
 | # | 出错的是 | 这一部分 | 照常进行的 | 用户看到什么、到什么时候 |
 |---|---|---|---|---|
-| 1 | 课程本身读不到（表 2 第 2 行），或读课程时连不上、读不懂（第 13、19 行：5xx、超时与断开、回应格式不对） | 这一轮结束：其余阶段不跑，作业与日历的区域记 `unavailable`（原因为课程的错误码） | 无。其余读取都在这门课之下，跑下去只会全部被拒、什么都不判断，还多发请求 | 面板：这门课同步出错，原因是课程的错误码（`sync_errors.course`）。下一轮课程读得到就恢复 |
+| 1 | 课程本身读不到（表 2 第 2 行），或读课程时连不上、读不懂、provider 出错（第 13、19、20 行：5xx、超时与断开、回应格式不对、程序错误） | 这一轮结束：其余阶段不跑，作业与日历的区域记 `unavailable`（原因为课程的错误码） | 无。其余读取都在这门课之下，跑下去只会全部被拒、什么都不判断，还多发请求 | 面板：这门课同步出错，原因是课程的错误码（`sync_errors.course`）。下一轮课程读得到就恢复 |
 | 2 | 任一阶段的读取遇到关于整个连接的回答（`STOPPING`：限流、凭证失效、地址错误、没有凭证、地址被拦） | 这一轮结束：这个阶段什么都不改（读取都在写入之前），后面的阶段不跑，它们的区域记 `unavailable`（原因为这个错误码） | 前面阶段已经提交的写入保留。这些回答关于账户或连接，不关于这门课的某一部分：接着读每一次都会得到同样的回答，限流时还会更久 | 面板：这门课这一阶段出错，原因是错误码（`sync_errors.<阶段>`）；凭证失效、地址错误另记在连接上，状态行说明连接。下一轮再试 |
 | 3 | 区域列表被拒、连不上或读不懂（表 2 第 7、8、13、17、19 行） | 这个区域记 `hidden` 或 `unavailable`（原因为错误码），它的项按表 3c 不判断 | 这个阶段其余的读取与写入，其余阶段。课程本身这一轮刚读到，平台是通的：一个接口持续 5xx 或回应格式不对，只是这个接口的问题 | `hidden` 的列在“暂时无法同步”（表 3c 注）；不算阶段出错 |
 | 4 | 单项读取被拒、连不上或读不懂 | 这一项不判断（表 2 第 6b 行：原因即错误码） | 其余项 | 因栏目关闭的列在“暂时无法同步”；不算阶段出错 |
@@ -748,11 +749,11 @@ Agent 与 MCP 只看到 11 个按任务设计的工具，而不是每个平台�
 
 ## 11. 测试
 - 表 2、表 3 的每一行各一条参数化测试，表 4 的每个格子各一条（`tests/test_rules_tables.py` 与 provider 契约测试），表 5b 的每一行各一条（`tests/test_sync_failures.py`）；改表就改测试。
-- **同步不许悄悄出错**（`lms/tests/conftest.py`，对每个 LMS 测试自动生效）：测试里同步记下的阶段异常（`lms.sync_stage_failed`）、被跳过的项（`lms.sync_item_failed`）或读不懂的回应（`lms.provider_payload`）让测试失败；故意制造它们的测试用 `expect_sync_failures` fixture 声明会有哪些。
+- **同步不许悄悄出错**（`lms/tests/conftest.py`，对每个 LMS 测试自动生效）：测试里同步记下的阶段异常（`lms.sync_stage_failed`）、被跳过的项（`lms.sync_item_failed`）、读不懂的回应（`lms.provider_payload`）或 provider 里的程序错误（`lms.provider_failed`）让测试失败；故意制造它们的测试用 `expect_sync_failures` fixture 声明会有哪些。
 - **穷举**（owner 2026-11-23：“要补穷举所有可能的测试”），都经真实入口（同步任务与 HTTP 接口），不直接调 `enter`：
   - **表 4 的格子**（`tests/test_state_cells.py`）：测试里给 `materials.enter`、`assignment_refs.enter` 记下每次的（状态, 事件）；每个允许的格子各有一条按真实流程（下面的动作）走到它并检查结果状态的例子，另断言例子覆盖全部允许的格子。“不会发生”的格子 `enter` 拒绝（`Impossible`），在任何测试里走到都会让那一项被跳过或请求 5xx，从而让测试失败，所以下面的穷举与随机序列同时证明它们一次也没走到。
   - **有界穷举序列**（`tests/test_sync_sequences.py`）：一门课一个作业、一份资料、一条公告，平台动作（新增、修改、删除、恢复、关闭与打开栏目、列表被拒、单项被拒、补充读取被拒、页面变成列表页）与用户动作（打开导入与提交导入分成两步，中间可以插入任何动作；导入成待办或考核、加入成绩册、忽略、重新提醒、删掉对象、解绑、绑定、回答删除项、撤销与还原变更、删掉与另存与恢复资料、在“暂时无法同步”里移除、关闭资料同步后移除、取消关联与重新关联）与时间过去一天（单独读到的内容按表 3c 第 7、8 行要隔一天才再读）构成有限的动作集，枚举长度 ≤ N 的所有序列（N 与用时写在 PR 里，取 CI 能跑完的最大值），每步后同步一次并检查不变量：没有 5xx，没有阶段异常和被跳过的项，状态都在表 4 里，没动的那份内容照常更新。更长的序列交给 hypothesis 状态机（`tests/test_sync_walk.py`）。
-  - **出错矩阵**（`tests/test_sync_failures.py`）：表 5a 每个阶段的每一次读取 × 每种回答（正常；栏目关闭且导航里没有；被拒且导航开着；被拒且导航读不到；单项 404；限流；连不上；凭证失效；地址错误；读不懂），断言表 5b：只有那一项或那一块受影响，其余照常写入，`sync_errors` 与面板给出的原因对。Canvas 一侧另有一张：每个读取的接口 × 每种 HTTP 回答（200、401 带与不带 `WWW-Authenticate`、403、403 限流、429、404、5xx、超时与断开、3xx、不是 JSON、结构不对）→ 表 2 的归一结果（provider 契约测试）。
+  - **出错矩阵**（`tests/test_sync_failures.py`）：表 5a 每个阶段的每一次读取 × 每种回答（正常；栏目关闭且导航里没有；被拒且导航开着；被拒且导航读不到；单项 404；限流；连不上；凭证失效；地址错误；读不懂；provider 里的程序错误），断言表 5b：只有那一项或那一块受影响，其余照常写入，`sync_errors` 与面板给出的原因对。Canvas 一侧另有一张：每个读取的接口 × 每种 HTTP 回答（200、401 带与不带 `WWW-Authenticate`、403、403 限流、429、404、5xx、超时与断开、3xx、不是 JSON、结构不对）→ 表 2 的归一结果（provider 契约测试）。
   - 表 5b 每一行另有一条例子（同一文件）。
 - Canvas：用 respx mock Canvas API，覆盖分页 `Link` 头、401、429、重定向到私网地址被拒、base_url 规范化用例（与旧版前端规则一致）。
 - 绑定规则：有关联时不能更换绑定；关联必须使用 Program 的绑定连接；关联唯一性。
