@@ -3,7 +3,8 @@
 
 Any non-empty access token is accepted. Lists are paginated with `Link: rel="next"` like Canvas
 (`per_page`, at most 100; the `large` scenario serves 25 a page). Areas a teacher turned off answer
-like Canvas does: pages with 404, files with 401 (no WWW-Authenticate).
+like a real Canvas did for a student (recorded, `lms/tests/fixtures/canvas/`): the lists of pages and
+quizzes with 404, of files with 403; folders and single pages and files are still read.
 
 File downloads redirect to this same server. Real Canvas redirects to its file store on another
 domain, where the provider drops the Authorization header and checks `FILE_CDN_SUFFIXES`; that
@@ -75,7 +76,7 @@ class FakeCanvas:
             raise CanvasError(404, "The specified resource does not exist.") from None
         if area in course.hidden:
             if area == "files":
-                raise CanvasError(401, "user not authorized to perform that action")
+                raise CanvasError(403, "user not authorized to perform that action")
             raise CanvasError(404, "That page has been disabled for this course")
         return course
 
@@ -237,7 +238,7 @@ class FakeCanvas:
         ]
 
     def page_detail(self, request: Request) -> Json:
-        course = self.course(request, "pages")
+        course = self.course(request)  # read also while the pages area is hidden
         ref = unquote(request.path_params.get("ref", ""))
         for p in course.pages:
             if (p["front_page"] and not ref) or p["url"] == ref or str(p["page_id"]) == ref:
@@ -291,14 +292,14 @@ class FakeCanvas:
         return sorted(rows, key=lambda f: f["display_name"].lower())
 
     def file_detail(self, request: Request) -> Json:
-        course = self.course(request, "files")
+        course = self.course(request)  # read also while the files area is hidden
         for f in course.files:
             if str(f["id"]) == request.path_params["fid"]:
                 return f
         raise CanvasError(404, "The specified resource does not exist.")
 
     def folders(self, request: Request) -> list[Json]:
-        return self.course(request, "files").folders
+        return self.course(request).folders  # listed also while the files area is hidden
 
     def folder(self, request: Request) -> Json:
         course = self.course(request, "files")
