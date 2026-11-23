@@ -386,7 +386,7 @@ Canvas 的映射（`providers/canvas/`）。同一个 HTTP 回应只对应一种
 
 ### 4.4 同步
 - **任务**：每门课一个任务 `lms.course.sync`（去重键 `lms.course.sync:<course_id>`，`background` 任务道，`listed=False`，同步有自己的状态行）。按顺序跑注册的阶段（`sync.register_sync_stage(name, run, order, enabled)`）：`course`（0）、`assignments`（20，作业、提交与反馈、跟随、提交后完成待办）、`announcements`（40）、`calendar`（50，PR 5）、`files`（60）。`sync.queue(course, stages=…)` 可以只跑指定阶段（刷新用，PR 4）。每个阶段先读平台（不拿写锁），再用 `sync.hold` 拿写锁、重读要比较的本地值、写库；每个区域的读取结果写进 `area_reads`。阶段出错只记在这个阶段，其余照跑；只有 `course` 失败才结束这次同步。跑完推进 `synced_at`，发 `lms.course.synced`（`{course_id, program_id, manual, applied, notices, pending, errors}`）与 `lms.sync.updated {program_id}`。
-- **什么时候同步**：① 定时任务 `lms.sync_due`（每 5 分钟一轮，每轮最多 20 门课，最久没同步的先排）排上次同步早于账户设置 `lms.sync_every` 的课程；只看 14 天内用过应用、或开着学习平台通知且有推送设备的账户，`sync_enabled`、连接有凭证、学期在进行或未开始或结束不到 30 天的课程（日历还没读过的课程不受学期限制，§4.8）。② 打开 Program 时请求一次（不带 `force`）：只排 30 分钟与 `SEMESTRA_LMS_SYNC_MIN_INTERVAL` 中较长者之内没同步过的（日历还没读过的课程立即排，§4.8），跳过正在同步的。③ 用户手动（`force=true`）：排上 1 分钟内没同步过的，上次失败的不受限制；对单门课的手动同步也读学期已结束的课程。正在运行时再排，结束后再跑一次（`again=True`）。
+- **什么时候同步**：① 定时任务 `lms.sync_due`（每 5 分钟一轮，每轮最多 20 门课，最久没同步的先排）排上次同步早于账户设置 `lms.sync_every` 的课程；只看 14 天内用过应用、或开着学习平台通知且有推送设备的账户，`sync_enabled`、连接有凭证、学期在进行或未开始或结束不到 30 天的课程（日历还没试过读的课程例外：学期结束超过 30 天的只排 `course` 与 `calendar` 两个阶段，§4.8）。② 打开 Program 时请求一次（不带 `force`）：只排 30 分钟与 `SEMESTRA_LMS_SYNC_MIN_INTERVAL` 中较长者之内没同步过的（日历还没试过读的课程立即排，§4.8），跳过正在同步的。③ 用户手动（`force=true`）：排上 1 分钟内没同步过的，上次失败的不受限制；对单门课的手动同步也读学期已结束的课程。正在运行时再排，结束后再跑一次（`again=True`）。
 - **频率**：`lms.sync_every` ∈ 15m / 30m / 1h / 6h（默认）/ 1d；`SEMESTRA_LMS_SYNC_MIN_INTERVAL`（默认 `15m`，托管版 `1h`）是下限。
 - **同步写入不经过 M08 导入会话**：自动跟随的字段直接写，留下可撤销的变更记录（`lms_sync_changes`）；冲突、平台上删除的项和新作业在状态行面板里逐项回答（`lms.sync.field.resolve`、`lms.sync.resolve`、`lms.sync.dismiss`、`lms.sync.change.revert` / `.reapply`，都返回最新的 `SyncStatus`；撤销与还原只对同一字段最新、无待回答冲突、本地值仍是上一步留下的变更有效，否则 `lms.sync_change_outdated`）。用户改了已导入对象的这些字段或删除它时发 `lms.sync.updated`。
 - **状态**（`sync_status.py`，只读库）：`lms.sync.status` 返回连接错误、频率、课程数、最早的 `synced_at`、是否在同步、待处理（冲突、删除、新作业）、已忽略、最近 14 天的变更（最多 50 条）、与平台不同的字段、资料的变化与已移除的资料、各课程的阶段错误，手动同步的一轮还有 `round {done, total}`。界面只有状态行 `lms.sync` 和它的面板，不弹 toast，不占页面空间。
@@ -425,13 +425,22 @@ Canvas 的映射（`providers/canvas/`）。同一个 HTTP 回应只对应一种
 ### 4.8 日历事件（PR 5）
 - **保存**：`calendar` 阶段（50，provider 有 `calendar` 功能时）读这门课在平台上的**全部**日历事件（`type=event`，不含作业；Canvas 用 `all_events=true`，不按日期截取），写进 `lms_calendar_events`，平台上改了的跟着改。不设时间窗：原来实时读取时任何日期都看得到，镜像也一样，开学前的说明会、跨学期的事件都在。分节事件（只给某个 Section）按表 2 第 18 行归到所属课程。
 - **已离开**（表 3c：日历事件只出现在日历列表这一个区域，没有单独读取）：日历列表 `whole` 而事件不在里面 → 删除；`partial`、`unavailable` → 不判断，保留。
-- **读过的记录**：每轮把日历列表的结果记进 `area_reads.calendar`（`{result, at}`，表 1 第 2 行；PR 3 还没合并时由本 PR 加上 `area_reads` 这一列，只写 `calendar`）。
+- **读过的记录**：每轮把日历列表的结果记进 `area_reads.calendar`（`{result, at, read_at?}`，表 1 第 2 行；PR 3 还没合并时由本 PR 加上 `area_reads` 这一列，只写 `calendar`）。`result` 是这一轮的结果（表 3c 的输入）；`read_at` 是最近一次列表真的读回来（`whole` 或 `partial`）的时间，`unavailable` 不改它。这一轮在 `course` 阶段就结束（课程读不到，表 2 第 2 行）时，`calendar` 也记一次 `unavailable`；provider 没有 `calendar` 功能时记 `unsupported`。
 - **变化**：这一轮有新增、修改或删除时发 `calendar.changed {program_id}`。
 - **读取**：日历源 `lms.events` 只读这张表，不请求平台，平台连不上时照常显示上次读到的。只取 `sync_enabled=true` 的已关联课程；按“与查询区间重叠”筛选（`start_at < 区间结束` 且 `end_at`（没有时用 `start_at`）在区间开始之后），跨周、跨天的事件在两边的视图里都出现。全天事件按平台给的日期放在 Program 时区的整天。
-- **还没读过**（§3.1）：`area_reads.calendar` 为空的课程，日历还没读过。
-  - 什么时候读：这样的课程不受“学期结束不到 30 天”和打开应用时 30 分钟门槛的限制（§4.4）：`lms.sync_due` 照常排它（每轮 20 门，从没读过日历的排在最前），打开 Program 时立即排；读过一次以后按 §4.4 照常（学期早已结束的课程之后不再自动读，日历显示最后一次读到的事件）。
-  - 界面说明：`lms.sync.status` 带 `calendar_waiting`（开着同步、还没读过日历的已关联课程数）。日历筛选面板里平台那一行在它大于 0 时显示一行灰字“{N} 门课的日历还没读过，读完后显示在这里”，同步状态行的面板也列出同一句；读完自动消失。
-  - 升级时的过渡：升级后所有课程都是这个状态，日历里平台事件先不显示、上面那行说明出现；用户打开 Program 即开始读，每门课读完即显示。不保留实时读取作为后备（一份数据只有一条读取路径）。
+- **日历的三种情况**（`rules.calendar_read`，按顺序取第一行；只看开着同步、provider 有 `calendar` 功能、连接正常（有凭证、没有记下凭证失效或地址错误）的已关联课程：`unsupported` 的不算，连接出了问题的由状态行说明连接，不在这里重复）：
+
+| # | `area_reads.calendar` | 情况 | 界面 |
+|---|---|---|---|
+| 1 | 有 `read_at` | 读过（之后某轮读不到也算读过，日历显示保存的事件） | 无说明 |
+| 2 | 为空 | 还没试过 | 计入“{N} 门课的日历还没读过，读完后显示在这里” |
+| 3 | 有记录、没有 `read_at`（试过，一次也没读回来） | 读不到 | 计入“{N} 门课的日历读不到”，原因在同步面板这门课的阶段错误里 |
+
+- **第一次读**（只针对第 2 行“还没试过”的课程，试过一次就回到 §4.4 的规则，不再优先）：
+  - 学期在 §4.4 的范围内（进行中、未开始、结束不到 30 天）的课程：照常整次同步；`lms.sync_due` 把它们排在最前面，打开 Program 时不受 30 分钟门槛限制、立即排。
+  - 学期结束超过 30 天的课程：只排 `course` 与 `calendar` 两个阶段（`sync.queue(course, stages=["course", "calendar"])`，本 PR 加上 `stages` 参数），不跑作业、公告、资料，不改成绩、不下载资料；同样由 `lms.sync_due` 优先排、打开 Program 时立即排。
+- **界面说明**：`lms.sync.status` 带 `calendar_waiting` 与 `calendar_unreadable`（上表第 2、3 行的课程数）。日历筛选面板里平台那一行在它们大于 0 时各显示一行灰字（上表的文字），同步状态行的面板也列出同样的句子；情况变了自动更新。
+- **升级时的过渡**：升级后所有课程都是第 2 行，日历里平台事件先不显示、“还没读过”的说明出现；用户打开 Program 即开始读，每门课读完即显示。不保留实时读取作为后备（一份数据只有一条读取路径）。
 - **`sync_enabled=false`**：不出现在日历里；已存的行保留，重新打开同步后照常显示并继续跟随。
 - **提醒**：平台日历事件不发提醒（owner 2026-11-22）；提醒只来自课表与待办（M18）。
 - **导出**：`lms_calendar_events` 随 LMS 适配器导出与恢复；2.0 起的旧备份里没有这张表，恢复后为空、`area_reads.calendar` 为空，按“还没读过”处理。
