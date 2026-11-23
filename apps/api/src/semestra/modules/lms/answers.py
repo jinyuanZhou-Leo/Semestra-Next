@@ -7,6 +7,7 @@ The provider maps its platform's answers onto them (`LmsProvider.item_answer`, `
 the HTTP statuses and the provider's own codes for them never reach the shared code.
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
@@ -80,3 +81,12 @@ def result_of(answer: ItemAnswer) -> ItemResult:
     if isinstance(answer, Gone):
         return "gone"
     return "unavailable"
+
+
+def nav_closed(navigation: Sequence[Any] | None, area: str) -> bool | None:
+    """Whether the course's navigation leaves `area` out or hides it (table 2, rows 7-8): only
+    then is a refused list of it the instructor's doing. None when there is no navigation to tell
+    by (not read, or the provider has none)."""
+    if not navigation:
+        return None
+    return not any(t.kind == area and not t.hidden for t in navigation)

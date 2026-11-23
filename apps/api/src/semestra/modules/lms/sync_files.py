@@ -312,14 +312,13 @@ async def _write(ctx: Ctx, r: _Run) -> bool:
     for row in followed:
         if _retry_due(row, now):
             await sources.retry_synced(ctx, row)
-    # A copy is let go only when this round found the item on the platform (table 3c, note): a
-    # course closed there refuses its areas, and its copies may be the only ones left.
+    # A copy is let go only when the platform gave the item itself this round (table 3c, note):
+    # in a list of its own area, or read on its own. One only a module lists may be refused when
+    # read (its area closed), and its copy may be the only one left.
     there = {
         mat.item_id
         for key, mat in known.items()
-        if mat.state == "synced"
-        and key not in found.locked
-        and (key in found.materials or r.verdicts.get(key) == "present")
+        if mat.state == "synced" and key in found.given and key not in found.locked
     }
     copies = [row for row in followed if _copy_due(row, now)]
     store = cfg.store == "local"

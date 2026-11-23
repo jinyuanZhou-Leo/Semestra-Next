@@ -13,7 +13,14 @@ from httpx import Response
 from semestra.core.config import Settings
 from semestra.core.errors import AppError
 from semestra.core.http import safe_client
-from semestra.modules.lms.answers import AREA_HIDDEN, Gone, ItemAnswer, Present, Unavailable
+from semestra.modules.lms.answers import (
+    AREA_HIDDEN,
+    AreaResult,
+    Gone,
+    ItemAnswer,
+    Present,
+    Unavailable,
+)
 from semestra.modules.lms.providers import Io
 from semestra.modules.lms.providers.canvas import CanvasProvider
 from semestra.modules.lms.rules import CHECK_EVERY, Check, presence
@@ -66,14 +73,14 @@ async def _item(
     mock: respx.MockRouter,
     response: Response,
     *,
-    hidden: bool = False,
+    area: AreaResult | None = "whole",
 ) -> ItemAnswer | None:
-    """One file read on its own, the files area closed this round or not."""
+    """One file read on its own, with this round's result of the files area (None: not read)."""
     p, cfg, creds = _canvas(settings)
     mock.get(f"{API}/courses/101/files/7").mock(return_value=response)
     sync_round, ctx, b, _ = _round(p)
-    if hidden:
-        sync_round.areas["files"] = "hidden"
+    if area is not None:
+        sync_round.areas["files"] = area
     return await sync_round.read(ctx, b, "file", "7", lambda: p.file(io, cfg, creds, "101", "7"))
 
 
@@ -130,18 +137,35 @@ async def test_t2_row4_item_not_found(settings: Settings, io: Io, mock: respx.Mo
     assert await _item(settings, io, mock, Response(404)) == Gone()
 
 
+@pytest.mark.parametrize("area", ["whole", "partial"])
 @pytest.mark.parametrize("response", REFUSED[1:])
-async def test_t2_row5_item_refused_area_open(
-    settings: Settings, io: Io, mock: respx.MockRouter, response: Response
+async def test_t2_row5_item_refused_area_read(
+    settings: Settings, io: Io, mock: respx.MockRouter, response: Response, area: AreaResult
 ):
-    assert await _item(settings, io, mock, response) == Gone()
+    assert await _item(settings, io, mock, response, area=area) == Gone()
 
 
 @pytest.mark.parametrize("response", REFUSED[1:])
 async def test_t2_row6_item_refused_area_closed(
     settings: Settings, io: Io, mock: respx.MockRouter, response: Response
 ):
-    assert await _item(settings, io, mock, response, hidden=True) == Unavailable(AREA_HIDDEN)
+    assert await _item(settings, io, mock, response, area="hidden") == Unavailable(AREA_HIDDEN)
+
+
+@pytest.mark.parametrize("area", ["unavailable", None])
+@pytest.mark.parametrize("response", REFUSED[1:])
+async def test_t2_row6b_item_refused_area_unknown(
+    settings: Settings,
+    io: Io,
+    mock: respx.MockRouter,
+    response: Response,
+    area: AreaResult | None,
+):
+    """Its area's state not known (the navigation not read, or the area not read this round):
+    a refusal may be about the whole area."""
+    answer = await _item(settings, io, mock, response, area=area)
+    assert isinstance(answer, Unavailable)
+    assert answer.reason != AREA_HIDDEN
 
 
 @pytest.mark.parametrize("response", REFUSED)

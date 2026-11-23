@@ -15,7 +15,7 @@ from pydantic import BaseModel
 
 from semestra.core.config import Settings
 from semestra.core.errors import AppError
-from semestra.modules.lms.answers import Gone, Unavailable
+from semestra.modules.lms.answers import AreaResult, Gone, Unavailable
 from semestra.modules.lms.schemas.dto import (
     Announcement,
     Assignment,
@@ -70,10 +70,11 @@ class LmsProvider(Protocol):
         """What an (absolute) address in the platform's HTML points at, if the app can open it."""
         ...
 
-    def item_answer(self, error: AppError, *, area_hidden: bool) -> Gone | Unavailable:
+    def item_answer(self, error: AppError, *, area: AreaResult | None) -> Gone | Unavailable:
         """What a failed read of one item means (M09 §4.1, table 2): gone from the user's view, or
-        not known. `area_hidden`: the item's area (`answers.AREA_OF`) was closed this round, so a
-        refusal may be about the area rather than the item."""
+        not known. `area`: this round's result of the item's area (`answers.AREA_OF`), None when
+        it was not read: a refusal tells the item is gone only where the area was read, as it
+        may be about the whole area otherwise."""
         ...
 
     def area_answer(

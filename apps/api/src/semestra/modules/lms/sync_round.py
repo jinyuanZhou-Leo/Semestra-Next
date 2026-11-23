@@ -27,6 +27,7 @@ from semestra.modules.lms.answers import (
     ItemAnswer,
     Present,
     Unavailable,
+    nav_closed,
     result_of,
 )
 from semestra.modules.lms.models import LmsCourseLink, LmsItemCheck
@@ -85,11 +86,11 @@ class SyncRound:
                     self._nav, _ = await service.call(
                         ctx, b, lambda i: b.provider.navigation(i, b.cfg, b.creds, ext)
                     )
-                except AppError:
+                except AppError as exc:
+                    if exc.code in STOPPING:
+                        raise  # about the connection: the stage stops and changes nothing
                     self._nav = None
-        if not self._nav:
-            return None
-        return not any(t.kind == area and not t.hidden for t in self._nav)
+        return nav_closed(self._nav, area)
 
     async def area[T](
         self,
@@ -238,8 +239,8 @@ class SyncRound:
 
     def _record(self, ctx: Ctx, b: Bound, kind: str, external_id: str, got: object) -> ItemAnswer:
         if isinstance(got, AppError):
-            hidden = self.areas.get(AREA_OF.get(kind, "")) == "hidden"
-            answer: ItemAnswer = b.provider.item_answer(got, area_hidden=hidden)
+            area = self.areas.get(AREA_OF.get(kind, ""))
+            answer: ItemAnswer = b.provider.item_answer(got, area=area)
         else:
             answer = Present(got)
         reason = answer.reason if isinstance(answer, Unavailable) else None

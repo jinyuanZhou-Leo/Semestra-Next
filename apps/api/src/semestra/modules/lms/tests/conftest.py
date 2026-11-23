@@ -14,7 +14,7 @@ from semestra.core.config import Settings
 from semestra.core.errors import AppError
 from semestra.modules.files.tests.conftest import fake_ai  # noqa: F401 (a fixture)
 from semestra.modules.lms import sync
-from semestra.modules.lms.answers import Gone, Unavailable
+from semestra.modules.lms.answers import AreaResult, Gone, Unavailable
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.providers import Io, register_lms_provider, unregister_lms_provider
 from semestra.modules.lms.providers.canvas import answers as canvas_answers
@@ -131,6 +131,11 @@ class FakeProvider:
         self.refused_files: set[str] = set()
         # The platform does not answer reads of the materials (files, modules, pages).
         self.materials_down = False
+        # Reads the platform throttles ("navigation", "file", "course_files", "pages", "page",
+        # "modules"), and how many times it did; the course navigation refused.
+        self.throttled: set[str] = set()
+        self.throttle_hits = 0
+        self.nav_refused = False
         # What a file holds, by id; any other file reads "hello".
         self.file_bytes: dict[str, bytes] = {}
         # Downloads started and those whose connection was closed (ended, or closed early).
@@ -192,9 +197,17 @@ class FakeProvider:
                 return c.model_copy(update={"web_url": f"https://fake/courses/{course_id}"})
         raise lms_error("lms.forbidden")
 
+    def _throttle(self, read: str) -> None:
+        if read in self.throttled:
+            self.throttle_hits += 1
+            raise lms_error("lms.rate_limited", retry_after=60)
+
     async def navigation(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> list[NavTab]:
+        self._throttle("navigation")
+        if self.nav_refused:
+            raise lms_error("lms.forbidden")
         return list(self.nav)
 
     async def announcements(
@@ -242,8 +255,8 @@ class FakeProvider:
         raise lms_error("lms.not_found")
 
     # The platform's refusals mean what Canvas's do (table 2).
-    def item_answer(self, error: AppError, *, area_hidden: bool) -> Gone | Unavailable:
-        return canvas_answers.item_answer(error, area_hidden=area_hidden)
+    def item_answer(self, error: AppError, *, area: AreaResult | None) -> Gone | Unavailable:
+        return canvas_answers.item_answer(error, area=area)
 
     def area_answer(
         self, error: AppError, *, nav_closed: bool | None
@@ -260,6 +273,7 @@ class FakeProvider:
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> list[Module]:
         self.calls.append(("modules", course_id))
+        self._throttle("modules")
         if self.materials_down:
             raise lms_error("lms.unreachable")
         if self.closed:
@@ -284,6 +298,7 @@ class FakeProvider:
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> list[PageSummary]:
         self.calls.append(("pages", course_id))
+        self._throttle("pages")
         if self.materials_down:
             raise lms_error("lms.unreachable")
         if self.closed:
@@ -298,6 +313,7 @@ class FakeProvider:
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, page_ref: str
     ) -> PageDetail:
         self.calls.append(("page", page_ref))
+        self._throttle("page")
         if self.closed:
             raise lms_error("lms.forbidden")
         if page_ref in self.page_texts:
@@ -325,6 +341,7 @@ class FakeProvider:
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, file_id: str
     ) -> FileMeta:
         self.calls.append(("file", file_id))
+        self._throttle("file")
         if self.materials_down:
             raise lms_error("lms.unreachable")
         if self.closed:
@@ -419,6 +436,7 @@ class FakeProvider:
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> list[FileMeta]:
         self.calls.append(("course_files", course_id))
+        self._throttle("course_files")
         if self.materials_down:
             raise lms_error("lms.unreachable")
         if self.closed:

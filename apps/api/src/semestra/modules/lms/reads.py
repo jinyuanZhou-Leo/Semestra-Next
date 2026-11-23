@@ -13,7 +13,7 @@ from sqlalchemy import select
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError
 from semestra.modules.academics import service as academics
-from semestra.modules.lms import cache, html, rules, service, submissions
+from semestra.modules.lms import answers, cache, html, rules, service, submissions
 from semestra.modules.lms.answers import STOPPING
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.models import LmsCourseLink, LmsImportedRef
@@ -94,11 +94,13 @@ async def _nav_closed(ctx: Ctx, course_id: str, area: NavKind, *, refresh: bool)
     from the platform, or a user no longer enrolled, is refused too, and keeps its own error."""
     try:
         found = await overview(ctx, course_id, refresh)
-    except AppError:
+    except AppError as exc:
+        if exc.code in STOPPING:
+            raise  # about the connection, not the course: the read fails with it
         return None
-    if "navigation" not in found.features or not found.navigation:
+    if "navigation" not in found.features:
         return None
-    return not any(t.kind == area and not t.hidden for t in found.navigation)
+    return answers.nav_closed(found.navigation, area)
 
 
 async def course_zone(ctx: Ctx, course_id: str) -> tzinfo:

@@ -22,7 +22,7 @@ from pydantic import BaseModel
 from semestra.core.config import Settings
 from semestra.core.errors import AppError
 from semestra.core.http import egress_allowed
-from semestra.modules.lms.answers import Gone, Unavailable
+from semestra.modules.lms.answers import AreaResult, Gone, Unavailable
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.providers.base import Io
 from semestra.modules.lms.providers.canvas import answers, sign_in
@@ -722,8 +722,8 @@ class CanvasProvider:
         a = _dict(r)
         return _assignment(a, {"id": a.get("assignment_group_id")}, weighted=False)
 
-    def item_answer(self, error: AppError, *, area_hidden: bool) -> Gone | Unavailable:
-        return answers.item_answer(error, area_hidden=area_hidden)
+    def item_answer(self, error: AppError, *, area: AreaResult | None) -> Gone | Unavailable:
+        return answers.item_answer(error, area=area)
 
     def area_answer(
         self, error: AppError, *, nav_closed: bool | None

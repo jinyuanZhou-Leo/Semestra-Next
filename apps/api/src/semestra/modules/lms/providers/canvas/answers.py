@@ -7,21 +7,23 @@ navigation."""
 from typing import Literal
 
 from semestra.core.errors import AppError
-from semestra.modules.lms.answers import AREA_HIDDEN, Gone, Unavailable
+from semestra.modules.lms.answers import AREA_HIDDEN, AreaResult, Gone, Unavailable
 
 # Canvas's refusals of a list: a hidden tab answers 404 (`tab_enabled?`), hidden files 401.
 REFUSALS = frozenset(("lms.not_found", "lms.forbidden"))
 
 
-def item_answer(error: AppError, *, area_hidden: bool) -> Gone | Unavailable:
-    """One item read (table 2, rows 4-6 and 11-14). 404: deleted, or unpublished for students.
-    Refused: unpublished or hidden from the user, unless its area is closed this round: then it
-    cannot be told whether the item or the whole area is refused (row 6, to check against the
-    recorded answers)."""
+def item_answer(error: AppError, *, area: AreaResult | None) -> Gone | Unavailable:
+    """One item read (table 2, rows 4-6b and 11-14). 404: deleted, or unpublished for students.
+    Refused: unpublished or hidden from the user where its area was read this round (row 5);
+    its area closed (row 6) or not known (row 6b), it cannot be told whether the item or the
+    whole area is refused."""
     if error.code == "lms.not_found":
         return Gone()
     if error.code == "lms.forbidden":
-        return Unavailable(AREA_HIDDEN) if area_hidden else Gone()
+        if area in ("whole", "partial"):
+            return Gone()
+        return Unavailable(AREA_HIDDEN if area == "hidden" else error.code)
     return Unavailable(error.code, dict(error.params))
 
 

@@ -91,6 +91,10 @@ class Found:
     listed: set[Key] = field(default_factory=lambda: set[Key]())
     # Locked on the platform: still there, left as they are until they open.
     locked: set[Key] = field(default_factory=lambda: set[Key]())
+    # Given by the platform itself this round: in its own area's list, or read on its own (a
+    # file only a module shows is listed, not given). Only these may let their copies go
+    # (table 3c, note): the platform gives their contents now.
+    given: set[Key] = field(default_factory=lambda: set[Key]())
 
     def add(self, m: Material) -> None:
         self.materials.setdefault((m.kind, m.external_id), m)
@@ -190,6 +194,8 @@ async def judge(
     for kind in READABLE:
         got = await r.read_many(kind, [e for k, e in ordered if k == kind])
         for external_id, answer in got.items():
+            if isinstance(answer, Present):
+                found.given.add((kind, external_id))
             out[(kind, external_id)] = presence(listed=False, areas=areas, now=ctx.now, read=answer)
     return out
 
@@ -288,6 +294,7 @@ async def _files(r: _Reader) -> None:
         for file_id, answer in (await r.read_many("file", todo)).items():
             if isinstance(answer, Present):
                 metas[file_id] = answer.data
+    r.found.given.update(("file", f) for f in metas)
     for meta in metas.values():
         if meta.locked:
             r.found.locked.add(("file", meta.external_id))
@@ -317,6 +324,7 @@ async def _pages(r: _Reader) -> None:
         version = page.updated_at.isoformat() if page.updated_at else None
         r.found.pages[page.ref] = (page.title, version, page.web_url)
         r.found.listed.add(("page", page.ref))
+        r.found.given.add(("page", page.ref))
         if page.front_page:
             r.found.front.add(page.ref)
     done: set[str] = set()
@@ -335,6 +343,7 @@ async def _pages(r: _Reader) -> None:
         answers.update(await r.read_many("page", linked))
         for slug in unread:
             if isinstance(answer := answers.get(slug), Present):
+                r.found.given.add(("page", slug))
                 _page(r, slug, answer.data)
 
 
