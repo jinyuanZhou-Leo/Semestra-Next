@@ -10,7 +10,7 @@ headers table 2 depends on, and the body cut to its first items. What is kept fr
 shape, numbers and flags (ids of items, `locked_for_user`, `hidden_for_user`, `published`, …), and,
 in the keys of `KEEP_STRINGS`, the platform's kinds, states and dates. Every other string
 (names, titles, HTML, comments, slugs, addresses) becomes "[text]", ids of people and my scores and
-grades become 1 (only whether they are there is kept), every other id is renumbered (the same id
+grades and file sizes become 1 (only whether they are there is kept), every other id is renumbered (the same id
 gets the same number in every file of one recording, so references between them still match), the
 recorded request names the course and item as `{course}` and `{item}`, and a redirect keeps only
 whether it goes to the school's Canvas or to another host. Look the files over before committing
@@ -84,6 +84,8 @@ ENUM = re.compile(r"^[a-z][a-z_]{0,39}$")
 STAMP = re.compile(r"^\d{4}-\d\d-\d\dT[\d:.]+(Z|[+-]\d\d:\d\d)?$")
 # My result on an assignment: only whether it is there is kept.
 GRADES = frozenset(("score", "entered_score", "grade", "entered_grade", "points_deducted"))
+# A file's exact size would match one file: only whether it is there is kept.
+SIZES = frozenset(("size", "size_bytes"))
 # Ids that point to a person (in these keys, and every id inside these objects).
 PEOPLE_IDS = frozenset(("user_id", "author_id", "grader_id", "submitter_id"))
 PEOPLE = frozenset(
@@ -178,7 +180,7 @@ class Redactor:
             return [self.body(v, key, person=person) for v in value[:LIST_ITEMS]]
         if value is None or isinstance(value, bool):
             return value
-        if key in GRADES:
+        if key in GRADES or (key in SIZES and isinstance(value, int)):
             return 1
         if key in PEOPLE_IDS or (person and key == "id"):
             return 1
