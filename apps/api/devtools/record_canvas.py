@@ -10,9 +10,11 @@ headers table 2 depends on, and the body cut to its first items. What is kept fr
 shape, numbers and flags (ids of items, `locked_for_user`, `hidden_for_user`, `published`, …), and,
 in the keys of `KEEP_STRINGS`, the platform's kinds, states and dates. Every other string
 (names, titles, HTML, comments, slugs, addresses) becomes "[text]", ids of people and my scores and
-grades become 1 (only whether they are there is kept), and a redirect keeps only whether it goes to
-the school's Canvas or to another host. Look the files over before committing them: the repository
-is public.
+grades become 1 (only whether they are there is kept), every other id is renumbered (the same id
+gets the same number in every file of one recording, so references between them still match), the
+recorded request names the course and item as `{course}` and `{item}`, and a redirect keeps only
+whether it goes to the school's Canvas or to another host. Look the files over before committing
+them: the repository is public.
 
 What it records:
 - the course itself, its navigation (which areas are hidden), and the first page of every area list
@@ -21,7 +23,8 @@ What it records:
 - an id that does not exist in each kind (a deleted item), and one request with a wrong token (an
   expired token's 401);
 - each `--item KIND:ID:LABEL` (KIND is file, page, assignment, quiz, discussion, module or folder;
-  LABEL names the situation). A file is also asked for its download, without following it. Table 2
+  LABEL names the situation). A file is also asked for its download (the address in its `url`),
+  without following it. Table 2
   needs these situations, as many as the course has:
     an unpublished file, page and assignment (`unpublished`);
     a file shown only by link (`link-only`) and a file in a hidden folder (`hidden-folder`);
@@ -75,6 +78,8 @@ KEEP_STRINGS = frozenset(
         "completed_at",
     )
 )
+# Besides those, any key that names a time keeps a date (`cached_due_date`, …).
+DATE_KEY = re.compile(r"(_at|_date)$")
 ENUM = re.compile(r"^[a-z][a-z_]{0,39}$")
 STAMP = re.compile(r"^\d{4}-\d\d-\d\dT[\d:.]+(Z|[+-]\d\d:\d\d)?$")
 # My result on an assignment: only whether it is there is kept.
@@ -143,6 +148,19 @@ class Redactor:
     def __init__(self, base_url: str, token: str) -> None:
         self.host = urlsplit(base_url).netloc
         self.token = token
+        self.ids: dict[str, int] = {}
+
+    def renumber(self, raw: object) -> int:
+        """The id's number in this recording: the same id is the same number in every file."""
+        return self.ids.setdefault(str(raw), 1001 + len(self.ids))
+
+    def _id(self, value: Any) -> Any:
+        if isinstance(value, bool) or not isinstance(value, int | str):
+            return value
+        if isinstance(value, str) and not value.isdigit():
+            return "[text]" if value else value
+        n = self.renumber(value)
+        return n if isinstance(value, int) else str(n)
 
     def header(self, name: str, value: str) -> str:
         if name == "location":
@@ -164,33 +182,44 @@ class Redactor:
             return 1
         if key in PEOPLE_IDS or (person and key == "id"):
             return 1
+        if key == "id" or key.endswith(("_id", "_ids")):
+            return self._id(value)
         if isinstance(value, str):
             if value == "":
                 return ""
-            if key in KEEP_STRINGS and (ENUM.match(value) or STAMP.match(value)):
+            kept = key in KEEP_STRINGS or DATE_KEY.search(key)
+            if kept and (ENUM.match(value) or STAMP.match(value)):
                 return value
             return "[text]"
         return value
 
 
-def _record(
-    client: httpx.Client,
-    redact: Redactor,
-    case: str,
-    path: str,
-    params: dict[str, Any],
-    *,
-    headers: dict[str, str] | None = None,
-) -> dict[str, Any]:
-    response = client.get(path, params=params, headers=headers or {})
+@dataclass
+class Case:
+    name: str
+    path: str  # what is requested
+    shown: str  # what the file says was requested: `{course}` and `{item}` for the real ids
+    params: dict[str, Any]
+    headers: dict[str, str] | None = None
+
+
+def _record(client: httpx.Client, redact: Redactor, case: Case) -> tuple[dict[str, Any], Any]:
+    """The saved answer, and the body as the platform sent it (for a file's download address)."""
+    response = client.get(case.path, params=case.params, headers=case.headers or {})
     try:
         body: Any = response.json()
     except ValueError:
         body = response.text[:500]
     total = len(body) if isinstance(body, list) else None
-    return {
-        "case": case,
-        "request": {"method": "GET", "path": path, "params": params},
+    params = {
+        k: ["course_{course}" if str(v).startswith("course_") else v for v in vs]
+        if isinstance(vs, list)
+        else vs
+        for k, vs in case.params.items()
+    }
+    saved = {
+        "case": case.name,
+        "request": {"method": "GET", "path": case.shown, "params": params},
         "status": response.status_code,
         "headers": {
             h: redact.header(h, response.headers[h]) for h in HEADERS if h in response.headers
@@ -199,23 +228,38 @@ def _record(
         "items_in_page": total,
         "body": redact.body(body),
     }
+    return saved, body
 
 
-def cases(course: str, items: Iterable[Item]) -> list[tuple[str, str, dict[str, Any]]]:
-    root = f"/api/v1/courses/{course}"
-    out = [(f"area-{name}", root + path, params) for name, (path, params) in AREAS.items()]
+def cases(course: str, items: Iterable[Item]) -> list[Case]:
+    root, shown = f"/api/v1/courses/{course}", "/api/v1/courses/{course}"
+    out = [
+        Case(f"area-{name}", root + path, shown + path, params)
+        for name, (path, params) in AREAS.items()
+    ]
     out += [
-        (f"area-{name}", path, {**params, "context_codes[]": [f"course_{course}"]})
+        Case(f"area-{name}", path, path, {**params, "context_codes[]": [f"course_{course}"]})
         for name, (path, params) in OTHER_AREAS.items()
     ]
     out += [
-        (f"missing-{kind}", root + path.format(id=MISSING_ID), {}) for kind, path in ITEMS.items()
+        Case(
+            f"missing-{kind}",
+            root + path.format(id=MISSING_ID),
+            shown + path.format(id=MISSING_ID),
+            {},
+        )
+        for kind, path in ITEMS.items()
     ]
-    for item in items:
-        path = root + ITEMS[item.kind].format(id=item.id)
-        out.append((f"{item.kind}-{item.label}", path, {}))
-        if item.kind == "file":
-            out.append((f"{item.kind}-{item.label}-download", f"{path}/download", {}))
+    out += [
+        Case(
+            f"{item.kind}-{item.label}",
+            root + ITEMS[item.kind].format(id=item.id),
+            shown + ITEMS[item.kind].format(id="{item}"),
+            {},
+        )
+        for item in items
+    ]
+    out.append(Case("bad-token", root, shown, {}, {"Authorization": "Bearer invalid-0000"}))
     return out
 
 
@@ -233,21 +277,24 @@ def record(
     out.mkdir(parents=True, exist_ok=True)
     written: list[Path] = []
     auth = {"Authorization": f"Bearer {token}"}
+
+    def save(saved: dict[str, Any]) -> None:
+        target = out / f"{saved['case']}.json"
+        target.write_text(json.dumps(saved, indent=2, ensure_ascii=False) + "\n")
+        written.append(target)
+        say(f"{saved['status']}  {saved['case']}")
+
     with httpx.Client(
         base_url=base_url, headers=auth, transport=transport, timeout=30, follow_redirects=False
     ) as client:
-        todo: list[tuple[str, str, dict[str, Any], dict[str, str] | None]] = [
-            (case, path, params, None) for case, path, params in cases(course, items)
-        ]
-        todo.append(
-            ("bad-token", f"/api/v1/courses/{course}", {}, {"Authorization": "Bearer invalid-0000"})
-        )
-        for case, path, params, headers in todo:
-            got = _record(client, redact, case, path, params, headers=headers)
-            target = out / f"{case}.json"
-            target.write_text(json.dumps(got, indent=2, ensure_ascii=False) + "\n")
-            written.append(target)
-            say(f"{got['status']}  {case}")
+        for case in cases(course, items):
+            saved, body = _record(client, redact, case)
+            save(saved)
+            # A file's download is where its `url` points (as the app follows it), not followed.
+            url = body.get("url") if isinstance(body, dict) else None
+            if case.name.startswith("file-") and isinstance(url, str) and url:
+                download = Case(f"{case.name}-download", url, "[the file's url]", {})
+                save(_record(client, redact, download)[0])
     return written
 
 
