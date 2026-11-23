@@ -300,6 +300,18 @@ async def test_an_assignment_gone_from_the_platform_is_kept_or_deleted(
     ]
 
 
+async def test_hidden_quizzes_do_not_fail_the_assignments(api: Api, fake: FakeProvider):
+    """The instructor hid the quizzes (Canvas refuses their list): the assignments still sync,
+    a quiz among them keeps what was last read of it, and nothing is reported as failed."""
+    labs = fake.course_assignments["101"]
+    labs[0] = labs[0].model_copy(update={"quiz_id": "q1"})
+    program_id, course = await _course(api, "a1")
+    fake.quizzes_hidden = True
+    status = await api.sync(program_id)
+    assert status["errors"] == []
+    assert "a1" in await _assessments(api, course)
+
+
 async def test_imported_assignments_are_read_alone_while_their_list_is_closed(
     api: Api, fake: FakeProvider, clock: Clock
 ):

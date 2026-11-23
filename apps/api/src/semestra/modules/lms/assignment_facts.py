@@ -24,7 +24,7 @@ from sqlalchemy import select
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError
 from semestra.modules.lms import reads, service
-from semestra.modules.lms.answers import STOPPING
+from semestra.modules.lms.answers import AREA_HIDDEN, STOPPING
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.models import LmsAssignment, LmsCourseLink
 from semestra.modules.lms.schemas.dto import SubmissionDetail
@@ -98,13 +98,16 @@ async def read_list(
 
 async def _side_read(side: Side, run: Callable[[], Awaitable[Any]]) -> tuple[bool, Any]:
     """`(read, value)`: one read that adds to the list; a failure not about the connection or
-    the platform as a whole is noted in `side.errors` and leaves it unread."""
+    the platform as a whole is noted in `side.errors` and leaves it unread. An area the
+    instructor closed (the quizzes) is how the course is set up, not a failure: left unread,
+    each item keeps what was last read of it."""
     try:
         return True, await run()
     except AppError as exc:
         if exc.code in STOPPING:
             raise
-        side.errors.append(exc.code)
+        if exc.code != AREA_HIDDEN:
+            side.errors.append(exc.code)
         return False, None
 
 

@@ -94,6 +94,8 @@ class FakeProvider:
                       is_current=False),
         ]  # fmt: skip
         self.quiz_list = [Quiz(external_id="q1", title="Quiz 1")]
+        # The instructor hid the quizzes: their list is refused (404, as Canvas does).
+        self.quizzes_hidden = False
         self.course_assignments: dict[str, list[Assignment]] = {
             "101": [
                 Assignment(external_id="a1", name="Lab 1", due_at=datetime.fromisoformat(
@@ -334,6 +336,8 @@ class FakeProvider:
                                "</table>")  # fmt: skip
 
     async def quizzes(self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str) -> list[Quiz]:
+        if self.quizzes_hidden:
+            raise lms_error("lms.not_found")
         return [q.model_copy() for q in self.quiz_list]
 
     async def syllabus(self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str) -> RichText:
