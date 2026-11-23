@@ -3,7 +3,7 @@ import { FileText, MessageSquareText } from 'lucide-react'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
-import { useAssignmentTarget } from '../assignment/queries'
+import { heldFor, useAssignmentTarget } from '../assignment/queries'
 import { useAssignmentDetails } from '../assignment/target'
 
 /**
@@ -34,7 +34,12 @@ export function AssessmentAssignmentCell({
             className={feedback ? 'text-primary' : 'text-muted-foreground'}
             aria-label={`${tip}: ${assessment.title}`}
             onClick={() =>
-              open(target.course_id, target.assignment_id, feedback ? 'feedback' : 'details')
+              open(
+                target.course_id,
+                target.assignment_id,
+                feedback ? 'feedback' : 'details',
+                heldFor(target),
+              )
             }
           />
         }

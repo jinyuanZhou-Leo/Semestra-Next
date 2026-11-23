@@ -1,8 +1,8 @@
 """Assignments handed in on the platform finish their to-dos (M09 §4.6).
 
-Whenever the module reads a course's assignments (the Canvas tab, imports, or the background
-sync in `sync.py`), the imported ones the platform shows handed in for the first time
-get their to-do finished: the task they were imported as, or the task of the assessment they
+When the sync's `assignments` stage reads a course's submissions (`sync_assignments.py`; reads
+write nothing), the imported assignments the platform shows handed in for the first time get
+their to-do finished: the task they were imported as, or the task of the assessment they
 were imported as. Each assignment counts once (`LmsImportedRef.submitted_at`), so a to-do the
 user opens again stays open. The account setting `lms.complete_submitted` turns this off; while
 it is off nothing is recorded, so turning it on catches up with what was handed in meanwhile."""
@@ -11,7 +11,7 @@ from typing import Any
 
 from sqlalchemy import select
 
-from semestra.core.context import Ctx, run_as_system
+from semestra.core.context import Ctx
 from semestra.modules.lms.models import LmsCourseLink, LmsImportedRef
 from semestra.modules.lms.settings import completes_submitted
 from semestra.modules.tasks import service as tasks
@@ -55,16 +55,3 @@ async def complete(ctx: Ctx, link_id: str, submitted: set[str]) -> None:
         assessment_ids=[r.target_id for r in refs if r.target_kind == "assessment" and r.target_id],
     )
     await ctx.db.flush()
-
-
-def after_read(ctx: Ctx, link_id: str, assignments: list[dict[str, Any]]) -> None:
-    """Runs `complete` after the read, in a transaction of its own: reads write nothing."""
-    submitted = handed_in(assignments)
-    if not submitted:
-        return
-    state, user_id = ctx.state, ctx.user_id
-
-    async def run() -> None:
-        await run_as_system(state, user_id, lambda sys: complete(sys, link_id, submitted))
-
-    ctx.after_commit.append(run)

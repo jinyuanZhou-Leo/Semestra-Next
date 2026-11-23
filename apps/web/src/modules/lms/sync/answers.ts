@@ -63,7 +63,7 @@ export function useSyncAnswers(programId: string) {
       void answer(ids, () =>
         lmsSyncDismiss({
           path: { program_id: programId },
-          body: { item_ids: ids, dismissed },
+          body: { assignment_ids: ids, dismissed },
           throwOnError: true,
         }),
       )

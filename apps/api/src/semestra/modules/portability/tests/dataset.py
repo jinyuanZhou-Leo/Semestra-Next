@@ -51,13 +51,12 @@ from semestra.modules.layouts.models import (
 )
 from semestra.modules.lms.models import (
     LmsAnnouncement,
-    LmsCache,
+    LmsAssignment,
     LmsCalendarEvent,
     LmsConnection,
     LmsCourseLink,
     LmsImportedRef,
     LmsItemCheck,
-    LmsKeptAssignment,
     LmsMaterial,
     LmsProgramBinding,
     LmsSyncChange,
@@ -191,6 +190,8 @@ async def populate(
         connection_id=connection.id,
         external_course_id="101",
         external_code="APS100",
+        total_score=88.5,
+        total_grade="A-",
         area_reads={
             "calendar": {"result": "whole", "at": NOW.isoformat(), "read_at": NOW.isoformat()}
         },
@@ -411,13 +412,6 @@ async def populate(
                 at=NOW,
                 unavailable_since=NOW,
             ),
-            LmsCache(
-                **u,
-                key=f"{connection.id}:courses",
-                connection_id=connection.id,
-                payload=[],
-                expires_at=NOW,
-            ),
             TasksItem(
                 **u,
                 id=task_id,
@@ -445,19 +439,43 @@ async def populate(
     db.add(
         LmsSyncChange(**u, ref_id=lms_ref.id, field="title", old="Midterm", new="Midterm 1", at=NOW)
     )
-    db.add(
-        LmsKeptAssignment(
-            **u,
-            assessment_id=assessment_id,
-            course_id=course.id,
-            provider="canvas",
-            assignment_id="9001",
-            points=100,
-            score=88,
-            comments=[{"id": "1", "author": "Prof", "comment": "Good", "created_at": None}],
-            rubric=[{"id": "c1", "description": "Clarity", "points": 10, "ratings": []}],
-            rubric_scores=[{"criterion_id": "c1", "points": 9}],
-        )
+    feedback = {
+        "external_id": "s1",
+        "assignment_id": "9001",
+        "score": 88,
+        "comments": [{"id": "1", "author": "Prof", "comment": "Good", "created_at": None}],
+        "rubric_scores": [{"criterion_id": "c1", "points": 9}],
+    }
+    assignment = {
+        "external_id": "9001",
+        "name": "Midterm",
+        "points": 100,
+        "rubric": [{"id": "c1", "description": "Clarity", "points": 10, "ratings": []}],
+    }
+    db.add_all(
+        [
+            LmsAssignment(
+                **u,
+                link_id=course_link.id,
+                course_id=course.id,
+                provider="canvas",
+                external_id="9001",
+                assignment=assignment,
+                submission=feedback,
+            ),
+            # Held for the to-do: it no longer follows the assignment (M09 §3.2).
+            LmsAssignment(
+                **u,
+                held_for_kind="task",
+                held_for_id=task_id,
+                course_id=course.id,
+                provider="canvas",
+                external_id="9001",
+                assignment=assignment,
+                submission=feedback,
+                seen_at=NOW,
+            ),
+        ]
     )
     db.add_all(
         [

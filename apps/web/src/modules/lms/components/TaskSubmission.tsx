@@ -7,7 +7,7 @@ import type { TaskDetailSectionProps } from '@/modules/tasks/types'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from '@/ui/item'
-import { useAssignmentTarget } from '../assignment/queries'
+import { heldFor, useAssignmentTarget } from '../assignment/queries'
 import { STATE_LABELS } from '../assignment/status'
 import { useAssignmentDetails } from '../assignment/target'
 import { useProgramProviderName, useProviderName, useProviderUis } from '../providers'
@@ -58,7 +58,7 @@ function Card({
           size="sm"
           onClick={() => {
             onClose()
-            open(courseId, target.assignment_id)
+            open(courseId, target.assignment_id, 'details', heldFor(target))
           }}
         >
           {m.lms_assignment_view()}

@@ -330,15 +330,11 @@ class SubmissionDetail(Dto):
     rubric_scores: list[RubricScore] = Field(default_factory=list)
 
 
-class GradeItem(Dto):
-    name: str
-    score: float | None = None
-    points_possible: float | None = None
-    grade: str | None = None
-    group_name: str | None = None
-    graded_at: datetime | None = None
-    # One row per course total (`kind='total'`) plus one per assignment.
-    kind: Literal["total", "assignment"] = "assignment"
+class CourseTotal(BaseModel):
+    """The user's course total as the platform shows it."""
+
+    score: float | None = Field(default=None, description="Percent")
+    grade: str | None = Field(default=None, description="The letter or label the platform gives")
 
 
 class InternalRef(BaseModel):

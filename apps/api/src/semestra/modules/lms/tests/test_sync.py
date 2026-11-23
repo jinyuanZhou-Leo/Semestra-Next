@@ -8,13 +8,11 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi import FastAPI
-from sqlalchemy import func, select
 
 from semestra.core.context import system_ctx
 from semestra.core.jobs import BACKGROUND
 from semestra.modules.lms import sync
 from semestra.modules.lms.errors import lms_error
-from semestra.modules.lms.models import LmsCache
 from semestra.modules.lms.schemas.dto import Submission
 from semestra.modules.lms.tests.conftest import Api, FakeProvider
 from semestra.modules.lms.tests.test_lms import setup_program
@@ -238,11 +236,11 @@ async def test_new_assignments_wait_for_the_user(api: Api, fake: FakeProvider):
 
     # Ignored: listed apart, offered again on request.
     path = f"/programs/{program_id}/lms/sync:dismiss"
-    status = await api.call("POST", path, json={"item_ids": [lab2["id"]]})
+    status = await api.call("POST", path, json={"assignment_ids": [lab2["id"]]})
     assert [i["title"] for i in status["pending"]] == ["Midterm"]
     assert [i["title"] for i in status["ignored"]] == ["Lab 2"]
     assert [i["title"] for i in (await api.sync(program_id))["ignored"]] == ["Lab 2"]
-    status = await api.call("POST", path, json={"item_ids": [lab2["id"]], "dismissed": False})
+    status = await api.call("POST", path, json={"assignment_ids": [lab2["id"]], "dismissed": False})
     assert [i["title"] for i in status["pending"]] == ["Lab 2", "Midterm"]
 
     # Importing one takes it off the list; one gone from the platform goes too.
@@ -265,7 +263,7 @@ async def test_a_cut_off_list_keeps_new_and_ignored_assignments(api: Api, fake: 
     status = await api.sync(program_id)
     lab2, _ = status["pending"]
     await api.call(
-        "POST", f"/programs/{program_id}/lms/sync:dismiss", json={"item_ids": [lab2["id"]]}
+        "POST", f"/programs/{program_id}/lms/sync:dismiss", json={"assignment_ids": [lab2["id"]]}
     )
     fake.truncated = True
     del fake.course_assignments["101"][1:]
@@ -507,13 +505,6 @@ async def test_the_shortest_interval_holds_when_the_app_asks(
     assert (await api.call("POST", path, json={}))["queued"] == 1
 
 
-async def test_a_sync_keeps_what_it_read_in_memory_only(api: Api, app: FastAPI):
-    program_id, _ = await _course(api)
-    await api.sync(program_id)
-    async with system_ctx(app.state) as ctx:
-        assert await ctx.db.scalar(select(func.count()).select_from(LmsCache)) == 0
-
-
 async def test_a_field_set_apart_from_the_platform_can_follow_it_again(
     api: Api, fake: FakeProvider
 ):
@@ -641,3 +632,86 @@ async def test_a_to_do_follows_its_due_when_the_program_changes_zone(api: Api, f
     reading = await api.call("GET", f"/tasks/{reading['id']}")
     assert (reading["due_date"], reading["due_time"]) == ("2026-03-05", "20:59:00")
     assert (await api.sync(program_id))["different"] == []
+
+
+async def test_the_mirror_changes_only_with_the_platform(
+    api: Api, app: FastAPI, fake: FakeProvider, clock: Clock
+):
+    """Rows are written only when their facts change (M09 §4.5): a round where nothing changed
+    on the platform tells nobody the assignments changed."""
+    program_id, _ = await _course(api)
+    await api.sync(program_id)
+    user_id = (await api.call("GET", "/account/me"))["id"]
+    clock.advance(minutes=1)
+    with collect_events(app, user_id) as events:
+        await api.sync(program_id)
+    assert [e for e in events if e["type"] == "lms.assignments.updated"] == []
+    fake.course_assignments["101"][1].name = "Lab 2 (revised)"
+    clock.advance(minutes=1)
+    with collect_events(app, user_id) as events:
+        await api.sync(program_id)
+    assert [e["type"] for e in events].count("lms.assignments.updated") == 1
+
+
+async def test_a_read_that_adds_to_the_list_failing_keeps_what_it_gave(
+    api: Api, fake: FakeProvider, monkeypatch: pytest.MonkeyPatch, clock: Clock
+):
+    """The course's submissions not read this round: the assignments are written, the
+    submissions stay as last read, and the stage reports the error (M09 §4.5)."""
+    from semestra.modules.lms.schemas.dto import SubmissionComment, SubmissionDetail
+
+    program_id, course = await _course(api, "a1")
+    fake.course_submissions["101"] = [
+        SubmissionDetail(
+            external_id="s1",
+            assignment_id="a1",
+            score=9,
+            comments=[SubmissionComment(id="1", author="Prof", comment="Good")],
+        )
+    ]
+    await api.sync(program_id)
+
+    async def refused(*_: Any) -> Any:
+        raise lms_error("lms.forbidden")
+
+    monkeypatch.setattr(type(fake), "submissions", refused)
+    fake.course_assignments["101"][0].name = "Lab 1 (revised)"
+    clock.advance(minutes=1)
+    status = await api.sync(program_id)
+    assert [(e["course_id"], e["code"]) for e in status["errors"]] == [(course, "lms.forbidden")]
+    lab = await api.call("GET", f"/courses/{course}/lms/assignments/a1")
+    assert lab["assignment"]["name"] == "Lab 1 (revised)"
+    assert lab["submission"]["comments"][0]["comment"] == "Good"
+    assert lab["sync_failed"] is True
+
+
+async def test_unimported_assignments_of_a_closed_list_are_one_row(
+    api: Api, fake: FakeProvider, clock: Clock
+):
+    """Not read one by one (M09 table 3c, row 10): kept, and listed as one row per course."""
+    program_id, course = await _course(api, "a1")
+    await api.sync(program_id)
+    whole = clock.now
+    fake.assignments_hidden = True
+    clock.advance(days=2)
+    status = await api.sync(program_id)
+    [row] = [u for u in status["unreadable"] if u["kind"] == "assignments"]
+    assert (row["course_id"], row["count"]) == (course, 2)
+    assert datetime.fromisoformat(row["since"]) == whole
+    # Still there to read, as last read.
+    assert (await api.call("GET", f"/courses/{course}/lms/assignments/a2"))["source"] == "mirror"
+
+
+async def test_a_course_not_syncing_reads_its_assignments_now(
+    api: Api, fake: FakeProvider, clock: Clock
+):
+    """The mirror is no longer kept up: reads go to the platform (M09 §4.4), through the
+    short-lived read cache."""
+    program_id, course = await _course(api)
+    await api.sync(program_id)
+    await api.call("PATCH", f"/courses/{course}/lms-link", json={"sync_enabled": False})
+    fake.course_assignments["101"][0].name = "Lab 1 (revised)"
+    clock.advance(minutes=6)
+    listed = await api.call("GET", f"/courses/{course}/lms/assignments")
+    assert listed["source"] == "live"
+    assert listed["items"][0]["name"] == "Lab 1 (revised)"

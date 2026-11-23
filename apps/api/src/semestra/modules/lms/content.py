@@ -7,8 +7,9 @@ One piece of content has one way in. A platform file or page that the course's f
 readable text (the sync keeps them there, `sync_files.py`) is searched and read there (M07), and
 cited like any file; only what they don't have (the area's sync is off, the user removed it, it
 is not read yet or can't be) is read from the platform, and the result says so. Announcements
-and the teacher's feedback are the app's own copies (`announcements.py`, `sync_kept.py`), so
-they are found and read when the platform can't be reached."""
+and assignments with the teacher's feedback are the app's own copies (`announcements.py`, the
+assignments mirror, `assignment_facts.py`), so they are found and read when the platform can't
+be reached."""
 
 import re
 from collections.abc import Awaitable, Callable
@@ -26,22 +27,23 @@ from semestra.modules.files import documents, sources
 from semestra.modules.files import search as file_search
 from semestra.modules.files.models import FilesItem
 from semestra.modules.files.schemas import Citation, SearchInput
-from semestra.modules.grading import service as grading
 from semestra.modules.lms import (
     announcements,
+    assignment,
     files,
     pages,
     reads,
     refs,
     rules,
     service,
-    sync_kept,
     sync_status,
 )
+from semestra.modules.lms import assignment_facts as facts
 from semestra.modules.lms import search as ranking
+from semestra.modules.lms.assignment_facts import Facts
 from semestra.modules.lms.errors import BROKEN_ON_READ, lms_error
 from semestra.modules.lms.markdown import to_markdown
-from semestra.modules.lms.models import LmsCourseLink, LmsMaterial
+from semestra.modules.lms.models import LmsAssignment, LmsCourseLink, LmsMaterial
 from semestra.modules.lms.schemas.agent import (
     ContentKind,
     LmsActivityInput,
@@ -61,8 +63,9 @@ from semestra.modules.lms.schemas.agent import (
     LmsSkipped,
 )
 from semestra.modules.lms.schemas.dto import DiscussionDetail, Module, ModuleItem
-from semestra.modules.lms.schemas.io import CourseOverview, FeedbackOut
+from semestra.modules.lms.schemas.io import CourseOverview
 from semestra.modules.lms.service import Bound
+from semestra.modules.lms.sync_assignments import has_feedback
 
 # Module items one outline call returns at most; the rest come with `next_cursor`.
 OUTLINE_ITEMS = 300
@@ -88,7 +91,10 @@ _RECONNECT = (
     "The LMS connection stopped working: tell the user to reconnect it in settings (LMS). Until "
     "then only what the app keeps of the course can be read."
 )
-_UNLINKED = "The course is no longer linked to the LMS: only the feedback the app kept can be read."
+_UNLINKED = (
+    "The course is no longer linked to the LMS: only the assignments the app kept for its "
+    "assessments and to-dos can be read."
+)
 
 
 def _down_hint(code: str) -> str | None:
@@ -442,16 +448,16 @@ async def search(ctx: Ctx, inp: LmsSearchInput) -> LmsSearchResults:
     # The kept feedback joins its assignment as the platform has it (its title, its group);
     # alone (the platform not reached, the course unlinked) it is named by its assessment.
     if "assignment" in wanted:
-        for f, title in feedback:
-            ref = refs.make("assignment", f.assignment_id)
+        for f in feedback:
+            ref = refs.make("assignment", f.external_id)
             docs.add(
                 "assignment",
                 ref,
-                title,
+                str(f.assignment.get("name") or ""),
                 _feedback_text(f),
                 where=None if ref in docs.by_key else "Feedback",
-                url=f.web_url,
-                date=f.graded_at,
+                url=f.assignment.get("web_url"),
+                date=_dt((f.submission or {}).get("graded_at")),
             )
 
     scored: list[tuple[ranking.Match, _Entry]] = []
@@ -569,12 +575,12 @@ async def _search_platform(
     cid = inp.course_id
 
     async def assignments() -> None:
-        data, _ = await reads.raw_assignments(ctx, cid, inp.refresh, linked=(course.link, course.b))
-        for a in data:
-            ref = refs.make("assignment", a["external_id"])
+        got = await facts.course(ctx, cid, refresh=inp.refresh, linked=(course.link, course.b))
+        for f in got.items:
+            a = f.assignment
             docs.add(
                 "assignment",
-                ref,
+                refs.make("assignment", f.external_id),
                 a["name"],
                 _md(a.get("html")),
                 where=a.get("group_name"),
@@ -627,20 +633,34 @@ async def _search_platform(
         await source("files", "files", file_names)
 
 
-# --- the teacher's feedback, as the sync kept it ---------------------------------------------
+# --- the teacher's feedback, as the app keeps it --------------------------------------------
 
 
-async def _feedback(ctx: Ctx, course_id: str) -> list[tuple[FeedbackOut, str]]:
-    """The course's kept feedback (`sync_kept.py`), each with its assessment's title."""
-    kept = (await sync_kept.feedback_list(ctx, course_id)).items
-    titles = await grading.find_assessment_rows(ctx, [f.assessment_id for f in kept])
-    return [(f, titles[f.assessment_id].title) for f in kept if f.assessment_id in titles]
+async def _feedback(ctx: Ctx, course_id: str) -> list[Facts]:
+    """The course's assignments with the teacher's feedback that the app keeps: the mirror's,
+    and what is held for its assessments and to-dos (a course unlinked keeps only those)."""
+    link = await service.link_row(ctx, course_id)
+    rows = await ctx.db.scalars(
+        select(LmsAssignment).where(
+            LmsAssignment.user_id == ctx.user_id, LmsAssignment.course_id == course_id
+        )
+    )
+    return [
+        facts.from_row(r, link if r.link_id is not None else None)
+        for r in rows
+        if has_feedback(r.submission)
+    ]
 
 
-def _feedback_text(f: FeedbackOut) -> str:
-    """The comments and rubric notes, as `_read_assignment` writes them."""
-    parts = [f"- **{c.author or '?'}**: {c.comment}" for c in f.comments if c.comment]
-    parts += [s.comments for s in f.rubric_scores if s.comments]
+def _feedback_text(f: Facts) -> str:
+    """The comments and rubric notes, as `_assignment_detail` writes them."""
+    s = f.submission or {}
+    parts = [
+        f"- **{c.get('author') or '?'}**: {c['comment']}"
+        for c in s.get("comments") or []
+        if c.get("comment")
+    ]
+    parts += [r["comments"] for r in s.get("rubric_scores") or [] if r.get("comments")]
     return "\n".join(parts)
 
 
@@ -719,9 +739,9 @@ async def _read_unlinked(ctx: Ctx, inp: LmsReadInput) -> LmsContentDetail:
     if inp.ref is not None:
         kind, item_id = refs.parse(inp.ref)
         if kind == "assignment":
-            for f, title in await _feedback(ctx, inp.course_id):
-                if f.assignment_id == item_id:
-                    return _kept_feedback(item_id, f, title, _UNLINKED)
+            for f in await _feedback(ctx, inp.course_id):
+                if f.external_id == item_id:
+                    return _assignment_detail(f, _UNLINKED)
     raise lms_error("lms.course_not_linked")
 
 
@@ -820,36 +840,39 @@ async def _read_announcement(
 async def _read_assignment(
     ctx: Ctx, inp: LmsReadInput, linked: tuple[LmsCourseLink, Bound], item_id: str
 ) -> LmsContentDetail:
-    """The assignment from the platform, with the teacher's feedback as the sync kept it (an
-    imported one's), else as the platform has it. When the platform can't be reached, or the
-    assignment is gone from it, the kept feedback is still read."""
-    kept = next(
-        (
-            (f, title)
-            for f, title in await _feedback(ctx, inp.course_id)
-            if f.assignment_id == item_id
-        ),
-        None,
-    )
-    down = None
+    """The assignment with the user's submission and the teacher's feedback (M09 §4.5): from
+    the mirror where it stands in, else from the platform. When the platform can't be reached,
+    what the app keeps of the assignment is still read."""
     try:
-        data, _ = await reads.raw_assignments(ctx, inp.course_id, inp.refresh, linked=linked)
+        f = await facts.one(ctx, inp.course_id, item_id, refresh=inp.refresh)
     except AppError as exc:
-        if kept is None or exc.code not in _PLATFORM_DOWN:
+        if exc.code not in _PLATFORM_DOWN:
             raise
-        data, down = [], exc.code
-    a = next((a for a in data if a["external_id"] == item_id), None)
-    if a is None:
-        if kept is None:
-            raise lms_error("lms.not_found")
-        note = (
-            "The LMS could not give the assignment: this is its feedback as the app kept it at "
-            "the last sync."
+        rows = await ctx.db.scalars(
+            select(LmsAssignment).where(
+                LmsAssignment.user_id == ctx.user_id,
+                LmsAssignment.course_id == inp.course_id,
+                LmsAssignment.external_id == item_id,
+            )
         )
-        hint = _down_hint(down) if down else None
-        return _kept_feedback(item_id, *kept, f"{note} {hint}" if hint else note)
+        row = next(iter(sorted(rows, key=lambda r: r.link_id is None)), None)
+        if row is None:
+            raise
+        note = "The LMS could not give the assignment: this is it as the app kept it."
+        hint = _down_hint(exc.code)
+        kept = facts.from_row(row, linked[0] if row.link_id is not None else None)
+        return _assignment_detail(kept, f"{note} {hint}" if hint else note)
+    note = None
+    if f.source.kind == "mirror":
+        when = f.source.as_of.isoformat() if f.source.as_of else "an earlier sync"
+        note = f"As the app last read it from the LMS ({when}); `refresh` reads it now."
+    return _assignment_detail(f, note)
+
+
+def _assignment_detail(f: Facts, note: str | None) -> LmsContentDetail:
+    a = f.assignment
+    sub = f.submission or {}
     parts = [_md(a.get("html"))]
-    sub = a.get("submission") or {}
     if sub:
         score = sub.get("score")
         line = f"Your submission: {rules.status_of(sub)}"
@@ -857,25 +880,11 @@ async def _read_assignment(
             line += f", score {score:g}" + (f"/{a['points']:g}" if a.get("points") else "")
         if sub.get("grade"):
             line += f" ({sub['grade']})"
-        flags = [f for f in ("late", "missing") if sub.get(f)]
+        flags = [x for x in ("late", "missing") if sub.get(x)]
         parts.append(line + (f"; {', '.join(flags)}" if flags else ""))
-    feedback: dict[str, Any] = kept[0].model_dump() if kept else {}
-    if (
-        kept is None
-        and "submissions" in linked[1].provider.features
-        and rules.status_of(sub) != "unsubmitted"
-    ):
-        try:
-            detail = await reads.submission(ctx, inp.course_id, item_id, inp.refresh)
-            feedback = detail.model_dump()
-        except AppError as exc:
-            if exc.code not in _SKIPPABLE:
-                raise
-    if kept is not None and sub.get("score") is None:
-        parts.append(_kept_score(kept[0]))
-    parts += _feedback_lines(a.get("rubric") or feedback.get("rubric") or [], feedback)
+    parts += _feedback_lines(a.get("rubric") or [], sub)
     return LmsContentDetail(
-        ref=refs.make("assignment", item_id),
+        ref=refs.make("assignment", f.external_id),
         kind="assignment",
         title=a["name"],
         url=a.get("web_url"),
@@ -885,12 +894,13 @@ async def _read_assignment(
         locked=bool(a.get("locked")),
         lock_explanation=a.get("lock_explanation"),
         text="\n\n".join(p for p in parts if p),
+        note=note,
     )
 
 
 def _feedback_lines(rubric: list[dict[str, Any]], feedback: dict[str, Any]) -> list[str]:
     parts: list[str] = []
-    scores = {s["criterion_id"]: s for s in feedback.get("rubric_scores", [])}
+    scores = {s["criterion_id"]: s for s in feedback.get("rubric_scores") or []}
     if rubric:
         parts.append("## Rubric")
         for c in rubric:
@@ -904,28 +914,6 @@ def _feedback_lines(rubric: list[dict[str, Any]], feedback: dict[str, Any]) -> l
         for cm in feedback["comments"]:
             parts.append(f"- **{cm.get('author') or '?'}**: {cm.get('comment', '')}")
     return parts
-
-
-def _kept_score(f: FeedbackOut) -> str:
-    if f.score is None:
-        return ""
-    line = f"Score {f.score:g}" + (f"/{f.points:g}" if f.points else "")
-    return line + (f" ({f.grade})" if f.grade else "")
-
-
-def _kept_feedback(item_id: str, f: FeedbackOut, title: str, note: str) -> LmsContentDetail:
-    feedback = f.model_dump()
-    parts = [_kept_score(f), *_feedback_lines(feedback["rubric"], feedback)]
-    return LmsContentDetail(
-        ref=refs.make("assignment", item_id),
-        kind="assignment",
-        title=title,
-        url=f.web_url,
-        date=f.graded_at,
-        points=f.points,
-        text="\n\n".join(p for p in parts if p),
-        note=note,
-    )
 
 
 async def _read_quiz(
@@ -1127,13 +1115,15 @@ async def _course_activity(
             if exc.code not in _SKIPPABLE:
                 raise
     if "assignments" in b.provider.features:
-        data, _ = await reads.raw_assignments(ctx, course_id, refresh, linked=linked)
-        imported = await reads.imported_targets(ctx, linked[0].id)
-        # New: what the app offers to import (not imported, due later), changed lately.
-        fresh = set(reads.new_ids(ctx, data, imported))
-        for a in data:
-            ref = refs.make("assignment", a["external_id"])
-            sub = a.get("submission") or {}
+        got = await facts.course(ctx, course_id, refresh=refresh, linked=linked)
+        # New: what the app offers to import (M09 table 3e), changed lately.
+        fresh = set(
+            assignment.new_ids(got.items, await assignment.imported(ctx, linked[0].id), ctx.now)
+        )
+        for f in got.items:
+            a = f.assignment
+            ref = refs.make("assignment", f.external_id)
+            sub = f.submission or {}
             graded = _dt(sub.get("graded_at"))
             if graded and graded >= since and sub.get("score") is not None:
                 pts = f"/{a['points']:g}" if a.get("points") else ""

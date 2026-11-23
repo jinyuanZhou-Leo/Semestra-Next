@@ -141,7 +141,7 @@ async def preview(ctx: Ctx, course_id: str, file_id: str, refresh: bool) -> File
         "updated": meta.updated_at.isoformat() if meta.updated_at else None,
     }
     key = cache.cache_key(ctx.user_id, b.row.id, "file_preview", params)
-    if not refresh and (hit := await cache.get(ctx, key)) is not None:
+    if not refresh and (hit := cache.get(ctx, key)) is not None:
         return FilePreview.model_validate(hit["data"])
 
     data = await download(ctx, course_id, file_id, meta=meta, linked=linked)
@@ -177,7 +177,7 @@ async def preview(ctx: Ctx, course_id: str, file_id: str, refresh: bool) -> File
         pages=[p.markdown for p in document.pages[:PREVIEW_MAX_PAGES]],
         truncated=len(document.pages) > PREVIEW_MAX_PAGES,
     )
-    await cache.put(
+    cache.put(
         ctx,
         key,
         b.row.id,

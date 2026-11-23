@@ -222,6 +222,48 @@ def state_of(assignment: Mapping[str, Any]) -> AssignmentState:
     )
 
 
+def facts_state(
+    assignment: Mapping[str, Any], submission: Mapping[str, Any] | None
+) -> AssignmentState | None:
+    """`assignment_state` of an assignment and the user's submission as the mirror keeps them
+    (M09 table 3b): none while the submission was never read (row 0)."""
+    if submission is None:
+        return None
+    return assignment_state(
+        status_of(submission),
+        missing=bool(submission.get("missing")),
+        online=submits_online(list(assignment.get("submission_types") or [])),
+    )
+
+
+def facts_due_state(
+    assignment: Mapping[str, Any], state: AssignmentState | None, now: datetime
+) -> DueState:
+    """`due_state` (table 3d) of an assignment in the mirror; `none` while its state is unknown:
+    not knowing whether it was handed in, nothing says it is overdue."""
+    if state is None:
+        return "none"
+    raw = assignment.get("due_at")
+    due = (raw if isinstance(raw, datetime) else datetime.fromisoformat(raw)) if raw else None
+    return due_state(due, state, now)
+
+
+def is_new(
+    assignment: Mapping[str, Any],
+    submission: Mapping[str, Any] | None,
+    *,
+    imported: bool,
+    dismissed: bool,
+    now: datetime,
+) -> bool:
+    """M09 table 3e: an assignment not imported and not ignored, still to do before its due
+    date. Derived from the mirror each time, never stored: one whose due date moves later is new
+    again."""
+    if imported or dismissed:
+        return False
+    return facts_due_state(assignment, facts_state(assignment, submission), now) == "upcoming"
+
+
 # --- presence (table 3c) ----------------------------------------------------------------------
 
 CHECK_EVERY = timedelta(days=1)

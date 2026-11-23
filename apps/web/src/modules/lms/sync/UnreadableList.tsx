@@ -12,6 +12,7 @@ import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { ANNOUNCEMENTS_PAGE } from '../announcements'
 import { openAssignmentDetails } from '../assignment/target'
+import { assignmentSource } from '../import/sources'
 import type { SyncAnswers } from './answers'
 import type { CourseOf } from './rows'
 
@@ -28,8 +29,9 @@ const AREA: Record<string, () => string> = {
  * on the platform, kept as last read and gone from the list by itself once the platform shows it
  * again. A material read from the platform can be removed, one by one or all at once; one saved
  * in Semestra has no action (that copy may be the only one, and it follows the platform again
- * once the area opens). An imported assignment opens its details; a course's announcements are
- * one row that opens its announcements page.
+ * once the area opens). An imported assignment opens its details; a course's assignments not
+ * imported are one row that opens their import, its announcements one row that opens its
+ * announcements page.
  */
 export function UnreadableList({
   programId,
@@ -126,6 +128,20 @@ export function UnreadableList({
                   }}
                 />
               </PanelFold>
+            )
+          }
+          if (u.kind === 'assignments') {
+            return (
+              <PanelRow
+                key={key}
+                icon={ClipboardList}
+                title={m.lms_sync_unreadable_assignments({ count: u.count })}
+                {...shared}
+                onOpen={() => {
+                  onClose()
+                  void assignmentSource.launch({ programId, courseId: u.course_id })
+                }}
+              />
             )
           }
           return (

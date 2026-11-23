@@ -3,8 +3,8 @@ agent use. Every read needs a linked course and the provider's feature; HTML is 
 it is cached, so cache hits are clean too."""
 
 import asyncio
-from collections.abc import AsyncGenerator, AsyncIterator, Collection, Sequence
-from datetime import UTC, datetime, timedelta, tzinfo
+from collections.abc import AsyncGenerator, AsyncIterator, Sequence
+from datetime import datetime, timedelta, tzinfo
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -13,7 +13,7 @@ from sqlalchemy import select
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError
 from semestra.modules.academics import service as academics
-from semestra.modules.lms import answers, cache, html, rules, service, submissions
+from semestra.modules.lms import answers, cache, html, rules, service
 from semestra.modules.lms.answers import STOPPING
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.models import LmsCourseLink, LmsImportedRef
@@ -28,11 +28,8 @@ from semestra.modules.lms.schemas.dto import (
     SubmissionDetail,
 )
 from semestra.modules.lms.schemas.io import (
-    AssignmentList,
-    AssignmentsInput,
     CourseOverview,
     FileList,
-    GradeList,
     ModuleItemList,
     ModuleList,
     PageList,
@@ -202,7 +199,7 @@ async def raw_assignments(
     async def fetch(b: Bound, i: Any, ext: str) -> Any:
         return _cleaned(b, await b.provider.assignments(i, b.cfg, b.creds, ext), ext)
 
-    data, truncated, link, _ = await _read(
+    data, truncated, *_ = await _read(
         ctx,
         course_id,
         "assignments",
@@ -213,119 +210,7 @@ async def raw_assignments(
         linked=linked,
         area="assignments",
     )
-    submissions.after_read(ctx, link.id, data)
     return data, truncated
-
-
-def new_ids(ctx: Ctx, data: list[dict[str, Any]], imported: Collection[str]) -> list[str]:
-    """The assignments "N new assignments" counts: not imported, due later; soonest first. One
-    with no due date or already past is not offered again: the user can still import it."""
-    later = [
-        a
-        for a in data
-        if a["external_id"] not in imported
-        and a.get("due_at")
-        and datetime.fromisoformat(a["due_at"]) > ctx.now
-    ]
-    later.sort(key=lambda a: datetime.fromisoformat(a["due_at"]))
-    return [a["external_id"] for a in later]
-
-
-async def assignments(ctx: Ctx, inp: AssignmentsInput) -> AssignmentList:
-    """The course's assignments with what each was imported as (and the course total when
-    asked). The filters narrow `items` only: `new_ids` is about the whole list."""
-    course_id, refresh = inp.course_id, inp.refresh
-    linked = await service.require_link(ctx, course_id)
-    data, truncated = await raw_assignments(ctx, course_id, refresh, linked=linked)
-    targets = await imported_targets(ctx, linked[0].id)
-    zone = await course_zone(ctx, course_id) if inp.due_after or inp.due_before else UTC
-    after, before = aware(inp.due_after, zone), aware(inp.due_before, zone)
-    items = [
-        {
-            **a,
-            "ref": f"assignment:{a['external_id']}",
-            "imported_as": targets.get(a["external_id"]),
-            "due_state": rules.due_state_of(a, ctx.now),
-        }
-        for a in data
-        if _wanted(a, inp, after, before)
-    ]
-    totals: list[Any] = []
-    if inp.include_total and "grades" in linked[1].provider.features:
-        try:
-            totals, *_ = await _read(
-                ctx,
-                course_id,
-                "grades",
-                "grade_totals",
-                {},
-                _totals_fetch,
-                refresh=refresh,
-                linked=linked,
-            )
-        except AppError as exc:
-            if exc.code in STOPPING:
-                raise
-    return AssignmentList.model_validate(
-        {
-            "items": items,
-            "new_ids": new_ids(ctx, data, targets),
-            "totals": totals,
-            "truncated": truncated,
-        }
-    )
-
-
-async def _totals_fetch(b: Bound, i: Any, ext: str) -> Any:
-    return await b.provider.grade_totals(i, b.cfg, b.creds, ext)
-
-
-def _wanted(
-    a: dict[str, Any],
-    inp: AssignmentsInput,
-    after: datetime | None,
-    before: datetime | None,
-) -> bool:
-    due = datetime.fromisoformat(a["due_at"]) if a.get("due_at") else None
-    if after and (due is None or due < after):
-        return False
-    if before and (due is None or due > before):
-        return False
-    return inp.state is None or rules.state_of(a) == inp.state
-
-
-async def grades(ctx: Ctx, course_id: str, refresh: bool) -> GradeList:
-    """The course total from the platform, then one row per assignment built from the cached
-    assignment list (its submissions carry the scores): the platform is not asked twice."""
-
-    linked = await service.require_link(ctx, course_id)
-    totals, truncated, *_ = await _read(
-        ctx,
-        course_id,
-        "grades",
-        "grade_totals",
-        {},
-        _totals_fetch,
-        refresh=refresh,
-        linked=linked,
-        area="grades",
-    )
-    listed, cut = await raw_assignments(ctx, course_id, refresh, linked=linked)
-    rows = [
-        {
-            "external_id": a["external_id"],
-            "web_url": a.get("web_url"),
-            "raw_kind": "submission",
-            "name": a["name"],
-            "score": (a.get("submission") or {}).get("score"),
-            "points_possible": a.get("points"),
-            "grade": (a.get("submission") or {}).get("grade"),
-            "group_name": a.get("group_name"),
-            "graded_at": (a.get("submission") or {}).get("graded_at"),
-        }
-        for a in listed
-    ]
-    return GradeList.model_validate({"items": [*totals, *rows], "truncated": truncated or cut})
 
 
 async def modules(ctx: Ctx, course_id: str, refresh: bool) -> ModuleList:
@@ -365,7 +250,7 @@ async def module_items(ctx: Ctx, course_id: str, module_id: str, refresh: bool) 
     if not refresh:
         # The module list usually came with its items: no platform request for them.
         key = cache.cache_key(ctx.user_id, b.row.id, "modules", {"course": link.external_course_id})
-        hit = await cache.get(ctx, key)
+        hit = cache.get(ctx, key)
         for module in (hit or {}).get("data", []):
             if module.get("external_id") == module_id and module.get("items") is not None:
                 return ModuleItemList.model_validate(
@@ -496,7 +381,7 @@ async def read_many(
     out: list[Any | AppError] = [None] * len(wanted)
     missing: list[int] = []
     for n, key in enumerate(keys):
-        hit = None if refresh else await cache.get(ctx, key)
+        hit = None if refresh else cache.get(ctx, key)
         if hit is None:
             missing.append(n)
         else:
@@ -521,14 +406,13 @@ async def read_many(
     for n, data in zip(missing, fetched, strict=True):
         out[n] = data
         if not isinstance(data, AppError):
-            await cache.put(
+            cache.put(
                 ctx,
                 keys[n],
                 b.row.id,
                 {"data": data, "truncated": False},
                 scope=cache.course_scope(ext),
                 ttl=ttl,
-                persist=service.persists(),
             )
     return out
 
@@ -788,4 +672,4 @@ async def refresh_course(ctx: Ctx, course_id: str) -> None:
     """Forgets everything cached about one course ("Refresh" in the Canvas tab); the next reads
     ask the platform."""
     link, b = await service.require_link(ctx, course_id)
-    await cache.drop_scope(ctx, b.row.id, cache.course_scope(link.external_course_id))
+    cache.drop_scope(ctx, b.row.id, cache.course_scope(link.external_course_id))

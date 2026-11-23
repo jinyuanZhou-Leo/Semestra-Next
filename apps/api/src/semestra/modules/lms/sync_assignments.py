@@ -1,12 +1,19 @@
-"""The assignments stage of the course sync (M09 §4.1), and the user's answers to what it asks.
+"""The assignments stage of the course sync (M09 §4.4, §4.5), and the user's answers to what it
+asks.
+
+The stage keeps the mirror (`LmsAssignment`): every assignment of the course with the user's
+submission and the teacher's feedback, read once per round (`assignment_facts`). A row is written
+only when its facts change; one gone from the platform (table 3c) goes, except an imported one
+waiting for the user's answer. New feedback on an imported assignment is a recent update; the
+to-dos of assignments handed in for the first time are finished (`submissions.complete`).
 
 Imported assignments follow the platform field by field (title, due date, weight, grade; a to-do
 only title and due date), each field decided by `rules.merge` from its snapshot (the platform
 value last applied), its Semestra value and the platform value now. Values the sync writes are
 logged (`LmsSyncChange`, which the user can put back); the user answers what it asks field by
 field (`answer`), and keeps or deletes an assignment gone from the platform (`resolve`).
-Assignments not imported yet that are due later are kept as new items until the user imports or
-ignores them.
+New assignments are worked out from the mirror (`rules.is_new`), not kept; the ones the user
+ignored have a ref (table 4b, `assignment_refs`).
 
 All values are compared in the Program's time zone and kept in one form (`rules.platform_value`),
 which is also what the change log and conflicts hold: a due date is `{date, time}` (time null for
@@ -15,7 +22,6 @@ number, a title a string.
 """
 
 from collections.abc import Iterable, Mapping
-from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -28,15 +34,23 @@ from semestra.modules.academics import service as academics
 from semestra.modules.grading import service as grading
 from semestra.modules.grading.models import GradingAssessment
 from semestra.modules.imports import deps
-from semestra.modules.lms import reads, service
+from semestra.modules.lms import assignment_facts as facts
+from semestra.modules.lms import assignment_refs, service, submissions
 from semestra.modules.lms import settings as lms_settings
+from semestra.modules.lms.assignment_facts import Facts, Side, Source, facts_of
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.imports import advance, snapshot, taken_in, weights_of
-from semestra.modules.lms.models import LmsCourseLink, LmsImportedRef, LmsSyncChange
+from semestra.modules.lms.models import (
+    LmsAssignment,
+    LmsCourseLink,
+    LmsImportedRef,
+    LmsSyncChange,
+)
 from semestra.modules.lms.rules import (
     Action,
     Presence,
     diverged,
+    is_new,
     merge,
     platform_value,
     presence,
@@ -44,7 +58,14 @@ from semestra.modules.lms.rules import (
 )
 from semestra.modules.lms.schemas.sync import SyncField
 from semestra.modules.lms.service import Bound
-from semestra.modules.lms.sync import UPDATED, Applied, StageResult, hold, register_sync_stage
+from semestra.modules.lms.sync import (
+    ASSIGNMENTS_UPDATED,
+    UPDATED,
+    Applied,
+    StageResult,
+    hold,
+    register_sync_stage,
+)
 from semestra.modules.lms.sync_round import SyncRound
 from semestra.modules.tasks.models import TasksItem
 
@@ -161,13 +182,6 @@ async def write(ctx: Ctx, ref: LmsImportedRef, name: str, value: Any) -> None:
 # --- the stage -------------------------------------------------------------------------------
 
 
-def _new(a: dict[str, Any], now: datetime) -> bool:
-    """What is offered as new: due later (one past due or without a date is left to the user,
-    who can still import it from the platform's list)."""
-    due = a.get("due_at")
-    return bool(due) and datetime.fromisoformat(due) > now
-
-
 async def _log(ctx: Ctx, ref: LmsImportedRef, name: str, old: Any, new: Any, title: str) -> Applied:
     change = LmsSyncChange(
         user_id=ctx.user_id, ref_id=ref.id, field=name, old=old, new=new, at=ctx.now
@@ -224,61 +238,148 @@ async def _follow(
     return applied
 
 
+def _theirs(comments: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The comments that are feedback: not the user's own."""
+    return [c for c in comments if not c.get("own")]
+
+
+def _comment_key(comment: dict[str, Any]) -> tuple[Any, ...]:
+    return (
+        (comment.get("id"),)
+        if comment.get("id")
+        else (comment.get("created_at"), comment.get("comment"))
+    )
+
+
+def news(before: dict[str, Any] | None, after: dict[str, Any] | None) -> dict[str, Any] | None:
+    """What is new in the teacher's feedback (M09 §4.5): someone else's comments not there
+    before, a rubric assessed for the first time. None when nothing is, or when the submission
+    is read for the first time (what it already had is not news)."""
+    if before is None or after is None:
+        return None
+    seen = {_comment_key(c) for c in before.get("comments") or []}
+    comments = sum(1 for c in _theirs(after.get("comments") or []) if _comment_key(c) not in seen)
+    rubric = bool(after.get("rubric_scores")) and not before.get("rubric_scores")
+    return {"comments": comments, "rubric": rubric} if comments or rubric else None
+
+
+def has_feedback(submission: dict[str, Any] | None) -> bool:
+    """Whether the teacher left feedback: someone else's comments, or rubric scores."""
+    s = submission or {}
+    return bool(_theirs(s.get("comments") or []) or s.get("rubric_scores"))
+
+
+def _columns(f: Facts) -> dict[str, Any]:
+    return {"assignment": f.assignment, "submission": f.submission, "quiz": f.quiz}
+
+
 async def run(ctx: Ctx, link: LmsCourseLink, b: Bound, sync_round: SyncRound) -> StageResult:
     got = await sync_round.area(
         ctx,
         link,
         b,
         AREA,
-        lambda: reads.raw_assignments(ctx, link.course_id, True, linked=(link, b)),
+        lambda: facts.read_list(ctx, link, b, refresh=True),
         truncated=lambda r: r[1],
     )
-    data = got[0] if got is not None else []
-    by_id = {str(a["external_id"]): a for a in data}
+    listed = got[0] if got is not None else []
+    by_id = {str(a["external_id"]): a for a in listed}
+    side = await facts.read_side(ctx, link, b, listed, refresh=True) if got is not None else Side()
     stored = list(
         await ctx.db.scalars(select(LmsImportedRef).where(LmsImportedRef.link_id == link.id))
     )
-    # Only what has a state to change is asked about one at a time (table 4b): an imported or
-    # ignored assignment. A new one not listed simply stops being offered once it is gone.
+    # Only what has a state to change is read on its own (table 3c, row 10): an imported or
+    # ignored assignment. The others stay in the mirror until a list read whole leaves them out.
+    rows_before = {r.external_id: r for r in await facts.mirror_rows(ctx, link.id)}
+    tracked = {r.external_id for r in stored}
     presences = await _presences(
         ctx,
         link,
         b,
         sync_round,
-        {
-            r.external_id: r.target_id is not None or r.dismissed_at is not None for r in stored
-        }.items(),
+        [
+            *((r.external_id, True) for r in stored),
+            *((e, False) for e in rows_before if e not in tracked),
+        ],
         listed=by_id,
     )
     await hold(ctx, link)
     await sync_round.save(ctx, link, [KIND])
-    weights = weights_of(data)
+    weights = weights_of(listed)
     program = await academics.get_program_row(ctx, link.program_id)
     tz = ZoneInfo(program.timezone)
-    refs = list(
-        await ctx.db.scalars(select(LmsImportedRef).where(LmsImportedRef.link_id == link.id))
-    )
-    imported = [r for r in refs if r.target_id is not None]
+    refs = {
+        r.external_id: r
+        for r in await ctx.db.scalars(
+            select(LmsImportedRef).where(LmsImportedRef.link_id == link.id)
+        )
+    }
+    rows = {r.external_id: r for r in await facts.mirror_rows(ctx, link.id)}
+    result = StageResult(error=side.errors[0] if side.errors else None)
+    changed = False
+    source = Source("mirror", ctx.now)
+    submitted: set[str] = set()
+    for ext, a in by_id.items():
+        f = facts_of(a, side, rows.get(ext), b.row.provider, source)
+        row = rows.get(ext)
+        if (f.submission or {}).get("submitted_at") is not None:
+            submitted.add(ext)
+        if row is None:
+            ctx.db.add(
+                LmsAssignment(
+                    user_id=ctx.user_id,
+                    link_id=link.id,
+                    course_id=link.course_id,
+                    provider=b.row.provider,
+                    external_id=ext,
+                    **_columns(f),
+                )
+            )
+            changed = True
+            continue
+        ref = refs.get(ext)
+        if ref is not None and ref.target_id is not None:
+            new = news(row.submission, f.submission)
+            if new is not None:
+                change = LmsSyncChange(
+                    user_id=ctx.user_id, ref_id=ref.id, field=FEEDBACK, old=None, new=new,
+                    at=ctx.now,
+                )  # fmt: skip
+                ctx.db.add(change)
+                await ctx.db.flush()
+                result.applied.append(
+                    Applied(
+                        change_id=change.id,
+                        ref_id=ref.id,
+                        name=str(a.get("name") or ""),
+                        field=FEEDBACK,
+                        external_id=ext,
+                    )
+                )
+        for name, value in _columns(f).items():
+            if getattr(row, name) != value:
+                setattr(row, name, value)
+                changed = True
+        if row.provider != b.row.provider:
+            row.provider = b.row.provider
+            changed = True
+    if side.total_read:
+        total = side.total or {}
+        if (link.total_score, link.total_grade) != (total.get("score"), total.get("grade")):
+            link.total_score, link.total_grade = total.get("score"), total.get("grade")
+            changed = True
+    imported = [r for r in refs.values() if r.target_id is not None]
     follow = lms_settings.followed(await lms_settings.account(ctx))
     local = await local_values(ctx, imported, tz)
-    result = StageResult()
-    for ref in refs:
-        a = by_id.get(ref.external_id)
-        verdict = presences.get(ref.external_id, "unknown")
-        if ref.target_id is None:
-            if verdict == "gone" or (
-                a is not None and ref.dismissed_at is None and not _new(a, ctx.now)
-            ):
-                await ctx.db.delete(ref)  # gone, or no longer new: nothing to offer
-                continue
-            if a is not None:
-                ref.snapshot = snapshot(a, weights.get(ref.external_id))
-            result.pending += ref.dismissed_at is None
-            continue
-        if verdict == "gone" and ref.removed_at is None:
-            ref.removed_at = ctx.now
+    for ext, ref in list(refs.items()):
+        a = by_id.get(ext)
+        verdict = presences.get(ext, "unknown")
+        if verdict == "gone":
+            await assignment_refs.enter(ctx, ref, "gone", link=link, external_id=ext)
         elif verdict == "present":
-            ref.removed_at = None  # back on the platform
+            await assignment_refs.enter(ctx, ref, "back", link=link, external_id=ext)
+        if ref.target_id is None:
+            continue  # ignored (or no longer, once gone)
         if a is None:
             # Not listed (the list closed, or cut short): its fields wait for a round that
             # lists it, as a single read gives no group weights.
@@ -286,26 +387,42 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound, sync_round: SyncRound) ->
             continue
         if ref.id not in local:
             continue  # its object is being deleted
-        platform = snapshot(a, weights.get(ref.external_id))
+        platform = snapshot(a, weights.get(ext))
         if ref.target_kind != "assessment":
             platform.pop("score", None)
         result.applied += await _follow(
             ctx, ref, platform, local[ref.id], tz, str(a["name"]), follow
         )
         result.pending += len(ref.conflicts)
-    known = {r.external_id for r in refs}
-    for external_id, a in by_id.items():
-        if external_id not in known and _new(a, ctx.now):
-            ctx.db.add(
-                LmsImportedRef(
-                    user_id=ctx.user_id,
-                    link_id=link.id,
-                    external_id=external_id,
-                    snapshot=snapshot(a, weights.get(external_id)),
-                )
-            )
-            result.pending += 1
+    # The mirror rows gone from the platform go (table 3c), but an imported one waits for the
+    # user's answer (table 4b): keeping the object keeps its content (`resolve`).
+    for ext, row in rows.items():
+        if ext in by_id or presences.get(ext) != "gone":
+            continue
+        ref = refs.get(ext)
+        if ref is not None and ref.target_id is not None and ref.removed_at is not None:
+            continue
+        await ctx.db.delete(row)
+        changed = True
     await ctx.db.flush()
+    await submissions.complete(ctx, link.id, submitted)
+    news_ids = {e for e, r in refs.items() if r.target_id is not None or r.dismissed_at}
+    result.pending += sum(
+        1
+        for ext, a in by_id.items()
+        if ext not in news_ids
+        and is_new(
+            a,
+            facts_of(a, side, rows.get(ext), b.row.provider, source).submission,
+            imported=False,
+            dismissed=False,
+            now=ctx.now,
+        )
+    )
+    if changed:
+        await events.publish(
+            ctx, ASSIGNMENTS_UPDATED, {"course_id": link.course_id, "program_id": link.program_id}
+        )
     if result.applied:
         await events.publish(ctx, "lms.course.imports_recorded", {"course_id": link.course_id})
     return result
@@ -333,7 +450,7 @@ async def _presences(
         if verdict == "check":
             if readable:
                 pending.append(external_id)
-            verdict = "unknown"
+            verdict = "unknown"  # not read on its own: not judged
         out[external_id] = verdict
     for _, external_id in await sync_round.oldest_first(ctx, link, [(KIND, e) for e in pending]):
 
@@ -354,9 +471,11 @@ async def _enabled(ctx: Ctx, link: LmsCourseLink, b: Bound) -> bool:
     return "assignments" in b.provider.features
 
 
-AREA = "assignments"
+AREA = facts.AREA
 KIND = "assignment"
-register_sync_stage("assignments", run, order=20, enabled=_enabled)
+# The field of the change logged for new feedback (never put back: nothing in Semestra to undo).
+FEEDBACK = "feedback"
+register_sync_stage("assignments", run, order=20, enabled=_enabled, area=AREA)
 
 
 # --- the user's answers ----------------------------------------------------------------------
@@ -388,17 +507,28 @@ async def resolve(ctx: Ctx, ref_id: str, choice: str) -> str:
     ref, link = await _ref(ctx, ref_id)
     if ref.target_id is None or ref.removed_at is None or choice not in ("delete", "keep"):
         raise lms_error("lms.sync_nothing_to_resolve")
+    kind, target_id, ext = ref.target_kind, ref.target_id, ref.external_id
     if choice == "delete":
-        kind = ref.target_kind
         name = "grading.assessment.delete" if kind == "assessment" else "tasks.item.delete"
-        await ctx.db.delete(ref)
-        await ctx.db.flush()
-        await deps.call(ctx, name, {f"{kind}_id": ref.target_id})
+        await assignment_refs.enter(ctx, ref, "delete", link=link, external_id=ext)
+        await deps.call(ctx, name, {f"{kind}_id": target_id})
     else:
-        if ref.target_kind == "assessment":
-            await grading.set_source(ctx, ref.target_id, None)
-        await ctx.db.delete(ref)
+        # The object stays as made by hand; the assignment's content stays with it (§3.2).
+        await assignment_refs.enter(ctx, ref, "keep", link=link, external_id=ext, hold=True)
+        if kind == "assessment":
+            await grading.set_source(ctx, target_id, None)
+    # The assignment is gone from the platform: its mirror row waited for this answer.
+    row = await ctx.db.scalar(
+        select(LmsAssignment).where(
+            LmsAssignment.link_id == link.id, LmsAssignment.external_id == ext
+        )
+    )
+    if row is not None:
+        await ctx.db.delete(row)
     await ctx.db.flush()
+    await events.publish(
+        ctx, ASSIGNMENTS_UPDATED, {"course_id": link.course_id, "program_id": link.program_id}
+    )
     await _changed(ctx, link)
     return link.program_id
 
@@ -504,14 +634,27 @@ async def revert(ctx: Ctx, change_id: str, *, undone: bool = True) -> str:
     return link.program_id
 
 
-async def dismiss(ctx: Ctx, program_id: str, ref_ids: list[str], dismissed: bool) -> None:
-    """Ignores new items (no longer offered, still listed as ignored), or offers them again."""
+async def dismiss(ctx: Ctx, program_id: str, assignment_ids: list[str], dismissed: bool) -> None:
+    """Ignores new assignments, by mirror row (no longer offered, still listed as ignored), or
+    offers them again (M09 table 3e, 4b)."""
     changed = False
-    for ref_id in ref_ids:
-        ref, link = await _ref(ctx, ref_id)
-        if ref.target_id is not None or link.program_id != program_id:
-            continue  # imported meanwhile, or another Program's
-        ref.dismissed_at = ctx.now if dismissed else None
+    for row_id in assignment_ids:
+        row = await ctx.db.get(LmsAssignment, row_id)
+        if row is None or row.user_id != ctx.user_id or row.link_id is None:
+            raise not_found("lms_assignment", row_id)
+        link = await ctx.db.get(LmsCourseLink, row.link_id)
+        assert link is not None
+        if link.program_id != program_id:
+            continue  # another Program's
+        await hold(ctx, link)
+        ref = await assignment_refs.ref_of(ctx, link.id, row.external_id)
+        state = assignment_refs.state_of(ref)
+        if state in ("imported", "removed"):
+            continue  # imported meanwhile
+        if dismissed == (state == "ignored"):
+            continue
+        event = "ignore" if dismissed else "remind"
+        await assignment_refs.enter(ctx, ref, event, link=link, external_id=row.external_id)
         changed = True
     if changed:
         await ctx.db.flush()

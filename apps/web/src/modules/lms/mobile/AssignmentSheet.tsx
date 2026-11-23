@@ -14,7 +14,7 @@ import {
   AssignmentError,
   AssignmentFacts,
   AssignmentStatus,
-  KeptNote,
+  SourceNote,
   MySubmission,
   PlatformButton,
 } from '../assignment/parts'
@@ -39,7 +39,7 @@ export default function AssignmentSheet({ target, onClose }: AssignmentDetailsPr
       <DrawerContent className="h-[92dvh]">
         {current ? (
           <Details
-            key={`${current.courseId}:${current.assignmentId}`}
+            key={`${current.courseId}:${current.assignmentId}:${current.held ?? ''}`}
             target={current}
             onClose={onClose}
           />
@@ -64,7 +64,7 @@ function Details({ target, onClose }: { target: AssignmentTarget; onClose: () =>
         </DrawerHeader>
         {d.error ? (
           <div className="p-4">
-            <AssignmentError error={d.error} onRetry={d.refetch} />
+            <AssignmentError error={d.error} provider={d.provider} onRetry={d.refetch} />
           </div>
         ) : (
           <div className="space-y-3 p-4">
@@ -106,7 +106,7 @@ function Details({ target, onClose }: { target: AssignmentTarget; onClose: () =>
             />
           </div>
           <AssignmentFacts assignment={a} submission={s} state={state} quiz={detail.quiz} />
-          <KeptNote detail={detail} provider={provider} />
+          <SourceNote detail={detail} provider={provider} />
           {practice ? null : (
             <ToggleGroup
               className={`${SEGMENTED} w-full`}
@@ -149,7 +149,7 @@ function Details({ target, onClose }: { target: AssignmentTarget; onClose: () =>
               <MySubmission
                 courseId={target.courseId}
                 submission={s}
-                kept={detail.kept ?? false}
+                held={detail.held ?? false}
                 online={a.online}
               />
               <SubmissionFeedback

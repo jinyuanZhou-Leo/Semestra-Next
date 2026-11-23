@@ -29,10 +29,9 @@ from semestra.modules.lms import (  # noqa: F401  (registers on import)
     sync,
     sync_assignments,
     sync_files,
-    sync_kept,
     sync_stages,
 )
-from semestra.modules.lms.cache import purge_expired, runtime
+from semestra.modules.lms.cache import runtime
 from semestra.modules.lms.service import linked_course_ids
 from semestra.modules.lms.settings import LmsSettings, MaterialSettings, offered
 from semestra.modules.lms.sync_status import forget_old_changes
@@ -53,7 +52,6 @@ register_settings(namespace="lms.materials", schema=MaterialSettings, levels=("a
 
 @periodic("lms.cleanup", every=timedelta(hours=6))
 async def _cleanup(ctx: Ctx) -> None:
-    await purge_expired(ctx)
     await forget_old_changes(ctx)
 
 

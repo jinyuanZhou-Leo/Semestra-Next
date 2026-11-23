@@ -1,14 +1,11 @@
-"""Read cache (M09 §2.4): in-process LRU first, then `lms_cache`, 5 minutes by default.
+"""Read cache of the live reads (M09 §2.4): in process only, 5 minutes by default. What the app
+keeps of a course (assignments, announcements, calendar, materials) is in its own tables, written
+by the sync; this only spares the platform repeated live reads (pages, modules, previews).
 
 Keys are `(user, connection, method, params)`. Changing a connection's credentials or config
 drops all of its entries; an entry may also carry a `scope` (`course:<external id>`), so one
 course's reads can be dropped together ("Refresh" in the Canvas tab). Payloads are JSON (the
-DTOs dumped), so both levels hold the same.
-
-Reads never write in the request's transaction: SQLite allows one writer, and a read that
-holds the write lock while it waits on the platform (a file preview downloads and parses for up
-to a minute) would make every other write in the app time out. The second level is written
-after the request commits, in a short transaction of its own.
+DTOs dumped).
 """
 
 import asyncio
@@ -19,17 +16,11 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
 
-import structlog
 from cachetools import LRUCache
 from pydantic import BaseModel
-from sqlalchemy import delete
-from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from starlette.datastructures import State
 
-from semestra.core.context import Ctx, system_ctx
-from semestra.modules.lms.models import LmsCache
-
-log = structlog.get_logger()
+from semestra.core.context import Ctx
 
 TTL = timedelta(minutes=5)
 # The in-process level is bounded by size, not count: one file preview can be megabytes.
@@ -88,7 +79,7 @@ class LmsRuntime:
     ) -> None:
         size = len(json.dumps(payload, default=str))
         if size > LRU_BYTES:
-            self.lru.pop(key, None)  # too big for memory: the second level still holds it
+            self.lru.pop(key, None)  # too big to keep: read again next time
             return
         self.lru[key] = Entry(connection_id, scope, expires, payload, size)
 
@@ -114,19 +105,11 @@ def cache_key(user_id: str, connection_id: str, method: str, params: dict[str, A
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
-async def get(ctx: Ctx, key: str) -> Any | None:
-    rt = runtime(ctx.state)
-    hit = rt.get(key, ctx.now)
-    if hit is not None:
-        return hit
-    row = await ctx.db.get(LmsCache, key)
-    if row is None or row.user_id != ctx.user_id or row.expires_at <= ctx.now:
-        return None
-    rt.put(key, row.connection_id, row.scope, row.expires_at, row.payload)
-    return row.payload
+def get(ctx: Ctx, key: str) -> Any | None:
+    return runtime(ctx.state).get(key, ctx.now)
 
 
-async def put(
+def put(
     ctx: Ctx,
     key: str,
     connection_id: str,
@@ -134,69 +117,18 @@ async def put(
     *,
     scope: str | None = None,
     ttl: timedelta = TTL,
-    persist: bool = True,
 ) -> None:
-    """Memory now; `lms_cache` once the request has committed (see the module docstring), all of
-    a request's entries in one transaction. `persist=False` keeps it in memory only."""
-    expires = ctx.now + ttl
-    runtime(ctx.state).put(key, connection_id, scope, expires, payload)
-    if not persist:
-        return
-    store = next((cb for cb in ctx.after_commit if isinstance(cb, _Store)), None)
-    if store is None:
-        store = _Store(ctx.state)
-        ctx.after_commit.append(store)
-    store.rows[key] = {
-        "key": key,
-        "user_id": ctx.user_id,
-        "connection_id": connection_id,
-        "scope": scope,
-        "payload": payload,
-        "expires_at": expires,
-    }
+    runtime(ctx.state).put(key, connection_id, scope, ctx.now + ttl, payload)
 
 
-class _Store:
-    """The deferred `lms_cache` write of one request (an `after_commit` callback)."""
-
-    def __init__(self, state: State) -> None:
-        self.state = state
-        self.rows: dict[str, dict[str, Any]] = {}
-
-    async def __call__(self) -> None:
-        try:
-            async with system_ctx(self.state) as sys:
-                for row in self.rows.values():
-                    stmt = sqlite_insert(LmsCache).values(**row)
-                    await sys.db.execute(
-                        stmt.on_conflict_do_update(
-                            index_elements=[LmsCache.key],
-                            set_={k: row[k] for k in ("payload", "expires_at", "scope")},
-                        )
-                    )
-                await sys.db.commit()
-        except Exception:
-            # The connection may be gone by now (deleted meanwhile): memory still has it.
-            log.warning("lms_cache_store_failed", exc_info=True)
-
-
-async def drop(ctx: Ctx, key: str) -> None:
+def drop(ctx: Ctx, key: str) -> None:
     """Forgets one entry, so the next read asks the platform (after a write changed it)."""
     runtime(ctx.state).lru.pop(key, None)
-    await ctx.db.execute(delete(LmsCache).where(LmsCache.key == key))
 
 
-async def drop_scope(ctx: Ctx, connection_id: str, scope: str) -> None:
+def drop_scope(ctx: Ctx, connection_id: str, scope: str) -> None:
     runtime(ctx.state).drop(connection_id, scope)
-    await ctx.db.execute(
-        delete(LmsCache).where(LmsCache.connection_id == connection_id, LmsCache.scope == scope)
-    )
 
 
-async def drop_connection(ctx: Ctx, connection_id: str) -> None:
+def drop_connection(ctx: Ctx, connection_id: str) -> None:
     runtime(ctx.state).drop(connection_id)
-    await ctx.db.execute(delete(LmsCache).where(LmsCache.connection_id == connection_id))
-
-
-async def purge_expired(ctx: Ctx) -> None:
-    await ctx.db.execute(delete(LmsCache).where(LmsCache.expires_at <= ctx.now))

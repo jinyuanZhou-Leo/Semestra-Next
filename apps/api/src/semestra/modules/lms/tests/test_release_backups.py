@@ -174,3 +174,58 @@ async def test_a_backup_labelled_older_than_it_is_keeps_its_materials_as_they_we
     assert [m["title"] for m in status["removed_materials"]] == ["data.zip"]
     got = await _items(api, course)
     assert got["Lecture 1.pdf"]["local_copy"]["state"] == "saved"
+
+
+def test_the_feedback_of_a_backup_up_to_2_4_becomes_the_mirror():
+    """`older_backups._0072` reads a backup's kept assignments as migration 0072 moved them: one
+    whose object is still imported from the same assignment is its mirror row, the others are
+    held for their object; refs kept for new assignments go, ignored ones stay; the courses read
+    their assignments from the platform until a sync fills the mirror, unless the area is closed."""
+    from semestra.modules.lms.older_backups import _0072  # pyright: ignore[reportPrivateUsage]
+
+    kept = {
+        "course_id": "c1", "provider": "canvas", "points": 10, "score": 9,
+        "comments": [{"id": "1", "author": "Prof", "comment": "Good"}],
+        "rubric": [], "rubric_scores": [], "details": {"quiz": {"question_count": 3}},
+        "work": {"body": "<p>Mine</p>"}, "read_at": "2026-01-10T00:00:00Z",
+    }  # fmt: skip
+    lms = {
+        "links": [
+            {"id": "l1", "area_reads": {"assignments": {"read_at": "2026-01-10"},
+                                        "files": {"read_at": "2026-01-10"}}},
+            {"id": "l2", "area_reads": {"assignments": {"result": "unavailable",
+                                                        "read_at": "2026-01-09",
+                                                        "hidden_at": "2026-01-10"}}},
+        ],
+        "refs": [
+            {"link_id": "l1", "external_id": "a1", "target_kind": "assessment",
+             "target_id": "x1", "snapshot": {"title": "Lab 1", "due_at": "2026-02-01"}},
+            {"link_id": "l1", "external_id": "a5", "snapshot": {}},
+            {"link_id": "l1", "external_id": "a6", "snapshot": {},
+             "dismissed_at": "2026-01-02T00:00:00Z"},
+        ],
+        "feedback": [
+            {**kept, "assessment_id": "x1", "assignment_id": "a1"},
+            {**kept, "task_id": "t2", "assignment_id": "a2"},
+        ],
+    }  # fmt: skip
+    out = _0072(lms, None)  # pyright: ignore[reportArgumentType]
+    assert "feedback" not in out
+    assert [r["external_id"] for r in out["refs"]] == ["a1", "a6"]
+    mirror, held = out["assignments"]
+    assert (mirror["link_id"], mirror["held_for_id"], mirror["seen_at"]) == (
+        "l1",
+        None,
+        "2026-01-10T00:00:00Z",
+    )
+    assert mirror["assignment"]["name"] == "Lab 1"
+    assert mirror["assignment"]["due_at"] == "2026-02-01"
+    # Read from the platform until a sync fills the mirror.
+    assert list(out["links"][0]["area_reads"]) == ["files"]
+    # unless the area is closed (as 0072): it stays closed.
+    assert out["links"][1]["area_reads"] == lms["links"][1]["area_reads"]
+    assert mirror["quiz"] == {"question_count": 3}
+    assert mirror["submission"]["body"] == "<p>Mine</p>"
+    assert mirror["submission"]["comments"][0]["comment"] == "Good"
+    assert (held["link_id"], held["held_for_kind"], held["held_for_id"]) == (None, "task", "t2")
+    assert held["seen_at"] == "2026-01-10T00:00:00Z"

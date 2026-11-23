@@ -59,7 +59,6 @@ from semestra.modules.lms.schemas.io import (
     FileSaveInput,
     FileSearchInput,
     FolderInput,
-    GradeList,
     HeldMaterials,
     ImportStarted,
     LinkListInput,
@@ -393,8 +392,8 @@ async def course_overview(ctx: Ctx, inp: CourseReadInput) -> CourseOverview:
     name="lms.course.refresh",
     summary="Forget what the app cached about a linked course and sync it now.",
     description="""The Canvas tab's "Refresh": its next reads ask the {lms}, and the sync updates
-what the app keeps (announcements, files). Reads with `refresh` do the first for one read.
-Not for agents.""",
+what the app keeps (assignments, announcements, files). Reads with `refresh` do the first for
+one read. Not for agents.""",
     effect="write",
     http=Http("POST", "/courses/{course_id}/lms:refresh"),
     expose=HTTP_ONLY,
@@ -469,7 +468,9 @@ async def announcement_mark_read(ctx: Ctx, inp: AnnouncementReadInput) -> Course
     summary="Assignments and graded quizzes of a linked course on its {lms}, with the "
     "user's scores and the course total, marked when imported.",
     description="""For "what is due", "what is missing" and "what did I get": filter by `state`
-and due dates; `include_total` adds the course total. Each has a `ref`: lms.content.read gives
+and due dates; `include_total` adds the course total. The answer is what the last sync kept, as of
+`as_of` (`source: mirror`), or the {lms} just now (`source: live`); pass `refresh` only when the
+user wants what is on the {lms} this minute. Each has a `ref`: lms.content.read gives
 its text, rubric and the teacher's feedback. To add them to the gradebook or tasks use
 lms.assignment.import, never the gradebook or task capabilities directly.""",
     effect="read",
@@ -486,7 +487,7 @@ lms.assignment.import, never the gradebook or task capabilities directly.""",
     ),
 )
 async def assignments_list(ctx: Ctx, inp: AssignmentsInput) -> AssignmentList:
-    return await reads.assignments(ctx, inp)
+    return await assignment.course_list(ctx, inp)
 
 
 @capability(
@@ -494,15 +495,17 @@ async def assignments_list(ctx: Ctx, inp: AssignmentsInput) -> AssignmentList:
     summary="One assignment of the LMS, whole: its description, the user's submission, feedback.",
     description="""What the assignment's details show (M09 §5): the assignment, what the user
 handed in, the teacher's comments and rubric scores (match `rubric_scores.criterion_id` with
-`assignment.rubric`), and where it is in Semestra. When the LMS can't be asked and the
-assignment was imported, the answer is what the last sync kept (`kept`).""",
+`assignment.rubric`), and where it is in Semestra: as the last sync kept it, or read from the LMS
+now where the sync keeps nothing for it (`source`).""",
     effect="read",
     http=Http("GET", "/courses/{course_id}/lms/assignments/{assignment_id}"),
     expose=HTTP_ONLY,
     tags=TAGS,
 )
 async def assignment_get(ctx: Ctx, inp: AssignmentReadInput) -> AssignmentDetail:
-    return await assignment.get(ctx, inp.course_id, inp.assignment_id, inp.refresh)
+    return await assignment.get(
+        ctx, inp.course_id, inp.assignment_id, inp.refresh, held_for=inp.held_for
+    )
 
 
 @capability(
@@ -517,21 +520,6 @@ database): what their rows open with lms.assignment.get.""",
 )
 async def assignment_targets(ctx: Ctx, inp: ProgramRef) -> AssignmentTargets:
     return await assignment.targets(ctx, inp.program_id)
-
-
-@capability(
-    name="lms.grade.list",
-    summary="The user's grades on its {lms} for a linked course.",
-    description="""The course total first, then one row per assignment, with score, points possible
-and grade as the LMS shows them. The gradebook in this app is grading.gradebook.get; to add LMS
-assignments to it use lms.assignment.import.""",
-    effect="read",
-    http=Http("GET", "/courses/{course_id}/lms/grades"),
-    expose=HTTP_ONLY,
-    tags=TAGS,
-)
-async def grades_list(ctx: Ctx, inp: CourseReadInput) -> GradeList:
-    return await reads.grades(ctx, inp.course_id, inp.refresh)
 
 
 @capability(
@@ -813,7 +801,9 @@ asks on opening); with it all of them (the user's "Sync now"). Runs in the backg
     tags=TAGS,
 )
 async def sync_request(ctx: Ctx, inp: SyncRequestInput) -> SyncQueued:
-    queued = await sync.request_sync(ctx, inp.program_id, inp.course_id, force=inp.force)
+    queued = await sync.request_sync(
+        ctx, inp.program_id, inp.course_id, force=inp.force, stages=inp.stages
+    )
     return SyncQueued(queued=queued)
 
 
@@ -841,7 +831,7 @@ async def sync_resolve(ctx: Ctx, inp: SyncResolveInput) -> SyncStatus:
     tags=TAGS,
 )
 async def sync_dismiss(ctx: Ctx, inp: SyncDismissInput) -> SyncStatus:
-    await sync_assignments.dismiss(ctx, inp.program_id, inp.item_ids, inp.dismissed)
+    await sync_assignments.dismiss(ctx, inp.program_id, inp.assignment_ids, inp.dismissed)
     return await sync_status.status(ctx, inp.program_id)
 
 

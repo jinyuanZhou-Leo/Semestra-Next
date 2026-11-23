@@ -115,8 +115,9 @@ async def test_reads_map_canvas_payloads(settings: Settings, io: Io, mock: respx
         {"kind": "page", "ref": "intro", "course": None},
         {"kind": "file", "ref": "77", "course": None},
     ]
-    [total] = await p.grade_totals(io, cfg, creds, "101")
-    assert (total.kind, total.name, total.score) == ("total", "Course total", 90)
+    total = await p.course_total(io, cfg, creds, "101")
+    assert total is not None
+    assert total.score == 90
     assert a.submission.graded_at == datetime(2026, 2, 10, 12, tzinfo=UTC)
     # The bearer token goes to Canvas, and only there.
     sent = mock.calls[0].request

@@ -18,6 +18,8 @@ const PhoneHost = assignmentHost(AssignmentSheet)
 
 const LAB: AssignmentDetail = {
   provider: 'canvas',
+  source: 'live',
+  as_of: null,
   due_state: 'none',
   assignment: {
     external_id: 'a1',
@@ -58,8 +60,14 @@ const LAB: AssignmentDetail = {
   state: 'graded',
 }
 
-function mount(detail: AssignmentDetail, at = '/?assignment=c1:a1', View = Host) {
+function mount(
+  detail: AssignmentDetail,
+  at = '/?assignment=c1:a1',
+  View = Host,
+  first: Parameters<typeof server.use> = [],
+) {
   server.use(
+    ...first,
     http.get(`${API}/lms/providers`, () =>
       HttpResponse.json({
         items: [
@@ -130,18 +138,75 @@ test('a missing assignment says it is missing, not when it was due', async () =>
   expect(within(dialog).queryByText('Overdue')).toBeNull()
 })
 
-test('opened on the feedback, it says when what it shows was kept and closes into the page', async () => {
-  const { router } = mount(
-    { ...LAB, kept: true, kept_at: '2026-02-06T12:00:00Z', problem: 'lms.unreachable' },
-    '/?assignment=c1:a1&view=feedback',
-  )
+test('what was kept for an assessment says so, offers no import and closes into the page', async () => {
+  let asked: string | null = null
+  const held = { ...LAB, source: 'mirror', as_of: '2026-02-06T12:00:00Z', held: true } as const
+  const { router } = mount(held, '/?assignment=c1:a1&view=feedback&held=assessment:as1', Host, [
+    http.get(`${API}/courses/c1/lms/assignments/:id`, ({ request }) => {
+      asked = new URL(request.url).searchParams.get('held_for')
+      return HttpResponse.json(held)
+    }),
+  ])
   const dialog = await screen.findByRole('dialog', { name: 'Lab 1' })
   expect(await within(dialog).findByText('Check the edge cases.')).toBeInTheDocument()
-  expect(within(dialog).getByText(/Can't reach Canvas/)).toBeInTheDocument()
-  // Nothing to import from while the platform can't be asked.
+  expect(asked).toBe('assessment:as1')
+  expect(within(dialog).getByText(/no longer follows Canvas/)).toBeInTheDocument()
+  // Nothing to import or ask again: it no longer follows the platform.
   expect(within(dialog).queryByRole('button', { name: /Add to/ })).toBeNull()
+  expect(within(dialog).queryByRole('button', { name: 'Refresh' })).toBeNull()
   await userEvent.click(within(dialog).getByRole('button', { name: 'Close' }))
   expect(router.state.location.search).toEqual({})
+})
+
+test('kept by the sync, refresh syncs the course; read now, refresh reads it again', async () => {
+  const synced: unknown[] = []
+  const refreshed: string[] = []
+  const kept = {
+    ...LAB,
+    source: 'mirror',
+    as_of: '2026-02-06T12:00:00Z',
+    sync_failed: true,
+  } as const
+  mount(kept, undefined, Host, [
+    http.post(`${API}/programs/p1/lms/sync`, async ({ request }) => {
+      synced.push(await request.json())
+      return HttpResponse.json({ queued: 1 })
+    }),
+    http.get(`${API}/courses/c1/lms/assignments/:id`, ({ params, request }) => {
+      if (params.id === 'a1') return HttpResponse.json(kept)
+      refreshed.push(new URL(request.url).searchParams.get('refresh') ?? '')
+      return HttpResponse.json({ ...LAB, assignment: { ...LAB.assignment, external_id: 'a2' } })
+    }),
+  ])
+  const dialog = await screen.findByRole('dialog', { name: 'Lab 1' })
+  expect(
+    await within(dialog).findByText(/last sync of assignments from Canvas/),
+  ).toBeInTheDocument()
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Refresh' }))
+  await waitFor(() => expect(synced).toEqual([{ course_id: 'c1', stages: ['assignments'] }]))
+
+  await userEvent.click(within(dialog).getByRole('link', { name: 'Lab 2' }))
+  expect(await within(dialog).findByText(/Implement a linked list/)).toBeInTheDocument()
+  expect(within(dialog).queryByText(/last sync/)).toBeNull() // read now: nothing to explain
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Refresh' }))
+  await waitFor(() => expect(refreshed).toContain('true'))
+})
+
+test('an assignment no longer on the platform says so, with nothing to retry', async () => {
+  mount(LAB, undefined, Host, [
+    // The platform is named by the Program's connection: the read gave nothing.
+    http.get(`${API}/programs/p1/lms-binding`, () =>
+      HttpResponse.json({ program_id: 'p1', connection: { provider: 'canvas' } }),
+    ),
+    http.get(`${API}/courses/c1/lms/assignments/:id`, () =>
+      HttpResponse.json(
+        { error: { code: 'lms.not_found', params: {}, request_id: 'r' } },
+        { status: 404 },
+      ),
+    ),
+  ])
+  expect(await screen.findByText('This assignment is no longer on Canvas')).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull()
 })
 
 test('on a phone, a link to a course file opens the file itself: the phone has no files page', async () => {

@@ -218,7 +218,7 @@ async def test_reads_are_cleaned_and_cached(api: Api, fake: FakeProvider):
     assert overview["provider"] == "fake"
     assert "quizzes" in overview["features"]
     assert overview["navigation"][0]["kind"] == "home"
-    for path in ("grades", "modules", "modules/m1/items", "pages", "quizzes", "syllabus",
+    for path in ("modules", "modules/m1/items", "pages", "quizzes", "syllabus",
                  "files/f1"):  # fmt: skip
         await api.call("GET", f"/courses/{course}/lms/{path}")
     r = await api.client.get(f"/courses/{course}/lms/files/f1/content")
@@ -466,7 +466,7 @@ async def test_portability_round_trip(api: Api, app: FastAPI):
     assert "good-token-1" not in str(writer.payload)
     assert await portability.preview(writer.payload) == {
         "connections": 1, "bindings": 1, "links": 1, "refs": 0, "materials": 0,
-        "announcements": 0, "calendar_events": 0, "feedback": 0,
+        "announcements": 0, "calendar_events": 0, "assignments": 0,
     }  # fmt: skip
     identity = {program_id: program_id, course: course}
     async with system_ctx(app.state, user_id) as ctx:
@@ -474,7 +474,7 @@ async def test_portability_round_trip(api: Api, app: FastAPI):
         await ctx.db.commit()
     assert report.imported == {
         "connections": 1, "bindings": 1, "links": 1, "refs": 0, "materials": 0,
-        "announcements": 0, "calendar_events": 0, "feedback": 0,
+        "announcements": 0, "calendar_events": 0, "assignments": 0,
     }  # fmt: skip
     listed = (await api.call("GET", "/lms/connections"))["items"]
     assert len(listed) == 1
@@ -569,14 +569,14 @@ async def test_assignment_import_rolls_back_when_the_course_was_relinked(api: Ap
     assert (await api.call("GET", f"/courses/{course}/assessments"))["items"] == []
 
 
-async def test_an_assignment_imported_as_the_other_kind_meanwhile_rolls_back(
-    api: Api, app: FastAPI
-):
+@pytest.mark.parametrize("as_task", [True, False])
+async def test_an_assignment_imported_meanwhile_rolls_back(api: Api, app: FastAPI, as_task: bool):
+    """Table 4b: an imported assignment is not imported again, as either kind."""
     program_id, term_id, _ = await setup_program(api)
     course = await api.course(program_id, term_id)
     link = (await api.link(course, "101"))["link"]
     started = await held_for_review(
-        api, f"/courses/{course}/lms/imports:assignments", ["a1"], switch_to_task=True
+        api, f"/courses/{course}/lms/imports:assignments", ["a1"], switch_to_task=as_task
     )
     # Another session put it into the gradebook after this one was opened.
     async with system_ctx(app.state) as ctx:
@@ -841,9 +841,9 @@ async def test_handed_in_assignments_finish_their_to_dos_once(api: Api, fake: Fa
                     update={"submission": Submission(submitted_at=when)}
                 )
 
-    # Handed in: the assessment's to-do and the imported task are finished on the next read.
+    # Handed in: the assessment's to-do and the imported task are finished by the next sync.
     hand_in("a1", "a3")
-    await api.call("GET", f"/courses/{course}/lms/assignments?refresh=true")
+    await api.sync(program_id)
     assert await open_titles() == ["APS105H1 · Lab 2"]
 
     # Opened again by hand, a to-do stays open: each assignment counts once.
@@ -852,13 +852,12 @@ async def test_handed_in_assignments_finish_their_to_dos_once(api: Api, fake: Fa
     )  # fmt: skip
     lab1 = next(t for t in done["items"] if t["title"] == "APS105H1 · Lab 1")
     await api.call("POST", f"/tasks/{lab1['id']}:complete", json={"completed": False})
-    await api.call("GET", f"/courses/{course}/lms/assignments?refresh=true")
+    await api.sync(program_id)
     assert await open_titles() == ["APS105H1 · Lab 1", "APS105H1 · Lab 2"]
 
     # Turned off, nothing happens (and nothing is recorded) ...
     await api.call("PATCH", "/me/settings/lms", json={"values": {"complete_submitted": False}})
     hand_in("a2")
-    await api.call("GET", f"/courses/{course}/lms/assignments?refresh=true")
     await api.sync(program_id)
     assert await open_titles() == ["APS105H1 · Lab 1", "APS105H1 · Lab 2"]
     # ... and turned on again, the background sync catches up without anyone opening the course.
@@ -884,8 +883,8 @@ async def test_an_assignment_handed_in_before_its_import_has_its_to_do_finished(
         "POST", f"/courses/{course}/lms/imports:assignments", json={"external_ids": ["a1"]}
     )
     await api.commit(started["session_id"])
-    # The assessment's to-do exists by the commit, so the next read's hand-in check finds it.
-    await api.call("GET", f"/courses/{course}/lms/assignments")
+    # The assessment's to-do exists by the commit, so the next sync's hand-in check finds it.
+    await api.sync(program_id)
     page = await api.call("GET", f"/programs/{program_id}/tasks", params={"completed": "only"})
     assert [t["title"] for t in page["items"]] == ["APS105H1 · Lab 1"]
 

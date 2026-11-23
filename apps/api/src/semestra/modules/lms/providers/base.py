@@ -20,11 +20,11 @@ from semestra.modules.lms.schemas.dto import (
     Announcement,
     Assignment,
     ConnectionSummary,
+    CourseTotal,
     Discussion,
     DiscussionDetail,
     FileMeta,
     FolderListing,
-    GradeItem,
     InternalRef,
     LmsCalendarEvent,
     LmsCourse,
@@ -118,11 +118,11 @@ class LmsProvider(Protocol):
         M09 §4.2 table 3c); its group's weight is not given."""
         ...
 
-    async def grade_totals(
+    async def course_total(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
-    ) -> list[GradeItem]:
-        """The course total(s) (`kind="total"`). Per-assignment grades come from `assignments`
-        (their `submission`), so the module builds them without asking the platform again."""
+    ) -> CourseTotal | None:
+        """The user's course total (feature `grades`); None when the platform shows none.
+        Per-assignment grades come with the submissions."""
         ...
 
     async def modules(

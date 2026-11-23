@@ -1,69 +1,131 @@
-"""One assignment, whole (M09 §5): what every place that mentions an assignment opens.
+"""Assignments as every place shows them (M09 §4.5, §5): the one assembly of their facts
+(`assignment_facts`) into what the details, the gradebook, the lists and Sem read.
 
-The platform is asked first: the assignment (from the course's cached list), the user's own
-submission with the teacher's feedback, and for a quiz its question count and time limit. A quiz
-is also asked for by its own id (`quiz:<id>`, what a link to a quiz knows): it opens its
-assignment, or, having none (a practice quiz), what the quiz itself says. When
-the platform can't be asked (unreachable, the course no longer linked, the assignment gone from
-it) and the assignment was imported, the answer is what the sync kept (`LmsKeptAssignment`), marked
-with when it was read and why. An assignment never imported has nothing kept: the error stands.
+The facts come from the mirror, or from the platform where the mirror can't stand in; the
+assembly is the same either way. A quiz is also asked for by its own id (`quiz:<id>`, what a link
+to a quiz knows): it opens its assignment, or, having none (a practice quiz), what the quiz
+itself says.
 """
 
+from collections.abc import Sequence
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import select
 
 from semestra.core.context import Ctx
-from semestra.core.errors import AppError
 from semestra.modules.academics import service as academics
 from semestra.modules.academics.models import AcademicsCourse
 from semestra.modules.grading import service as grading
-from semestra.modules.lms import announcements, reads, rules, service, sync_kept
-from semestra.modules.lms.answers import STOPPING
+from semestra.modules.lms import announcements, reads, rules, service
+from semestra.modules.lms import assignment_facts as facts
+from semestra.modules.lms.assignment_facts import Facts
 from semestra.modules.lms.errors import lms_error
-from semestra.modules.lms.models import LmsCourseLink, LmsImportedRef, LmsKeptAssignment
-from semestra.modules.lms.rules import submission_status, submits_online
-from semestra.modules.lms.schemas.dto import FileMeta, Quiz, SubmissionDetail
+from semestra.modules.lms.models import LmsAssignment, LmsCourseLink, LmsImportedRef
+from semestra.modules.lms.schemas.dto import FileMeta, Quiz
 from semestra.modules.lms.schemas.io import (
     AssignmentDetail,
+    AssignmentList,
+    AssignmentsInput,
     AssignmentTarget,
     AssignmentTargets,
     InGradebook,
     InTasks,
     QuizFacts,
 )
-from semestra.modules.lms.service import Bound
+from semestra.modules.lms.sync_assignments import has_feedback
 from semestra.modules.tasks.models import TasksItem
 
 # How a quiz is asked for by its own id.
 QUIZ = "quiz:"
 
 
-async def _kept(
-    ctx: Ctx, course_id: str, *, assignment_id: str | None = None, quiz_id: str | None = None
-) -> LmsKeptAssignment | None:
-    """What the sync kept of the assignment (named by its id, or by its quiz's); the
-    assessment's row when a to-do has one too."""
-    rows = await ctx.db.scalars(
-        select(LmsKeptAssignment)
-        .where(
-            LmsKeptAssignment.user_id == ctx.user_id,
-            LmsKeptAssignment.course_id == course_id,
-            *([LmsKeptAssignment.assignment_id == assignment_id] if assignment_id else []),
+def state(f: Facts) -> rules.AssignmentState | None:
+    return rules.facts_state(f.assignment, f.submission)
+
+
+def item(f: Facts, imported_as: dict[str, str] | None, now: datetime) -> dict[str, Any]:
+    """One assignment of a list (`AssignmentOut`)."""
+    st = state(f)
+    return {
+        **f.assignment,
+        "submission": f.submission,
+        "ref": f"assignment:{f.external_id}",
+        "imported_as": imported_as,
+        "state": st,
+        "due_state": rules.facts_due_state(f.assignment, st, now),
+    }
+
+
+async def imported(ctx: Ctx, link_id: str) -> dict[str, LmsImportedRef]:
+    """The course's refs by external id (imported or ignored)."""
+    return {
+        r.external_id: r
+        for r in await ctx.db.scalars(
+            select(LmsImportedRef).where(LmsImportedRef.link_id == link_id)
         )
-        .order_by(LmsKeptAssignment.assessment_id.is_(None), LmsKeptAssignment.read_at.desc())
-    )
-    return next(
-        (r for r in rows if quiz_id is None or (r.details or {}).get("quiz_id") == quiz_id), None
+    }
+
+
+def new_ids(items: Sequence[Facts], refs: dict[str, LmsImportedRef], now: datetime) -> list[str]:
+    """M09 table 3e over a course's assignments, soonest due first."""
+    found = [
+        f
+        for f in items
+        if rules.is_new(
+            f.assignment,
+            f.submission,
+            imported=(ref := refs.get(f.external_id)) is not None and ref.target_id is not None,
+            dismissed=ref is not None and ref.dismissed_at is not None,
+            now=now,
+        )
+    ]
+    found.sort(key=lambda f: str(f.assignment.get("due_at")))
+    return [f.external_id for f in found]
+
+
+def _due(f: Facts) -> datetime | None:
+    raw = f.assignment.get("due_at")
+    return datetime.fromisoformat(raw) if raw else None
+
+
+async def course_list(ctx: Ctx, inp: AssignmentsInput) -> AssignmentList:
+    """The course's assignments with what each was imported as (and the course total when
+    asked). The filters narrow `items` only: `new_ids` is about the whole list."""
+    linked = await service.require_link(ctx, inp.course_id)
+    got = await facts.course(ctx, inp.course_id, refresh=inp.refresh, linked=linked)
+    refs = await imported(ctx, linked[0].id)
+    zone = await reads.course_zone(ctx, inp.course_id) if inp.due_after or inp.due_before else UTC
+    after, before = reads.aware(inp.due_after, zone), reads.aware(inp.due_before, zone)
+    items: list[dict[str, Any]] = []
+    for f in got.items:
+        due = _due(f)
+        if after and (due is None or due < after):
+            continue
+        if before and (due is None or due > before):
+            continue
+        if inp.state is not None and state(f) != inp.state:
+            continue
+        ref = refs.get(f.external_id)
+        target = (
+            {"kind": ref.target_kind or "", "id": ref.target_id}
+            if ref is not None and ref.target_id is not None
+            else None
+        )
+        items.append(item(f, target, ctx.now))
+    return AssignmentList.model_validate(
+        {
+            "items": items,
+            "new_ids": new_ids(got.items, refs, ctx.now),
+            "total": got.total if inp.include_total else None,
+            "truncated": got.truncated,
+            "source": got.source.kind,
+            "as_of": got.source.as_of,
+        }
     )
 
 
-async def _find_quiz(ctx: Ctx, course_id: str, quiz_id: str, refresh: bool) -> Quiz:
-    found = await reads.quizzes(ctx, course_id, refresh)
-    quiz = next((q for q in found.items if q.external_id == quiz_id), None)
-    if quiz is None:
-        raise lms_error("lms.not_found")
-    return quiz
+# --- one assignment --------------------------------------------------------------------------
 
 
 def _practice(provider: str, quiz: Quiz) -> AssignmentDetail:
@@ -82,6 +144,9 @@ def _practice(provider: str, quiz: Quiz) -> AssignmentDetail:
             "submission": None,
             "quiz": QuizFacts(question_count=quiz.question_count, time_limit=quiz.time_limit),
             "practice": True,
+            "source": "live",
+            "as_of": None,
+            "state": None,
             # Not graded, nothing to hand in: no due hint (M09 table 3d).
             "due_state": "none",
             "assessment": None,
@@ -91,175 +156,136 @@ def _practice(provider: str, quiz: Quiz) -> AssignmentDetail:
 
 
 async def _places(
-    ctx: Ctx, link: LmsCourseLink | None, kept: LmsKeptAssignment | None, assignment_id: str
+    ctx: Ctx, link: LmsCourseLink | None, f: Facts
 ) -> tuple[InGradebook | None, InTasks | None]:
-    """Where the assignment is in Semestra: what it is imported as, else what kept it."""
-    assessment_id = kept.assessment_id if kept else None
-    task_id = kept.task_id if kept else None
-    if link is not None:
-        ref = await ctx.db.scalar(
-            select(LmsImportedRef).where(
-                LmsImportedRef.link_id == link.id,
-                LmsImportedRef.external_id == assignment_id,
-                LmsImportedRef.target_id.is_not(None),
+    """Where the assignment is in Semestra: what it is imported as, else what it is held for."""
+    kind, target_id = f.held_for or (None, None)
+    if link is not None and f.held_for is None:
+        ref = await facts_ref(ctx, link.id, f.external_id)
+        if ref is not None and ref.target_id is not None:
+            kind, target_id = ref.target_kind, ref.target_id
+    assessment = None
+    if kind == "assessment" and target_id:
+        row = (await grading.find_assessment_rows(ctx, [target_id])).get(target_id)
+        assessment = InGradebook(id=row.id, weight=row.weight) if row else None
+    task = None
+    if assessment is not None or (kind == "task" and target_id):
+        task = await ctx.db.scalar(
+            select(TasksItem).where(
+                TasksItem.user_id == ctx.user_id,
+                TasksItem.assessment_id == assessment.id
+                if assessment
+                else TasksItem.id == target_id,
             )
         )
-        if ref is not None and ref.target_kind == "assessment":
-            assessment_id, task_id = ref.target_id, None
-        elif ref is not None:
-            assessment_id, task_id = None, ref.target_id
-    assessment = None
-    if assessment_id:
-        row = (await grading.find_assessment_rows(ctx, [assessment_id])).get(assessment_id)
-        assessment = InGradebook(id=row.id, weight=row.weight) if row else None
-    task = await ctx.db.scalar(
-        select(TasksItem).where(
-            TasksItem.user_id == ctx.user_id,
-            TasksItem.assessment_id == assessment.id if assessment else TasksItem.id == task_id,
-        )
-    )
     return assessment, (
         InTasks(id=task.id, completed=task.completed_at is not None) if task else None
     )
 
 
-async def _quiz(
-    ctx: Ctx, course_id: str, assignment_id: str, b: Bound, refresh: bool
-) -> QuizFacts | None:
-    if "quizzes" not in b.provider.features:
-        return None
-    try:
-        found = await reads.quizzes(ctx, course_id, refresh)
-    except AppError as exc:
-        if not exc.code.startswith("lms."):
-            raise
-        return None  # the quizzes are hidden: the assignment still opens
-    for quiz in found.items:
-        if quiz.assignment_id == assignment_id:
-            return QuizFacts(question_count=quiz.question_count, time_limit=quiz.time_limit)
-    return None
+async def facts_ref(ctx: Ctx, link_id: str, external_id: str) -> LmsImportedRef | None:
+    return await ctx.db.scalar(
+        select(LmsImportedRef).where(
+            LmsImportedRef.link_id == link_id, LmsImportedRef.external_id == external_id
+        )
+    )
 
 
-async def _live(
-    ctx: Ctx, linked: tuple[LmsCourseLink, Bound], course_id: str, assignment_id: str, refresh: bool
-) -> dict[str, Any]:
-    _, b = linked
-
-    async def find(again: bool) -> dict[str, Any] | None:
-        listed, _ = await reads.raw_assignments(ctx, course_id, again, linked=linked)
-        return next((a for a in listed if a["external_id"] == assignment_id), None)
-
-    # One published since the list was cached is found by reading the list again.
-    found = await find(refresh) or (None if refresh else await find(True))
-    if found is None:
-        raise lms_error("lms.not_found")
-    submission = None
-    if "submissions" in b.provider.features:
-        try:
-            submission = await reads.submission(ctx, course_id, assignment_id, refresh)
-        except AppError as exc:
-            if exc.code in STOPPING:
-                raise
-    quiz = await _quiz(ctx, course_id, assignment_id, b, refresh) if found.get("quiz_id") else None
-    return {
-        "provider": b.row.provider,
-        "assignment": {**found, "submission": None},
-        "submission": submission,
-        "quiz": quiz,
-    }
-
-
-def _from_kept(row: LmsKeptAssignment, title: str, problem: str) -> dict[str, Any]:
-    """The answer from what the sync kept. A row kept before descriptions were (`details`
-    null) has the feedback only: the assignment is named after what it was imported as."""
-    details = dict(row.details or {})
-    quiz = details.pop("quiz", None)
-    submission = SubmissionDetail.model_validate(
+async def detail(ctx: Ctx, f: Facts, link: LmsCourseLink | None) -> AssignmentDetail:
+    """The whole of one assignment (§7.3)."""
+    assessment, task = await _places(ctx, link, f)
+    st = state(f)
+    mirror = f.source.kind == "mirror" and f.held_for is None
+    return AssignmentDetail.model_validate(
         {
-            "external_id": row.assignment_id,
-            "assignment_id": row.assignment_id,
-            **(row.work or {}),
-            "score": row.score,
-            "grade": row.grade,
-            "attempt": row.attempt,
-            "graded_at": row.graded_at,
-            "comments": row.comments,
-            "rubric_scores": row.rubric_scores,
+            "provider": f.provider,
+            "assignment": f.assignment,
+            "submission": f.submission,
+            "quiz": f.quiz,
+            "source": f.source.kind,
+            "as_of": f.source.as_of,
+            "held": f.held_for is not None,
+            "sync_failed": bool(mirror and link and "assignments" in link.sync_errors),
+            "area_hidden": bool(mirror and link and rules.area_closed(link.area_reads, facts.AREA)),
+            "assessment": assessment,
+            "task": task,
+            "targets": (
+                await announcements.link_targets(ctx, link, f.assignment.get("html"))
+                if link is not None
+                else []
+            ),
+            "state": st,
+            "due_state": rules.facts_due_state(f.assignment, st, ctx.now),
         }
     )
-    return {
-        "provider": row.provider,
-        "assignment": {
-            "external_id": row.assignment_id,
-            "name": title,
-            **details,
-            "web_url": row.web_url,
-            "points": row.points,
-            "rubric": row.rubric,
-        },
-        "submission": submission,
-        "quiz": quiz,
-        "kept": True,
-        "kept_at": row.read_at,
-        "problem": problem,
-    }
 
 
-async def get(ctx: Ctx, course_id: str, ref: str, refresh: bool) -> AssignmentDetail:
+async def get(
+    ctx: Ctx, course_id: str, ref: str, refresh: bool, *, held_for: str | None = None
+) -> AssignmentDetail:
     await academics.get_course_row(ctx, course_id)  # owned, or not found
-    quiz_id = ref.removeprefix(QUIZ) if ref.startswith(QUIZ) else None
-    # A quiz's assignment is named by the platform; when it can't be asked, by what was kept.
-    kept = (
-        await _kept(ctx, course_id, quiz_id=quiz_id)
-        if quiz_id is not None
-        else await _kept(ctx, course_id, assignment_id=ref)
-    )
-    assignment_id = kept.assignment_id if kept and quiz_id is not None else ref
-    link: LmsCourseLink | None = None
-    try:
-        linked = await service.require_link(ctx, course_id)
-        link = linked[0]
-        if quiz_id is not None:
-            quiz = await _find_quiz(ctx, course_id, quiz_id, refresh)
-            if quiz.assignment_id is None:
-                return _practice(linked[1].row.provider, quiz)
-            assignment_id = quiz.assignment_id
-            kept = await _kept(ctx, course_id, assignment_id=assignment_id)
-        answer = await _live(ctx, linked, course_id, assignment_id, refresh)
-        assessment, task = await _places(ctx, link, kept, assignment_id)
-        answer["targets"] = await announcements.link_targets(
-            ctx, link, answer["assignment"].get("html")
+    link = await service.link_row(ctx, course_id)
+    if held_for is not None:
+        kind, target_id = held_for.split(":", 1)
+        row = await ctx.db.scalar(
+            select(LmsAssignment).where(
+                LmsAssignment.user_id == ctx.user_id,
+                LmsAssignment.course_id == course_id,
+                LmsAssignment.held_for_kind == kind,
+                LmsAssignment.held_for_id == target_id,
+                LmsAssignment.external_id == ref,
+            )
         )
-    except AppError as exc:
-        if kept is None or not exc.code.startswith("lms."):
-            raise
-        assessment, task = await _places(ctx, link, kept, assignment_id)
-        title = ""
-        if assessment is not None:
-            found = await grading.find_assessment_rows(ctx, [assessment.id])
-            title = found[assessment.id].title
-        elif task is not None:
-            title = (await ctx.db.get_one(TasksItem, task.id)).title
-        answer = _from_kept(kept, title, exc.code)
-    # The due state needs the assignment's state, which the detail works out from its parts.
-    detail = AssignmentDetail.model_validate(
-        {**answer, "assessment": assessment, "task": task, "due_state": "none"}
-    )
-    return detail.model_copy(
-        update={"due_state": rules.due_state(detail.assignment.due_at, detail.state, ctx.now)}
+        if row is not None:
+            return await detail(ctx, facts.from_row(row, link), link)
+    if ref.startswith(QUIZ):
+        quiz_id = ref.removeprefix(QUIZ)
+        kept = None if refresh else await facts.by_quiz(ctx, course_id, quiz_id)
+        if kept is not None:
+            return await detail(ctx, kept, link)
+        if link is None:
+            raise lms_error("lms.course_not_linked")
+        found = await reads.quizzes(ctx, course_id, refresh)
+        quiz = next((q for q in found.items if q.external_id == quiz_id), None)
+        if quiz is None:
+            raise lms_error("lms.not_found")
+        if quiz.assignment_id is None:
+            _, b = await service.require_link(ctx, course_id)
+            return _practice(b.row.provider, quiz)
+        ref = quiz.assignment_id
+    return await detail(ctx, await facts.one(ctx, course_id, ref, refresh=refresh), link)
+
+
+# --- the gradebook ---------------------------------------------------------------------------
+
+
+def _target(f: Facts, course_id: str, kind: str, target_id: str) -> AssignmentTarget:
+    s = f.submission
+    graded = kind == "assessment"
+    return AssignmentTarget(
+        course_id=course_id,
+        assignment_id=f.external_id,
+        assessment_id=target_id if graded else None,
+        task_id=None if graded else target_id,
+        feedback=graded and has_feedback(s),
+        status=rules.status_of(s) if s is not None else None,
+        missing=bool(s and s.get("missing")),
+        late=bool(s and s.get("late")),
+        submitted_at=s.get("submitted_at") if s else None,
+        online=rules.submits_online(list(f.assignment.get("submission_types") or [])),
     )
 
 
 async def targets(ctx: Ctx, program_id: str) -> AssignmentTargets:
-    """The Program's assessments and to-dos that are an assignment of the platform (imported,
-    or kept from when they were), from the database only: what their rows open."""
+    """The Program's assessments and to-dos that are an assignment of the platform (imported:
+    with the mirror's facts; held for them: as last read), from the database only."""
     await academics.get_program_row(ctx, program_id)  # owned, or not found
     courses = select(AcademicsCourse.id).where(
         AcademicsCourse.user_id == ctx.user_id, AcademicsCourse.program_id == program_id
     )
     refs = (
         await ctx.db.execute(
-            select(LmsImportedRef, LmsCourseLink.course_id)
+            select(LmsImportedRef, LmsCourseLink)
             .join(LmsCourseLink, LmsCourseLink.id == LmsImportedRef.link_id)
             .where(
                 LmsImportedRef.user_id == ctx.user_id,
@@ -268,79 +294,50 @@ async def targets(ctx: Ctx, program_id: str) -> AssignmentTargets:
             )
         )
     ).all()
-    # What an assessment or to-do follows now: a row kept of another assignment (before it was
-    # rebound) no longer names it until the sync moves what was kept.
-    current = {(ref.target_kind, ref.target_id): ref.external_id for ref, _ in refs}
-    found: dict[tuple[str, str], AssignmentTarget] = {}
-    kept = await ctx.db.scalars(
-        select(LmsKeptAssignment)
-        .where(LmsKeptAssignment.user_id == ctx.user_id, LmsKeptAssignment.course_id.in_(courses))
-        .order_by(LmsKeptAssignment.assessment_id.is_not(None))
+    rows = list(
+        await ctx.db.scalars(
+            select(LmsAssignment).where(
+                LmsAssignment.user_id == ctx.user_id, LmsAssignment.course_id.in_(courses)
+            )
+        )
     )
-    for row in kept:
-        if any(
-            current.get((kind, target_id), row.assignment_id) != row.assignment_id
-            for kind, target_id in (("assessment", row.assessment_id), ("task", row.task_id))
-            if target_id
-        ):
-            continue
-        found[row.course_id, row.assignment_id] = AssignmentTarget(
-            course_id=row.course_id,
-            assignment_id=row.assignment_id,
-            assessment_id=row.assessment_id,
-            task_id=row.task_id,
-            feedback=sync_kept.has_feedback(row),
-            **_submission_facts(row),
-        )
-    for ref, course_id in refs:
-        graded = ref.target_kind == "assessment"
-        kept_target = found.get((course_id, ref.external_id))
-        same = kept_target is not None and (
-            kept_target.assessment_id == ref.target_id
-            if graded
-            else kept_target.task_id == ref.target_id
-        )
-        found[course_id, ref.external_id] = AssignmentTarget(
-            course_id=course_id,
-            assignment_id=ref.external_id,
-            assessment_id=ref.target_id if graded else None,
-            task_id=None if graded else ref.target_id,
-            feedback=bool(graded and same and kept_target and kept_target.feedback),
-            **(
-                kept_target.model_dump(
-                    include={"status", "missing", "late", "submitted_at", "online"}
+    mirror = {(r.link_id, r.external_id): r for r in rows if r.link_id is not None}
+    found: list[AssignmentTarget] = []
+    for ref, link in refs:
+        assert ref.target_kind is not None
+        assert ref.target_id is not None
+        row = mirror.get((link.id, ref.external_id))
+        if row is not None:
+            found.append(
+                _target(facts.from_row(row, link), link.course_id, ref.target_kind, ref.target_id)
+            )
+        else:
+            # Never read by the sync yet: it opens all the same (the platform is read then).
+            graded = ref.target_kind == "assessment"
+            found.append(
+                AssignmentTarget(
+                    course_id=link.course_id,
+                    assignment_id=ref.external_id,
+                    assessment_id=ref.target_id if graded else None,
+                    task_id=None if graded else ref.target_id,
                 )
-                if same and kept_target
-                else {}
-            ),
-        )
-    return AssignmentTargets(items=list(found.values()))
-
-
-def _submission_facts(row: LmsKeptAssignment) -> dict[str, Any]:
-    """The submission's status as the sync last kept it (`rules.submission_status`)."""
-    work = row.work or {}
-    submitted_at = work.get("submitted_at")
-    return {
-        "status": submission_status(
-            excused=bool(work.get("excused")),
-            score=row.score,
-            grade=row.grade,
-            submitted_at=submitted_at,
-            needs_grading=bool(work.get("needs_grading")),
-        ),
-        "missing": bool(work.get("missing")),
-        "late": bool(work.get("late")),
-        "submitted_at": submitted_at,
-        "online": submits_online(list((row.details or {}).get("submission_types") or [])),
-    }
+            )
+    for row in rows:
+        if row.held_for_kind is not None and row.held_for_id is not None:
+            held = _target(
+                facts.from_row(row, None), row.course_id, row.held_for_kind, row.held_for_id
+            )
+            held.held = True
+            found.append(held)
+    return AssignmentTargets(items=found)
 
 
 async def submitted_file(ctx: Ctx, course_id: str, assignment_id: str, file_id: str) -> FileMeta:
     """A file of the user's own submission, as the file proxy opens it: from the address the
-    submission gave (no file lookup: a submitted file is not one of the course's files)."""
-    detail = await reads.submission(ctx, course_id, assignment_id, False)
-    for f in detail.files:
+    submission gives now (the mirror keeps files by name only; a submitted file is not one of
+    the course's files)."""
+    detail_ = await reads.submission(ctx, course_id, assignment_id, False)
+    for f in detail_.files:
         if f.external_id == file_id and f.download_url:
             return FileMeta(
                 external_id=file_id,

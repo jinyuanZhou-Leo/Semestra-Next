@@ -35,7 +35,7 @@ defineModule({
 - 插件详情页注明"需要先在设置中添加 Canvas 连接并关联课程"。
 
 ## 3. 页面结构
-- 布局：左侧粘性导航栏（宽屏）或顶部下拉选择（窄屏），右侧内容区。没有单独的顶部栏（课程名已在 PageHeader 里，"Canvas"是页签名，所以导航栏顶部不再重复课程代码、学期和"Canvas"标签）：导航栏底部是"更新于…"（`overview.fetched_at`）、"刷新"（调用 `lms.course.refresh`）与"在 Canvas 中打开"两个图标按钮；窄屏时这组控件放在下拉旁边。M09 导出的 `<LmsUpdatesBanner>` 在内容区上方。
+- 布局：左侧粘性导航栏（宽屏）或顶部下拉选择（窄屏），右侧内容区。没有单独的顶部栏（课程名已在 PageHeader 里，"Canvas"是页签名，所以导航栏顶部不再重复课程代码、学期和"Canvas"标签）：导航栏底部是"更新于…"（`overview.fetched_at`；作业视图显示的是镜像，取作业列表的 `as_of`，M09 §3.1）、"刷新"（调用 `lms.course.refresh`：清掉这门课的内存缓存并排一次 `force` 同步，作业与公告随同步更新）与"在 Canvas 中打开"两个图标按钮；窄屏时这组控件放在下拉旁边。M09 导出的 `<LmsUpdatesBanner>` 在内容区上方。
 - 导航栏数据：`lms.course.overview.navigation`。显示规则：
   - 内置类型 `home`、`announcements`、`assignments`、`grades`、`modules`、`pages`、`quizzes`、`syllabus` 使用本插件的原生视图。
   - `files`、`discussions` 隐藏（与旧版一致）。

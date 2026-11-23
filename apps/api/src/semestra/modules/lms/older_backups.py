@@ -17,6 +17,7 @@ from collections.abc import Mapping, Sequence
 from datetime import datetime
 from typing import Any
 
+from semestra.modules.lms import rules
 from semestra.modules.portability.registry import OlderArchive, register_reshape
 from semestra.modules.settings.portability import move_rows
 
@@ -216,6 +217,93 @@ def _0066(lms: Row, archive: OlderArchive) -> Row:
         ]
         materials.append(row)
     return {**lms, "materials": materials}
+
+
+# What a kept row's fields were of the submission (the rest was in `work`), as in 0072.
+_SUBMISSION_FIELDS = ("score", "grade", "attempt", "graded_at", "comments", "rubric_scores")
+
+
+def _kept_to_mirror(row: Row, snapshot: object) -> Row:
+    """The mirror columns of a kept assignment (`feedback` up to 2.4), as migration 0072 moves
+    them: its `details`, else what its ref's snapshot has."""
+    details = dict(row.get("details") or {})
+    snap: Row = dict(snapshot) if isinstance(snapshot, dict) else {}
+    quiz = details.pop("quiz", None)
+    assignment_id = row.get("assignment_id")
+    feedback = {name: row.get(name) for name in _SUBMISSION_FIELDS}
+    submission = None
+    if row.get("work") is not None or any(feedback[n] not in (None, []) for n in feedback):
+        submission = {
+            **(row.get("work") or {}),
+            **feedback,
+            "comments": feedback["comments"] or [],
+            "rubric_scores": feedback["rubric_scores"] or [],
+            "external_id": assignment_id,
+            "assignment_id": assignment_id,
+        }
+    return {
+        "assignment": {
+            **details,
+            "external_id": assignment_id,
+            "name": details.get("name") or snap.get("title") or "",
+            "due_at": details.get("due_at", snap.get("due_at")),
+            "web_url": row.get("web_url"),
+            "points": row.get("points") if row.get("points") is not None else snap.get("points"),
+            "rubric": row.get("rubric") or [],
+        },
+        "submission": submission,
+        "quiz": quiz,
+    }
+
+
+def _0072(lms: Row, archive: OlderArchive) -> Row:
+    """The kept assignments become the mirror: one whose object is still imported from the same
+    assignment is its mirror row, the others are held for their object. The refs kept for new
+    assignments go (new is worked out from the mirror now); the ignored ones stay. The mirror
+    holds only what was imported until a sync reads the whole list, so the courses read their
+    assignments from the platform till then (no `read_at` of the area, §3.1)."""
+    del archive
+    refs = _rows(lms, "refs")
+    imported = {(r.get("target_kind"), r.get("target_id")): r for r in refs if r.get("target_id")}
+    assignments = _rows(lms, "assignments")
+    for row in _rows(lms, "feedback"):
+        kind, target = (
+            ("assessment", row.get("assessment_id"))
+            if row.get("assessment_id")
+            else ("task", row.get("task_id"))
+        )
+        ref = imported.get((kind, target))
+        tied = ref is not None and ref.get("external_id") == row.get("assignment_id")
+        assignments.append(
+            {
+                "link_id": ref.get("link_id") if tied and ref is not None else None,
+                "held_for_kind": None if tied else kind,
+                "held_for_id": None if tied else target,
+                "course_id": row.get("course_id"),
+                "provider": row.get("provider"),
+                "external_id": row.get("assignment_id"),
+                **_kept_to_mirror(row, ref.get("snapshot") if ref is not None else None),
+                "seen_at": row.get("read_at"),
+            }
+        )
+    return {
+        **{k: v for k, v in lms.items() if k != "feedback"},
+        "links": [
+            {
+                **li,
+                # Read from the platform until a sync fills the mirror, unless the area is
+                # closed (the platform would refuse them; as 0072).
+                "area_reads": {
+                    k: v
+                    for k, v in (li.get("area_reads") or {}).items()
+                    if k != "assignments" or rules.area_closed(li.get("area_reads"), k)
+                },
+            }
+            for li in _rows(lms, "links")
+        ],
+        "refs": [r for r in refs if r.get("target_id") or r.get("dismissed_at")],
+        "assignments": assignments,
+    }
 
 
 def _files_0066(files: Row, archive: OlderArchive) -> Row:
@@ -457,5 +545,6 @@ register_reshape("0066", "lms", _0066)
 register_reshape("0066", "files", _files_0066)
 register_reshape("0070", "lms", _0070)
 register_reshape("0070", "files", _files_0070)
+register_reshape("0072", "lms", _0072)
 register_reshape("0060", "settings", _settings_0060)
 register_reshape("0064", "settings", _settings_0064)

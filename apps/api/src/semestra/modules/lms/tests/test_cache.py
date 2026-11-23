@@ -1,39 +1,16 @@
 """The read cache and the reads that share it (M09 §2.4): what goes to the platform once."""
 
 import pytest
-from fastapi import FastAPI
-from sqlalchemy import func, select
 
-from semestra.core.context import system_ctx
 from semestra.modules.lms.cache import LRU_BYTES, LmsRuntime
-from semestra.modules.lms.models import LmsCache
 from semestra.modules.lms.tests.conftest import Api, FakeProvider
 from semestra.modules.lms.tests.test_lms import setup_program
 
 pytestmark = pytest.mark.usefixtures("fake")
 
 
-async def _rows(app: FastAPI) -> int:
-    async with system_ctx(app.state) as ctx:
-        return int(await ctx.db.scalar(select(func.count()).select_from(LmsCache)) or 0)
-
-
 def _count(fake: FakeProvider, name: str) -> int:
     return sum(1 for call, _ in fake.calls if call == name)
-
-
-async def test_second_level_is_written_after_the_request(api: Api, app: FastAPI):
-    program_id, term_id, _ = await setup_program(api)
-    course = await api.course(program_id, term_id)
-    await api.link(course, "101")
-    before = await _rows(app)
-    await api.call("GET", f"/courses/{course}/lms/assignments")
-    # Stored in its own transaction once the read committed (the read itself writes nothing).
-    assert await _rows(app) == before + 1
-    # A fresh process still answers from the second level.
-    app.state.lms = LmsRuntime()
-    again = await api.call("GET", f"/courses/{course}/lms/assignments")
-    assert again["items"]
 
 
 async def test_refresh_drops_one_course_and_syncs_it(api: Api, fake: FakeProvider):
@@ -43,15 +20,19 @@ async def test_refresh_drops_one_course_and_syncs_it(api: Api, fake: FakeProvide
     await api.link(first, "101")
     await api.link(second, "102")
     for course in (first, second):
-        await api.call("GET", f"/courses/{course}/lms/assignments")
+        await api.call("GET", f"/courses/{course}/lms/modules")
     fake.calls.clear()
     state = await api.call("POST", f"/courses/{first}/lms:refresh")
     assert state["link"]["external_course_id"] == "101"
     for course in (first, second):
-        await api.call("GET", f"/courses/{course}/lms/assignments")
-    assert fake.calls == [("assignments", "101")]  # the other course stays cached
-    # What the app keeps of the course (announcements) is read again too.
+        await api.call("GET", f"/courses/{course}/lms/modules")
+    assert fake.calls == [("modules", "101")]  # the other course stays cached
+    # What the app keeps of the course (assignments, announcements) is read again too: the
+    # Canvas tab's assignments view shows the mirror (M09 §3.1).
+    fake.calls.clear()
     await api.run_jobs()
+    assert ("assignments", "101") in fake.calls
+    assert ("assignments", "102") not in fake.calls
     links = {
         li["course_id"]: li
         for li in (await api.call("GET", f"/programs/{program_id}/lms-links"))["items"]
@@ -60,27 +41,14 @@ async def test_refresh_drops_one_course_and_syncs_it(api: Api, fake: FakeProvide
     assert links[second]["synced_at"] is None
 
 
-async def test_sync_keeps_the_course_content_cached(api: Api, fake: FakeProvider):
+async def test_assignments_are_read_from_the_mirror_once_synced(api: Api, fake: FakeProvider):
     program_id, term_id, _ = await setup_program(api)
     course = await api.course(program_id, term_id)
     await api.link(course, "101")
-    await api.call("GET", f"/courses/{course}/lms/assignments")
     await api.sync(program_id, course)
     fake.calls.clear()
     await api.call("GET", f"/courses/{course}/lms/assignments")
     assert fake.calls == []
-
-
-async def test_grades_reuse_the_assignments(api: Api, fake: FakeProvider):
-    program_id, term_id, _ = await setup_program(api)
-    course = await api.course(program_id, term_id)
-    await api.link(course, "101")
-    await api.call("GET", f"/courses/{course}/lms/assignments")
-    grades = await api.call("GET", f"/courses/{course}/lms/grades")
-    assert _count(fake, "assignments") == 1
-    assert grades["items"][0]["kind"] == "total"
-    assert [g["name"] for g in grades["items"][1:]] == ["Lab 1", "Lab 2", "Midterm"]
-    assert grades["items"][1]["points_possible"] == 10
 
 
 async def test_modules_carry_their_items(api: Api):

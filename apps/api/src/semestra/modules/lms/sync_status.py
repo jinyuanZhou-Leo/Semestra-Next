@@ -12,10 +12,11 @@ from semestra.core.context import Ctx
 from semestra.modules.academics import service as academics
 from semestra.modules.files import sources
 from semestra.modules.files.models import FilesItem
-from semestra.modules.lms import material_items, rules, service, sync, sync_kept
+from semestra.modules.lms import material_items, rules, service, sync, sync_assignments
 from semestra.modules.lms.answers import AREA_HIDDEN, AREA_OF
 from semestra.modules.lms.models import (
     LmsAnnouncement,
+    LmsAssignment,
     LmsCourseLink,
     LmsImportedRef,
     LmsItemCheck,
@@ -114,6 +115,30 @@ async def status(ctx: Ctx, program_id: str) -> SyncStatus:
     local = await local_values(ctx, imported, tz)
     pending: list[SyncItem] = []
     ignored: list[SyncItem] = []
+    # New assignments (table 3e) come from the mirror, by mirror row id; so do the ignored ones
+    # (they would be new otherwise).
+    by_ext = {(r.link_id, r.external_id): r for r in refs}
+    for row in await _mirror(ctx, [i for i in by_link if i not in paused]):
+        assert row.link_id is not None
+        ref = by_ext.get((row.link_id, row.external_id))
+        if ref is not None and ref.target_id is not None:
+            continue
+        if not rules.is_new(
+            row.assignment, row.submission, imported=False, dismissed=False, now=ctx.now
+        ):
+            continue
+        course_id = by_link[row.link_id].course_id
+        (ignored if ref is not None and ref.dismissed_at is not None else pending).append(
+            SyncItem(
+                id=row.id,
+                course_id=course_id,
+                course=label(course_id),
+                kind="new",
+                external_id=row.external_id,
+                title=str(row.assignment.get("name") or ""),
+                due_at=_due(row.assignment.get("due_at")),
+            )
+        )
     for ref in refs:
         course_id = by_link[ref.link_id].course_id
 
@@ -131,8 +156,8 @@ async def status(ctx: Ctx, program_id: str) -> SyncStatus:
             )
 
         if ref.target_id is None:
-            (ignored if ref.dismissed_at is not None else pending).append(item("new"))
-        elif ref.removed_at is not None:
+            continue
+        if ref.removed_at is not None:
             pending.append(item("removed"))
         elif ref.conflicts:
             mine = local.get(ref.id, {})
@@ -195,7 +220,7 @@ async def status(ctx: Ctx, program_id: str) -> SyncStatus:
     recent = [
         SyncChange(
             id=change.id,
-            kind="feedback" if change.field == sync_kept.FIELD else "field",
+            kind="feedback" if change.field == sync_assignments.FEEDBACK else "field",
             course_id=by_link[ref.link_id].course_id,
             course=label(by_link[ref.link_id].course_id),
             title=str(ref.snapshot.get("title") or ""),
@@ -377,6 +402,18 @@ async def _materials(
     return recent, removed, removed_count
 
 
+async def _mirror(ctx: Ctx, link_ids: Sequence[str]) -> list[LmsAssignment]:
+    if not link_ids:
+        return []
+    return list(
+        await ctx.db.scalars(
+            select(LmsAssignment).where(
+                LmsAssignment.user_id == ctx.user_id, LmsAssignment.link_id.in_(list(link_ids))
+            )
+        )
+    )
+
+
 def _whole_at(link: LmsCourseLink, area: str) -> datetime | None:
     raw = ((link.area_reads or {}).get(area) or {}).get("whole_at")
     return datetime.fromisoformat(raw) if raw else None
@@ -456,6 +493,28 @@ async def _unreadable(
         for area in (li.area_reads or {})
         if rules.area_closed(li.area_reads, area)
     }
+    # Unimported assignments are not read one by one: while their list is closed, the course's
+    # mirror rows without an object are one row (table 3c, note).
+    imported = {(r.link_id, r.external_id) for r in refs if r.target_id is not None}
+    unimported: dict[str, int] = {}
+    for row in await _mirror(ctx, [i for i, area in closed if area == "assignments"]):
+        assert row.link_id is not None
+        if (row.link_id, row.external_id) not in imported:
+            unimported[row.link_id] = unimported.get(row.link_id, 0) + 1
+    for link_id, count in unimported.items():
+        li = by_id[link_id]
+        out.append(
+            SyncUnreadable(
+                kind="assignments",
+                id=None,
+                course_id=li.course_id,
+                course=label(li.course_id),
+                area="assignments",
+                title=None,
+                count=count,
+                since=_whole_at(li, "assignments"),
+            )
+        )
     announced: dict[str, int] = dict(
         (
             await ctx.db.execute(

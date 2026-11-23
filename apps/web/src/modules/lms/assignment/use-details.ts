@@ -1,3 +1,4 @@
+import { lmsSyncRequest } from '@semestra/api-client'
 import { academicsCourseGetOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
@@ -19,7 +20,7 @@ import type { AssignmentTarget } from './target'
  * in Semestra lead, and the import of one not imported yet.
  */
 export function useDetails(
-  { courseId, assignmentId }: AssignmentTarget,
+  { courseId, assignmentId, held }: AssignmentTarget,
   onClose: () => void,
   /** Whether the app's pages are there to open links in (not on a phone, M17). */
   { pages = true }: { pages?: boolean } = {},
@@ -28,7 +29,7 @@ export function useDetails(
   const [now] = useState(Date.now)
   const course = useQuery(academicsCourseGetOptions({ path: { course_id: courseId } })).data
   const programId = course?.program_id ?? ''
-  const assignment = useAssignment(courseId, assignmentId)
+  const assignment = useAssignment(courseId, assignmentId, held)
   const detail = assignment.data
   const kind = useProviderName(detail?.provider || null)
   const bound = useProgramProviderName(programId)
@@ -40,7 +41,27 @@ export function useDetails(
   const openLink = useLmsLinkOpener({ programId, courseId, targets: detail?.targets, pages })
   const content: LmsContent = { courseId, provider, display, setDisplay, openLink }
 
-  const importable = Boolean(detail) && !assignment.practice && !detail?.kept
+  const importable = Boolean(detail) && !assignment.practice && !detail?.held
+  const [refreshing, setRefreshing] = useState(false)
+  const refreshNow = async () => {
+    setRefreshing(true)
+    try {
+      if (detail?.source === 'mirror') {
+        // The mirror changes only with the sync: queue the course's assignments, and the
+        // details follow its event (M09 §7.3).
+        await lmsSyncRequest({
+          path: { program_id: programId },
+          body: { course_id: courseId, stages: ['assignments'] },
+          throwOnError: true,
+        })
+      } else {
+        await assignment.readNow()
+      }
+    } catch (error) {
+      toastError(error)
+    }
+    setRefreshing(false)
+  }
   return {
     ...assignment,
     detail,
@@ -49,6 +70,9 @@ export function useDetails(
     hideGrades,
     content,
     now,
+    /** Asks for it again by where it came from; nothing to ask for what was kept for an object. */
+    refresh: detail && !detail.held && programId ? () => void refreshNow() : undefined,
+    refreshing,
     openGrades: (assessmentId: string) =>
       go(
         `${coursePath(programId, courseId, 'grades')}?assessment=${encodeURIComponent(assessmentId)}`,

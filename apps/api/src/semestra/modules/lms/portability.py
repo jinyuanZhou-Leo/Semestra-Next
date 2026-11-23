@@ -2,16 +2,15 @@
 
 Connections are exported without credentials: after an import they need the token entered
 again (`has_credentials` false, status `error` with `lms.credentials_missing`). Bindings, links,
-imported assignments (refs), materials, announcements (with whether each was read), calendar
-events, how each area's list last read (`area_reads`: a backup without it reads the calendar
-again) and the
-teacher's feedback kept for assessments follow the id map of Programs, courses, assessments,
-tasks and course files (the items the sync brought in). The cache is not exported, nor is what
-the background sync keeps for itself (its change log, its conflicts, the new items it offers,
-what each area and single read last answered, the pages that only list others): the first sync
-after an import finds them again; only the new assignments the user ignored and the materials
-they deleted are kept. Registered at the bottom
-with M13's `register_portability`.
+imported assignments (refs), the assignments mirror with the user's submissions and the
+teacher's feedback (and what is held for assessments and to-dos, §3.2), materials,
+announcements (with whether each was read), calendar events, how each area's list last read
+(`area_reads`: a backup without it reads the calendar again) and the course total follow the id
+map of Programs, courses, assessments, tasks and course files (the items the sync brought in).
+Not exported is what the background sync keeps for itself (its change log, its conflicts, what
+each area and single read last answered, the pages that only list others): the first sync after
+an import finds them again; only the assignments the user ignored and the materials they deleted
+are kept. Registered at the bottom with M13's `register_portability`.
 
 Version 2 imports a platform item once (one ref per item); `_v1_to_v2` keeps the assessment's ref
 where a version 1 backup (up to 1.15) has both an assessment and a to-do for the same item, as
@@ -31,18 +30,16 @@ from semestra.core.context import Ctx
 from semestra.core.db import new_id
 from semestra.modules.lms.models import (
     LmsAnnouncement,
-    LmsCache,
+    LmsAssignment,
     LmsCalendarEvent,
     LmsConnection,
     LmsCourseLink,
     LmsImportedRef,
     LmsItemCheck,
-    LmsKeptAssignment,
     LmsMaterial,
     LmsProgramBinding,
     LmsSyncChange,
 )
-from semestra.modules.lms.schemas.dto import RubricCriterion, RubricScore, SubmissionComment
 from semestra.modules.portability import register_portability
 from semestra.modules.portability.registry import OlderArchive
 
@@ -90,34 +87,25 @@ class LinkRow(BaseModel):
     web_url: str | None = None
     sync_enabled: bool = True
     area_reads: dict[str, dict[str, str]] = {}
+    total_score: float | None = None
+    total_grade: str | None = None
 
 
-class KeptRow(BaseModel):
-    """An imported assignment as the sync kept it (`LmsKeptAssignment`), of an assessment or a
-    to-do. Backups made before descriptions and submissions were kept have the feedback only;
-    the list keeps its name in the backup (`feedback`)."""
+class AssignmentRow(BaseModel):
+    """A row of `lms_assignments`: a mirror row of a link, or held for an assessment or to-do.
+    Backups made before the mirror (up to 2.4) had the imported ones' feedback only (`feedback`,
+    read in by `older_backups._0072` as migration 0072 moved it)."""
 
-    assessment_id: str | None = None
-    task_id: str | None = None
+    link_id: str | None = None
+    held_for_kind: str | None = None
+    held_for_id: str | None = None
     course_id: str
     provider: str
-    assignment_id: str
-    web_url: str | None = None
-    points: float | None = None
-    score: float | None = None
-    grade: str | None = None
-    attempt: int | None = None
-    graded_at: datetime | None = None
-    comments: list[SubmissionComment] = []
-    rubric: list[RubricCriterion] = []
-    rubric_scores: list[RubricScore] = []
-    details: dict[str, Any] | None = None
-    work: dict[str, Any] | None = None
-    read_at: datetime | None = None
-
-
-# The JSON columns of `LmsKeptAssignment`, kept as JSON (the others keep their Python types).
-FEEDBACK_JSON = {"comments", "rubric", "rubric_scores", "details", "work"}
+    external_id: str
+    assignment: dict[str, Any]
+    submission: dict[str, Any] | None = None
+    quiz: dict[str, Any] | None = None
+    seen_at: datetime | None = None
 
 
 class RefRow(BaseModel):
@@ -159,6 +147,17 @@ def _comment_without_urls(comment: dict[str, Any]) -> dict[str, Any]:
     return comment | {"attachments": [{k: v for k, v in f.items() if k != "url"} for f in files]}
 
 
+def _submission_without_urls(submission: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Download addresses open a file without signing in: not in a backup (the next sync
+    brings them back)."""
+    if submission is None:
+        return None
+    return submission | {
+        "files": [_without_url(f) for f in submission.get("files") or []],
+        "comments": [_comment_without_urls(c) for c in submission.get("comments") or []],
+    }
+
+
 class AnnouncementRow(BaseModel):
     link_id: str
     external_id: str
@@ -195,8 +194,8 @@ class LmsPayload(BaseModel):
     announcements: list[AnnouncementRow] = []
     # Left out of backups made before the sync kept them: the next sync reads them (M09 §4.8).
     calendar_events: list[CalendarEventRow] = []
-    # Left out of backups made before feedback was kept: the next sync reads it again.
-    feedback: list[KeptRow] = []
+    # Left out of backups made before the mirror: the next sync reads it.
+    assignments: list[AssignmentRow] = []
 
 
 @dataclass
@@ -216,9 +215,7 @@ async def export(ctx: Ctx, writer: Writer) -> None:
             LmsImportedRef.target_id.is_not(None) | LmsImportedRef.dismissed_at.is_not(None),
         )
     )
-    feedback = await ctx.db.scalars(
-        select(LmsKeptAssignment).where(LmsKeptAssignment.user_id == uid)
-    )
+    assignments = await ctx.db.scalars(select(LmsAssignment).where(LmsAssignment.user_id == uid))
     materials = await ctx.db.scalars(
         select(LmsMaterial).where(
             LmsMaterial.user_id == uid,
@@ -268,14 +265,12 @@ async def export(ctx: Ctx, writer: Writer) -> None:
                 )
                 for e in events
             ],
-            feedback=[
-                KeptRow.model_validate(
-                    {k: getattr(f, k) for k in KeptRow.model_fields}
-                    # Nor are the addresses of comment attachments (they too open without
-                    # signing in); the next sync brings them back.
-                    | {"comments": [_comment_without_urls(c) for c in f.comments]}
+            assignments=[
+                AssignmentRow.model_validate(
+                    {k: getattr(a, k) for k in AssignmentRow.model_fields}
+                    | {"submission": _submission_without_urls(a.submission)}
                 )
-                for f in feedback
+                for a in assignments
             ],
         ).model_dump(mode="json")
     )
@@ -297,7 +292,7 @@ async def import_(
             "materials": 0,
             "announcements": 0,
             "calendar_events": 0,
-            "feedback": 0,
+            "assignments": 0,
         },
         {},
     )
@@ -363,6 +358,8 @@ async def import_(
             web_url=li.web_url,
             sync_enabled=li.sync_enabled,
             area_reads=li.area_reads,
+            total_score=li.total_score,
+            total_grade=li.total_grade,
             created_at=ctx.now,
             updated_at=ctx.now,
         )
@@ -400,23 +397,28 @@ async def import_(
         )
         ctx.db.add(ref)
         report.imported["refs"] += 1
-    for f in data.feedback:
-        owner = f.assessment_id or f.task_id or ""
-        target, course_id = id_map.get(owner), id_map.get(f.course_id)
-        if target is None or course_id is None:
-            skip("feedback", owner, f.course_id)
-            continue
+    for a in data.assignments:
+        course_id = id_map.get(a.course_id)
+        if a.link_id is not None:
+            if (got := mapped("assignments", a.link_id, None)) is None or course_id is None:
+                continue
+            link_id, held = got[0], None
+        else:
+            held = id_map.get(a.held_for_id) if a.held_for_id else None
+            if held is None or course_id is None:
+                skip("assignments", a.held_for_id or "", a.course_id)
+                continue
+            link_id = None
         ctx.db.add(
-            LmsKeptAssignment(
-                **f.model_dump(exclude={"assessment_id", "task_id", "course_id", *FEEDBACK_JSON}),
-                **f.model_dump(mode="json", include=FEEDBACK_JSON),
+            LmsAssignment(
+                **a.model_dump(exclude={"link_id", "held_for_id", "course_id"}),
                 user_id=ctx.user_id,
-                assessment_id=target if f.assessment_id else None,
-                task_id=None if f.assessment_id else target,
+                link_id=link_id,
+                held_for_id=held,
                 course_id=course_id,
             )
         )
-        report.imported["feedback"] += 1
+        report.imported["assignments"] += 1
     for r in data.materials:
         if (got := mapped("materials", r.link_id, r.item_id)) is None:
             continue
@@ -463,7 +465,7 @@ async def preview(payload: dict[str, Any]) -> dict[str, int]:
         "materials": len(data.materials),
         "announcements": len(data.announcements),
         "calendar_events": len(data.calendar_events),
-        "feedback": len(data.feedback),
+        "assignments": len(data.assignments),
     }
 
 
@@ -471,7 +473,7 @@ async def purge(ctx: Ctx) -> None:
     uid = ctx.user_id
     for model in (
         LmsSyncChange,
-        LmsKeptAssignment,
+        LmsAssignment,
         LmsImportedRef,
         LmsItemCheck,
         LmsMaterial,
@@ -479,7 +481,6 @@ async def purge(ctx: Ctx) -> None:
         LmsCalendarEvent,
         LmsCourseLink,
         LmsProgramBinding,
-        LmsCache,
         LmsConnection,
     ):
         await ctx.db.execute(delete(model).where(model.user_id == uid))
@@ -499,12 +500,11 @@ register_portability(
         LmsProgramBinding.__tablename__,
         LmsCourseLink.__tablename__,
         LmsImportedRef.__tablename__,
-        LmsKeptAssignment.__tablename__,
+        LmsAssignment.__tablename__,
         LmsMaterial.__tablename__,
         LmsItemCheck.__tablename__,
         LmsAnnouncement.__tablename__,
         LmsCalendarEvent.__tablename__,
         LmsSyncChange.__tablename__,
-        LmsCache.__tablename__,
     ),
 )

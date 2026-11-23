@@ -485,11 +485,13 @@ export default defineModule({
         { _id: 'lmsAssignmentGet', path: { course_id: data.course_id } },
       ],
     ],
-    // The sync kept new or changed feedback for a course's assessments.
-    'lms.kept.updated': [
+    // The sync changed what it keeps of a course's assignments (M09 §3.1): the course's list and
+    // details, and the Program's assessments and to-dos that follow them.
+    'lms.assignments.updated': [
       (data) => [
+        { _id: 'lmsAssignmentList', path: { course_id: data.course_id } },
         { _id: 'lmsAssignmentGet', path: { course_id: data.course_id } },
-        'lmsAssignmentTargets',
+        { _id: 'lmsAssignmentTargets', path: { program_id: data.program_id } },
       ],
     ],
     // An assignment was imported, bound or unbound: what the course reports as new, its

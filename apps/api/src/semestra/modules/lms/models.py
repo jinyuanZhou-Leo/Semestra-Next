@@ -5,6 +5,7 @@ from sqlalchemy import (
     JSON,
     Boolean,
     CheckConstraint,
+    Float,
     ForeignKey,
     Index,
     String,
@@ -96,14 +97,20 @@ class LmsCourseLink(Base, OwnedMixin, TimestampMixin):
     # Empty for an area never read: the calendar of a course listed here without `calendar`
     # has not been read yet (§4.8).
     area_reads: Mapped[dict[str, dict[str, str]]] = mapped_column(JSON, default=dict)
+    # The course total as the platform shows it (a percent and a letter), read with the
+    # assignments; kept when a round can't read it.
+    total_score: Mapped[float | None] = mapped_column(Float, default=None)
+    total_grade: Mapped[str | None] = mapped_column(String, default=None)
 
 
 class LmsImportedRef(Base, OwnedMixin):
-    """A platform assignment Semestra keeps track of, one row per assignment. Imported: one
-    Semestra object (`target_*`), whose fields follow the platform through the sync (an
-    assignment worth points is an assessment with its to-do, else a to-do, which may later move
-    into the gradebook). Not imported (`target_*` null): a new assignment waiting for the user,
-    or one the user ignored (`dismissed_at`). The course's materials are `LmsMaterial`."""
+    """What Semestra keeps of a platform assignment beyond its facts (`LmsAssignment`), one
+    row per assignment; only `assignment_refs.enter` changes its state (M09 table 4b).
+    Imported: one Semestra object (`target_*`), whose fields follow the platform through the
+    sync (an assignment worth points is an assessment with its to-do, else a to-do, which may
+    later move into the gradebook), with the three-way merge's snapshot and the questions open.
+    Not imported (`target_*` null): only a new assignment the user ignored (`dismissed_at`).
+    The course's materials are `LmsMaterial`."""
 
     __tablename__ = "lms_imported_refs"
     __table_args__ = (UniqueConstraint("link_id", "external_id", name="uq_lms_imported_refs_item"),)
@@ -131,59 +138,61 @@ class LmsImportedRef(Base, OwnedMixin):
     dismissed_at: Mapped[datetime | None] = mapped_column(default=None)
 
 
-class LmsKeptAssignment(Base, OwnedMixin):
-    """An imported assignment as the sync last read it (`sync_kept.py`): its description and
-    dates, what the user handed in, and the teacher's feedback. Kept here so the assignment
-    opens without asking the platform, after the course closes there, and in backups. One row
-    per assessment or to-do the assignment was imported as, once the sync read it. It belongs to
-    that assessment or to-do, not to its tie to the platform: unbinding it or unlinking the
-    course keeps the row as it was (it no longer follows the platform); deleting the assessment
-    or to-do deletes it."""
+class LmsAssignment(Base, OwnedMixin):
+    """A platform assignment with the user's submission and the teacher's feedback, as the
+    assignments stage last read it (`sync_assignments.py`, M09 §3.2, §4.5): facts only, in the
+    provider's DTOs. Everything that shows an assignment (the details, the gradebook, the
+    Canvas tab, Sem) reads these rows, never the platform.
 
-    __tablename__ = "lms_kept_assignments"
+    A mirror row (`link_id`) is an assignment of a linked course: it follows the platform and
+    leaves with it (table 3c). A held row (`held_for_*`) belongs to an assessment or to-do that
+    no longer stands for a platform assignment (unbound, the course unlinked, kept after the
+    platform deleted it): it explains the object's grade and stays as last read, until the
+    object is deleted."""
+
+    __tablename__ = "lms_assignments"
     __table_args__ = (
         CheckConstraint(
-            "(assessment_id IS NULL) <> (task_id IS NULL)", name="ck_lms_kept_assignments_owner"
+            "(link_id IS NULL) <> (held_for_id IS NULL)", name="ck_lms_assignments_owner"
+        ),
+        Index(
+            "uq_lms_assignments_mirror",
+            "link_id",
+            "external_id",
+            unique=True,
+            sqlite_where=text("link_id IS NOT NULL"),
+        ),
+        Index(
+            "uq_lms_assignments_held",
+            "held_for_kind",
+            "held_for_id",
+            unique=True,
+            sqlite_where=text("held_for_id IS NOT NULL"),
         ),
     )
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
-    # Exactly one of the two: what the assignment was imported as.
-    assessment_id: Mapped[str | None] = mapped_column(
-        String, ForeignKey("grading_assessments.id", ondelete="CASCADE"), unique=True, default=None
+    link_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("lms_course_links.id", ondelete="CASCADE"), default=None
     )
-    task_id: Mapped[str | None] = mapped_column(
-        String, ForeignKey("tasks_items.id", ondelete="CASCADE"), unique=True, default=None
-    )
+    held_for_kind: Mapped[str | None] = mapped_column(String, default=None)
+    held_for_id: Mapped[str | None] = mapped_column(String, default=None)
     course_id: Mapped[str] = mapped_column(
         String, ForeignKey("academics_courses.id", ondelete="CASCADE"), index=True
     )
-    # Where it was read from: the provider (named in the gradebook) and the platform's
-    # assignment (bound to another one, the assessment's feedback starts over, quietly).
     provider: Mapped[str] = mapped_column(String)
-    assignment_id: Mapped[str] = mapped_column(String)
-    # The assignment's address on the platform and its points (the score is shown against them).
-    web_url: Mapped[str | None] = mapped_column(String, default=None)
-    points: Mapped[float | None] = mapped_column(default=None)
-    score: Mapped[float | None] = mapped_column(default=None)
-    grade: Mapped[str | None] = mapped_column(String, default=None)
-    attempt: Mapped[int | None] = mapped_column(default=None)
-    graded_at: Mapped[datetime | None] = mapped_column(default=None)
-    # `SubmissionComment`s, oldest first.
-    comments: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
-    # The assignment's rubric (`RubricCriterion`s, with their ratings), so the rubric shows in
-    # full without the platform, and the teacher's `RubricScore` per criterion.
-    rubric: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
-    rubric_scores: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
-    # The rest of the assignment (an `Assignment` without its rubric and submission: name,
-    # cleaned description, dates, how to submit; for a quiz also its `QuizFacts` under `quiz`)
-    # and of the user's submission (a
-    # `SubmissionDetail` without the columns above: when, what was handed in; files by name,
-    # without an address). None on rows kept before these were read.
-    details: Mapped[dict[str, Any] | None] = mapped_column(JSON, default=None)
-    work: Mapped[dict[str, Any] | None] = mapped_column(JSON, default=None)
-    # When the sync last read it from the platform.
-    read_at: Mapped[datetime | None] = mapped_column(default=None)
+    external_id: Mapped[str] = mapped_column(String)
+    # The provider's `Assignment` (description cleaned), without the list's submission summary.
+    assignment: Mapped[dict[str, Any]] = mapped_column(JSON)
+    # The user's `SubmissionDetail` with the teacher's feedback (files by name and id, no
+    # download address); None until read.
+    submission: Mapped[dict[str, Any] | None] = mapped_column(JSON, default=None)
+    # `QuizFacts` of an assignment that is a quiz.
+    quiz: Mapped[dict[str, Any] | None] = mapped_column(JSON, default=None)
+    # A held row: when it was last read, before it was held. None on a mirror row, whose age is
+    # the course's `area_reads["assignments"]["read_at"]`: a mirror row is written only when its
+    # facts change.
+    seen_at: Mapped[datetime | None] = mapped_column(default=None)
 
 
 MaterialState = Literal["synced", "list", "dismissed", "absent"]
@@ -352,19 +361,3 @@ class LmsSyncChange(Base, OwnedMixin):
     new: Mapped[Any] = mapped_column(JSON, nullable=True, default=None)
     at: Mapped[datetime] = mapped_column()
     reverted_at: Mapped[datetime | None] = mapped_column(default=None)
-
-
-class LmsCache(Base, OwnedMixin):
-    """Second-level read cache (the first is in process); never exported."""
-
-    __tablename__ = "lms_cache"
-    __table_args__ = (Index("ix_lms_cache_connection_scope", "connection_id", "scope"),)
-
-    key: Mapped[str] = mapped_column(String, primary_key=True)
-    connection_id: Mapped[str] = mapped_column(
-        String, ForeignKey("lms_connections.id", ondelete="CASCADE"), index=True
-    )
-    # `course:<external id>` for reads of one course, so they can be dropped together.
-    scope: Mapped[str | None] = mapped_column(String, default=None)
-    payload: Mapped[Any] = mapped_column(JSON)
-    expires_at: Mapped[datetime] = mapped_column()
