@@ -2056,13 +2056,16 @@ export const AssignmentDetailSchema = {
             description: 'A quiz without an assignment (a practice quiz): no submission, not importable',
             default: false
         },
-        kept: {
-            type: 'boolean',
-            title: 'Kept',
-            description: 'This is what the sync kept, not the platform\'s answer',
-            default: false
+        source: {
+            type: 'string',
+            enum: [
+                'mirror',
+                'live'
+            ],
+            title: 'Source',
+            description: 'Where it was read from (M09 §3.1): `mirror`, what the sync last kept (as of `as_of`), or `live`, the platform just now'
         },
-        kept_at: {
+        as_of: {
             anyOf: [
                 {
                     type: 'string',
@@ -2072,20 +2075,26 @@ export const AssignmentDetailSchema = {
                     type: 'null'
                 }
             ],
-            title: 'Kept At',
-            description: 'When the sync read what it kept (unknown for old rows)'
+            title: 'As Of',
+            description: 'When what is shown was read from the platform'
         },
-        problem: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Problem',
-            description: 'Why the platform\'s answer is missing (an error code)'
+        held: {
+            type: 'boolean',
+            title: 'Held',
+            description: 'Kept for its assessment or to-do, which no longer follows the platform (unbound, the course unlinked, gone from the platform): as last read',
+            default: false
+        },
+        sync_failed: {
+            type: 'boolean',
+            title: 'Sync Failed',
+            description: 'The last sync of the course\'s assignments failed: what is kept may be behind the platform',
+            default: false
+        },
+        area_hidden: {
+            type: 'boolean',
+            title: 'Area Hidden',
+            description: 'The course\'s assignments are closed on the platform: kept as last read',
+            default: false
         },
         assessment: {
             anyOf: [
@@ -2130,18 +2139,24 @@ export const AssignmentDetailSchema = {
             description: 'Whether the due date still matters (`rules.due_state`, M09 table 3d): none, upcoming, past (not handed in online) or overdue'
         },
         state: {
-            type: 'string',
-            enum: [
-                'graded',
-                'excused',
-                'submitted',
-                'missing',
-                'offline',
-                'unsubmitted'
+            anyOf: [
+                {
+                    type: 'string',
+                    enum: [
+                        'graded',
+                        'excused',
+                        'submitted',
+                        'missing',
+                        'offline',
+                        'unsubmitted'
+                    ]
+                },
+                {
+                    type: 'null'
+                }
             ],
             title: 'State',
-            description: 'Where the user is with it (`rules.assignment_state`)',
-            readOnly: true
+            description: 'Where the user is with it (`rules.assignment_state`, M09 table 3b); null for a practice quiz, or while the submission was never read'
         }
     },
     type: 'object',
@@ -2149,13 +2164,15 @@ export const AssignmentDetailSchema = {
         'provider',
         'assignment',
         'submission',
+        'source',
+        'as_of',
         'assessment',
         'task',
         'due_state',
         'state'
     ],
     title: 'AssignmentDetail',
-    description: 'One assignment, whole (M09 §5): as the platform has it now, or, when the platform\ncan\'t be asked, as the last sync kept it (`kept_at`).'
+    description: 'One assignment, whole (M09 §5): as the sync last kept it, or as the platform has it now\nwhere the mirror can\'t stand in (`source`).'
 } as const;
 
 export const AssignmentFactsSchema = {
@@ -2679,6 +2696,26 @@ export const AssignmentOutSchema = {
             ],
             description: 'What it was imported as (an assessment, which has its to-do, or a to-do); null while not imported'
         },
+        state: {
+            anyOf: [
+                {
+                    type: 'string',
+                    enum: [
+                        'graded',
+                        'excused',
+                        'submitted',
+                        'missing',
+                        'offline',
+                        'unsubmitted'
+                    ]
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'State',
+            description: 'Where the user is with it (`rules.assignment_state`, M09 table 3b); null while the submission was never read'
+        },
         due_state: {
             type: 'string',
             enum: [
@@ -2701,20 +2738,6 @@ export const AssignmentOutSchema = {
             title: 'Is Quiz',
             description: 'A graded quiz',
             readOnly: true
-        },
-        state: {
-            type: 'string',
-            enum: [
-                'graded',
-                'excused',
-                'submitted',
-                'missing',
-                'offline',
-                'unsubmitted'
-            ],
-            title: 'State',
-            description: 'Where the user is with it (`rules.assignment_state`)',
-            readOnly: true
         }
     },
     type: 'object',
@@ -2722,10 +2745,10 @@ export const AssignmentOutSchema = {
         'external_id',
         'name',
         'imported_as',
+        'state',
         'due_state',
         'online',
-        'is_quiz',
-        'state'
+        'is_quiz'
     ],
     title: 'AssignmentOut'
 } as const;
@@ -2843,6 +2866,12 @@ export const AssignmentTargetSchema = {
             title: 'Online',
             description: 'Handed in on the platform (not on paper or not at all)',
             default: true
+        },
+        held: {
+            type: 'boolean',
+            title: 'Held',
+            description: 'No longer follows the assignment: kept as last read (open it with `held_for`)',
+            default: false
         },
         state: {
             anyOf: [
@@ -6763,6 +6792,38 @@ export const CourseSetTermsInputBodySchema = {
     title: 'CourseSetTermsInputBody'
 } as const;
 
+export const CourseTotalSchema = {
+    properties: {
+        score: {
+            anyOf: [
+                {
+                    type: 'number'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Score',
+            description: 'Percent'
+        },
+        grade: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Grade',
+            description: 'The letter or label the platform gives'
+        }
+    },
+    type: 'object',
+    title: 'CourseTotal',
+    description: 'The user\'s course total as the platform shows it.'
+} as const;
+
 export const CourseUnreadSchema = {
     properties: {
         course_id: {
@@ -9547,136 +9608,6 @@ export const GoogleLoginInSchema = {
         'id_token'
     ],
     title: 'GoogleLoginIn'
-} as const;
-
-export const GradeItemSchema = {
-    properties: {
-        external_id: {
-            type: 'string',
-            title: 'External Id'
-        },
-        web_url: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Web Url',
-            description: 'Opens the item on the platform'
-        },
-        raw_kind: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Raw Kind',
-            description: 'The platform\'s own type (debugging)'
-        },
-        name: {
-            type: 'string',
-            title: 'Name'
-        },
-        score: {
-            anyOf: [
-                {
-                    type: 'number'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Score'
-        },
-        points_possible: {
-            anyOf: [
-                {
-                    type: 'number'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Points Possible'
-        },
-        grade: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Grade'
-        },
-        group_name: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Group Name'
-        },
-        graded_at: {
-            anyOf: [
-                {
-                    type: 'string',
-                    format: 'date-time'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Graded At'
-        },
-        kind: {
-            type: 'string',
-            enum: [
-                'total',
-                'assignment'
-            ],
-            title: 'Kind',
-            default: 'assignment'
-        }
-    },
-    type: 'object',
-    required: [
-        'external_id',
-        'name'
-    ],
-    title: 'GradeItem'
-} as const;
-
-export const GradeListSchema = {
-    properties: {
-        items: {
-            items: {
-                $ref: '#/components/schemas/GradeItem'
-            },
-            type: 'array',
-            title: 'Items'
-        },
-        truncated: {
-            type: 'boolean',
-            title: 'Truncated'
-        }
-    },
-    type: 'object',
-    required: [
-        'items',
-        'truncated'
-    ],
-    title: 'GradeList'
 } as const;
 
 export const GradeTargetSchema = {
@@ -20859,7 +20790,7 @@ export const SyncDifferenceSchema = {
 
 export const SyncDismissInputBodySchema = {
     properties: {
-        item_ids: {
+        assignment_ids: {
             items: {
                 type: 'string',
                 maxLength: 64,
@@ -20868,8 +20799,8 @@ export const SyncDismissInputBodySchema = {
             type: 'array',
             maxItems: 200,
             minItems: 1,
-            title: 'Item Ids',
-            description: 'New items'
+            title: 'Assignment Ids',
+            description: 'New assignments, by their id in the mirror (`SyncNew.assignment_id`)'
         },
         dismissed: {
             type: 'boolean',
@@ -20880,7 +20811,7 @@ export const SyncDismissInputBodySchema = {
     },
     type: 'object',
     required: [
-        'item_ids'
+        'assignment_ids'
     ],
     title: 'SyncDismissInputBody'
 } as const;
@@ -21134,6 +21065,25 @@ export const SyncRequestInputBodySchema = {
             title: 'Force',
             description: 'Sync even the courses synced in the last half hour (the user asked)',
             default: false
+        },
+        stages: {
+            anyOf: [
+                {
+                    items: {
+                        type: 'string',
+                        enum: [
+                            'assignments',
+                            'announcements'
+                        ]
+                    },
+                    type: 'array'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Stages',
+            description: 'Only these stages of the course (`course_id` required): the Refresh of what the app keeps of it (its assignments, its announcements)'
         }
     },
     type: 'object',
@@ -21377,6 +21327,7 @@ export const SyncUnreadableSchema = {
             enum: [
                 'material',
                 'assignment',
+                'assignments',
                 'announcements'
             ],
             title: 'Kind'
@@ -21434,7 +21385,7 @@ export const SyncUnreadableSchema = {
                 }
             ],
             title: 'Since',
-            description: 'Announcements: when their list was last read whole (none if never)'
+            description: 'Announcements, assignments: when their list was last read whole (none if never)'
         },
         item_id: {
             anyOf: [
@@ -21479,7 +21430,7 @@ export const SyncUnreadableSchema = {
         'since'
     ],
     title: 'SyncUnreadable',
-    description: 'What the sync can\'t read because its area is closed on the platform (M09 table 3c, note):\nkept as last read, judged again once the area opens. Materials and imported assignments one\nby one; a course\'s announcements as one row.'
+    description: 'What the sync can\'t read because its area is closed on the platform (M09 table 3c, note):\nkept as last read, judged again once the area opens. Materials and imported assignments one\nby one; a course\'s announcements, and its assignments not imported, as one row each.'
 } as const;
 
 export const TaskSchema = {
@@ -24714,26 +24665,53 @@ export const semestra__modules__lms__schemas__io__AssignmentListSchema = {
             },
             type: 'array',
             title: 'New Ids',
-            description: '`external_id` of the new assignments: not imported and due later'
+            description: '`external_id` of the new assignments (`rules.is_new`, M09 table 3e): not imported or ignored, still to do before their due date; soonest first'
         },
-        totals: {
-            items: {
-                $ref: '#/components/schemas/GradeItem'
-            },
-            type: 'array',
-            title: 'Totals',
+        total: {
+            anyOf: [
+                {
+                    $ref: '#/components/schemas/CourseTotal'
+                },
+                {
+                    type: 'null'
+                }
+            ],
             description: 'The course total as the LMS shows it, with `include_total`'
         },
         truncated: {
             type: 'boolean',
             title: 'Truncated'
+        },
+        source: {
+            type: 'string',
+            enum: [
+                'mirror',
+                'live'
+            ],
+            title: 'Source',
+            description: 'Where it was read from (M09 §3.1): `mirror`, what the sync last kept (as of `as_of`), or `live`, the platform just now'
+        },
+        as_of: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date-time'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'As Of',
+            description: 'When what is shown was read from the platform'
         }
     },
     type: 'object',
     required: [
         'items',
         'new_ids',
-        'truncated'
+        'truncated',
+        'source',
+        'as_of'
     ],
     title: 'AssignmentList'
 } as const;
@@ -24807,13 +24785,16 @@ export const AssignmentDetailWritableSchema = {
             description: 'A quiz without an assignment (a practice quiz): no submission, not importable',
             default: false
         },
-        kept: {
-            type: 'boolean',
-            title: 'Kept',
-            description: 'This is what the sync kept, not the platform\'s answer',
-            default: false
+        source: {
+            type: 'string',
+            enum: [
+                'mirror',
+                'live'
+            ],
+            title: 'Source',
+            description: 'Where it was read from (M09 §3.1): `mirror`, what the sync last kept (as of `as_of`), or `live`, the platform just now'
         },
-        kept_at: {
+        as_of: {
             anyOf: [
                 {
                     type: 'string',
@@ -24823,20 +24804,26 @@ export const AssignmentDetailWritableSchema = {
                     type: 'null'
                 }
             ],
-            title: 'Kept At',
-            description: 'When the sync read what it kept (unknown for old rows)'
+            title: 'As Of',
+            description: 'When what is shown was read from the platform'
         },
-        problem: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Problem',
-            description: 'Why the platform\'s answer is missing (an error code)'
+        held: {
+            type: 'boolean',
+            title: 'Held',
+            description: 'Kept for its assessment or to-do, which no longer follows the platform (unbound, the course unlinked, gone from the platform): as last read',
+            default: false
+        },
+        sync_failed: {
+            type: 'boolean',
+            title: 'Sync Failed',
+            description: 'The last sync of the course\'s assignments failed: what is kept may be behind the platform',
+            default: false
+        },
+        area_hidden: {
+            type: 'boolean',
+            title: 'Area Hidden',
+            description: 'The course\'s assignments are closed on the platform: kept as last read',
+            default: false
         },
         assessment: {
             anyOf: [
@@ -24879,6 +24866,26 @@ export const AssignmentDetailWritableSchema = {
             ],
             title: 'Due State',
             description: 'Whether the due date still matters (`rules.due_state`, M09 table 3d): none, upcoming, past (not handed in online) or overdue'
+        },
+        state: {
+            anyOf: [
+                {
+                    type: 'string',
+                    enum: [
+                        'graded',
+                        'excused',
+                        'submitted',
+                        'missing',
+                        'offline',
+                        'unsubmitted'
+                    ]
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'State',
+            description: 'Where the user is with it (`rules.assignment_state`, M09 table 3b); null for a practice quiz, or while the submission was never read'
         }
     },
     type: 'object',
@@ -24886,12 +24893,15 @@ export const AssignmentDetailWritableSchema = {
         'provider',
         'assignment',
         'submission',
+        'source',
+        'as_of',
         'assessment',
         'task',
-        'due_state'
+        'due_state',
+        'state'
     ],
     title: 'AssignmentDetail',
-    description: 'One assignment, whole (M09 §5): as the platform has it now, or, when the platform\ncan\'t be asked, as the last sync kept it (`kept_at`).'
+    description: 'One assignment, whole (M09 §5): as the sync last kept it, or as the platform has it now\nwhere the mirror can\'t stand in (`source`).'
 } as const;
 
 export const AssignmentFactsWritableSchema = {
@@ -25369,6 +25379,26 @@ export const AssignmentOutWritableSchema = {
             ],
             description: 'What it was imported as (an assessment, which has its to-do, or a to-do); null while not imported'
         },
+        state: {
+            anyOf: [
+                {
+                    type: 'string',
+                    enum: [
+                        'graded',
+                        'excused',
+                        'submitted',
+                        'missing',
+                        'offline',
+                        'unsubmitted'
+                    ]
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'State',
+            description: 'Where the user is with it (`rules.assignment_state`, M09 table 3b); null while the submission was never read'
+        },
         due_state: {
             type: 'string',
             enum: [
@@ -25386,6 +25416,7 @@ export const AssignmentOutWritableSchema = {
         'external_id',
         'name',
         'imported_as',
+        'state',
         'due_state'
     ],
     title: 'AssignmentOut'
@@ -25476,6 +25507,12 @@ export const AssignmentTargetWritableSchema = {
             title: 'Online',
             description: 'Handed in on the platform (not on paper or not at all)',
             default: true
+        },
+        held: {
+            type: 'boolean',
+            title: 'Held',
+            description: 'No longer follows the assignment: kept as last read (open it with `held_for`)',
+            default: false
         }
     },
     type: 'object',
@@ -26177,26 +26214,53 @@ export const semestra__modules__lms__schemas__io__AssignmentListWritableSchema =
             },
             type: 'array',
             title: 'New Ids',
-            description: '`external_id` of the new assignments: not imported and due later'
+            description: '`external_id` of the new assignments (`rules.is_new`, M09 table 3e): not imported or ignored, still to do before their due date; soonest first'
         },
-        totals: {
-            items: {
-                $ref: '#/components/schemas/GradeItem'
-            },
-            type: 'array',
-            title: 'Totals',
+        total: {
+            anyOf: [
+                {
+                    $ref: '#/components/schemas/CourseTotal'
+                },
+                {
+                    type: 'null'
+                }
+            ],
             description: 'The course total as the LMS shows it, with `include_total`'
         },
         truncated: {
             type: 'boolean',
             title: 'Truncated'
+        },
+        source: {
+            type: 'string',
+            enum: [
+                'mirror',
+                'live'
+            ],
+            title: 'Source',
+            description: 'Where it was read from (M09 §3.1): `mirror`, what the sync last kept (as of `as_of`), or `live`, the platform just now'
+        },
+        as_of: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date-time'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'As Of',
+            description: 'When what is shown was read from the platform'
         }
     },
     type: 'object',
     required: [
         'items',
         'new_ids',
-        'truncated'
+        'truncated',
+        'source',
+        'as_of'
     ],
     title: 'AssignmentList'
 } as const;

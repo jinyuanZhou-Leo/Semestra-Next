@@ -1090,8 +1090,8 @@ export type AssignmentBinding = {
 /**
  * AssignmentDetail
  *
- * One assignment, whole (M09 §5): as the platform has it now, or, when the platform
- * can't be asked, as the last sync kept it (`kept_at`).
+ * One assignment, whole (M09 §5): as the sync last kept it, or as the platform has it now
+ * where the mirror can't stand in (`source`).
  */
 export type AssignmentDetail = {
     /**
@@ -1119,23 +1119,35 @@ export type AssignmentDetail = {
      */
     practice?: boolean;
     /**
-     * Kept
+     * Source
      *
-     * This is what the sync kept, not the platform's answer
+     * Where it was read from (M09 §3.1): `mirror`, what the sync last kept (as of `as_of`), or `live`, the platform just now
      */
-    kept?: boolean;
+    source: 'mirror' | 'live';
     /**
-     * Kept At
+     * As Of
      *
-     * When the sync read what it kept (unknown for old rows)
+     * When what is shown was read from the platform
      */
-    kept_at?: string | null;
+    as_of: string | null;
     /**
-     * Problem
+     * Held
      *
-     * Why the platform's answer is missing (an error code)
+     * Kept for its assessment or to-do, which no longer follows the platform (unbound, the course unlinked, gone from the platform): as last read
      */
-    problem?: string | null;
+    held?: boolean;
+    /**
+     * Sync Failed
+     *
+     * The last sync of the course's assignments failed: what is kept may be behind the platform
+     */
+    sync_failed?: boolean;
+    /**
+     * Area Hidden
+     *
+     * The course's assignments are closed on the platform: kept as last read
+     */
+    area_hidden?: boolean;
     /**
      * The gradebook row it was imported as
      */
@@ -1159,9 +1171,9 @@ export type AssignmentDetail = {
     /**
      * State
      *
-     * Where the user is with it (`rules.assignment_state`)
+     * Where the user is with it (`rules.assignment_state`, M09 table 3b); null for a practice quiz, or while the submission was never read
      */
-    readonly state: 'graded' | 'excused' | 'submitted' | 'missing' | 'offline' | 'unsubmitted';
+    state: 'graded' | 'excused' | 'submitted' | 'missing' | 'offline' | 'unsubmitted' | null;
 };
 
 /**
@@ -1410,6 +1422,12 @@ export type AssignmentOut = {
      */
     imported_as: ImportTarget | null;
     /**
+     * State
+     *
+     * Where the user is with it (`rules.assignment_state`, M09 table 3b); null while the submission was never read
+     */
+    state: 'graded' | 'excused' | 'submitted' | 'missing' | 'offline' | 'unsubmitted' | null;
+    /**
      * Due State
      *
      * Whether the due date still matters (`rules.due_state`, M09 table 3d): none, upcoming, past (not handed in online) or overdue
@@ -1427,12 +1445,6 @@ export type AssignmentOut = {
      * A graded quiz
      */
     readonly is_quiz: boolean;
-    /**
-     * State
-     *
-     * Where the user is with it (`rules.assignment_state`)
-     */
-    readonly state: 'graded' | 'excused' | 'submitted' | 'missing' | 'offline' | 'unsubmitted';
 };
 
 /**
@@ -1505,6 +1517,12 @@ export type AssignmentTarget = {
      * Handed in on the platform (not on paper or not at all)
      */
     online?: boolean;
+    /**
+     * Held
+     *
+     * No longer follows the assignment: kept as last read (open it with `held_for`)
+     */
+    held?: boolean;
     /**
      * State
      *
@@ -3792,6 +3810,26 @@ export type CourseSetTermsInputBody = {
 };
 
 /**
+ * CourseTotal
+ *
+ * The user's course total as the platform shows it.
+ */
+export type CourseTotal = {
+    /**
+     * Score
+     *
+     * Percent
+     */
+    score?: number | null;
+    /**
+     * Grade
+     *
+     * The letter or label the platform gives
+     */
+    grade?: string | null;
+};
+
+/**
  * CourseUnread
  */
 export type CourseUnread = {
@@ -5445,70 +5483,6 @@ export type GoogleLoginIn = {
      * Id Token
      */
     id_token: string;
-};
-
-/**
- * GradeItem
- */
-export type GradeItem = {
-    /**
-     * External Id
-     */
-    external_id: string;
-    /**
-     * Web Url
-     *
-     * Opens the item on the platform
-     */
-    web_url?: string | null;
-    /**
-     * Raw Kind
-     *
-     * The platform's own type (debugging)
-     */
-    raw_kind?: string | null;
-    /**
-     * Name
-     */
-    name: string;
-    /**
-     * Score
-     */
-    score?: number | null;
-    /**
-     * Points Possible
-     */
-    points_possible?: number | null;
-    /**
-     * Grade
-     */
-    grade?: string | null;
-    /**
-     * Group Name
-     */
-    group_name?: string | null;
-    /**
-     * Graded At
-     */
-    graded_at?: string | null;
-    /**
-     * Kind
-     */
-    kind?: 'total' | 'assignment';
-};
-
-/**
- * GradeList
- */
-export type GradeList = {
-    /**
-     * Items
-     */
-    items: Array<GradeItem>;
-    /**
-     * Truncated
-     */
-    truncated: boolean;
 };
 
 /**
@@ -11860,11 +11834,11 @@ export type SyncDifference = {
  */
 export type SyncDismissInputBody = {
     /**
-     * Item Ids
+     * Assignment Ids
      *
-     * New items
+     * New assignments, by their id in the mirror (`SyncNew.assignment_id`)
      */
-    item_ids: Array<string>;
+    assignment_ids: Array<string>;
     /**
      * Dismissed
      *
@@ -12043,6 +12017,12 @@ export type SyncRequestInputBody = {
      * Sync even the courses synced in the last half hour (the user asked)
      */
     force?: boolean;
+    /**
+     * Stages
+     *
+     * Only these stages of the course (`course_id` required): the Refresh of what the app keeps of it (its assignments, its announcements)
+     */
+    stages?: Array<'assignments' | 'announcements'> | null;
 };
 
 /**
@@ -12196,13 +12176,13 @@ export type SyncStatus = {
  *
  * What the sync can't read because its area is closed on the platform (M09 table 3c, note):
  * kept as last read, judged again once the area opens. Materials and imported assignments one
- * by one; a course's announcements as one row.
+ * by one; a course's announcements, and its assignments not imported, as one row each.
  */
 export type SyncUnreadable = {
     /**
      * Kind
      */
-    kind: 'material' | 'assignment' | 'announcements';
+    kind: 'material' | 'assignment' | 'assignments' | 'announcements';
     /**
      * Id
      *
@@ -12238,7 +12218,7 @@ export type SyncUnreadable = {
     /**
      * Since
      *
-     * Announcements: when their list was last read whole (none if never)
+     * Announcements, assignments: when their list was last read whole (none if never)
      */
     since: string | null;
     /**
@@ -14138,19 +14118,29 @@ export type SemestraModulesLmsSchemasIoAssignmentList = {
     /**
      * New Ids
      *
-     * `external_id` of the new assignments: not imported and due later
+     * `external_id` of the new assignments (`rules.is_new`, M09 table 3e): not imported or ignored, still to do before their due date; soonest first
      */
     new_ids: Array<string>;
     /**
-     * Totals
-     *
      * The course total as the LMS shows it, with `include_total`
      */
-    totals?: Array<GradeItem>;
+    total?: CourseTotal | null;
     /**
      * Truncated
      */
     truncated: boolean;
+    /**
+     * Source
+     *
+     * Where it was read from (M09 §3.1): `mirror`, what the sync last kept (as of `as_of`), or `live`, the platform just now
+     */
+    source: 'mirror' | 'live';
+    /**
+     * As Of
+     *
+     * When what is shown was read from the platform
+     */
+    as_of: string | null;
 };
 
 /**
@@ -14176,8 +14166,8 @@ export type SemestraModulesScheduleSchemasDeleted = {
 /**
  * AssignmentDetail
  *
- * One assignment, whole (M09 §5): as the platform has it now, or, when the platform
- * can't be asked, as the last sync kept it (`kept_at`).
+ * One assignment, whole (M09 §5): as the sync last kept it, or as the platform has it now
+ * where the mirror can't stand in (`source`).
  */
 export type AssignmentDetailWritable = {
     /**
@@ -14205,23 +14195,35 @@ export type AssignmentDetailWritable = {
      */
     practice?: boolean;
     /**
-     * Kept
+     * Source
      *
-     * This is what the sync kept, not the platform's answer
+     * Where it was read from (M09 §3.1): `mirror`, what the sync last kept (as of `as_of`), or `live`, the platform just now
      */
-    kept?: boolean;
+    source: 'mirror' | 'live';
     /**
-     * Kept At
+     * As Of
      *
-     * When the sync read what it kept (unknown for old rows)
+     * When what is shown was read from the platform
      */
-    kept_at?: string | null;
+    as_of: string | null;
     /**
-     * Problem
+     * Held
      *
-     * Why the platform's answer is missing (an error code)
+     * Kept for its assessment or to-do, which no longer follows the platform (unbound, the course unlinked, gone from the platform): as last read
      */
-    problem?: string | null;
+    held?: boolean;
+    /**
+     * Sync Failed
+     *
+     * The last sync of the course's assignments failed: what is kept may be behind the platform
+     */
+    sync_failed?: boolean;
+    /**
+     * Area Hidden
+     *
+     * The course's assignments are closed on the platform: kept as last read
+     */
+    area_hidden?: boolean;
     /**
      * The gradebook row it was imported as
      */
@@ -14242,6 +14244,12 @@ export type AssignmentDetailWritable = {
      * Whether the due date still matters (`rules.due_state`, M09 table 3d): none, upcoming, past (not handed in online) or overdue
      */
     due_state: 'none' | 'upcoming' | 'past' | 'overdue';
+    /**
+     * State
+     *
+     * Where the user is with it (`rules.assignment_state`, M09 table 3b); null for a practice quiz, or while the submission was never read
+     */
+    state: 'graded' | 'excused' | 'submitted' | 'missing' | 'offline' | 'unsubmitted' | null;
 };
 
 /**
@@ -14460,6 +14468,12 @@ export type AssignmentOutWritable = {
      */
     imported_as: ImportTarget | null;
     /**
+     * State
+     *
+     * Where the user is with it (`rules.assignment_state`, M09 table 3b); null while the submission was never read
+     */
+    state: 'graded' | 'excused' | 'submitted' | 'missing' | 'offline' | 'unsubmitted' | null;
+    /**
      * Due State
      *
      * Whether the due date still matters (`rules.due_state`, M09 table 3d): none, upcoming, past (not handed in online) or overdue
@@ -14521,6 +14535,12 @@ export type AssignmentTargetWritable = {
      * Handed in on the platform (not on paper or not at all)
      */
     online?: boolean;
+    /**
+     * Held
+     *
+     * No longer follows the assignment: kept as last read (open it with `held_for`)
+     */
+    held?: boolean;
 };
 
 /**
@@ -14885,19 +14905,29 @@ export type SemestraModulesLmsSchemasIoAssignmentListWritable = {
     /**
      * New Ids
      *
-     * `external_id` of the new assignments: not imported and due later
+     * `external_id` of the new assignments (`rules.is_new`, M09 table 3e): not imported or ignored, still to do before their due date; soonest first
      */
     new_ids: Array<string>;
     /**
-     * Totals
-     *
      * The course total as the LMS shows it, with `include_total`
      */
-    totals?: Array<GradeItem>;
+    total?: CourseTotal | null;
     /**
      * Truncated
      */
     truncated: boolean;
+    /**
+     * Source
+     *
+     * Where it was read from (M09 §3.1): `mirror`, what the sync last kept (as of `as_of`), or `live`, the platform just now
+     */
+    source: 'mirror' | 'live';
+    /**
+     * As Of
+     *
+     * When what is shown was read from the platform
+     */
+    as_of: string | null;
 };
 
 export type HealthzData = {
@@ -21330,9 +21360,15 @@ export type LmsAssignmentGetData = {
         /**
          * Refresh
          *
-         * Skip the 5-minute cache and ask again
+         * Read the platform now instead of what the sync last kept (not stored)
          */
         refresh?: boolean;
+        /**
+         * Held For
+         *
+         * Open what is kept for this assessment or to-do (`assessment:<id>`, `task:<id>`): an object of lms.assignment.targets with `held`, which no longer follows the assignment
+         */
+        held_for?: string | null;
     };
     url: '/courses/{course_id}/lms/assignments/{assignment_id}';
 };
@@ -21401,7 +21437,7 @@ export type LmsAssignmentListData = {
         /**
          * Refresh
          *
-         * Skip the 5-minute cache and ask again
+         * Read the platform now instead of what the sync last kept (`as_of`); not stored. Only when the user wants what is on the platform this minute
          */
         refresh?: boolean;
         /**
@@ -21425,7 +21461,7 @@ export type LmsAssignmentListData = {
         /**
          * Include Total
          *
-         * Also the course total as the LMS shows it (`totals`)
+         * Also the course total as the LMS shows it (`total`)
          */
         include_total?: boolean;
         /**
@@ -22350,45 +22386,6 @@ export type LmsFolderGetResponses = {
 };
 
 export type LmsFolderGetResponse = LmsFolderGetResponses[keyof LmsFolderGetResponses];
-
-export type LmsGradeListData = {
-    body?: never;
-    path: {
-        /**
-         * Course Id
-         *
-         * Course id (must be linked)
-         */
-        course_id: string;
-    };
-    query?: {
-        /**
-         * Refresh
-         *
-         * Skip the 5-minute cache and ask again
-         */
-        refresh?: boolean;
-    };
-    url: '/courses/{course_id}/lms/grades';
-};
-
-export type LmsGradeListErrors = {
-    /**
-     * Default Response
-     */
-    default: ErrorResponse;
-};
-
-export type LmsGradeListError = LmsGradeListErrors[keyof LmsGradeListErrors];
-
-export type LmsGradeListResponses = {
-    /**
-     * Successful Response
-     */
-    200: GradeList;
-};
-
-export type LmsGradeListResponse = LmsGradeListResponses[keyof LmsGradeListResponses];
 
 export type LmsMaterialCountLeftData = {
     body?: never;

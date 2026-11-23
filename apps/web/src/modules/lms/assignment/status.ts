@@ -6,7 +6,7 @@ import { m } from '@/paraglide/messages'
  * Where the user is with an assignment, as the server works it out (`rules.assignment_state`, M09):
  * the details, the to-do's card and the Canvas tab's badges and filters only show it.
  */
-export type AssignmentState = AssignmentOut['state']
+export type AssignmentState = NonNullable<AssignmentOut['state']>
 
 /** Whether the due date still matters, as the server works it out (M09 table 3d). */
 export type DueState = AssignmentOut['due_state']

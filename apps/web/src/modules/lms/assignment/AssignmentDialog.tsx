@@ -1,4 +1,4 @@
-import { FileText, Lock, X } from 'lucide-react'
+import { FileText, Lock, RefreshCw, X } from 'lucide-react'
 
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { useState } from 'react'
@@ -8,6 +8,8 @@ import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from '@/ui/dialog'
 import { Skeleton } from '@/ui/skeleton'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
+import { cn } from '@/lib/utils'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/ui/tabs'
 import { SubmissionFeedback } from '../components/SubmissionFeedback'
 import { LmsContentContext } from '../content/context'
@@ -18,7 +20,7 @@ import {
   AssignmentFacts,
   AssignmentStatus,
   InSemestra,
-  KeptNote,
+  SourceNote,
   MySubmission,
   PlatformButton,
 } from './parts'
@@ -49,7 +51,7 @@ export default function AssignmentDialog({ target, onClose }: AssignmentDetailsP
       >
         {current ? (
           <Details
-            key={`${current.courseId}:${current.assignmentId}`}
+            key={`${current.courseId}:${current.assignmentId}:${current.held ?? ''}`}
             target={current}
             onClose={onClose}
           />
@@ -60,7 +62,10 @@ export default function AssignmentDialog({ target, onClose }: AssignmentDetailsP
 }
 
 const same = (a: AssignmentTarget, b: AssignmentTarget | null) =>
-  a.courseId === b?.courseId && a.assignmentId === b.assignmentId && a.view === b.view
+  a.courseId === b?.courseId &&
+  a.assignmentId === b.assignmentId &&
+  a.view === b.view &&
+  a.held === b.held
 
 function Details({ target, onClose }: { target: AssignmentTarget; onClose: () => void }) {
   const [view, setView] = useState<AssignmentView>(target.view)
@@ -96,7 +101,7 @@ function Details({ target, onClose }: { target: AssignmentTarget; onClose: () =>
           </header>
           {d.error ? (
             <div className="px-7 py-5">
-              <AssignmentError error={d.error} onRetry={d.refetch} />
+              <AssignmentError error={d.error} provider={d.provider} onRetry={d.refetch} />
             </div>
           ) : (
             <>
@@ -175,7 +180,7 @@ function Details({ target, onClose }: { target: AssignmentTarget; onClose: () =>
             value="details"
             className="flex min-h-0 flex-col gap-4 overflow-y-auto px-7 py-5"
           >
-            <KeptNote detail={detail} provider={provider} />
+            <SourceNote detail={detail} provider={provider} />
             {a.locked ? (
               <p className="flex items-start gap-2 rounded-xl bg-muted px-3 py-2 text-sm">
                 <Lock aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
@@ -196,7 +201,7 @@ function Details({ target, onClose }: { target: AssignmentTarget; onClose: () =>
             )}
           </TabsContent>
           <TabsContent value="feedback" className="min-h-0 space-y-6 overflow-y-auto px-7 py-5">
-            <KeptNote detail={detail} provider={provider} />
+            <SourceNote detail={detail} provider={provider} />
             {d.partial ? (
               <div className="space-y-3">
                 <Skeleton className="h-5 w-24" />
@@ -207,7 +212,7 @@ function Details({ target, onClose }: { target: AssignmentTarget; onClose: () =>
                 <MySubmission
                   courseId={target.courseId}
                   submission={s}
-                  kept={detail.kept ?? false}
+                  held={detail.held ?? false}
                   online={a.online}
                 />
                 <SubmissionFeedback
@@ -229,7 +234,28 @@ function Details({ target, onClose }: { target: AssignmentTarget; onClose: () =>
                 practice={practice}
                 now={d.now}
               />
-              {close}
+              <div className="flex shrink-0 items-center gap-1">
+                {d.refresh ? (
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          className="-mt-1"
+                          aria-label={m.lms_assignment_refresh()}
+                          disabled={d.refreshing}
+                          onClick={d.refresh}
+                        />
+                      }
+                    >
+                      <RefreshCw aria-hidden className={cn(d.refreshing && 'animate-spin')} />
+                    </TooltipTrigger>
+                    <TooltipContent>{m.lms_assignment_refresh()}</TooltipContent>
+                  </Tooltip>
+                ) : null}
+                {close}
+              </div>
             </div>
             <PlatformButton
               assignment={a}

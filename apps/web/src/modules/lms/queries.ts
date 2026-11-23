@@ -55,14 +55,12 @@ export const LMS_QUERIES = [...LMS_STATE_QUERIES, ...LMS_CONTENT_QUERIES]
  * What a course's platform pages show (the provider's tab, cards, pickers), kept in the browser
  * between visits (`keptQueries`): opened again, a view shows what it showed last time at once
  * and fetches the platform's current state behind it. Only reads that go to the platform: what
- * the sync keeps (announcements) reads quickly from the app's own data, and a kept copy would
+ * the sync keeps (assignments, announcements) reads quickly from the app's own data, and a kept copy would
  * show an old list (and old unread marks) before the current one.
  */
 export const LMS_KEPT_QUERIES = [
   'lmsCourseOverview',
-  'lmsAssignmentList',
   'lmsQuizList',
-  'lmsAssignmentGet',
   'lmsModuleList',
   'lmsModuleItemList',
   'lmsPageList',

@@ -19,8 +19,26 @@ export const PRACTICE = 'quiz:'
 /** The details' id of a quiz, by the quiz's own id. */
 export const quizRef = (quizId: string) => `${PRACTICE}${quizId}`
 
-export const assignmentOptions = (courseId: string, assignmentId: string) =>
-  lmsAssignmentGetOptions({ path: { course_id: courseId, assignment_id: assignmentId } })
+/**
+ * One assignment. `held` (`assessment:<id>` or `task:<id>`) reads what was kept for that
+ * assessment or to-do; `refresh` asks the platform now, past the mirror (M09 §3.1).
+ */
+export const assignmentOptions = (
+  courseId: string,
+  assignmentId: string,
+  held?: string,
+  refresh?: boolean,
+) =>
+  lmsAssignmentGetOptions({
+    path: { course_id: courseId, assignment_id: assignmentId },
+    ...(held || refresh
+      ? { query: { ...(held ? { held_for: held } : {}), ...(refresh ? { refresh } : {}) } }
+      : {}),
+  })
+
+/** How the details open what was kept for an assessment or to-do (`AssignmentTarget.held`). */
+export const heldFor = (t: AssignmentTarget): string | undefined =>
+  t.held ? (t.assessment_id ? `assessment:${t.assessment_id}` : `task:${t.task_id}`) : undefined
 
 /** The assignment as a list of the course already read it: shown until the whole of it arrives. */
 function listed(
@@ -42,6 +60,8 @@ function listed(
       return {
         provider: '',
         assignment,
+        source: 'mirror',
+        as_of: null,
         state,
         due_state,
         submission: submission
@@ -61,11 +81,13 @@ function listed(
  * arrives. `quiz:<id>` names a quiz: the server answers with its assignment, or (a practice
  * quiz) with the quiz itself.
  */
-export function useAssignment(courseId: string, assignmentId: string) {
+export function useAssignment(courseId: string, assignmentId: string, held?: string) {
   const queryClient = useQueryClient()
+  const options = assignmentOptions(courseId, assignmentId, held)
   const whole = useQuery({
-    ...assignmentOptions(courseId, assignmentId),
-    placeholderData: () => listed(queryClient, courseId, assignmentId),
+    ...options,
+    // The list is the mirror: not what was kept for an assessment or to-do.
+    placeholderData: held ? undefined : () => listed(queryClient, courseId, assignmentId),
   })
   return {
     data: whole.data,
@@ -74,6 +96,14 @@ export function useAssignment(courseId: string, assignmentId: string) {
     practice: whole.data?.practice ?? false,
     error: whole.error,
     refetch: () => void whole.refetch(),
+    /** Read from the platform now, past the mirror, into the same entry (M09 §3.1). */
+    readNow: async () => {
+      const fresh = await queryClient.fetchQuery({
+        ...assignmentOptions(courseId, assignmentId, held, true),
+        staleTime: 0,
+      })
+      queryClient.setQueryData(options.queryKey, fresh)
+    },
   }
 }
 
@@ -100,9 +130,11 @@ function targetOf(targets: AssignmentTargets, of: Of): AssignmentTarget | null {
 export function assignmentOf(
   targets: AssignmentTargets,
   of: Of,
-): { courseId: string; assignmentId: string } | null {
+): { courseId: string; assignmentId: string; held?: string } | null {
   const found = targetOf(targets, of)
-  return found ? { courseId: found.course_id, assignmentId: found.assignment_id } : null
+  return found
+    ? { courseId: found.course_id, assignmentId: found.assignment_id, held: heldFor(found) }
+    : null
 }
 
 export function useAssignmentOf(programId: string, of: Of) {

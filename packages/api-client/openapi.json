@@ -12078,7 +12078,7 @@
           "lms"
         ],
         "summary": "One assignment of the LMS, whole: its description, the user's submission, feedback.",
-        "description": "What the assignment's details show (M09 §5): the assignment, what the user\nhanded in, the teacher's comments and rubric scores (match `rubric_scores.criterion_id` with\n`assignment.rubric`), and where it is in Semestra. When the LMS can't be asked and the\nassignment was imported, the answer is what the last sync kept (`kept`).",
+        "description": "What the assignment's details show (M09 §5): the assignment, what the user\nhanded in, the teacher's comments and rubric scores (match `rubric_scores.criterion_id` with\n`assignment.rubric`), and where it is in Semestra: as the last sync kept it, or read from the LMS\nnow where the sync keeps nothing for it (`source`).",
         "operationId": "lmsAssignmentGet",
         "security": [
           {
@@ -12117,11 +12117,29 @@
             "required": false,
             "schema": {
               "type": "boolean",
-              "description": "Skip the 5-minute cache and ask again",
+              "description": "Read the platform now instead of what the sync last kept (not stored)",
               "default": false,
               "title": "Refresh"
             },
-            "description": "Skip the 5-minute cache and ask again"
+            "description": "Read the platform now instead of what the sync last kept (not stored)"
+          },
+          {
+            "name": "held_for",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Open what is kept for this assessment or to-do (`assessment:<id>`, `task:<id>`): an object of lms.assignment.targets with `held`, which no longer follows the assignment",
+              "title": "Held For"
+            },
+            "description": "Open what is kept for this assessment or to-do (`assessment:<id>`, `task:<id>`): an object of lms.assignment.targets with `held`, which no longer follows the assignment"
           }
         ],
         "responses": {
@@ -12220,7 +12238,7 @@
           "lms"
         ],
         "summary": "Assignments and graded quizzes of a linked course on its LMS (Canvas), with the user's scores and the course total, marked when imported.",
-        "description": "For \"what is due\", \"what is missing\" and \"what did I get\": filter by `state`\nand due dates; `include_total` adds the course total. Each has a `ref`: lms.content.read gives\nits text, rubric and the teacher's feedback. To add them to the gradebook or tasks use\nlms.assignment.import, never the gradebook or task capabilities directly.",
+        "description": "For \"what is due\", \"what is missing\" and \"what did I get\": filter by `state`\nand due dates; `include_total` adds the course total. The answer is what the last sync kept, as of\n`as_of` (`source: mirror`), or the LMS (Canvas) just now (`source: live`); pass `refresh` only when the\nuser wants what is on the LMS (Canvas) this minute. Each has a `ref`: lms.content.read gives\nits text, rubric and the teacher's feedback. To add them to the gradebook or tasks use\nlms.assignment.import, never the gradebook or task capabilities directly.",
         "operationId": "lmsAssignmentList",
         "security": [
           {
@@ -12251,11 +12269,11 @@
             "required": false,
             "schema": {
               "type": "boolean",
-              "description": "Skip the 5-minute cache and ask again",
+              "description": "Read the platform now instead of what the sync last kept (`as_of`); not stored. Only when the user wants what is on the platform this minute",
               "default": false,
               "title": "Refresh"
             },
-            "description": "Skip the 5-minute cache and ask again"
+            "description": "Read the platform now instead of what the sync last kept (`as_of`); not stored. Only when the user wants what is on the platform this minute"
           },
           {
             "name": "state",
@@ -12327,11 +12345,11 @@
             "required": false,
             "schema": {
               "type": "boolean",
-              "description": "Also the course total as the LMS shows it (`totals`)",
+              "description": "Also the course total as the LMS shows it (`total`)",
               "default": false,
               "title": "Include Total"
             },
-            "description": "Also the course total as the LMS shows it (`totals`)"
+            "description": "Also the course total as the LMS shows it (`total`)"
           },
           {
             "name": "fields",
@@ -14034,71 +14052,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/FolderListing"
-                }
-              }
-            }
-          },
-          "default": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Default Response"
-          }
-        }
-      }
-    },
-    "/courses/{course_id}/lms/grades": {
-      "get": {
-        "tags": [
-          "lms"
-        ],
-        "summary": "The user's grades on its LMS (Canvas) for a linked course.",
-        "description": "The course total first, then one row per assignment, with score, points possible\nand grade as the LMS shows them. The gradebook in this app is grading.gradebook.get; to add LMS\nassignments to it use lms.assignment.import.",
-        "operationId": "lmsGradeList",
-        "security": [
-          {
-            "sessionCookie": []
-          },
-          {
-            "accessToken": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "course_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "Course id (must be linked)",
-              "title": "Course Id"
-            },
-            "description": "Course id (must be linked)"
-          },
-          {
-            "name": "refresh",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "description": "Skip the 5-minute cache and ask again",
-              "default": false,
-              "title": "Refresh"
-            },
-            "description": "Skip the 5-minute cache and ask again"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GradeList"
                 }
               }
             }
@@ -22116,13 +22069,16 @@
             "description": "A quiz without an assignment (a practice quiz): no submission, not importable",
             "default": false
           },
-          "kept": {
-            "type": "boolean",
-            "title": "Kept",
-            "description": "This is what the sync kept, not the platform's answer",
-            "default": false
+          "source": {
+            "type": "string",
+            "enum": [
+              "mirror",
+              "live"
+            ],
+            "title": "Source",
+            "description": "Where it was read from (M09 §3.1): `mirror`, what the sync last kept (as of `as_of`), or `live`, the platform just now"
           },
-          "kept_at": {
+          "as_of": {
             "anyOf": [
               {
                 "type": "string",
@@ -22132,20 +22088,26 @@
                 "type": "null"
               }
             ],
-            "title": "Kept At",
-            "description": "When the sync read what it kept (unknown for old rows)"
+            "title": "As Of",
+            "description": "When what is shown was read from the platform"
           },
-          "problem": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Problem",
-            "description": "Why the platform's answer is missing (an error code)"
+          "held": {
+            "type": "boolean",
+            "title": "Held",
+            "description": "Kept for its assessment or to-do, which no longer follows the platform (unbound, the course unlinked, gone from the platform): as last read",
+            "default": false
+          },
+          "sync_failed": {
+            "type": "boolean",
+            "title": "Sync Failed",
+            "description": "The last sync of the course's assignments failed: what is kept may be behind the platform",
+            "default": false
+          },
+          "area_hidden": {
+            "type": "boolean",
+            "title": "Area Hidden",
+            "description": "The course's assignments are closed on the platform: kept as last read",
+            "default": false
           },
           "assessment": {
             "anyOf": [
@@ -22190,18 +22152,24 @@
             "description": "Whether the due date still matters (`rules.due_state`, M09 table 3d): none, upcoming, past (not handed in online) or overdue"
           },
           "state": {
-            "type": "string",
-            "enum": [
-              "graded",
-              "excused",
-              "submitted",
-              "missing",
-              "offline",
-              "unsubmitted"
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "graded",
+                  "excused",
+                  "submitted",
+                  "missing",
+                  "offline",
+                  "unsubmitted"
+                ]
+              },
+              {
+                "type": "null"
+              }
             ],
             "title": "State",
-            "description": "Where the user is with it (`rules.assignment_state`)",
-            "readOnly": true
+            "description": "Where the user is with it (`rules.assignment_state`, M09 table 3b); null for a practice quiz, or while the submission was never read"
           }
         },
         "type": "object",
@@ -22209,13 +22177,15 @@
           "provider",
           "assignment",
           "submission",
+          "source",
+          "as_of",
           "assessment",
           "task",
           "due_state",
           "state"
         ],
         "title": "AssignmentDetail",
-        "description": "One assignment, whole (M09 §5): as the platform has it now, or, when the platform\ncan't be asked, as the last sync kept it (`kept_at`)."
+        "description": "One assignment, whole (M09 §5): as the sync last kept it, or as the platform has it now\nwhere the mirror can't stand in (`source`)."
       },
       "AssignmentFacts": {
         "properties": {
@@ -22736,6 +22706,26 @@
             ],
             "description": "What it was imported as (an assessment, which has its to-do, or a to-do); null while not imported"
           },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "graded",
+                  "excused",
+                  "submitted",
+                  "missing",
+                  "offline",
+                  "unsubmitted"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State",
+            "description": "Where the user is with it (`rules.assignment_state`, M09 table 3b); null while the submission was never read"
+          },
           "due_state": {
             "type": "string",
             "enum": [
@@ -22758,20 +22748,6 @@
             "title": "Is Quiz",
             "description": "A graded quiz",
             "readOnly": true
-          },
-          "state": {
-            "type": "string",
-            "enum": [
-              "graded",
-              "excused",
-              "submitted",
-              "missing",
-              "offline",
-              "unsubmitted"
-            ],
-            "title": "State",
-            "description": "Where the user is with it (`rules.assignment_state`)",
-            "readOnly": true
           }
         },
         "type": "object",
@@ -22779,10 +22755,10 @@
           "external_id",
           "name",
           "imported_as",
+          "state",
           "due_state",
           "online",
-          "is_quiz",
-          "state"
+          "is_quiz"
         ],
         "title": "AssignmentOut"
       },
@@ -22898,6 +22874,12 @@
             "title": "Online",
             "description": "Handed in on the platform (not on paper or not at all)",
             "default": true
+          },
+          "held": {
+            "type": "boolean",
+            "title": "Held",
+            "description": "No longer follows the assignment: kept as last read (open it with `held_for`)",
+            "default": false
           },
           "state": {
             "anyOf": [
@@ -26771,6 +26753,37 @@
         ],
         "title": "CourseSetTermsInputBody"
       },
+      "CourseTotal": {
+        "properties": {
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score",
+            "description": "Percent"
+          },
+          "grade": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grade",
+            "description": "The letter or label the platform gives"
+          }
+        },
+        "type": "object",
+        "title": "CourseTotal",
+        "description": "The user's course total as the platform shows it."
+      },
       "CourseUnread": {
         "properties": {
           "course_id": {
@@ -29489,134 +29502,6 @@
           "id_token"
         ],
         "title": "GoogleLoginIn"
-      },
-      "GradeItem": {
-        "properties": {
-          "external_id": {
-            "type": "string",
-            "title": "External Id"
-          },
-          "web_url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Web Url",
-            "description": "Opens the item on the platform"
-          },
-          "raw_kind": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Raw Kind",
-            "description": "The platform's own type (debugging)"
-          },
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
-          "score": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Score"
-          },
-          "points_possible": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Points Possible"
-          },
-          "grade": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Grade"
-          },
-          "group_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Group Name"
-          },
-          "graded_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Graded At"
-          },
-          "kind": {
-            "type": "string",
-            "enum": [
-              "total",
-              "assignment"
-            ],
-            "title": "Kind",
-            "default": "assignment"
-          }
-        },
-        "type": "object",
-        "required": [
-          "external_id",
-          "name"
-        ],
-        "title": "GradeItem"
-      },
-      "GradeList": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/GradeItem"
-            },
-            "type": "array",
-            "title": "Items"
-          },
-          "truncated": {
-            "type": "boolean",
-            "title": "Truncated"
-          }
-        },
-        "type": "object",
-        "required": [
-          "items",
-          "truncated"
-        ],
-        "title": "GradeList"
       },
       "GradeTarget": {
         "properties": {
@@ -40600,7 +40485,7 @@
       },
       "SyncDismissInputBody": {
         "properties": {
-          "item_ids": {
+          "assignment_ids": {
             "items": {
               "type": "string",
               "maxLength": 64,
@@ -40609,8 +40494,8 @@
             "type": "array",
             "maxItems": 200,
             "minItems": 1,
-            "title": "Item Ids",
-            "description": "New items"
+            "title": "Assignment Ids",
+            "description": "New assignments, by their id in the mirror (`SyncNew.assignment_id`)"
           },
           "dismissed": {
             "type": "boolean",
@@ -40621,7 +40506,7 @@
         },
         "type": "object",
         "required": [
-          "item_ids"
+          "assignment_ids"
         ],
         "title": "SyncDismissInputBody"
       },
@@ -40869,6 +40754,25 @@
             "title": "Force",
             "description": "Sync even the courses synced in the last half hour (the user asked)",
             "default": false
+          },
+          "stages": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "assignments",
+                    "announcements"
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stages",
+            "description": "Only these stages of the course (`course_id` required): the Refresh of what the app keeps of it (its assignments, its announcements)"
           }
         },
         "type": "object",
@@ -41108,6 +41012,7 @@
             "enum": [
               "material",
               "assignment",
+              "assignments",
               "announcements"
             ],
             "title": "Kind"
@@ -41165,7 +41070,7 @@
               }
             ],
             "title": "Since",
-            "description": "Announcements: when their list was last read whole (none if never)"
+            "description": "Announcements, assignments: when their list was last read whole (none if never)"
           },
           "item_id": {
             "anyOf": [
@@ -41210,7 +41115,7 @@
           "since"
         ],
         "title": "SyncUnreadable",
-        "description": "What the sync can't read because its area is closed on the platform (M09 table 3c, note):\nkept as last read, judged again once the area opens. Materials and imported assignments one\nby one; a course's announcements as one row."
+        "description": "What the sync can't read because its area is closed on the platform (M09 table 3c, note):\nkept as last read, judged again once the area opens. Materials and imported assignments one\nby one; a course's announcements, and its assignments not imported, as one row each."
       },
       "Task": {
         "properties": {
@@ -44374,26 +44279,53 @@
             },
             "type": "array",
             "title": "New Ids",
-            "description": "`external_id` of the new assignments: not imported and due later"
+            "description": "`external_id` of the new assignments (`rules.is_new`, M09 table 3e): not imported or ignored, still to do before their due date; soonest first"
           },
-          "totals": {
-            "items": {
-              "$ref": "#/components/schemas/GradeItem"
-            },
-            "type": "array",
-            "title": "Totals",
+          "total": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CourseTotal"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "description": "The course total as the LMS shows it, with `include_total`"
           },
           "truncated": {
             "type": "boolean",
             "title": "Truncated"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "mirror",
+              "live"
+            ],
+            "title": "Source",
+            "description": "Where it was read from (M09 §3.1): `mirror`, what the sync last kept (as of `as_of`), or `live`, the platform just now"
+          },
+          "as_of": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of",
+            "description": "When what is shown was read from the platform"
           }
         },
         "type": "object",
         "required": [
           "items",
           "new_ids",
-          "truncated"
+          "truncated",
+          "source",
+          "as_of"
         ],
         "title": "AssignmentList"
       },

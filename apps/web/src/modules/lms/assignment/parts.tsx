@@ -1,16 +1,17 @@
 import type { AssignmentDetail, SubmissionDetail } from '@semestra/api-client'
 import { client } from '@semestra/api-client'
-import { ArrowUpRight, Download, ExternalLink, FileText, GraduationCap, Link2 } from 'lucide-react'
+import { ArrowUpRight, Download, ExternalLink, FileText, FileX, GraduationCap, Link2 } from 'lucide-react'
 import { CircleAlert, ListChecks, Plus } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { SafeHtml } from '@/components/SafeHtml'
-import { errorMessage } from '@/lib/errors'
+import { errorCode, errorMessage } from '@/lib/errors'
 import { formatBytes, formatDateTime, formatPercent } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { Concealed } from '@/modules/grading/components/GradeValue'
 import { m } from '@/paraglide/messages'
 import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/ui/alert'
 import { Button } from '@/ui/button'
+import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { Skeleton } from '@/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
@@ -32,8 +33,9 @@ import {
 type Shown = {
   assignment: Assignment
   submission: SubmissionDetail | null
-  /** Where the user is with it (the server's `state`). */
-  state: AssignmentState
+  /** Where the user is with it (the server's `state`); none while the sync never read the
+   * submission (M09 table 3b, row 0). */
+  state: AssignmentState | null
 }
 
 /** A number of points as the platform has it: "41", "7.5". */
@@ -51,6 +53,7 @@ export function AssignmentStatus({
   practice,
   now,
 }: Shown & { dueState: DueState; practice: boolean; now: number }) {
+  if (state === null && !practice) return <div className="min-w-0" />
   const late = s?.late
     ? s.points_deducted
       ? m.lms_assignment_late_deducted({ points: points(s.points_deducted) })
@@ -98,7 +101,7 @@ export function AssignmentStatus({
             state === 'missing' && 'text-destructive',
           )}
         >
-          {practice ? m.lms_assignment_practice() : STATE_LABELS[state]()}
+          {practice || state === null ? m.lms_assignment_practice() : STATE_LABELS[state]()}
         </p>
       )}
       {text ? (
@@ -251,17 +254,18 @@ function submittedFileUrl(
 /**
  * What the user handed in last, in the rubric's table: the attempt and when in its head, then a
  * row per file (opened and downloaded through Semestra), the text or the address of a text or
- * website submission. From what the sync kept (`kept`) the files are named, not opened.
+ * website submission. From what was kept for an assessment or to-do (`held`) the files are named,
+ * not opened: the course may no longer reach them.
  */
 export function MySubmission({
   courseId,
   submission: s,
-  kept,
+  held,
   online,
 }: {
   courseId: string
   submission: SubmissionDetail | null
-  kept: boolean
+  held: boolean
   /** Whether the assignment is handed in online at all. */
   online: boolean
 }) {
@@ -307,7 +311,7 @@ export function MySubmission({
                 <TableCell>
                   <span className="flex min-w-0 items-center gap-2.5">
                     <FileText aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-                    {kept ? (
+                    {held ? (
                       <span className="truncate font-medium">{f.name}</span>
                     ) : (
                       <a
@@ -325,7 +329,7 @@ export function MySubmission({
                   {/* The size sits next to its download button. */}
                   <span className="inline-flex items-center gap-1 text-muted-foreground tabular-nums">
                     {f.size_bytes != null ? formatBytes(f.size_bytes) : null}
-                    {kept ? null : (
+                    {held ? null : (
                       <Tooltip>
                         <TooltipTrigger
                           render={
@@ -474,27 +478,55 @@ export function InSemestra({
   )
 }
 
-/** Why this is what the sync kept and not the platform's answer, and from when. */
-export function KeptNote({ detail, provider }: { detail: AssignmentDetail; provider: string }) {
-  if (!detail.kept) return null
-  const why =
-    detail.problem === 'lms.course_not_linked'
-      ? m.lms_assignment_kept_unlinked({ provider })
-      : detail.problem === 'lms.not_found'
-        ? m.lms_assignment_kept_gone({ provider })
-        : m.lms_assignment_kept_unreachable({ provider })
+/**
+ * Why what is shown may not be the platform as it is now, and from when (M09 §7.3): what was
+ * kept for an assessment or to-do, or the mirror while the sync can't bring it up to date. What
+ * was read now, or a mirror that is in step, needs no word.
+ */
+export function SourceNote({ detail, provider }: { detail: AssignmentDetail; provider: string }) {
+  if (detail.source !== 'mirror') return null
+  const why = detail.held
+    ? m.lms_assignment_source_held({ provider })
+    : detail.area_hidden
+      ? m.lms_assignment_source_area_hidden({ provider })
+      : detail.sync_failed
+        ? m.lms_assignment_source_sync_failed({ provider })
+        : null
+  if (!why) return null
   return (
     <p className="rounded-xl bg-muted px-3 py-2 text-sm text-muted-foreground">
       {why}{' '}
-      {detail.kept_at
-        ? m.lms_assignment_kept_at({ time: formatDateTime(detail.kept_at) })
-        : m.lms_assignment_kept_earlier()}
+      {detail.as_of
+        ? m.lms_assignment_source_at({ time: formatDateTime(detail.as_of) })
+        : m.lms_assignment_source_earlier()}
     </p>
   )
 }
 
-/** The read failed and nothing is kept: what went wrong, and a way to ask again. */
-export function AssignmentError({ error, onRetry }: { error: unknown; onRetry: () => void }) {
+/**
+ * The read failed: the assignment is no longer on the platform (nothing to ask again), or what
+ * went wrong with a way to ask again.
+ */
+export function AssignmentError({
+  error,
+  provider,
+  onRetry,
+}: {
+  error: unknown
+  provider: string
+  onRetry: () => void
+}) {
+  if (errorCode(error) === 'lms.not_found')
+    return (
+      <Empty className="border-0">
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <FileX />
+          </EmptyMedia>
+          <EmptyTitle>{m.lms_assignment_gone({ provider })}</EmptyTitle>
+        </EmptyHeader>
+      </Empty>
+    )
   return (
     <Alert variant="destructive">
       <CircleAlert aria-hidden />

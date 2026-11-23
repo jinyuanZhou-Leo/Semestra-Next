@@ -118,7 +118,7 @@ test('opening a Program syncs it; new assignments wait in the panel and can be i
   expect(screen.getByText('Lab 9')).toBeInTheDocument()
   await waitFor(() => expect(requested).toHaveBeenCalledWith({}))
   await userEvent.click(screen.getAllByRole('button', { name: 'Ignore' })[0]!)
-  await waitFor(() => expect(dismissed).toHaveBeenCalledWith({ item_ids: ['r1'], dismissed: true }))
+  await waitFor(() => expect(dismissed).toHaveBeenCalledWith({ assignment_ids: ['r1'], dismissed: true }))
 })
 
 test('a value changed on both sides is settled from the panel', async () => {
@@ -310,6 +310,15 @@ test('what a closed area hides is listed; only materials read online can be remo
         count: 4,
         since,
       },
+      {
+        ...base,
+        kind: 'assignments',
+        id: null,
+        area: 'assignments',
+        title: null,
+        count: 2,
+        since,
+      },
     ],
   })
   server.use(
@@ -326,8 +335,9 @@ test('what a closed area hides is listed; only materials read online can be remo
     }),
   )
   renderWithRouter(<InPopover />, undefined, IN_PROGRAM)
-  await userEvent.click(await screen.findByRole('button', { name: /^Not syncing for now\s*4$/ }))
+  await userEvent.click(await screen.findByRole('button', { name: /^Not syncing for now\s*5$/ }))
   expect(await screen.findByText('Announcements: 4')).toBeInTheDocument()
+  expect(screen.getByText('Assignments not imported: 2')).toBeInTheDocument()
   expect(screen.getAllByText(/The “Files” area is turned off on Canvas/)).toHaveLength(3)
   expect(screen.getAllByRole('button', { name: 'Remove' })).toHaveLength(2)
 

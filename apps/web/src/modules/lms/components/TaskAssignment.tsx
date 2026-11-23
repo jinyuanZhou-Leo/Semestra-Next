@@ -21,6 +21,9 @@ export const taskAssignmentLink: TaskLink = {
       taskId: task.id,
       assessmentId: task.assessment_id,
     })
-    return found ? () => openAssignmentDetails(router, found.courseId, found.assignmentId) : null
+    return found
+      ? () =>
+          openAssignmentDetails(router, found.courseId, found.assignmentId, 'details', found.held)
+      : null
   },
 }

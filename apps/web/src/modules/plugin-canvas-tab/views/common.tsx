@@ -76,7 +76,7 @@ export function SubmissionStatus({
   dueAt,
   now,
 }: {
-  state: AssignmentState
+  state: AssignmentState | null
   missing: boolean
   late: boolean
   dueState: DueState
@@ -97,7 +97,7 @@ export function SubmissionStatus({
     ) : null,
   ]
   const badge =
-    state === 'missing' ? (
+    state === null ? null : state === 'missing' ? (
       <Badge variant="destructive">{STATE_LABELS.missing()}</Badge>
     ) : state === 'unsubmitted' || state === 'offline' ? (
       hint === null || state === 'offline' ? (
