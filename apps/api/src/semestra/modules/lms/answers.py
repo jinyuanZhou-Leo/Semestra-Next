@@ -61,6 +61,10 @@ AREA_OF: dict[str, str] = {
     "announcement": "announcements",
 }
 
+# Areas that are no tab of the course's navigation: a refused list of one is never the
+# instructor closing it (`hidden`), only not known (table 2, row 17).
+OFF_NAV: frozenset[str] = frozenset(("calendar",))
+
 # Answers that say the connection or the platform is out for now, not anything about the item
 # or area read: the stage stops (nothing is changed) and the next round reads again.
 STOPPING = frozenset(

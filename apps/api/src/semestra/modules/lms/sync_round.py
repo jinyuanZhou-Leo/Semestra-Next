@@ -21,6 +21,7 @@ from semestra.modules.lms import service
 from semestra.modules.lms.answers import (
     AREA_HIDDEN,
     AREA_OF,
+    OFF_NAV,
     STOPPING,
     AreaResult,
     Gone,
@@ -121,7 +122,7 @@ class SyncRound:
             elif exc.code == AREA_HIDDEN:  # told apart by the read itself (`reads._read`)
                 result = "hidden"
             else:
-                closed = await self._nav_closed(ctx, link, b, area)
+                closed = None if area in OFF_NAV else await self._nav_closed(ctx, link, b, area)
                 result = b.provider.area_answer(exc, nav_closed=closed)
                 if result == "unavailable":
                     self._reasons[area] = exc.code
