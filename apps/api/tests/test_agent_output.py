@@ -55,7 +55,8 @@ def test_agent_fields_name_real_output_fields():
                 wrong.append(f"{cap.name}: {path}")
         item = _item_model(cap.output_model) or cap.output_model
         for name in cap.agent_default_fields or ():
-            if name not in item.model_fields:
+            # Computed fields are in the dump the fields are picked from, like the others.
+            if name not in item.model_fields and name not in item.model_computed_fields:
                 wrong.append(f"{cap.name}: default {name}")
     assert wrong == []
 

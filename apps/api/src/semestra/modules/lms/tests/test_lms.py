@@ -879,7 +879,7 @@ async def test_handed_in_assignments_finish_their_to_dos_once(api: Api, fake: Fa
             if a.external_id in ids:
                 when = datetime(2026, 2, 1, tzinfo=UTC)
                 fake.course_assignments["101"][i] = a.model_copy(
-                    update={"submission": Submission(state="submitted", submitted_at=when)}
+                    update={"submission": Submission(submitted_at=when)}
                 )
 
     # Handed in: the assessment's to-do and the imported task are finished on the next read.
@@ -919,7 +919,7 @@ async def test_an_assignment_handed_in_before_its_import_has_its_to_do_finished(
     lab1 = fake.course_assignments["101"][0]
     when = datetime(2026, 2, 1, tzinfo=UTC)
     fake.course_assignments["101"][0] = lab1.model_copy(
-        update={"submission": Submission(state="submitted", submitted_at=when)}
+        update={"submission": Submission(submitted_at=when)}
     )
     started = await api.call(
         "POST", f"/courses/{course}/lms/imports:assignments", json={"external_ids": ["a1"]}

@@ -4,13 +4,10 @@ import { m } from '@/paraglide/messages'
 /** Where the user is with an assignment, as its details say it in large type. */
 export type AssignmentState = 'graded' | 'excused' | 'submitted' | 'missing' | 'unsubmitted'
 
-type Handed = Pick<SubmissionDetail, 'state' | 'score' | 'submitted_at' | 'missing' | 'excused'>
+type Handed = Pick<SubmissionDetail, 'status' | 'missing'>
 
 export function assignmentState(s: Handed | null | undefined): AssignmentState {
-  if (s?.excused) return 'excused'
-  if (s?.score != null || s?.state === 'graded') return 'graded'
-  if (s?.submitted_at || s?.state === 'submitted' || s?.state === 'pending_review')
-    return 'submitted'
+  if (s && s.status !== 'unsubmitted') return s.status
   return s?.missing ? 'missing' : 'unsubmitted'
 }
 

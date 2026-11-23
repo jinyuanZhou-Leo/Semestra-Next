@@ -13,7 +13,7 @@ from sqlalchemy import select
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError
 from semestra.modules.academics import service as academics
-from semestra.modules.lms import cache, html, service, submissions
+from semestra.modules.lms import cache, html, rules, service, submissions
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.models import LmsCourseLink, LmsImportedRef
 from semestra.modules.lms.schemas.dto import (
@@ -247,7 +247,7 @@ async def assignments(ctx: Ctx, inp: AssignmentsInput) -> AssignmentList:
     items = [
         {**a, "ref": f"assignment:{a['external_id']}", "imported_as": targets.get(a["external_id"])}
         for a in data
-        if _wanted(ctx, a, inp, after, before)
+        if _wanted(a, inp, after, before)
     ]
     totals: list[Any] = []
     if inp.include_total and "grades" in linked[1].provider.features:
@@ -279,12 +279,7 @@ async def _totals_fetch(b: Bound, i: Any, ext: str) -> Any:
     return await b.provider.grade_totals(i, b.cfg, b.creds, ext)
 
 
-# Assignments handed in elsewhere: nothing to submit online, so never "missing" by date alone.
-OFFLINE_SUBMISSIONS = frozenset(("on_paper", "none", "not_graded"))
-
-
 def _wanted(
-    ctx: Ctx,
     a: dict[str, Any],
     inp: AssignmentsInput,
     after: datetime | None,
@@ -295,23 +290,7 @@ def _wanted(
         return False
     if before and (due is None or due > before):
         return False
-    sub = a.get("submission")
-    handed_in = (sub or {}).get("state") in ("submitted", "graded", "pending_review") or bool(
-        (sub or {}).get("submitted_at")
-    )
-    types = set(a.get("submission_types") or [])
-    online = not types or not types <= OFFLINE_SUBMISSIONS
-    match inp.status:
-        case "upcoming":
-            return not handed_in and (due is None or due > ctx.now)
-        case "missing":
-            if sub is not None:  # the platform's own flag knows what needs handing in
-                return bool(sub.get("missing"))
-            return online and due is not None and due < ctx.now
-        case "graded":
-            return (sub or {}).get("score") is not None or (sub or {}).get("state") == "graded"
-        case None:
-            return True
+    return inp.state is None or rules.state_of(a) == inp.state
 
 
 async def grades(ctx: Ctx, course_id: str, refresh: bool) -> GradeList:

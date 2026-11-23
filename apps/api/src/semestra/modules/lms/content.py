@@ -33,6 +33,7 @@ from semestra.modules.lms import (
     pages,
     reads,
     refs,
+    rules,
     service,
     sync_kept,
     sync_status,
@@ -850,9 +851,8 @@ async def _read_assignment(
     parts = [_md(a.get("html"))]
     sub = a.get("submission") or {}
     if sub:
-        state = sub.get("state") or "unsubmitted"
         score = sub.get("score")
-        line = f"Your submission: {state}"
+        line = f"Your submission: {rules.status_of(sub)}"
         if score is not None:
             line += f", score {score:g}" + (f"/{a['points']:g}" if a.get("points") else "")
         if sub.get("grade"):
@@ -863,7 +863,7 @@ async def _read_assignment(
     if (
         kept is None
         and "submissions" in linked[1].provider.features
-        and sub.get("state") not in (None, "unsubmitted")
+        and rules.status_of(sub) != "unsubmitted"
     ):
         try:
             detail = await reads.submission(ctx, inp.course_id, item_id, inp.refresh)

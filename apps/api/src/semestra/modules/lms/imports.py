@@ -384,7 +384,7 @@ async def _group_categories(
             name,
             categories,
             previous=placed.most_common(1)[0][0] if placed else None,
-            contents=[(str(a.get("name") or ""), a.get("raw_kind") == "quiz") for a in group],
+            contents=[(str(a.get("name") or ""), a.get("quiz_id") is not None) for a in group],
         )
 
     return category_of

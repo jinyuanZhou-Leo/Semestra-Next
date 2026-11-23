@@ -203,7 +203,7 @@ async def test_read_takes_any_ref_or_address(api: Api, fake: FakeProvider):
 async def test_read_an_assignment_with_score_rubric_and_feedback(api: Api, fake: FakeProvider):
     course, _ = await _linked(api)
     lab = fake.course_assignments["101"][0]
-    lab.submission = Submission(state="graded", score=8, grade="B")
+    lab.submission = Submission(score=8, grade="B")
     out = await api.call("GET", f"/courses/{course}/lms/content", params={"ref": "assignment:a1"})
     assert out["points"] == 10
     assert "Your submission: graded, score 8/10 (B)" in out["text"]
@@ -227,10 +227,10 @@ async def test_read_goes_on_from_an_offset(api: Api, fake: FakeProvider):
 
 async def test_assignment_list_filters_and_gives_refs(api: Api, fake: FakeProvider):
     course, _ = await _linked(api)
-    fake.course_assignments["101"][0].submission = Submission(state="graded", score=9)
+    fake.course_assignments["101"][0].submission = Submission(score=9)
     graded = await api.call(
         "GET", f"/courses/{course}/lms/assignments",
-        params={"status": "graded", "include_total": True},
+        params={"state": "graded", "include_total": True},
     )  # fmt: skip
     assert [(a["ref"], a["name"]) for a in graded["items"]] == [("assignment:a1", "Lab 1")]
     assert graded["totals"][0]["score"] == 91.5
@@ -264,7 +264,7 @@ async def test_import_takes_refs_and_moves_tasks_into_the_gradebook(api: Api, fa
 async def test_activity_lists_what_is_new_across_a_term(api: Api, fake: FakeProvider):
     course, term_id = await _linked(api)
     fake.course_assignments["101"][0].submission = Submission(
-        state="graded", score=9, graded_at=datetime.fromisoformat("2026-01-20T12:00:00+00:00")
+        score=9, graded_at=datetime.fromisoformat("2026-01-20T12:00:00+00:00")
     )
     since = "2026-01-01T00:00:00Z"
     out = await api.call("GET", "/me/lms/activity", params={"term_id": term_id, "since": since})
@@ -335,11 +335,36 @@ async def test_missing_follows_the_platform_and_skips_work_handed_in_elsewhere(
     lab1, lab2, midterm = fake.course_assignments["101"]
     for a in (lab1, lab2, midterm):  # all past due (the clock says 2026-01-15)
         a.due_at = datetime.fromisoformat("2026-01-10T12:00:00+00:00")
-    lab1.submission = Submission(state="unsubmitted", missing=True)
-    lab2.submission = Submission(state="unsubmitted", missing=False)  # excused, say
+    lab1.submission = Submission(missing=True)
+    lab2.submission = Submission(missing=False)  # excused, say
     midterm.submission_types = ["on_paper"]
-    out = await api.call("GET", f"/courses/{course}/lms/assignments", params={"status": "missing"})
+    out = await api.call("GET", f"/courses/{course}/lms/assignments", params={"state": "missing"})
     assert [a["name"] for a in out["items"]] == ["Lab 1"]
+
+
+async def test_each_assignment_is_in_one_state(api: Api, fake: FakeProvider):
+    course, _ = await _linked(api)
+    lab1, lab2, midterm = fake.course_assignments["101"]
+    past = datetime.fromisoformat("2026-01-10T12:00:00+00:00")
+    later = datetime.fromisoformat("2026-02-10T12:00:00+00:00")
+    # Missing on the platform, then graded zero: graded only.
+    lab1.due_at, lab1.submission = past, Submission(missing=True, score=0)
+    # Excused before it was due.
+    lab2.due_at, lab2.submission = later, Submission(excused=True)
+    # Handed in on paper, never marked: not missing however late.
+    midterm.due_at, midterm.submission_types, midterm.submission = past, ["on_paper"], None
+
+    async def names(state: str) -> list[str]:
+        out = await api.call("GET", f"/courses/{course}/lms/assignments", params={"state": state})
+        return [a["name"] for a in out["items"]]
+
+    assert await names("graded") == ["Lab 1"]
+    assert await names("missing") == []
+    assert await names("unsubmitted") == []
+    assert await names("offline") == ["Midterm"]
+    listed = await api.call("GET", f"/courses/{course}/lms/assignments")
+    states = {a["name"]: a["state"] for a in listed["items"]}
+    assert states == {"Lab 1": "graded", "Lab 2": "excused", "Midterm": "offline"}
 
 
 async def test_a_refusal_is_a_hidden_area_only_when_the_menu_says_so(

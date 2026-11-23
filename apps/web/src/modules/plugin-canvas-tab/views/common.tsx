@@ -83,7 +83,7 @@ export function SubmissionStatus({
   if (s.missing) {
     return <Badge variant="destructive">{m.canvas_tab_submission_missing()}</Badge>
   }
-  if (s.state === 'graded') {
+  if (s.status === 'graded') {
     return (
       <span className="flex items-center gap-1">
         <Badge variant="secondary">{m.canvas_tab_submission_graded()}</Badge>
@@ -91,7 +91,7 @@ export function SubmissionStatus({
       </span>
     )
   }
-  if (s.submitted_at || s.state === 'submitted' || s.state === 'pending_review') {
+  if (s.status === 'submitted') {
     return (
       <span className="flex items-center gap-1">
         <Badge variant="secondary">{m.canvas_tab_submission_submitted()}</Badge>
