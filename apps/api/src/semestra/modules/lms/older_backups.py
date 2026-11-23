@@ -282,7 +282,7 @@ def _0071(lms: Row, archive: OlderArchive) -> Row:
                 "provider": row.get("provider"),
                 "external_id": row.get("assignment_id"),
                 **_kept_to_mirror(row, ref.get("snapshot") if ref is not None else None),
-                "seen_at": None if tied else row.get("read_at"),
+                "seen_at": row.get("read_at"),
             }
         )
     return {

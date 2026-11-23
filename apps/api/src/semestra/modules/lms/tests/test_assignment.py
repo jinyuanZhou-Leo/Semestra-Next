@@ -10,8 +10,11 @@ from typing import Any
 import pytest
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import delete
+from fastapi import FastAPI
+from sqlalchemy import delete, select
 
+from semestra.core.context import system_ctx
+from semestra.modules.lms.models import LmsAssignment, LmsCourseLink
 from semestra.modules.lms.schemas.dto import (
     Assignment,
     Quiz,
@@ -143,6 +146,31 @@ async def test_an_assignment_opens_from_the_platform_then_from_the_mirror(
     ]
     # The rest of the mirror went with the link.
     await _open(api, course, "a2", 409)
+
+
+async def test_unbound_after_an_upgrade_keeps_when_the_row_was_read(
+    api: Api, app: FastAPI, clock: Clock
+):
+    """After 0071 a course has no `read_at` of its assignments until a sync reads the list
+    whole; the rows moved in carry when they were read, and an unbind then keeps that time,
+    not the time of the unbind (§3.2)."""
+    program_id, course = await _course(api, "a1")
+    lab = (await _assessments(api, course))["a1"]
+    await api.sync(program_id)
+    read = clock.now
+    async with system_ctx(app.state) as ctx:  # as the upgrade leaves it
+        link = await ctx.db.scalar(select(LmsCourseLink).where(LmsCourseLink.course_id == course))
+        assert link is not None
+        link.area_reads = {k: v for k, v in link.area_reads.items() if k != "assignments"}
+        row = await ctx.db.scalar(select(LmsAssignment).where(LmsAssignment.external_id == "a1"))
+        assert row is not None
+        row.seen_at = read
+        await ctx.db.commit()
+    clock.advance(days=2)
+    await api.call("DELETE", f"/assessments/{lab['id']}/lms-assignment")
+    held = await _open(api, course, "a1", held_for=f"assessment:{lab['id']}")
+    assert held["held"] is True
+    assert datetime.fromisoformat(held["as_of"]) == read
 
 
 async def test_to_dos_are_in_the_mirror_too_and_follow_into_the_gradebook(
@@ -312,7 +340,7 @@ def test_migration_moves_what_was_kept_into_the_mirror(tmp_path: Path):
     db.close()
     assert set(json.loads(area_reads)) == {"files"}
     link_id, kind, held_for, seen_at, assignment, submission, quiz = rows["a1"]
-    assert (link_id, kind, held_for, seen_at) == ("l1", None, None, None)
+    assert (link_id, kind, held_for, seen_at) == ("l1", None, None, "2026-01-10 00:00:00.000000")
     assert json.loads(assignment)["name"] == "Lab 1"
     assert json.loads(assignment)["due_at"] == "2026-02-01"  # from the snapshot
     assert json.loads(submission)["body"] == "<p>Mine</p>"

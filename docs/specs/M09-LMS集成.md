@@ -150,7 +150,7 @@ lms_assignments                      # 平台作业、本人的提交与反馈�
   assignment,                        # 作业的事实：provider 交出的 `Assignment`（说明已清洗；不含列表里附带的 `submission` 摘要，提交只看下一列）
   submission?,                       # 我的提交与老师反馈：`SubmissionDetail`（文件只存名称与 id，不存下载地址；评语附件只存名称与平台地址）；为空 = 还没读到
   quiz?,                             # 作业对应测验时测验的事实 `QuizFacts`（题数、时限、可答次数）
-  seen_at?                           # 留给对象的行：成为这种行之前最后一次读到它的时间（取自课程的 area_reads.assignments.read_at）；镜像行为空：镜像行的保存时间就是课程的 area_reads.assignments.read_at（每轮本来就写），行本身只在事实变化时才写，平台没变时零写入
+  seen_at?                           # 留给对象的行：成为这种行之前最后一次读到它的时间（取自课程的 area_reads.assignments.read_at）；镜像行一般为空（保存时间就是课程的 area_reads.assignments），迁移或旧备份读进来的镜像行是迁移前最后一次读到的时间，在同步读全列表之前（那时还没有 read_at）解绑时成为留给对象的行的时间.read_at（每轮本来就写），行本身只在事实变化时才写，平台没变时零写入
   UNIQUE(link_id, external_id) WHERE link_id 非空；UNIQUE(held_for_kind, held_for_id) WHERE held_for_id 非空
   CHECK(link_id 与 held_for_id 恰好一个非空)
 

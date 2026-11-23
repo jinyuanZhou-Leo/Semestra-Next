@@ -189,8 +189,9 @@ def upgrade() -> None:
                 "provider": row.provider,
                 "external_id": row.assignment_id,
                 **_moved(row, ref.snapshot if ref is not None else None),
-                # A held row's age is its own; a mirror row's is the course's last list read.
-                "seen_at": None if tied else row.read_at,
+                # When it was last read: a held row's age, and a mirror row's until a sync reads
+                # the whole list again (the area's `read_at` is dropped below).
+                "seen_at": row.read_at,
             }
         )
     if rows:

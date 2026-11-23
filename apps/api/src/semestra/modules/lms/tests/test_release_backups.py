@@ -208,7 +208,11 @@ def test_the_feedback_of_a_backup_up_to_2_4_becomes_the_mirror():
     assert "feedback" not in out
     assert [r["external_id"] for r in out["refs"]] == ["a1", "a6"]
     mirror, held = out["assignments"]
-    assert (mirror["link_id"], mirror["held_for_id"], mirror["seen_at"]) == ("l1", None, None)
+    assert (mirror["link_id"], mirror["held_for_id"], mirror["seen_at"]) == (
+        "l1",
+        None,
+        "2026-01-10T00:00:00Z",
+    )
     assert mirror["assignment"]["name"] == "Lab 1"
     assert mirror["assignment"]["due_at"] == "2026-02-01"
     # Read from the platform until a sync fills the mirror.

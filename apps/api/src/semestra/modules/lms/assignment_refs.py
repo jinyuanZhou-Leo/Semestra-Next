@@ -155,7 +155,8 @@ async def hold_for(ctx: Ctx, link_id: str, external_id: str, kind: str, target_i
             assignment=row.assignment,
             submission=row.submission,
             quiz=row.quiz,
-            seen_at=datetime.fromisoformat(read_at) if read_at else ctx.now,
+            # The course's last list read; before any since the upgrade, when the row was read.
+            seen_at=datetime.fromisoformat(read_at) if read_at else row.seen_at,
         )
     )
     await ctx.db.flush()
