@@ -3,8 +3,8 @@
 
 Any non-empty access token is accepted. Lists are paginated with `Link: rel="next"` like Canvas
 (`per_page`, at most 100; the `large` scenario serves 25 a page). Areas a teacher turned off answer
-like a real Canvas did for a student (recorded, `lms/tests/fixtures/canvas/`): the lists of pages and
-quizzes with 404, of files with 403; folders and single pages and files are still read.
+like a real Canvas did for a student (recorded, `lms/tests/fixtures/canvas/`): the lists of pages
+and quizzes with 404, of files with 403; folders and single pages and files are still read.
 
 File downloads redirect to this same server. Real Canvas redirects to its file store on another
 domain, where the provider drops the Authorization header and checks `FILE_CDN_SUFFIXES`; that
