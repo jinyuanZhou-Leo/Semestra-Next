@@ -575,6 +575,10 @@ test('each assignment shows the state and due state the server gives it', async 
     online: state !== 'offline',
     imported_as: null,
     state,
+    // The server's marks for it (M09 3b marks), from the platform's flags.
+    marks: (['missing', 'late'] as const).filter(
+      (mark) => submission[mark] === true && !(mark === 'missing' && state === 'missing'),
+    ),
     due_state: dueState,
     submission: { missing: false, late: false, excused: false, ...submission },
   })

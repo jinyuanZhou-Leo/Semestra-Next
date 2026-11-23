@@ -212,6 +212,7 @@ function Details({ target, onClose }: { target: AssignmentTarget; onClose: () =>
                 <MySubmission
                   courseId={target.courseId}
                   submission={s}
+                  marks={detail.marks ?? []}
                   held={detail.held ?? false}
                   online={a.online}
                 />
@@ -230,6 +231,7 @@ function Details({ target, onClose }: { target: AssignmentTarget; onClose: () =>
                 assignment={a}
                 submission={s}
                 state={state}
+                marks={detail.marks ?? []}
                 dueState={detail.due_state}
                 practice={practice}
                 now={d.now}

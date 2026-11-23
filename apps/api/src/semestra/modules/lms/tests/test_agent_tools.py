@@ -205,16 +205,16 @@ async def test_read_takes_any_ref_or_address(api: Api, fake: FakeProvider):
 async def test_read_an_assignment_with_score_rubric_and_feedback(api: Api, fake: FakeProvider):
     course, _ = await _linked(api)
     lab = fake.course_assignments["101"][0]
-    lab.submission = Submission(score=8, grade="B")
+    lab.submission = Submission(score=8, grade="B", late=True)
     fake.course_submissions["101"] = [
         SubmissionDetail(
-            external_id="s-a1", assignment_id="a1", score=8, grade="B",
+            external_id="s-a1", assignment_id="a1", score=8, grade="B", late=True,
             comments=[SubmissionComment(author="Prof", comment="Good work")],
         )
     ]  # fmt: skip
     out = await api.call("GET", f"/courses/{course}/lms/content", params={"ref": "assignment:a1"})
     assert out["points"] == 10
-    assert "Your submission: graded, score 8/10 (B)" in out["text"]
+    assert "Your submission: graded, score 8/10 (B); marked late" in out["text"]
     assert "**Prof**: Good work" in out["text"]
     # Where an answer about it links: its details, over its course's page.
     assert out["app_url"].startswith("/p/")
@@ -362,8 +362,8 @@ async def test_each_assignment_is_in_one_state(api: Api, fake: FakeProvider):
     later = datetime.fromisoformat("2026-02-10T12:00:00+00:00")
     # Missing on the platform, then graded zero: graded only.
     lab1.due_at, lab1.submission = past, Submission(missing=True, score=0)
-    # Excused before it was due.
-    lab2.due_at, lab2.submission = later, Submission(excused=True)
+    # Excused before it was due, though the platform still marks it late.
+    lab2.due_at, lab2.submission = later, Submission(excused=True, late=True)
     # Handed in on paper, never marked: not missing however late.
     midterm.due_at, midterm.submission_types, midterm.submission = past, ["on_paper"], None
 
@@ -381,6 +381,9 @@ async def test_each_assignment_is_in_one_state(api: Api, fake: FakeProvider):
     # Its due state comes with it (table 3d): a paper midterm past its date is past, not overdue.
     due = {a["name"]: a["due_state"] for a in listed["items"]}
     assert due == {"Lab 1": "none", "Lab 2": "none", "Midterm": "past"}
+    # And its marks (3b marks): the zero was for missing it; excused overrides the platform's late.
+    marks = {a["name"]: a["marks"] for a in listed["items"]}
+    assert marks == {"Lab 1": ["missing"], "Lab 2": [], "Midterm": []}
 
 
 async def test_a_refusal_is_a_hidden_area_only_when_the_menu_says_so(

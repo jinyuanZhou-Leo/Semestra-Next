@@ -138,6 +138,28 @@ test('a missing assignment says it is missing, not when it was due', async () =>
   expect(within(dialog).queryByText('Overdue')).toBeNull()
 })
 
+test('the marks shown are the ones the server gives, whatever the platform flags say', async () => {
+  // Missing and handed in late after all (M09 3b marks): late is shown with the points taken off;
+  // the platform's own missing flag is not shown again beside the state.
+  mount({
+    ...LAB,
+    state: 'missing',
+    due_state: 'overdue',
+    marks: ['late'],
+    submission: {
+      external_id: 's1',
+      assignment_id: 'a1',
+      status: 'unsubmitted',
+      missing: true,
+      late: true,
+      points_deducted: 2,
+    },
+  })
+  const dialog = await screen.findByRole('dialog', { name: 'Lab 1' })
+  expect(await within(dialog).findByText('Late, 2 pts deducted')).toBeInTheDocument()
+  expect(within(dialog).getAllByText('Missing')).toHaveLength(1)
+})
+
 test('what was kept for an assessment says so, offers no import and closes into the page', async () => {
   let asked: string | null = null
   const held = { ...LAB, source: 'mirror', as_of: '2026-02-06T12:00:00Z', held: true } as const

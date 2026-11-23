@@ -179,6 +179,24 @@ def assignment_state(status: SubmissionStatus, *, missing: bool, online: bool) -
     return "unsubmitted" if online else "offline"
 
 
+Mark = Literal["missing", "late"]
+"""What the platform marks an assignment with, shown beside its state (M09 §3.2, 3b marks)."""
+
+
+def marks(state: AssignmentState | None, *, missing: bool, late: bool) -> list[Mark]:
+    """M09 3b marks: what the platform marks, unless it repeats the state (a missing assignment
+    is not marked missing again) or excused overrides it; nothing while the submission was never
+    read. In the order missing, late."""
+    if state is None or state == "excused":
+        return []
+    out: list[Mark] = []
+    if missing and state != "missing":
+        out.append("missing")
+    if late:
+        out.append("late")
+    return out
+
+
 DueState = Literal["none", "upcoming", "past", "overdue"]
 """Whether an assignment's due date still matters to the user (M09 table 3d)."""
 
@@ -234,6 +252,12 @@ def facts_state(
         missing=bool(submission.get("missing")),
         online=submits_online(list(assignment.get("submission_types") or [])),
     )
+
+
+def facts_marks(state: AssignmentState | None, submission: Mapping[str, Any] | None) -> list[Mark]:
+    """`marks` of an assignment as the mirror keeps it, beside its `facts_state`."""
+    sub = submission or {}
+    return marks(state, missing=bool(sub.get("missing")), late=bool(sub.get("late")))
 
 
 def facts_due_state(

@@ -873,15 +873,16 @@ def _assignment_detail(f: Facts, note: str | None) -> LmsContentDetail:
     a = f.assignment
     sub = f.submission or {}
     parts = [_md(a.get("html"))]
-    if sub:
+    state = rules.facts_state(a, f.submission)
+    if state is not None:
         score = sub.get("score")
-        line = f"Your submission: {rules.status_of(sub)}"
+        line = f"Your submission: {state}"
         if score is not None:
             line += f", score {score:g}" + (f"/{a['points']:g}" if a.get("points") else "")
         if sub.get("grade"):
             line += f" ({sub['grade']})"
-        flags = [x for x in ("late", "missing") if sub.get(x)]
-        parts.append(line + (f"; {', '.join(flags)}" if flags else ""))
+        marks = rules.facts_marks(state, f.submission)
+        parts.append(line + (f"; marked {', '.join(marks)}" if marks else ""))
     parts += _feedback_lines(a.get("rubric") or [], sub)
     return LmsContentDetail(
         ref=refs.make("assignment", f.external_id),

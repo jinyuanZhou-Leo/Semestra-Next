@@ -12237,7 +12237,7 @@
           "lms"
         ],
         "summary": "Assignments and graded quizzes of a linked course on its LMS (Canvas), with the user's scores and the course total, marked when imported.",
-        "description": "For \"what is due\", \"what is missing\" and \"what did I get\": filter by `state`\nand due dates; `include_total` adds the course total. The answer is what the last sync kept, as of\n`as_of` (`source: mirror`), or the LMS (Canvas) just now (`source: live`); pass `refresh` only when the\nuser wants what is on the LMS (Canvas) this minute. Each has a `ref`: lms.content.read gives\nits text, rubric and the teacher's feedback. To add them to the gradebook or tasks use\nlms.assignment.import, never the gradebook or task capabilities directly.",
+        "description": "For \"what is due\", \"what is missing\" and \"what did I get\": filter by `state`\nand due dates; `include_total` adds the course total. Where the user is with each is `state` and,\nbeside it, `marks` (missing, late), as the app shows them; read those, not the raw\n`submission.missing`/`late` flags (an excused assignment can still carry them).\nThe answer is what the last sync kept, as of `as_of` (`source: mirror`), or the LMS (Canvas) just now\n(`source: live`); pass `refresh` only when the user wants what is on the LMS (Canvas) this minute.\nEach has a `ref`: lms.content.read gives its text, rubric and the teacher's feedback.\nTo add them to the gradebook or tasks use lms.assignment.import, never the gradebook or task\ncapabilities directly.",
         "operationId": "lmsAssignmentList",
         "security": [
           {
@@ -12380,7 +12380,8 @@
                       "allowed_attempts",
                       "rubric",
                       "imported_as",
-                      "state"
+                      "state",
+                      "marks"
                     ],
                     "type": "string"
                   }
@@ -12389,10 +12390,10 @@
                   "type": "null"
                 }
               ],
-              "description": "Agent/MCP only: return just these fields of each item (and its external_id); default name, due_at, points, group_name, submission, imported_as, state. `markdown` (or `html`) is the body, as Markdown",
+              "description": "Agent/MCP only: return just these fields of each item (and its external_id); default name, due_at, points, group_name, submission, imported_as, state, marks. `markdown` (or `html`) is the body, as Markdown",
               "title": "Fields"
             },
-            "description": "Agent/MCP only: return just these fields of each item (and its external_id); default name, due_at, points, group_name, submission, imported_as, state. `markdown` (or `html`) is the body, as Markdown"
+            "description": "Agent/MCP only: return just these fields of each item (and its external_id); default name, due_at, points, group_name, submission, imported_as, state, marks. `markdown` (or `html`) is the body, as Markdown"
           }
         ],
         "responses": {
@@ -22169,6 +22170,19 @@
             ],
             "title": "State",
             "description": "Where the user is with it (`rules.assignment_state`, M09 table 3b); null for a practice quiz, or while the submission was never read"
+          },
+          "marks": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "missing",
+                "late"
+              ]
+            },
+            "type": "array",
+            "title": "Marks",
+            "description": "What the platform marks it with beside `state`, as shown (`rules.marks`, M09 3b marks): missing, late; the raw `submission.missing`/`late` are the platform's flags",
+            "default": []
           }
         },
         "type": "object",
@@ -22725,6 +22739,19 @@
             "title": "State",
             "description": "Where the user is with it (`rules.assignment_state`, M09 table 3b); null while the submission was never read"
           },
+          "marks": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "missing",
+                "late"
+              ]
+            },
+            "type": "array",
+            "title": "Marks",
+            "description": "What the platform marks it with beside `state`, as shown (`rules.marks`, M09 3b marks): missing, late; the raw `submission.missing`/`late` are the platform's flags",
+            "default": []
+          },
           "due_state": {
             "type": "string",
             "enum": [
@@ -22900,13 +22927,27 @@
             "title": "State",
             "description": "Where the user is with it (`rules.assignment_state`); None until the sync has read it",
             "readOnly": true
+          },
+          "marks": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "missing",
+                "late"
+              ]
+            },
+            "type": "array",
+            "title": "Marks",
+            "description": "What the platform marks it with beside `state`, as shown (`rules.marks`, M09 3b marks): missing, late",
+            "readOnly": true
           }
         },
         "type": "object",
         "required": [
           "course_id",
           "assignment_id",
-          "state"
+          "state",
+          "marks"
         ],
         "title": "AssignmentTarget"
       },

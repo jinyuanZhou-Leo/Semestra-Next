@@ -53,6 +53,7 @@ def item(f: Facts, imported_as: dict[str, str] | None, now: datetime) -> dict[st
         "ref": f"assignment:{f.external_id}",
         "imported_as": imported_as,
         "state": st,
+        "marks": rules.facts_marks(st, f.submission),
         "due_state": rules.facts_due_state(f.assignment, st, now),
     }
 
@@ -215,6 +216,7 @@ async def detail(ctx: Ctx, f: Facts, link: LmsCourseLink | None) -> AssignmentDe
                 else []
             ),
             "state": st,
+            "marks": rules.facts_marks(st, f.submission),
             "due_state": rules.facts_due_state(f.assignment, st, ctx.now),
         }
     )

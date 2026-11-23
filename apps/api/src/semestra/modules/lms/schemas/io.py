@@ -7,7 +7,14 @@ from pydantic import BaseModel, BeforeValidator, Field, SecretStr, computed_fiel
 
 from semestra.core.capability import HTTP_ONLY
 from semestra.modules.academics.schemas import Id
-from semestra.modules.lms.rules import AssignmentState, DueState, SubmissionStatus, assignment_state
+from semestra.modules.lms.rules import (
+    AssignmentState,
+    DueState,
+    Mark,
+    SubmissionStatus,
+    assignment_state,
+    marks,
+)
 from semestra.modules.lms.schemas.dto import (
     Assignment,
     Attachment,
@@ -437,6 +444,11 @@ class AssignmentOut(Assignment):
         description="Where the user is with it (`rules.assignment_state`, M09 table 3b); null "
         "while the submission was never read"
     )
+    marks: list[Mark] = Field(
+        default=[],
+        description="What the platform marks it with beside `state`, as shown (`rules.marks`, M09 "
+        "3b marks): missing, late; the raw `submission.missing`/`late` are the platform's flags",
+    )
     due_state: DueState = Field(
         description="Whether the due date still matters (`rules.due_state`, M09 table 3d): none, "
         "upcoming, past (not handed in online) or overdue"
@@ -446,7 +458,7 @@ class AssignmentOut(Assignment):
 AssignmentField = Literal[
     "web_url", "name", "html", "markdown", "due_at", "unlock_at", "lock_at", "points", "group_id",
     "group_name", "group_weight", "submission_types", "submission", "published", "updated_at",
-    "locked", "lock_explanation", "allowed_attempts", "rubric", "imported_as", "state",
+    "locked", "lock_explanation", "allowed_attempts", "rubric", "imported_as", "state", "marks",
 ]  # fmt: skip
 
 
@@ -474,7 +486,7 @@ class AssignmentsInput(CourseReadInput):
     fields: list[AssignmentField] | None = Field(
         default=None,
         description=f"{_FIELDS}; default name, due_at, points, group_name, submission, "
-        f"imported_as, state. {_BODY}",
+        f"imported_as, state, marks. {_BODY}",
     )
 
 
@@ -653,6 +665,11 @@ class AssignmentDetail(BaseModel):
         description="Where the user is with it (`rules.assignment_state`, M09 table 3b); null "
         "for a practice quiz, or while the submission was never read"
     )
+    marks: list[Mark] = Field(
+        default=[],
+        description="What the platform marks it with beside `state`, as shown (`rules.marks`, M09 "
+        "3b marks): missing, late; the raw `submission.missing`/`late` are the platform's flags",
+    )
 
 
 class AssignmentTarget(BaseModel):
@@ -689,6 +706,12 @@ class AssignmentTarget(BaseModel):
         if self.status is None:
             return None
         return assignment_state(self.status, missing=self.missing, online=self.online)
+
+    @computed_field(description="What the platform marks it with beside `state`, as shown "
+                    "(`rules.marks`, M09 3b marks): missing, late")  # fmt: skip
+    @property
+    def marks(self) -> list[Mark]:
+        return marks(self.state, missing=self.missing, late=self.late)
 
 
 class AssignmentTargets(BaseModel):

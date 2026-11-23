@@ -8,7 +8,7 @@ import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from '@/ui/item'
 import { heldFor, useAssignmentTarget } from '../assignment/queries'
-import { STATE_LABELS } from '../assignment/status'
+import { MARK_LABELS, STATE_LABELS } from '../assignment/status'
 import { useAssignmentDetails } from '../assignment/target'
 import { useProgramProviderName, useProviderName, useProviderUis } from '../providers'
 
@@ -70,19 +70,13 @@ function Card({
 
 /**
  * How it stands on the platform, as the sync last read it (M09 table 3b): "Submitted Nov 20,
- * 18:00", with the missing and late markers: "Graded · Missing". Before the first sync there is
- * no state and no line.
+ * 18:00", with the server's marks: "Graded · Missing". Before the first sync there is no state
+ * and no line.
  */
 function status(t: AssignmentTarget, state: NonNullable<AssignmentTarget['state']>): string {
   const label =
     state === 'submitted' && t.submitted_at
       ? m.lms_task_submitted({ time: formatDateTime(new Date(t.submitted_at)) })
       : STATE_LABELS[state]()
-  return [
-    label,
-    t.missing && state === 'graded' ? m.lms_assignment_missing() : null,
-    t.late && (state === 'graded' || state === 'submitted') ? m.lms_assignment_late() : null,
-  ]
-    .filter(Boolean)
-    .join(' · ')
+  return [label, ...t.marks.map((mark) => MARK_LABELS[mark]())].join(' · ')
 }
