@@ -2662,6 +2662,8 @@
   "lms_announcements_not_read_paused_term": "本学期有课程暂停了同步。",
   "lms_announcements_sync_now": "立即同步",
   "lms_calendar_source": "LMS 日历",
+  "lms_calendar_waiting": "{count} 门课程的日历尚未同步",
+  "lms_calendar_unreadable": "{count} 门课程的日历无法读取",
   "error_lms_provider_unknown": "不支持这个平台",
   "error_lms_invalid_config": "请检查地址",
   "error_lms_invalid_credentials": "平台凭证无效",

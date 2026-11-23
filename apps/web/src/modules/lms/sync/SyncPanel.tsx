@@ -20,6 +20,7 @@ import { Spinner } from '@/ui/spinner'
 import { importAssignments } from '../import/assignments'
 import { CONNECTION_ERROR_LABEL } from '../labels'
 import { useSyncAnswers } from './answers'
+import { CalendarLines } from './CalendarNote'
 import { byCourse } from './labels'
 import { MoreSections } from './MoreSections'
 import { PendingSection } from './PendingSection'
@@ -175,6 +176,7 @@ function Panel({
             </AlertDescription>
           </Alert>
         ) : null}
+        {broken ? null : <CalendarLines status={status} className="px-2 pt-1" />}
         <PendingSection
           {...shared}
           pending={status.pending}

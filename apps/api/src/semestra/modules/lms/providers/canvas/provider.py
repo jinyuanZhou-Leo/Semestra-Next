@@ -1146,8 +1146,6 @@ class CanvasProvider:
         cfg: BaseModel,
         creds: BaseModel,
         course_ids: Sequence[str],
-        start: datetime,
-        end: datetime,
     ) -> list[LmsCalendarEvent]:
         out: list[LmsCalendarEvent] = []
         ids = list(dict.fromkeys(course_ids))
@@ -1155,8 +1153,7 @@ class CanvasProvider:
             chunk = ids[i : i + CONTEXT_CODES_PER_REQUEST]
             params: list[tuple[str, Any]] = [
                 ("type", "event"),
-                ("start_date", _utc_iso(start)),
-                ("end_date", _utc_iso(end)),
+                ("all_events", "true"),
                 *(("context_codes[]", f"course_{c}") for c in chunk),
             ]
             for r in await self._list(io, cfg, creds, "/calendar_events", params):
@@ -1166,9 +1163,13 @@ class CanvasProvider:
         return out
 
     def _calendar_event(self, r: dict[str, Any]) -> LmsCalendarEvent | None:
+        # An event for one section has the section as its context and the course as its
+        # effective one (M09 表 2 第 18 行).
         context = str(r.get("context_code") or "")
+        if context.startswith("course_section_"):
+            context = str(r.get("effective_context_code") or "")
         start = r.get("start_at")
-        if not context.startswith("course_") or not start:
+        if not context.startswith("course_") or context.startswith("course_section_") or not start:
             return None
         return LmsCalendarEvent(
             external_id=str(r.get("id") or ""),

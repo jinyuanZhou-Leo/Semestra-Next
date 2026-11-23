@@ -12,7 +12,7 @@ from semestra.core.context import Ctx
 from semestra.modules.academics import service as academics
 from semestra.modules.files import sources
 from semestra.modules.files.models import FilesItem
-from semestra.modules.lms import service, sync, sync_kept
+from semestra.modules.lms import rules, service, sync, sync_kept
 from semestra.modules.lms.models import (
     LmsCourseLink,
     LmsImportedRef,
@@ -20,6 +20,7 @@ from semestra.modules.lms.models import (
     LmsSyncChange,
     MaterialChange,
 )
+from semestra.modules.lms.providers.base import get_provider
 from semestra.modules.lms.schemas.sync import (
     SyncChange,
     SyncConflict,
@@ -71,6 +72,8 @@ async def status(ctx: Ctx, program_id: str) -> SyncStatus:
         removed_materials=[],
         removed_count=0,
         errors=[],
+        calendar_waiting=0,
+        calendar_unreadable=0,
     )
     if binding is None:
         return empty
@@ -212,6 +215,19 @@ async def status(ctx: Ctx, program_id: str) -> SyncStatus:
         for li in links
         for stage, code in li.sync_errors.items()
     ]
+    # Courses the sync no longer visits (their term ended) still have their calendar read once
+    # (§4.8): when it could not be, the reason is told here like any course's stage error.
+    syncing_ids = {li.id for li in links}
+    errors += [
+        SyncCourseError(
+            course_id=li.course_id, course=label(li.course_id), stage="calendar", code=reason
+        )
+        for li in by_link.values()
+        if li.id not in syncing_ids
+        and li.sync_enabled
+        and rules.calendar_read(entry := li.area_reads.get("calendar")) == "unreadable"
+        and (reason := (entry or {}).get("reason"))
+    ]
     synced = [li.synced_at for li in links]
     busy = await sync.syncing_courses(ctx, [li.course_id for li in links])
     round_ = await sync.sync_round(ctx, [li.course_id for li in links])
@@ -232,8 +248,22 @@ async def status(ctx: Ctx, program_id: str) -> SyncStatus:
             "removed_materials": removed,
             "removed_count": removed_count,
             "errors": errors,
+            **_calendars(list(by_link.values()), connection.provider, error),
         }
     )
+
+
+def _calendars(links: list[LmsCourseLink], provider: str, error: str | None) -> dict[str, int]:
+    """How many courses' calendars were never read yet, or never could be (M09 §4.8): courses
+    that sync, on a platform with calendars and a connection that works (the status line tells
+    of a broken one)."""
+    if error is not None or "calendar" not in get_provider(provider).features:
+        return {"calendar_waiting": 0, "calendar_unreadable": 0}
+    states = [rules.calendar_read(li.area_reads.get("calendar")) for li in links if li.sync_enabled]
+    return {
+        "calendar_waiting": states.count("waiting"),
+        "calendar_unreadable": states.count("unreadable"),
+    }
 
 
 @dataclass(frozen=True)

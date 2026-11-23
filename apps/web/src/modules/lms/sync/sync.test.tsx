@@ -56,6 +56,8 @@ function status(overrides: Partial<SyncStatus> = {}): SyncStatus {
     materials: [],
     removed_materials: [],
     removed_count: 0,
+    calendar_waiting: 0,
+    calendar_unreadable: 0,
     errors: [],
     ...overrides,
   }
@@ -377,4 +379,11 @@ test('a sync the user asked for shows how many courses are done', async () => {
   renderWithRouter(<InPopover />, undefined, IN_PROGRAM)
   expect(await screen.findByText('Syncing · 1 of 3 courses')).toBeInTheDocument()
   expect(screen.getByRole('progressbar', { name: 'Syncing · 1 of 3 courses' })).toBeInTheDocument()
+})
+
+test('the panel says how many course calendars are not read yet or cannot be read', async () => {
+  server.use(...handlers(status({ calendar_waiting: 3, calendar_unreadable: 1 })))
+  renderWithRouter(<InPopover />, undefined, IN_PROGRAM)
+  expect(await screen.findByText('Course calendars not yet synced: 3')).toBeInTheDocument()
+  expect(screen.getByText('Course calendars unavailable: 1')).toBeInTheDocument()
 })

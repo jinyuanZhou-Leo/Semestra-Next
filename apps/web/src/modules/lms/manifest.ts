@@ -55,6 +55,7 @@ import {
 import { assignmentHost } from './assignment/AssignmentHost'
 import { bindAction, unbindAction } from './binding/actions'
 import { OpenInPlatform, PlatformMark } from './components/PlatformMark'
+import { CalendarNote } from './sync/CalendarNote'
 import { assignmentTargetsOptions } from './assignment/queries'
 import { AssessmentAssignmentCell } from './components/AssessmentAssignment'
 import { prefetchCourseLink, prefetchCourseTools } from './course-info'
@@ -346,6 +347,7 @@ export default defineModule({
       icon: School,
       defaultVisible: true,
       Mark: PlatformMark,
+      Note: CalendarNote,
       open: {
         Label: OpenInPlatform,
         icon: ExternalLink,

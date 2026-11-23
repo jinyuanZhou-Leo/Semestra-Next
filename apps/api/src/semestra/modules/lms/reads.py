@@ -789,8 +789,7 @@ async def search_files(ctx: Ctx, course_id: str, term: str, refresh: bool) -> Fi
 
 
 async def refresh_course(ctx: Ctx, course_id: str) -> None:
-    """Forgets everything cached about one course ("Refresh" in the Canvas tab), and the
-    calendar of its connection; the next reads ask the platform."""
+    """Forgets everything cached about one course ("Refresh" in the Canvas tab); the next reads
+    ask the platform."""
     link, b = await service.require_link(ctx, course_id)
     await cache.drop_scope(ctx, b.row.id, cache.course_scope(link.external_course_id))
-    await cache.drop_scope(ctx, b.row.id, cache.CALENDAR_SCOPE)

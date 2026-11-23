@@ -21325,6 +21325,16 @@ export const SyncStatusSchema = {
             },
             type: 'array',
             title: 'Errors'
+        },
+        calendar_waiting: {
+            type: 'integer',
+            title: 'Calendar Waiting',
+            description: 'Courses whose calendar the sync has not read yet (M09 §4.8)'
+        },
+        calendar_unreadable: {
+            type: 'integer',
+            title: 'Calendar Unreadable',
+            description: 'Courses whose calendar the sync tried and never could read'
         }
     },
     type: 'object',
@@ -21344,7 +21354,9 @@ export const SyncStatusSchema = {
         'materials',
         'removed_materials',
         'removed_count',
-        'errors'
+        'errors',
+        'calendar_waiting',
+        'calendar_unreadable'
     ],
     title: 'SyncStatus'
 } as const;
