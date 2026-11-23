@@ -26,6 +26,7 @@ from urllib.parse import urlsplit
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError
 from semestra.modules.files import sources
+from semestra.modules.files.models import FilesItem
 from semestra.modules.files.source_folders import Segment
 from semestra.modules.lms import reads
 from semestra.modules.lms.answers import AREA_HIDDEN, ItemAnswer, Present
@@ -76,6 +77,8 @@ class Material:
 @dataclass
 class Found:
     known: dict[Key, LmsMaterial]
+    # The followed items of the known materials (`synced`), whose version is theirs (§4.6).
+    items: dict[str, FilesItem] = field(default_factory=lambda: {})
     materials: dict[Key, Material] = field(default_factory=lambda: {})
     # Pages to look at: slug → (title, version known from the list or None, web address).
     pages: dict[str, tuple[str, str | None, str | None]] = field(default_factory=lambda: {})
@@ -95,6 +98,17 @@ class Found:
     # file only a module shows is listed, not given). Only these may let their copies go
     # (table 3c, note): the platform gives their contents now.
     given: set[Key] = field(default_factory=lambda: set[Key]())
+
+    def unchanged(self, key: Key, version: str | None) -> bool:
+        """The platform's `version` of a known material is the one last applied: its followed
+        item's, else the one the material keeps (a list page, one the user deleted)."""
+        mat = self.known.get(key)
+        if version is None or mat is None:
+            return False
+        if mat.state == "synced":
+            row = self.items.get(mat.item_id or "")
+            return row is not None and not sources.source_changed(row, version)
+        return mat.version == version
 
     def add(self, m: Material) -> None:
         self.materials.setdefault((m.kind, m.external_id), m)
@@ -147,7 +161,9 @@ async def read(
     ctx: Ctx, link: LmsCourseLink, b: Bound, sync_round: SyncRound, known: dict[Key, LmsMaterial]
 ) -> Found:
     """The course's materials on the platform, with their places."""
-    r = _Reader(ctx, link, b, sync_round, Found(known))
+    followed = [m.item_id for m in known.values() if m.state == "synced" and m.item_id]
+    items = {row.id: row for row in await sources.find_items(ctx, followed)}
+    r = _Reader(ctx, link, b, sync_round, Found(known, items))
     features = b.provider.features
     for area, feature in AREAS.items():
         if feature not in features:
@@ -354,8 +370,7 @@ async def _page_as_known(r: _Reader, slug: str) -> bool:
     title, version, _ = found.pages[slug]
     key = ("page", slug)
     mat = found.known.get(key)
-    unchanged = version is not None and mat is not None and mat.version == version
-    if not (unchanged or (version is None and await r.resting(key))):
+    if not (found.unchanged(key, version) or (version is None and await r.resting(key))):
         return False
     if mat is None:
         return True  # its area closed: not read again today

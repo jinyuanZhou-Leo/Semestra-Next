@@ -63,9 +63,10 @@ const COPY_ICONS = {
  * older version of it), or not saved and why. The user's own files show nothing.
  */
 export function Origin({ item }: { item: ItemOut }) {
-  if (!item.follows_source || !item.source_name) return null
+  if (!item.follows_source) return null
+  const source = item.source_name ?? ''
   const state = item.local_copy?.state ?? 'online'
-  const kept = copyLabel(item, item.source_name)
+  const kept = copyLabel(item, source)
   const Icon = state === 'saving' ? null : COPY_ICONS[state]
   return (
     <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
@@ -83,7 +84,7 @@ export function Origin({ item }: { item: ItemOut }) {
         </TooltipTrigger>
         <TooltipContent>{kept}</TooltipContent>
       </Tooltip>
-      <span className="truncate">{item.source_name}</span>
+      <span className="truncate">{source}</span>
     </span>
   )
 }

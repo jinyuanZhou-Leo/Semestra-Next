@@ -140,7 +140,7 @@ async def plan(ctx: JobCtx, payload: OrganizeInput) -> OrganizeDone:
             }
         )
     # The user's own files at the top level.
-    loose = [r for r in rows if r.folder_id is None and r.source_ref is None]
+    loose = [r for r in rows if r.folder_id is None and r.source_kind is None]
     all_folders = await folders.course_folders(ctx, course.id)
     paths = folder_paths(all_folders)
     ids = [f.id for f in all_folders]

@@ -145,8 +145,11 @@ class World:
 async def _item_of(app: FastAPI, user_id: str, f: str) -> str | None:
     async with system_ctx(app.state) as ctx:
         return await ctx.db.scalar(
-            select(FilesItem.id).where(
-                FilesItem.user_id == user_id, FilesItem.source_ref == f"lms:file:{f}"
+            select(LmsMaterial.item_id).where(
+                LmsMaterial.user_id == user_id,
+                LmsMaterial.state == "synced",
+                LmsMaterial.kind == "file",
+                LmsMaterial.external_id == f,
             )
         )
 
@@ -183,7 +186,7 @@ async def _snapshot(app: FastAPI, user_id: str) -> tuple[Any, ...]:
                    LmsMaterial.item_id).where(LmsMaterial.user_id == user_id)
         )  # fmt: skip
         items = await ctx.db.execute(
-            select(FilesItem.id, FilesItem.storage_key, FilesItem.source_ref).where(
+            select(FilesItem.id, FilesItem.storage_key, FilesItem.source_kind).where(
                 FilesItem.user_id == user_id
             )
         )

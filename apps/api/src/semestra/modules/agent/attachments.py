@@ -473,8 +473,6 @@ async def save_to_course(ctx: Ctx, inp: SaveToCourseInput) -> ItemOut:
     async def chunks() -> AsyncIterator[bytes]:
         yield data
 
-    item = await files_items.save_bytes_as_file(
-        ctx, inp.course_id, row.name, chunks(), source_kind="agent", source_ref=row.id
-    )
+    item = await files_items.save_bytes_as_file(ctx, inp.course_id, row.name, chunks())
     row.file_item_id = item.id
     return item

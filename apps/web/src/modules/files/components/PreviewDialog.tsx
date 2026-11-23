@@ -147,13 +147,13 @@ function PreviewBody({
   const [attempt, setAttempt] = useState(0)
   const [failed, setFailed] = useState(-1)
   const original = (kind === 'pdf' && view === 'original') || kind === 'image'
-  if (original && failed === attempt && item.source_name && !item.stored) {
+  if (original && failed === attempt && item.source_kind !== null && !item.stored) {
     // Read from its source, which can't be reached: what was read from it last time, if anything.
     return (
       <>
         <Alert className="m-4 mb-0 w-auto">
           <CloudOff aria-hidden />
-          <AlertTitle>{m.files_preview_unreachable({ source: item.source_name })}</AlertTitle>
+          <AlertTitle>{m.files_preview_unreachable({ source: item.source_name ?? '' })}</AlertTitle>
           {kind === 'pdf' ? (
             <AlertDescription>{m.files_preview_unreachable_description()}</AlertDescription>
           ) : null}

@@ -99,8 +99,7 @@ export function ItemMenu({ item }: { item: ItemOut }) {
       <DropdownMenuContent
         align="end"
         className={
-          (item.follows_source && item.source_name) ||
-          (programId && actions.some((a) => a.description))
+          item.follows_source || (programId && actions.some((a) => a.description))
             ? 'w-72'
             : undefined
         }
@@ -122,9 +121,7 @@ export function ItemMenu({ item }: { item: ItemOut }) {
             {m.files_download()}
           </DropdownMenuItem>
         ) : null}
-        {item.follows_source && item.source_name ? (
-          <CopyItems item={item} source={item.source_name} />
-        ) : null}
+        {item.follows_source ? <CopyItems item={item} source={item.source_name ?? ''} /> : null}
         {canReprocess || canIndex ? <ReprocessItem item={item} /> : null}
         {programId && actions.length > 0 ? (
           <>

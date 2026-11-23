@@ -6468,12 +6468,10 @@ export type ItemOut = {
     pinned: boolean;
     /**
      * Source Kind
+     *
+     * The module that keeps it in step with its source; null for the user's own
      */
-    source_kind: 'upload' | 'lms' | 'agent' | null;
-    /**
-     * Source Ref
-     */
-    source_ref: string | null;
+    source_kind: 'lms' | null;
     /**
      * Source Name
      *
@@ -15359,7 +15357,7 @@ export type FilesItemListData = {
          *
          * Agent/MCP only: return just these fields of each item (and its id)
          */
-        fields?: Array<'course_id' | 'folder_id' | 'kind' | 'display_name' | 'original_name' | 'mime_type' | 'size_bytes' | 'sha256' | 'url' | 'stored' | 'follows_source' | 'pinned' | 'source_kind' | 'source_ref' | 'source_name' | 'unseen' | 'doc_status' | 'doc_error_code' | 'page_count' | 'ocr_skipped_pages' | 'job_id' | 'created_at' | 'updated_at' | 'modified_at'> | null;
+        fields?: Array<'course_id' | 'folder_id' | 'kind' | 'display_name' | 'original_name' | 'mime_type' | 'size_bytes' | 'sha256' | 'url' | 'stored' | 'follows_source' | 'pinned' | 'source_kind' | 'source_name' | 'unseen' | 'doc_status' | 'doc_error_code' | 'page_count' | 'ocr_skipped_pages' | 'job_id' | 'created_at' | 'updated_at' | 'modified_at'> | null;
         /**
          * Cursor
          *

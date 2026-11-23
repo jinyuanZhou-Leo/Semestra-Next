@@ -74,8 +74,7 @@ async def add_staged_files(
     course_id: str,
     folder_id: str | None,
     staged: Sequence[StagedFile],
-    source_kind: SourceKind = "upload",
-    source_ref: str | None = None,
+    source_kind: SourceKind | None = None,
 ) -> list[FilesItem]:
     """Creates the rows for staged files and checks the quota again with them counted
     (`charge`). Nothing is committed here; on error the staged bytes are deleted."""
@@ -94,7 +93,6 @@ async def add_staged_files(
                 sha256=file.stored.sha256,
                 storage_key=file.stored.key,
                 source_kind=source_kind,
-                source_ref=source_ref,
                 doc_status="none" if file.supported else "unsupported",
                 doc_error_code=None if file.supported else "files.unsupported_type",
                 created_at=ctx.now,
@@ -129,7 +127,7 @@ async def find_duplicate(
         _same_as(name, size, sha256),
     )
     if own_only:
-        stmt = stmt.where(FilesItem.source_ref.is_(None))
+        stmt = stmt.where(FilesItem.source_kind.is_(None))
     return await ctx.db.scalar(stmt.limit(1))
 
 
@@ -141,7 +139,7 @@ async def own_files(ctx: Ctx, course_id: str) -> list[tuple[str, int, str | None
             FilesItem.user_id == ctx.user_id,
             FilesItem.course_id == course_id,
             FilesItem.kind == "file",
-            FilesItem.source_ref.is_(None),
+            FilesItem.source_kind.is_(None),
         )
     )
     return [(name, size or 0, sha) for name, size, sha in rows]
@@ -200,15 +198,14 @@ async def store_file(
     filename: str | None,
     stream: AsyncIterable[bytes],
     folder_id: str | None = None,
-    source_kind: SourceKind = "upload",
-    source_ref: str | None = None,
+    source_kind: SourceKind | None = None,
 ) -> FilesItem:
     """Saves one file into a course and queues its processing. A file above the per-file limit
     or the user's remaining quota is refused, and nothing is left behind. Nothing is committed
     here."""
     await check_upload_target(ctx, course_id, folder_id)
     staged = await stage_file(ctx, filename=filename, stream=stream)
-    [row] = await add_staged_files(ctx, course_id, folder_id, [staged], source_kind, source_ref)
+    [row] = await add_staged_files(ctx, course_id, folder_id, [staged], source_kind)
     return row
 
 
@@ -217,18 +214,17 @@ async def save_bytes_as_file(
     course_id: str,
     name: str,
     stream: AsyncIterable[bytes],
-    source_kind: SourceKind,
-    source_ref: str | None = None,
+    source_kind: SourceKind | None = None,
     folder_id: str | None = None,
     *,
-    source_name: str | None = None,
     keep_copy: bool | None = None,
     modified_at: datetime | None = None,
     version: str | None = None,
 ) -> ItemOut:
     """For other modules (M09 saves Canvas files, M12 files the agent generates). With a
-    `source_ref` its source keeps (`content.py`) the file follows that source with this local
-    copy of its `version` (`keep_copy`: the user asked for one); without, it is a plain file."""
+    `source_kind` whose module keeps its items (`content.py`) the file follows that source with
+    this local copy of its `version` (`keep_copy`: the user asked for one); without, it is the
+    user's own."""
     row = await store_file(
         ctx,
         course_id=course_id,
@@ -236,10 +232,9 @@ async def save_bytes_as_file(
         stream=stream,
         folder_id=folder_id,
         source_kind=source_kind,
-        source_ref=source_ref,
     )
     if content.follows_source(row):
-        row.source_name, row.keep_copy = source_name, keep_copy
+        row.keep_copy = keep_copy
         row.source_version = content.version_hash(version) if version else row.sha256
         row.source_mime, row.source_size = row.mime_type, row.size_bytes
         row.copy_version = row.source_version
@@ -270,9 +265,10 @@ async def create_link(
     folder_id: str | None,
     *,
     source_kind: SourceKind | None = None,
-    source_ref: str | None = None,
-    source_name: str | None = None,
+    version: str | None = None,
 ) -> ItemOut:
+    """A link; with a `source_kind`, one its source keeps in step (`version`: the source's
+    version of it, `sources.update_link`)."""
     await academics.get_course_row(ctx, course_id)
     await folders.check_in_course(ctx, course_id, folder_id)
     clean = normalize_url(url)
@@ -284,15 +280,14 @@ async def create_link(
         kind="link",
         display_name=(
             service.name_from_source(display_name, host)
-            if source_ref
+            if source_kind
             else service.clean_name(display_name)
         )
         if display_name
         else host,
         url=clean,
         source_kind=source_kind,
-        source_ref=source_ref,
-        source_name=source_name if source_ref else None,
+        source_version=content.version_hash(version) if source_kind and version else None,
         doc_status="none",
         created_at=ctx.now,
         updated_at=ctx.now,
