@@ -87,8 +87,8 @@ class LmsProvider(Protocol):
 | 数据 | 真实来源 | 存在哪 | 谁写 | 读的时候从哪读（所有界面、Sem、MCP 都一样） | 刷新 | 落地 |
 |---|---|---|---|---|---|---|
 | 课程元数据（代码、名称、学期、地址） | 平台课程 | `lms_course_links` 的 `external_*`、`web_url` | 同步阶段 `course` | 镜像 | 排这门课的同步 | 现状 |
-| 各区域这一轮的读取结果（表 2 的区域结果，含从课程导航得出的 `hidden`） | 同步各阶段读区域列表的结果 | `lms_course_links.area_reads` | 读这个区域的同步阶段 | 只有同步自己读（表 3c 的输入） | 每轮同步覆盖 | PR 3 |
-| 单独读取一项的最近一次结果 | 同步对单项的读取 | `lms_item_checks` | 读这一项的同步阶段 | 表 3c 的输入；因栏目关闭读不到的项列在同步面板（3c 注） | 每次单独读覆盖 | PR 3 |
+| 各区域这一轮的读取结果（表 2 的区域结果，含从课程导航得出的 `hidden`） | 同步各阶段读区域列表的结果 | `lms_course_links.area_reads` | 读这个区域的同步阶段 | 只有同步自己读（表 3c 的输入） | 每轮同步覆盖 | 现状 |
+| 单独读取一项的最近一次结果 | 同步对单项的读取 | `lms_item_checks` | 读这一项的同步阶段 | 表 3c 的输入；因栏目关闭读不到的项列在同步面板的“暂时无法同步”（3c 注） | 每次单独读覆盖 | 现状 |
 | 作业（说明、截止、开放与关闭时间、分值、作业组、提交方式、测验的事实） | 平台作业列表 | `lms_assignments`（关联课程的全部作业，不只已导入的；§3.2） | 同步阶段 `assignments` | 镜像：作业详情、成绩册作业列、待办卡片、Canvas 标签页的作业与测验视图、`lms.assignment.list`、Sem、MCP | 排这门课的 `assignments` 阶段 | PR 4（现在：未导入的作业实时读，已导入的另存 `lms_imported_refs.snapshot` 与 `lms_kept_assignments`） |
 | 我的提交与老师反馈（提交时间、得分、等级、是否等批改、免交、缺交、迟交、评语、评分细则得分、提交的文件名） | 平台提交列表（整门课一次） | `lms_assignments` 同一行 | 同步阶段 `assignments`（与作业同一次读取） | 镜像 | 同上 | PR 4（现在：`lms_kept_assignments`，只存已导入的） |
 | 作业与 Semestra 对象的对应、三方合并的快照、冲突、忽略 | Semestra | `lms_imported_refs`（不存平台内容） | 导入、绑定、同步阶段 `assignments`、用户回答 | 镜像 | — | PR 4 |
@@ -137,7 +137,7 @@ lms_course_links
   external_course_id, external_code?, external_name?, external_term?, web_url?,
   total_score?, total_grade?,        # 课程总成绩（PR 4）
   sync_enabled (default true), synced_at?, watched_at?,  # watched_at：公告阶段上次读这门课的时间
-  area_reads {区域: {result, at}},    # 每个区域上次读取的结果（表 3c 的输入，PR 3；取代 sync_errors 与资料的 materials_settled_at 之外的“读全了”判断）
+  area_reads {区域: {result, at}},    # 每个区域上次读取的结果（表 3c 的输入；取代 sync_errors 与资料的 materials_settled_at 之外的“读全了”判断）
   sync_errors {阶段: 错误码}, materials_settled_at?,
   created_at, updated_at
   UNIQUE(program_id, connection_id, external_course_id)
@@ -180,7 +180,7 @@ lms_calendar_events                  # 平台日历事件（PR 5）
   title, html?, location?, web_url?, start_at, end_at?, all_day, all_day_date?
   UNIQUE(link_id, external_id)
 
-lms_item_checks                      # 单独读取一项的最近一次结果（表 3c 的输入，PR 3；取代 lms_materials.checked_at）
+lms_item_checks                      # 单独读取一项的最近一次结果（表 3c 的输入；取代 lms_materials.checked_at）
   id, user_id, link_id → lms_course_links (CASCADE), kind, external_id,
   result ('present'|'gone'|'unavailable'), reason?,   # unavailable 的原因（错误码），如 lms.area_hidden
   at, unavailable_since?             # 第一次连续读到 unavailable 的时间（读到 present 或 gone 时清空）
@@ -203,7 +203,7 @@ lms_sync_changes                     # 同步写过的字段（面板里可撤�
 - 镜像表与 `lms_course_links` 一起导出（§10）。
 
 ## 4. 平台回应、派生值与状态
-四张表是 LMS 的规则：改规则先改表，评审先对表再看代码；表 2、表 3 的每一行在 provider 契约测试或 `rules.py` 的参数化测试里各有一条（`tests/test_rules_tables.py`，PR 3 起），表 4 的每个格子在状态转移函数的测试里各有一条。
+四张表是 LMS 的规则：改规则先改表，评审先对表再看代码；表 2、表 3 的每一行在 provider 契约测试或 `rules.py` 的参数化测试里各有一条（`tests/test_rules_tables.py`），表 4 的每个格子在状态转移函数的测试里各有一条。
 
 ### 4.1 表 2：平台回应 → 归一结果
 provider 读**单项**的结果只有三种，共享代码只认这三种：
@@ -221,11 +221,11 @@ Canvas 的映射（`providers/canvas/`）。同一个 HTTP 回应只对应一种
 | # | 读的是 | Canvas 的回应 | 情况 | 归一结果 | 落地 |
 |---|---|---|---|---|---|
 | 1 | 课程 | 200 | 课程读得到 | `present` | 现状 |
-| 2 | 课程 | 401 不带 `WWW-Authenticate`、403（非限流）、404 | 课程已结束、被移出、课程被删（待确认各是哪一种） | `unavailable`（这一轮结束） | PR 3 |
+| 2 | 课程 | 401 不带 `WWW-Authenticate`、403（非限流）、404 | 课程已结束、被移出、课程被删（待确认各是哪一种） | `unavailable`（这一轮结束） | 现状 |
 | 3 | 单项 | 200 | 在（含 `locked_for_user: true` 的锁定项；含只能凭链接打开的隐藏文件：列表里没有，直接读得到） | `present`（锁定的带 `locked`） | 现状 |
 | 4 | 单项 | 404 | 删除，或对学生取消发布（待确认：页面、作业取消发布是不是 404） | `gone` | 现状 |
-| 5 | 单项 | 401 不带 `WWW-Authenticate`、403（非限流），且它的类型所属的区域（见下）这一轮不是 `hidden` | 取消发布或对本人隐藏的文件（待确认） | `gone` | PR 3 |
-| 6 | 单项 | 同第 5 行，但它的类型所属的区域这一轮是 `hidden` | 分不清是这一项不在，还是整个区域被关掉 | `unavailable`（PR 7 确认 Canvas 对关闭区域里的单项回什么后再看能否改成 `gone`） | PR 3（现在：#419 算作已离开） |
+| 5 | 单项 | 401 不带 `WWW-Authenticate`、403（非限流），且它的类型所属的区域（见下）这一轮不是 `hidden` | 取消发布或对本人隐藏的文件（待确认） | `gone` | 现状 |
+| 6 | 单项 | 同第 5 行，但它的类型所属的区域这一轮是 `hidden` | 分不清是这一项不在，还是整个区域被关掉 | `unavailable`（PR 7 确认 Canvas 对关闭区域里的单项回什么后再看能否改成 `gone`） | 现状 |
 | 7 | 区域列表 | 404、401 不带 `WWW-Authenticate`、403（非限流），且同一轮课程导航里这个区域缺失或隐藏 | 老师关闭了这个区域（Canvas `tab_enabled?`） | `hidden` | 现状（`reads._area_hidden`） |
 | 8 | 区域列表 | 同第 7 行，但导航里这个区域开着，或这一轮导航读不到 | 原因不明 | `unavailable` | 现状 |
 | 9 | 区域列表 | 200，最后一页 | — | `whole`；带 `hidden_for_user` 的文件与文件夹（以及隐藏文件夹里的文件）不算列出 | 现状 |
@@ -237,7 +237,7 @@ Canvas 的映射（`providers/canvas/`）。同一个 HTTP 回应只对应一种
 | 15 | provider 没有这个功能 | — | — | 区域 `unsupported`，单项不读 | 现状 |
 
 - **类型所属的区域**：单项的读取接口属于哪个区域，只看类型，不看它在哪里被列出或链接：文件 → 文件区，文件夹 → 文件区，页面 → 页面，syllabus → syllabus，单元里的外部链接与外部工具 → 单元，作业 → 作业，测验 → 测验，讨论 → 讨论，公告 → 公告，单元 → 单元。同一份文件同时出现在隐藏的文件区和开着的单元里时，它的类型所属的区域是文件区。
-- `unavailable` 的原因就是错误码（§9），界面与 Sem 按它说明；`lms.forbidden` 与 `lms.not_found` 只在 provider 内部用来区分上面的行，共享代码不再分别处理它们（PR 3）。
+- `unavailable` 的原因就是错误码（§9），界面与 Sem 按它说明；`lms.forbidden` 与 `lms.not_found` 只在 provider 内部用来区分上面的行，共享代码不再分别处理它们。
 - 第二个平台的 provider 写自己的这张表，契约测试 `tests/provider_contract.py` 对每个 provider 逐行检查。
 
 ### 4.2 表 3：派生值
@@ -278,7 +278,7 @@ Canvas 的映射（`providers/canvas/`）。同一个 HTTP 回应只对应一种
 - 状态只有一个，用于筛选与计数（一个作业只落在一个筛选里）；缺交与迟交另外作为标记并列显示：缺交按 0 分计入的作业状态是 `graded`，同时显示“缺交”标记，与平台一致。
 - 作业状态在作业对象上（作业列表的每项、作业详情、`lms.assignment.targets`、Sem 与 MCP 的作业文本），作业本身的 DTO 不带它。落地：#417（后端）、PR 1（前端只显示）。
 
-**3c 已离开 `presence`**（`rules.presence`，资料、作业、公告共用，是判断“平台上已经没有了”的唯一地方；PR 3）
+**3c 已离开 `presence`**（`rules.presence`，资料、作业、公告共用，是判断“平台上已经没有了”的唯一地方）
 
 输入：这一项、它这一轮的单项回应（如果读了）、它最近一次单独读取的结果与时间、它可能出现的区域（provider 支持的那些：资料是文件区、单元、页面与 syllabus；作业是作业列表；公告是公告列表）各自这一轮的结果。按顺序取第一行符合的：
 
@@ -298,10 +298,10 @@ Canvas 的映射（`providers/canvas/`）。同一个 HTTP 回应只对应一种
 
 - 只看**最近一次**单独读取：最近一次是 `unavailable` 时，更早读到过 `present` 也不算；超过 1 天的结果不用（落到第 9–11 行）。其它原因的 `unavailable`（限流、连不上等，表 2 第 11–14 行）只说明这一次没读到，不适用第 8 行，下一轮照常重读。
 - **单独读的名额**：每门课每轮最多单独读 `CHECKS_PER_RUN` = 100 项，第 10 行和资料发现（§4.6：页面链接、只在单元里的文件）共用，按最近一次单独读取的时间从早到晚排（从没读过的最先）；没轮到的这一轮不判断，下一轮先读。因栏目关闭读不到的项 1 天才重读一次（第 8 行），不会每轮占名额。
-- **读不到的项，用户看得到**：最近一次单独读取是原因为 `lms.area_hidden` 的 `unavailable`（表 2 第 6 行：栏目关着，分不清这一项还在不在）的项列在同步面板的“读不到的项”里，范围是：资料与已导入（有对象）的作业逐项列出；没导入的作业与公告不逐项列出，每门课每个栏目合成一行（“{课程}：{平台} 上的「作业」栏目已关闭，N 份未导入的作业保持 {时间} 时的样子”，公告同理），所以隐藏整个栏目不会让面板多出几十行（只有这一种原因会进列表：限流、连不上只是一时没读到，下一轮重读；连接或整门课的问题显示在状态行与连接状态上）。每行是名称、课程和一句原因“{平台} 上的「{栏目}」栏目已关闭”。平台上又读得到（`present` 或 `gone`）时自动从列表里消失，按表 3c 与表 4 照常处理。
-  - **资料**：有本地副本的照常打开，行末是“转为我的文件”（不再跟随平台，副本留给用户，表 4a 转到 `absent` 并记 `handed_over`；不是破坏性操作，不确认）；在线读取的打开时报同一个原因，行末是红色的“移除”，经 `ConfirmDialog` 确认后删掉那一项（表 4a 转到 `dismissed`）。
-  - **作业**（已导入的逐项，未导入的按课程合成一行）：作业详情照常显示镜像里最后一次读到的内容，并注明“这是 {时间} 时的内容：{平台} 上的「作业」栏目已关闭”；面板里这一行只能打开作业详情，没有删除操作（已导入的对象由用户在成绩册或待办里自己处理）。
-  - **公告**（按课程合成一行）：照常显示保存的内容，公告页注明同一句原因；面板里这一行打开这门课的公告页。
+- **暂时无法同步的项，用户看得到**：最近一次单独读取是原因为 `lms.area_hidden` 的 `unavailable`（表 2 第 6 行：栏目关着，分不清这一项还在不在）的项列在同步面板的“暂时无法同步”里，范围是：资料与已导入（有对象）的作业逐项列出；没导入的作业与公告不逐项列出，每门课每个栏目合成一行（“{课程}：{平台} 上的“作业”栏目已关闭，N 份未导入的作业保持 {时间} 时的样子”，公告同理），所以隐藏整个栏目不会让面板多出几十行（只有这一种原因会进列表：限流、连不上只是一时没读到，下一轮重读；连接或整门课的问题显示在状态行与连接状态上）。每行是名称、课程和一句原因“{平台} 上的“{栏目}”栏目已关闭”。平台上又读得到（`present` 或 `gone`）时自动从列表里消失，按表 3c 与表 4 照常处理。
+  - **资料**：有本地副本的照常打开，行末是“转为我的文件”（不再跟随平台，副本留给用户，表 4a 转到 `absent` 并记 `handed_over`；不是破坏性操作，不确认）；在线读取的打开时报同一个原因，行末是红色的“移除”，经 `ConfirmDialog` 确认后删掉那一项（表 4a 转到 `dismissed`）。两个操作都是 `lms.sync.material.settle`（`POST /lms/sync/materials/{id}:settle`，`choice` 为 `mine` 或 `remove`，只给 HTTP；只接受正因栏目关闭读不到的资料，`mine` 还要求有本地副本）。标题行有批量操作（各自多于一项时显示）：“全部转为我的文件”只作用于有本地副本的，“全部移除”只作用于在线读取的、经 `ConfirmDialog` 确认；有本地副本的不会被批量移除（那份副本可能是唯一的一份），只能逐项移除——`lms.sync.material.settle_all`（`POST /programs/{program_id}/lms/sync/materials:settle`，只给 HTTP）。
+  - **作业**（已导入的逐项，未导入的按课程合成一行）：作业详情照常显示镜像里最后一次读到的内容，并注明“这是 {时间} 时的内容：{平台} 上的“作业”栏目已关闭”；面板里这一行只能打开作业详情，没有删除操作（已导入的对象由用户在成绩册或待办里自己处理）。作业详情里的这句说明随作业镜像落地（PR 4），面板这一行现状已有。
+  - **公告**（按课程合成一行）：照常显示保存的内容，公告页注明同一句原因；面板里这一行打开这门课的公告页（现状）；公告页上的说明 PR 4。
 
 - “已离开”之后做什么由各自的状态转移表决定（表 4a、4b），本表只回答在不在。
 - 用户在这一轮读取期间恢复的资料（`state_at` 晚于这一轮开始读的时间）不在这一轮判断。
@@ -357,7 +357,7 @@ Canvas 的映射（`providers/canvas/`）。同一个 HTTP 回应只对应一种
 ### 4.3 表 4：状态转移
 有生命周期的对象，状态只经一个函数改，函数按表检查转换。每个格子只有三种写法：**→ 状态**（转换并做括号里的事）、**保持**（合法，不变）、**不会发生**（函数报错）。新增这类对象时在这里加一张表。
 
-**4a 课程资料 `lms_materials.state`**（`sync_files.enter`，`NEXT` 表；现状）
+**4a 课程资料 `lms_materials.state`**（`materials.enter`，`NEXT` 表；现状）
 
 | 状态 \ 事件 | 平台上出现（这一轮列出或单独读到） | 是列表页 | 已离开（表 3c） | 用户删掉那一项（`files.item.deleted`） | 用户另存这一项（“保存到课程文件”、⋯“保存在 Semestra”） | 用户恢复 | 关闭资料同步后“移除…” | 用户在“读不到的项”里转为我的文件 |
 |---|---|---|---|---|---|---|---|---|
@@ -411,7 +411,7 @@ Canvas 的映射（`providers/canvas/`）。同一个 HTTP 回应只对应一种
 - **出站**：远程文件的预览与下载经后端代理读平台。
 
 ### 4.7 公告
-- **保存**：`announcements` 阶段读回看期（180 天，常量只有一份，PR 3）内的公告，写进 `lms_announcements`，平台上改了的跟着改，已离开的（表 3c）删掉；发布早于回看期的不判断，保留。所有界面、命令面板与 Sem 都读这张表。列表里每条带 `text`（正文的一行纯文本，读取时算出）。
+- **保存**：`announcements` 阶段读回看期（180 天，常量只有一份 `LOOKBACK`）内的公告，写进 `lms_announcements`，平台上改了的跟着改，已离开的（表 3c）删掉；发布早于回看期的不判断，保留。所有界面、命令面板与 Sem 都读这张表。列表里每条带 `text`（正文的一行纯文本，读取时算出）。
 - **已读**：`read_at` 是 Semestra 自己的；打开就标已读。账户设置 `lms.allow_writes` 打开且 provider 支持 `mark_read` 时，本地标记提交后在后台写回平台（尽力而为），同步时平台上已读的也记为已读。
 - **未读与通知**：一门课第一次被读时已有公告都记为已读；之后新出现的是未读，发布时间在 2 天内的进 `notices`。`lms.announcement.unread` 按课程给出未读数。存储变化时发 `lms.announcement.updated {course_id, program_id}`。
 - **还没读过**：`not_read` = `waiting` / `ended` / `paused`（§3.1 “没同步过的课程”）。
@@ -547,7 +547,7 @@ Agent 与 MCP 只看到 11 个按任务设计的工具，而不是每个平台�
 - 2.0 以来备份里的 `feedback` 列表照旧能读，按 §3.2 的迁移规则读进 `lms_assignments`；备份格式版本不变（lms v2）。
 
 ## 11. 测试
-- 表 2、表 3 的每一行各一条参数化测试，表 4 的每个格子各一条（`tests/test_rules_tables.py` 与 provider 契约测试，PR 3 起）；改表就改测试。
+- 表 2、表 3 的每一行各一条参数化测试，表 4 的每个格子各一条（`tests/test_rules_tables.py` 与 provider 契约测试）；改表就改测试。
 - 真实 Canvas 的回应记录：`python -m devtools record-canvas`（`apps/api/devtools/record_canvas.py`）由 owner 用自己的令牌只读地录下表 2 的各种情况，替换掉姓名、邮箱、用户 id、学校地址与下载链接后存进 `lms/tests/fixtures/canvas/`；PR 7 用它核对表 2 标“待确认”的行，并让假 Canvas 的回应与它一致。
 - Provider 契约测试套件 `tests/lms/provider_contract.py`：每个 provider 都必须通过（以后新增 provider 时直接复用）。用一个假 provider 测试模块本身的逻辑，与 Canvas 无关。
 - Canvas：用 respx mock Canvas API，覆盖分页 `Link` 头、401、429、重定向到私网地址被拒、base_url 规范化用例（与旧版前端规则一致）。
@@ -662,7 +662,7 @@ lms_materials                        # 课程资料（文件、页面、链接�
   title?, version?, name?,           # 上次从平台应用的标题、内容版本、项名
   path?, placed_folder_id?,          # 在平台上的位置（文件夹名，迁移 0060 起由同步填写）；同步放进的文件夹
   state ('synced'|'list'|'dismissed'|'absent'), state_at?, quiet,  # 见 §4.2「状态」
-  links [[kind, id]], checked_at?,   # 页面链接到的资料；上次单独读取的时间
+  links [[kind, id]],                 # 页面链接到的资料（上次单独读取的结果在 lms_item_checks，迁移 0068）
   imported_at?, change? ('added'|'duplicate'|'updated'|'gone'|'handed_over'), changed_at?  # 最近一次平台带来的变化（面板，保留 14 天）
   UNIQUE(link_id, kind, external_id)
 
@@ -720,19 +720,19 @@ lms_cache  key, user_id, connection_id, scope, payload, expires_at
 - **导出**：反馈单独一个列表（`LmsPayload.feedback`，按考核与课程的 id 映射，没跟过来的跳过；可省略；评语、评分细则与得分用与接口相同的模型校验，格式不对的备份在导入时就被拒绝），备份格式版本不变；没有这一项的备份导入后，下次同步再读回来。
 
 #### 4.2 课程资料进入文件（2026-11-16，迁移 0053）
-- **范围**：同步阶段 `files`（`sync_files.py`，order 60）把平台上课程的文件（`course_files`，feature `folders`）、页面（`pages`）和单元里的文件、页面、外部链接与外部工具（`modules`）带进 M07 的课程文件。只看 provider 的 `features`，不写平台名。按 M11 命名空间 `lms.materials` 的 `sync`（全局与课程两级，课程默认跟随全局，默认开；2026-11-18 从 `lms_course_links.files_sync` 搬过去，迁移 0057；迁移 0060 从 Program 级改为全局级，Program 的值复制给没有自己设置的课程；`sync_enabled=false` 时整个同步不跑）。打开时立即排一次同步。
+- **范围**：同步阶段 `files`（`sync_files.py`，order 60；读平台与判断在 `material_reads.py`，课程文件那一侧（内容源、订阅、恢复、“暂时无法同步”的处理）在 `material_items.py`，共用的状态表在 `materials.py`）把平台上课程的文件（`course_files`，feature `folders`）、页面（`pages`）和单元里的文件、页面、外部链接与外部工具（`modules`）带进 M07 的课程文件。只看 provider 的 `features`，不写平台名。按 M11 命名空间 `lms.materials` 的 `sync`（全局与课程两级，课程默认跟随全局，默认开；2026-11-18 从 `lms_course_links.files_sync` 搬过去，迁移 0057；迁移 0060 从 Program 级改为全局级，Program 的值复制给没有自己设置的课程；`sync_enabled=false` 时整个同步不跑）。打开时立即排一次同步。
 - **不占存储**：文件与页面建成 M07 的“远程文件”（`storage_key` 为空，`source_kind="lms"`，`source_ref="lms:<file|page|link>:<外部 id>"`，`sha256` 为平台版本的哈希），内容经 M07 的内容源（`register_content_source("lms:", open_source)`）在打开、预览、建索引时从平台读：文件走 `reads.open_file`，页面现读正文渲染成带 `<h1>` 标题的 HTML 文档。链接建成 M07 的链接项。锁定（未开放）的文件和隐藏的文件、文件夹跳过，开放后下一次同步再加入。
 - **按平台目录放**（2026-11-18，迁移 0060，取代按类型归类与模型定类）：`_place` 给每项算出它在平台上的位置，每一级是（id，名称）：所在单元（`module:<id>`）；否则文件区里的文件夹（`folder:<id>`，provider 在 `FileMeta.folder_ids` 给出各级文件夹 id，没有时按路径名）；否则第一个链接它的页面的位置加上该页面（`page:<slug>`，页面在同步里本来就按 slug 识别）（首页链接一切，不算；页面互相链接时不成环）。有这类子项的页面自己也放进以它命名的文件夹。只有链接、自身文字不到 160 字的页面是“列表页”，不保存，它列出的东西放进以它命名的文件夹。文件夹由 M07 的 `SourceFolders` 建立并记住（`files_source_folders`），最多三级。不按周归类（owner 2026-11-17），不再调用模型。
 - **记录与用户优先**：每个带进来的东西在 `lms_materials` 记一行（迁移 0056 从 `lms_imported_refs` 搬过来，原来的状态都在 `snapshot` JSON 里），项是 `item_id`，上次应用的平台标题、版本、项名、位置（`path`）与放进的文件夹（`placed_folder_id`）各是一列。每项只在第一次带进来时放一次：用户移动、改名、删除都不会被同步改回（删除见下面的「状态」）；平台改了名而用户没改的才跟着改名（只改名，不重新处理）；平台上换了位置的不自动移动，由 M07 的「整理」提议移回（`homes`：项还在 `placed_folder_id`、而平台位置对应的文件夹不同；迁移 0060 用原来的类型文件夹填 `placed_folder_id`，升级后第一次同步填 `path`）。来源文件夹被删时，那个位置的新资料放进上一级，也不再重建（owner 2026-11-17：不从用户放别的资料的位置去推断）。文件的版本取 `FileMeta.content_at`（Canvas 的 `modified_at`，没有时用 `updated_at`），链接的版本是 url；版本变化的文件更新大小、版本与平台修改时间并重新处理（本地副本先放掉字节，再由本轮按保存方式重新存）。每次最多新建 100 项，其余留到下一次。
 - **发现**：页面里链接到的文件和页面、只在单元里出现的文件也会带进来（逐个读取）。没变化的页面复用记下的链接（`lms_materials.links`）；单独读的文件与页面一天最多查一次（`CHECK_EVERY`，`checked_at`）。列表页也记一行（`state="list"`，没有项），只为下次判断它变没变。
-- **平台上删除**（2026-11-18 PR 3）：这一轮读全了（没有因为功能关闭、无权限或截断而跳过的区域，`_Found.complete`；单个文件或页面读到 `lms.not_found`/`lms.forbidden` 只说明那一项不在，不影响判断，`_one`）时，没再见到的：有本地副本的文件经 M07 `detach_from_source` 原地交给用户（变化记 `handed_over`，状态 `absent`，`item_id` 仍指向那个文件但不再跟随）；在线读取的文件与链接删掉（变化记 `gone`，状态 `absent`，`item_id` 清空）。两种平台再出现时都作为新资料带进来（2026-11-19 owner 决定：交给用户的那份不动，新带进来的按下面的规则多半记为 `duplicate`，由用户决定留哪份；原来是永远不再带回，取消发布再发布的文件因此一直不更新）。平台上被锁定的项（模块项、文件或页面的 `locked`，`_Found.locked`）不算删除，保持原样，解锁后继续跟随（2026-11-19：原来当作删除，存了副本的锁定再解锁后永久脱离同步）。两种都记进面板的最近更新。新带进来的文件与用户自己的某个文件（不跟随来源的，M07 `find_duplicate(own_only=True)`）同名且大小相同时，照常带进来，变化记为 `duplicate`（首次同步也记），面板写“与你的某个文件同名且大小相同”，由用户决定留哪份（2026-11-19）。原来是资料、现在成了列表页的也删掉。
+- **平台上删除**（2026-11-18；2026-11-22 起“没有了”只由表 3c 的 `rules.presence` 判断，`material_reads.judge`，原来的“这一轮读全了才判断、`_Found.complete`”已取代）：判断为已离开的：有本地副本的文件经 M07 `detach_from_source` 原地交给用户（变化记 `handed_over`，状态 `absent`，`item_id` 仍指向那个文件但不再跟随）；在线读取的文件与链接删掉（变化记 `gone`，状态 `absent`，`item_id` 清空）。两种平台再出现时都作为新资料带进来（2026-11-19 owner 决定：交给用户的那份不动，新带进来的按下面的规则多半记为 `duplicate`，由用户决定留哪份；原来是永远不再带回，取消发布再发布的文件因此一直不更新）。平台上被锁定的项（模块项、文件或页面的 `locked`，`material_reads.Found.locked`）不算删除，保持原样，解锁后继续跟随（2026-11-19：原来当作删除，存了副本的锁定再解锁后永久脱离同步）。两种都记进面板的最近更新。新带进来的文件与用户自己的某个文件（不跟随来源的，M07 `sources.same_file`，用户自己的文件每批读一次 `sources.own_files`）同名且大小相同时，照常带进来，变化记为 `duplicate`（首次同步也记），面板写“与你的某个文件同名且大小相同”，由用户决定留哪份（2026-11-19）。原来是资料、现在成了列表页的也删掉。
 - **重试**：读取失败的远程文件（`files.source_unread`，或 `lms.*` 错误超过 1 小时，`RETRY_AFTER`）在下一轮同步时重新处理。
-- **保存方式**（2026-11-18 PR 3）：`lms.materials.store`（`online` 从平台读取 / `local` 保存在 Semestra，默认 `online`，两级；2026-11-19 界面改用这两个名称，存的值不变）。资料的解析（含扫描页识别）遵守 M07 的 `auto_index`，没有单独的设置。两种保存方式都跟随平台。每轮同步调用 M07 的 `apply_copies`，改成 `local` 时（订阅 `settings.values.updated`）也立即调用，改成 `online` 时只给课程排一次同步（2026-11-19：放掉副本只在读全了课程的一轮里做，`release=found.complete`，课程在平台上关闭、各区域被拒绝时副本可能是唯一的一份，留着）：每个文件按自己的 `files_items.keep_copy`（用户在 ⋯ 菜单里的选择，空 = 跟课程设置）决定要不要副本，不要的立即放掉字节，要的每个文件排一个 `files.store_synced_copies`（`background` 通道、优先级 -1、不进列表，去重键 `files.store_synced_copies:<item_id>`，`again=True`；2026-11-20 后端评审：原来一门课一个任务，几十上百个文件下载完之前，唯一的后台 worker 不会去跑别的课程的同步，排队时新加的文件也会被去重丢掉、要等下一轮）；入队前按平台给的大小筛掉超过上传上限和剩余配额的，配额满时不再下载，单个文件失败只记在该文件上。文件不再要副本时（课程改回从平台读取后的那轮同步），还没开始的副本任务撤回、正在存的那个不再重跑（`_drop_queued_copies`）：同步优先于副本任务，所以撤回在它们运行之前。改了 `lms.materials.store`（课程级只清这门课；账户级清所有跟随账户设置的课程）时，同一事务里清空这些课程里各文件的 `keep_copy`，以最后一次明确的操作为准（owner 2026-11-19；`settings.values.updated` 因此也在事务内发一次，`sync_files.on_store_changing` 调 M07 `sources.reset_copy_choices`）。迁移 0057 把原来的 `files_offline=1` 写成课程级 `store=local`，用户保留过的离线副本（`kept_offline`）变成 `keep_copy=1`，仍跟随平台。
+- **保存方式**（2026-11-18 PR 3）：`lms.materials.store`（`online` 从平台读取 / `local` 保存在 Semestra，默认 `online`，两级；2026-11-19 界面改用这两个名称，存的值不变）。资料的解析（含扫描页识别）遵守 M07 的 `auto_index`，没有单独的设置。两种保存方式都跟随平台。每轮同步调用 M07 的 `apply_copies`，改成 `local` 时（订阅 `settings.values.updated`）也立即调用，改成 `online` 时只给课程排一次同步（2026-11-19：放掉副本只在读全了课程的一轮里做，`release=found.complete`，课程在平台上关闭、各区域被拒绝时副本可能是唯一的一份，留着）：每个文件按自己的 `files_items.keep_copy`（用户在 ⋯ 菜单里的选择，空 = 跟课程设置）决定要不要副本，不要的立即放掉字节，要的每个文件排一个 `files.store_synced_copies`（`background` 通道、优先级 -1、不进列表，去重键 `files.store_synced_copies:<item_id>`，`again=True`；2026-11-20 后端评审：原来一门课一个任务，几十上百个文件下载完之前，唯一的后台 worker 不会去跑别的课程的同步，排队时新加的文件也会被去重丢掉、要等下一轮）；入队前按平台给的大小筛掉超过上传上限和剩余配额的，配额满时不再下载，单个文件失败只记在该文件上。文件不再要副本时（课程改回从平台读取后的那轮同步），还没开始的副本任务撤回、正在存的那个不再重跑（`_drop_queued_copies`）：同步优先于副本任务，所以撤回在它们运行之前。改了 `lms.materials.store`（课程级只清这门课；账户级清所有跟随账户设置的课程）时，同一事务里清空这些课程里各文件的 `keep_copy`，以最后一次明确的操作为准（owner 2026-11-19；`settings.values.updated` 因此也在事务内发一次，`material_items.on_store_changing` 调 M07 `sources.reset_copy_choices`）。迁移 0057 把原来的 `files_offline=1` 写成课程级 `store=local`，用户保留过的离线副本（`kept_offline`）变成 `keep_copy=1`，仍跟随平台。
 - **关闭同步**：`sync=false` 只停止这个阶段，已有资料保留，不再更新。设置里资料设置下方的“已同步的资料”一行（`lms.material.count_left`，账户级统计所有资料同步已关闭的已关联课程，课程级只看这一门）给出留下的数量，“移除…”经确认调用 `lms.material.remove_left`（2026-11-20）：在写锁下（拿锁后才读设置）把这些课程里 `synced` 的资料（跳过用户单独保存的，即 `keep_copy` 为真的项：Canvas 标签页“保存到课程文件”或文件菜单“保存在 Semestra”，计数用同一筛选）先记为 `absent`（所以 `files.item.deleted` 不会把它们当成用户删除而记为 `dismissed`），再用 M07 `sources.purge_items` 删掉对应的项，本地副本一起删；重新打开同步后它们作为首次同步再带进来。没有可移除的返回 `lms.sync_nothing_to_resolve`。capability 是 `destructive`，个人令牌受“允许删除”开关约束。同步阶段在写锁下重读资料设置，读平台期间被关闭的就直接结束，不把刚移除的资料带回来。
 - **另存副本**：`lms.file.save_to_course`（Canvas 标签页的「保存到课程文件」）与 ⋯ 菜单勾选「保存在 Semestra」同义：同步已带进来的就对那一项调用 M07 的 `keep_copy`；否则下载后建一份带 `source_ref` 的文件（`keep_copy=True`，`save_bytes_as_file(version=…)` 带上平台版本，副本一开始就是当前版本），记下引用，之后照常跟随平台。
 - **取消关联**：`_remove_link` 在同一事务里发 `lms.course.unlinking`，`sync_files` 订阅它删掉这门课同步带来的项；有本地副本的交给用户、在线读取的删掉，文件夹保留，副本经 M07 `detach_from_source` 清掉 `source_ref`，成为用户的普通文件。
 - **与 M07 的边界**：本模块只经 M07 的 `files/sources.py`（跟随来源的文件：建远程文件与链接、更新、重试、存副本、交给用户、删除）和 `files/source_folders.py`（平台位置对应的文件夹）使用文件模块，不直接读写 `files_*` 表；内容源用 `semestra.modules.files.register_content_source` 注册。
-- **状态**（2026-11-18 PR 3，`lms_materials.state`；2026-11-19 结构性重写取代 #381）：`synced` 跟随中（只有它有跟随的 `item_id`）；`list` 只列链接的页面；`dismissed` 用户删了这一项（订阅 M07 的 `files.item.deleted` 立即记下，同时发 `lms.sync.updated`），不再带回，状态面板“已移除”里列出；`absent` 不在文件里，平台上出现就带进来（平台上删了，或用户恢复了）。状态只由 `sync_files.enter` 改：它按 `NEXT` 表检查转换（表外的转换直接报错），并保证每个状态的内容：进入 `synced` 时记下新的 `item_id` 并清空已应用的平台信息（版本、名称、位置、链接）；进入 `list`/`absent` 时也清空，所以重新进来时一定整份读取（原来恢复后页面在平台上没变就被当成“已读过”跳过）；`dismissed` 保留读到的内容（它链接的东西照常带进来）。同步一轮先读平台，再在写锁下按每项发生了什么调用 `enter`。`lms.sync.material.restore`（`POST /lms/sync/materials/{id}:restore`，只给 HTTP）把 `dismissed` 改成 `absent` + `quiet`（带回时不算新资料、不通知）并排一次同步；`lms.sync.material.restore_all`（`POST /programs/{program_id}/lms/sync/materials:restore`，只给 HTTP）在一个事务里恢复 Program 下资料在同步的课程里所有 `dismissed` 项，每门课排一次同步，面板“已移除的资料”标题旁的“全部恢复”（多于一项时显示，折叠时也在）调用它。恢复后读全了课程的一轮发现平台上已经没有它：记为 `gone` 并去掉 `quiet`，不会一直等着。课程的资料同步关着时没有东西能把它带回，所以“已移除”不列出这些课程的，恢复返回 `lms.sync_nothing_to_resolve`。2.1.0 时用户转存过的文件（`source_ref` 已为空、资料仍是 `synced`）由迁移 0063 与同号的 reshape step（`lms/older_backups.py`）一次记成 `dismissed`：文件是用户的，平台上那份不并排带进来，要的话可以恢复（原来每轮同步开头都检查一遍）。2.0 的 Canvas Tab「保存到课程」存下的文件有自己写法的 `source_ref`（`lms:<provider>:<connection>:file:<id>`）却没有资料行，界面上显示跟随平台，实际不跟随，同步还会把平台上那份并排带进来（2026-11-20 #405 评审）：迁移 0066 与同号 reshape step 把它们读成现在保存时的样子，即课程仍经同一连接关联、且该资料还没有跟随中的文件时成为资料的文件（`synced`，`keep_copy`，版本未知，下一轮整份读取），否则成为用户自己的文件（副本的哈希从 `source_version` 取回）。用户改名靠 `name` 判断：它只在同步给文件命名时写入（新建、跟随平台改名），用户的名字永远不会写进去，所以改过名的文件在之后的内容更新里保留用户的名字（原来每轮都把当前名字写回 `name`，中间隔一轮同步后改名就丢了；迁移 0061 和旧备份的导入把跟随中的项的 `name` 改回同步给的名字，已经改过名的文件由此重新被认出）。平台标题经 M07 的 `sources.name_from_source` 变成文件、页面、链接与文件夹的名称（2026-11-20：斜杠和反斜杠换成 `-`，去掉控制字符，最长 255；原来文件和页面用上传文件名的 `safe_name`，“Lecture 1/2 notes.pdf” 只剩 “2 notes.pdf”，链接用用户输入的 `clean_name`，标题带斜杠就抛校验错误、让整门课的资料阶段每轮失败）。是否“平台改了名”比较的是按这条规则得到的名字与 `name`，所以 2.4 及以前被截短、用户没改过的名字会在下一轮同步补全；链接的地址不是 http(s)（`mailto:` 等，M07 不收）时改用平台上该条目的页面地址（`web_url`），都不行才不带进来。同步读取期间恢复的项（`state_at` 晚于这一轮开始读的时间）不在这一轮判断“已从平台删除”，交给结束后的再一轮。迁移 0061 把 `restored`/`gone`/`handed_over` 改成 `absent`（`restored` 的带 `quiet`）。备份格式版本不变：导出只含 `synced` 与 `dismissed`，旧备份里的 `handed_over` 在导入时略过（文件本身是用户的，资料在平台出现时会重新带进来）。
+- **状态**（2026-11-18 PR 3，`lms_materials.state`；2026-11-19 结构性重写取代 #381）：`synced` 跟随中（只有它有跟随的 `item_id`）；`list` 只列链接的页面；`dismissed` 用户删了这一项（订阅 M07 的 `files.item.deleted` 立即记下，同时发 `lms.sync.updated`），不再带回，状态面板“已移除”里列出；`absent` 不在文件里，平台上出现就带进来（平台上删了，或用户恢复了）。状态只由 `materials.enter` 改：它按 `NEXT` 表检查转换（表外的转换直接报错），并保证每个状态的内容：进入 `synced` 时记下新的 `item_id` 并清空已应用的平台信息（版本、名称、位置、链接）；进入 `list`/`absent` 时也清空，所以重新进来时一定整份读取（原来恢复后页面在平台上没变就被当成“已读过”跳过）；`dismissed` 保留读到的内容（它链接的东西照常带进来）。同步一轮先读平台，再在写锁下按每项发生了什么调用 `enter`。`lms.sync.material.restore`（`POST /lms/sync/materials/{id}:restore`，只给 HTTP）把 `dismissed` 改成 `absent` + `quiet`（带回时不算新资料、不通知）并排一次同步；`lms.sync.material.restore_all`（`POST /programs/{program_id}/lms/sync/materials:restore`，只给 HTTP）在一个事务里恢复 Program 下资料在同步的课程里所有 `dismissed` 项，每门课排一次同步，面板“已移除的资料”标题旁的“全部恢复”（多于一项时显示，折叠时也在）调用它。恢复后读全了课程的一轮发现平台上已经没有它：记为 `gone` 并去掉 `quiet`，不会一直等着。课程的资料同步关着时没有东西能把它带回，所以“已移除”不列出这些课程的，恢复返回 `lms.sync_nothing_to_resolve`。2.1.0 时用户转存过的文件（`source_ref` 已为空、资料仍是 `synced`）由迁移 0063 与同号的 reshape step（`lms/older_backups.py`）一次记成 `dismissed`：文件是用户的，平台上那份不并排带进来，要的话可以恢复（原来每轮同步开头都检查一遍）。2.0 的 Canvas Tab「保存到课程」存下的文件有自己写法的 `source_ref`（`lms:<provider>:<connection>:file:<id>`）却没有资料行，界面上显示跟随平台，实际不跟随，同步还会把平台上那份并排带进来（2026-11-20 #405 评审）：迁移 0066 与同号 reshape step 把它们读成现在保存时的样子，即课程仍经同一连接关联、且该资料还没有跟随中的文件时成为资料的文件（`synced`，`keep_copy`，版本未知，下一轮整份读取），否则成为用户自己的文件（副本的哈希从 `source_version` 取回）。用户改名靠 `name` 判断：它只在同步给文件命名时写入（新建、跟随平台改名），用户的名字永远不会写进去，所以改过名的文件在之后的内容更新里保留用户的名字（原来每轮都把当前名字写回 `name`，中间隔一轮同步后改名就丢了；迁移 0061 和旧备份的导入把跟随中的项的 `name` 改回同步给的名字，已经改过名的文件由此重新被认出）。平台标题经 M07 的 `sources.name_from_source` 变成文件、页面、链接与文件夹的名称（2026-11-20：斜杠和反斜杠换成 `-`，去掉控制字符，最长 255；原来文件和页面用上传文件名的 `safe_name`，“Lecture 1/2 notes.pdf” 只剩 “2 notes.pdf”，链接用用户输入的 `clean_name`，标题带斜杠就抛校验错误、让整门课的资料阶段每轮失败）。是否“平台改了名”比较的是按这条规则得到的名字与 `name`，所以 2.4 及以前被截短、用户没改过的名字会在下一轮同步补全；链接的地址不是 http(s)（`mailto:` 等，M07 不收）时改用平台上该条目的页面地址（`web_url`），都不行才不带进来。同步读取期间恢复的项（`state_at` 晚于这一轮开始读的时间）不在这一轮判断“已从平台删除”，交给结束后的再一轮。迁移 0061 把 `restored`/`gone`/`handed_over` 改成 `absent`（`restored` 的带 `quiet`）。备份格式版本不变：导出只含 `synced` 与 `dismissed`，旧备份里的 `handed_over` 在导入时略过（文件本身是用户的，资料在平台出现时会重新带进来）。
 - **运行中再请求同步**（2026-11-19）：`sync.queue` 用 `enqueue(..., again=True)`（M00 §3.7）：同一门课的同步正在运行时再排，会在它结束后再跑一次（恢复、改设置、立即同步都靠这一处保证，那一轮可能在请求之前就读过课程）。打开应用时的请求（不带 `force`）跳过正在同步的课程。
 - **变更记录**（2026-11-18 PR 3）：`change`/`changed_at` 记最近一次平台带来的新增、内容更新（只改名不算）、删除与交给用户；`lms.sync.status` 的 `materials`（`SyncMaterialChange`，带项与所在文件夹名）与作业的最近更新一起按课程列出，`removed_materials` 列出 `dismissed` 的最新 50 项，`removed_count` 是总数。与作业变更记录一样保留 14 天（`forget_old_changes`）。第一次同步一门课（`lms_course_links.materials_settled_at` 为空，直到一轮没有因 100 项上限截断为止）不记变化、不标新、不通知：关联课程带来的几百份资料不是“新”的。资料同步从关到开时（`on_settings_changed`）也清空 `materials_settled_at`：关着时平台上新增的同样不算新。
 - **新资料**：之后新建的项标 M07 `files_items.unseen`（文件页名称后的蓝点，打开预览时 `files.item.mark_seen` 清掉），并作为 `Notice("material", …, item_id)` 随 `lms.course.synced` 交给 M18。
