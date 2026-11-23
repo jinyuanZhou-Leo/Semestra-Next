@@ -139,9 +139,7 @@ async def test_a_course_that_cannot_be_read_tried_its_calendar(api: Api, fake: F
     assert (status["calendar_waiting"], status["calendar_unreadable"]) == (0, 1)
 
 
-async def test_an_ended_course_reads_only_its_calendar_the_first_time(
-    api: Api, fake: FakeProvider
-):
+async def test_an_ended_course_reads_only_its_calendar_the_first_time(api: Api, fake: FakeProvider):
     program_id, _ = await _ended_course(api)
     fake.events = [event("e1", "101", "Final exam", datetime(2025, 12, 10, 14, tzinfo=UTC))]
     fake.calls.clear()
@@ -172,14 +170,20 @@ async def _open(api: Api, program_id: str) -> None:
     await api.run_jobs()
 
 
-async def test_an_ended_course_kept_from_its_calendar_by_an_outage_reads_it_next_time(
-    api: Api, fake: FakeProvider
+async def test_an_ended_course_kept_from_its_calendar_by_an_outage_reads_it_later(
+    api: Api, fake: FakeProvider, clock: Clock
 ):
     program_id, _ = await _ended_course(api)
     fake.events = [event("e1", "101", "Final exam", datetime(2025, 12, 10, 14, tzinfo=UTC))]
     fake.calendar_error = "lms.unreachable"
     await _open(api, program_id)
+    # Not asked again right away: an outage or a rate limit would only go on.
+    fake.calls.clear()
+    await _open(api, program_id)
+    assert not [c for c in fake.calls if c[0] == "calendar_events"]
+    # After the sync's shortest interval it is.
     fake.calendar_error = None
+    clock.advance(hours=2)
     await _open(api, program_id)
     assert await overlay(api, program_id, "2025-12-09", "2025-12-11") == ["APS105H1 · Final exam"]
 

@@ -21,7 +21,7 @@ accounts used in the last weeks; a returning user's courses sync when the app op
 
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import structlog
 from pydantic import BaseModel
@@ -331,8 +331,11 @@ async def syncable_links(
 async def first_calendar_reads(
     ctx: Ctx, program_id: str | None = None
 ) -> tuple[list[LmsCourseLink], list[LmsCourseLink]]:
-    """Linked courses whose calendar was never tried (M09 §4.8), on a connection that works:
-    those of an active term (a whole sync) and those of a term long ended (`CALENDAR_ONLY`)."""
+    """Linked courses whose calendar is still to read first (M09 §4.8), on a connection that
+    works: never tried, of an active term (a whole sync); and of a term long ended
+    (`CALENDAR_ONLY`), never tried or last kept from it by a rate limit or an outage no sooner
+    than the server's shortest interval ago. An active course tried once is left to the usual
+    schedule, which reads its calendar every round."""
     query = (
         select(LmsCourseLink)
         .join(LmsConnection, LmsConnection.id == LmsCourseLink.connection_id)
@@ -341,7 +344,7 @@ async def first_calendar_reads(
             LmsCourseLink.sync_enabled,
             LmsConnection.credentials_encrypted.is_not(None),
             LmsConnection.status == "connected",
-            _calendar_unread(),
+            _calendar_unread(ctx.now - floor(ctx)),
         )
     )
     if program_id is not None:
@@ -351,18 +354,22 @@ async def first_calendar_reads(
         return [], []
     active = await active_course_ids(ctx)
     return (
-        [li for li in links if li.course_id in active],
+        [li for li in links if li.course_id in active and "calendar" not in li.area_reads],
         [li for li in links if li.course_id not in active],
     )
 
 
-def _calendar_unread() -> ColumnElement[bool]:
+def _calendar_unread(tried_before: datetime) -> ColumnElement[bool]:
     """A course's calendar not read yet (`rules.calendar_read` "waiting"): never tried, or kept
-    from it only by a rate limit or an outage."""
+    from it only by a rate limit or an outage, last tried before `tried_before`."""
     calendar = func.json_extract(LmsCourseLink.area_reads, "$.calendar")
     reason = func.json_extract(LmsCourseLink.area_reads, "$.calendar.reason")
     read_at = func.json_extract(LmsCourseLink.area_reads, "$.calendar.read_at")
-    return or_(calendar.is_(None), read_at.is_(None) & reason.in_(sorted(rules.PASSING)))
+    at = func.json_extract(LmsCourseLink.area_reads, "$.calendar.at")
+    return or_(
+        calendar.is_(None),
+        read_at.is_(None) & reason.in_(sorted(rules.PASSING)) & (at <= tried_before.isoformat()),
+    )
 
 
 async def _queue_first_calendar_reads(
@@ -508,7 +515,7 @@ async def sync_due(ctx: Ctx) -> None:
                 or_(
                     LmsCourseLink.synced_at.is_(None),
                     LmsCourseLink.synced_at <= since,
-                    _calendar_unread(),
+                    _calendar_unread(since),
                 ),
             )
             .distinct()
