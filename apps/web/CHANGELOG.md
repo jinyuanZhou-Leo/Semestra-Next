@@ -1,5 +1,11 @@
 # @semestra/web
 
+## 2.7.1
+
+### Patch Changes
+
+- @semestra/api-client@2.7.1
+
 ## 2.7.0
 
 ### Minor Changes
