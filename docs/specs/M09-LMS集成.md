@@ -160,9 +160,10 @@ lms_imported_refs                    # 平台上的作业与它在 Semestra 里�
   conflicts {字段: {value, raw}}, removed_at?, dismissed_at?, submitted_at?
   UNIQUE(link_id, external_id)   # 一个作业只对应一个 Semestra 对象
 
-lms_materials                        # 课程资料与它在课程文件里的项（§4.6、表 4a）
+lms_materials                        # 课程资料与它在课程文件里的项（§4.6、表 4a）；项对应哪份资料只记在 item_id（PR 6）
   id, user_id, link_id, kind ('file'|'page'|'link'), external_id,
-  item_id?, title?, version?, name?, path?, placed_folder_id?,
+  item_id?, title?, version?,        # version 只给没有跟随项的资料（list、dismissed 的页面），跟随中的版本在项的 source_version（§4.6，PR 6）
+  name?, path?, placed_folder_id?,
   state ('synced'|'list'|'dismissed'|'absent'), state_at?, quiet,
   links [[kind, id]],
   imported_at?, change? ('added'|'duplicate'|'updated'|'gone'|'handed_over'), changed_at?
@@ -384,7 +385,7 @@ Canvas 的映射（`providers/canvas/`）。同一个 HTTP 回应只对应一种
 | `dismissed` | 保持（不带回；它链接的东西照常带进来） | 保持 | 保持（面板“已移除”里留着，直到恢复） | 不会发生 | → `synced`（下载建副本） | → `absent`（`quiet`，排一次同步） | 保持 | 不会发生 |
 | `absent` | → `synced`（建项；`quiet` 时不算新资料、不通知） | → `list` | 保持（带 `quiet` 的：去掉 `quiet`，记 `gone`） | 不会发生 | → `synced`（下载建副本） | 不会发生 | 保持 | 不会发生 |
 
-进入 `synced` 时记下新的 `item_id` 并清空已应用的平台信息（版本、名称、位置、链接）；进入 `list`/`absent` 时也清空；`dismissed` 保留读到的内容。
+进入 `synced` 时记下新的 `item_id` 并清空已应用的平台信息（版本、名称、位置、链接）；进入 `list`/`absent` 时也清空；`dismissed` 保留读到的内容，版本除外（PR 6：版本只记一处，§4.6）。
 
 **4b 作业与 Semestra 对象的对应 `lms_imported_refs`**（PR 4 起集中在一个函数里，现在分散在 `sync_assignments`、`imports`、`subscribers`；“新作业”不是这里的状态，见 3e）
 
@@ -425,6 +426,20 @@ Canvas 的映射（`providers/canvas/`）。同一个 HTTP 回应只对应一种
 - **取消关联**：同一事务里发 `lms.course.unlinking`，有本地副本的交给用户、在线读取的删掉，文件夹保留。
 - **新资料**：之后新建的项标 M07 `files_items.unseen`，并作为 `Notice("material", …)` 交给 M18；第一次同步一门课（直到一轮没有因 100 项上限截断为止）不标新、不通知。
 - **与 M07 的边界**：只经 `files/sources.py`、`files/source_folders.py` 与内容源，不直接读写 `files_*` 表。
+- **跟随关系与版本只记一处**（PR 6，M8；现在：`files_items.source_ref` 与 `lms_materials.item_id` 各记一份对应，`lms_materials.version` 与 `files_items.source_version` 各记一份版本）：
+
+| # | 事实 | 只记在 | 谁写 | 谁读、怎么读 |
+|---|---|---|---|---|
+| 1 | 课程文件里的一项由哪个来源维护（内容从哪读；随来源更新、删除） | `files_items.source_kind`：注册了内容源的来源名（现在只有 `lms`）；空 = 用户自己的 | M07 `sources.add_remote_file`、`create_link`、`save_bytes_as_file` 建项时写；只有 `detach_from_source` 清空 | M07 按它找内容源（`register_content_source("lms", opener)`）、判断“跟随中”（`content.follows_source`）；前端“在 {平台} 中打开”只认 `source_kind="lms"` |
+| 2 | 这一项对应平台上的哪份资料 | `lms_materials.item_id`（只在 `synced` 时指向跟随中的项；`absent` 时可以指向用户自己的文件，见表 4a） | `sync_files.enter`（含另存 `lms/files.py`） | M09 按 `item_id` 反查：内容源打开字节、`files.item.deleted` 记 `dismissed`、另存、整理移回 |
+| 3 | 跟随中的项在平台上的当前版本 | `files_items.source_version`（平台版本字符串的哈希）；链接也记（平台给的地址的哈希） | M07 `add_remote_file`、`update_remote_file`、`create_link`、`update_link`（来源把平台的版本字符串交给它们） | M07 判断副本是否过时、处理任务的版本；M09 判断平台上变没变：`sources.source_changed(row, version)` 比较哈希 |
+| 4 | 没有跟随项的资料上次读到的平台版本（`list` 的页面、`dismissed` 的页面） | `lms_materials.version` | `sync_files._seen`，只在资料没有跟随项时写 | 页面版本没变就不再读一遍正文（`_page_as_known`；`synced` 的页面比较第 3 行） |
+
+  - `files_items` 不再有 `source_ref` 列：它只当“由谁读、是否跟随”的标志用，冒号后的外部 id 从来不解析，和第 2 行是同一个事实。`source_kind` 原来的 `upload`/`agent` 只说明从哪来，没有任何地方读，一并去掉：上传的和 Sem 存的文件 `source_kind` 为空（Sem 存文件时记的附件 id 也不再写，它从来没被读过）。
+  - `lms_materials.version` 非空只在第 4 行的情况：进入任何状态时清空（`enter`），`synced` 的版本只在它的项上。用户删掉一个页面（→ `dismissed`）后，下一轮把它的正文再读一遍以得到第 4 行的版本（原来沿用跟随时记的版本）。
+  - 结果：跟随中的项只有第 1–3 行，平台上是哪份、版本几何、由谁读，各有一处；改资料模型时不必再同时维护两边（迁移 0063、0066 与对应的 reshape step 就是两份不一致才加的）。
+  - 用户看得到的变化：交给用户的文件（平台上删除、取消关联）不再显示“在 {平台} 中打开”（`source_kind` 随交出清空；原来 `source_kind` 留着 `lms`，链接指向已删除的平台项）。用户自己的文件里，原来带着附件 id 的 Sem 存的文件不会被「整理」当作“放在根目录的文件”，现在会（它们本来就是用户的文件，M07 §整理）。
+  - 迁移 0069：`source_ref` 以 `lms:` 开头的项 `source_kind = "lms"`，其余为空；跟随中的链接按它资料上记的版本补上 `source_version`；`synced` 资料的 `version` 清空；删掉 `files_items.source_ref`。备份格式版本不变（files v1、lms v2），0069 之前的备份由同号的 reshape step 做同样的映射（files 与 lms 各一个，`lms/older_backups.py` 里读 `source_ref` 的旧 step 在它之前运行，照旧可用）。
 - **出站**：远程文件的预览与下载经后端代理读平台。
 
 ### 4.7 公告
@@ -493,7 +508,7 @@ Canvas 的映射（`providers/canvas/`）。同一个 HTTP 回应只对应一种
 | `lms.syllabus.get` | read | GET /courses/{id}/lms/syllabus | |
 | `lms.file.get` | read | GET /courses/{id}/lms/files/{file_id} | 元数据 |
 | 文件内容代理 | — | GET /courses/{id}/lms/files/{file_id}/content | `routes.py`，流式代理，用于预览和下载；课程文件里有这份文件的当前版本副本时直接从副本读（`check` 也不再问平台）。文件预览（`lms.file.preview`）对课程文件已经解析过的文件直接用 M07 的页面文本（M07 `sources.current_copy`/`document_pages`），其余照旧从平台下载解析 |
-| `lms.file.save_to_course` | write | POST /courses/{id}/lms/files/{file_id}:save | 调用 M07 `save_bytes_as_file`，`source_kind='lms'`，`source_ref={provider, connection_id, file_id}` |
+| `lms.file.save_to_course` | write | POST /courses/{id}/lms/files/{file_id}:save | 调用 M07 `save_bytes_as_file`，`source_kind='lms'`，资料行记 `item_id`（§4.6） |
 | `lms.course.import` | write | POST /programs/{id}/lms/imports:courses | 选中的外部课程（可选目标学期）→ M08 session（course items，带关联信息），返回 session id |
 | `lms.assignment.import` | write | POST /courses/{id}/lms/imports:assignments | 选中的作业 → M08 session：有分值的成为考核（assignment group → 课程已有分类或新分类，规则见 M08 的分类映射；权重按 group weight 推算，无法推算时留空），没有分值的成为待办 ；session 留给审核，由用户（或 Agent 经 `imports.session.commit`）提交 |
 | `lms.assignment.add_to_gradebook` | write | POST /courses/{id}/lms/imports:gradebook | 已导入为待办的作业 → 考核（同一流程）；M05 让新考核接管同来源的待办，导入记录改指向考核 |
@@ -763,7 +778,7 @@ lms_cache  key, user_id, connection_id, scope, payload, expires_at
 
 #### 4.2 课程资料进入文件（2026-11-16，迁移 0053）
 - **范围**：同步阶段 `files`（`sync_files.py`，order 60）把平台上课程的文件（`course_files`，feature `folders`）、页面（`pages`）和单元里的文件、页面、外部链接与外部工具（`modules`）带进 M07 的课程文件。只看 provider 的 `features`，不写平台名。按 M11 命名空间 `lms.materials` 的 `sync`（全局与课程两级，课程默认跟随全局，默认开；2026-11-18 从 `lms_course_links.files_sync` 搬过去，迁移 0057；迁移 0060 从 Program 级改为全局级，Program 的值复制给没有自己设置的课程；`sync_enabled=false` 时整个同步不跑）。打开时立即排一次同步。
-- **不占存储**：文件与页面建成 M07 的“远程文件”（`storage_key` 为空，`source_kind="lms"`，`source_ref="lms:<file|page|link>:<外部 id>"`，`sha256` 为平台版本的哈希），内容经 M07 的内容源（`register_content_source("lms:", open_source)`）在打开、预览、建索引时从平台读：文件走 `reads.open_file`，页面现读正文渲染成带 `<h1>` 标题的 HTML 文档。链接建成 M07 的链接项。锁定（未开放）的文件和隐藏的文件、文件夹跳过，开放后下一次同步再加入。
+- **不占存储**：文件与页面建成 M07 的“远程文件”（`storage_key` 为空，`source_kind="lms"`，`source_ref="lms:<file|page|link>:<外部 id>"`，`sha256` 为平台版本的哈希）（PR 6 起没有 `source_ref`，对应只记在 `lms_materials.item_id`，版本只记在 `source_version`，见 §4.6），内容经 M07 的内容源（`register_content_source("lms:", open_source)`）在打开、预览、建索引时从平台读：文件走 `reads.open_file`，页面现读正文渲染成带 `<h1>` 标题的 HTML 文档。链接建成 M07 的链接项。锁定（未开放）的文件和隐藏的文件、文件夹跳过，开放后下一次同步再加入。
 - **按平台目录放**（2026-11-18，迁移 0060，取代按类型归类与模型定类）：`_place` 给每项算出它在平台上的位置，每一级是（id，名称）：所在单元（`module:<id>`）；否则文件区里的文件夹（`folder:<id>`，provider 在 `FileMeta.folder_ids` 给出各级文件夹 id，没有时按路径名）；否则第一个链接它的页面的位置加上该页面（`page:<slug>`，页面在同步里本来就按 slug 识别）（首页链接一切，不算；页面互相链接时不成环）。有这类子项的页面自己也放进以它命名的文件夹。只有链接、自身文字不到 160 字的页面是“列表页”，不保存，它列出的东西放进以它命名的文件夹。文件夹由 M07 的 `SourceFolders` 建立并记住（`files_source_folders`），最多三级。不按周归类（owner 2026-11-17），不再调用模型。
 - **记录与用户优先**：每个带进来的东西在 `lms_materials` 记一行（迁移 0056 从 `lms_imported_refs` 搬过来，原来的状态都在 `snapshot` JSON 里），项是 `item_id`，上次应用的平台标题、版本、项名、位置（`path`）与放进的文件夹（`placed_folder_id`）各是一列。每项只在第一次带进来时放一次：用户移动、改名、删除都不会被同步改回（删除见下面的「状态」）；平台改了名而用户没改的才跟着改名（只改名，不重新处理）；平台上换了位置的不自动移动，由 M07 的「整理」提议移回（`homes`：项还在 `placed_folder_id`、而平台位置对应的文件夹不同；迁移 0060 用原来的类型文件夹填 `placed_folder_id`，升级后第一次同步填 `path`）。来源文件夹被删时，那个位置的新资料放进上一级，也不再重建（owner 2026-11-17：不从用户放别的资料的位置去推断）。文件的版本取 `FileMeta.content_at`（Canvas 的 `modified_at`，没有时用 `updated_at`），链接的版本是 url；版本变化的文件更新大小、版本与平台修改时间并重新处理（本地副本先放掉字节，再由本轮按保存方式重新存）。新建的项每 100 个（`BATCH`）一个事务写入、提交后放开写锁再接着写，一轮带进全部（2026-11-22：原来每轮最多 100 项、没有续跑，300 个文件要 3 轮、600 次单文件读取）；只由单元或页面露出的文件逐个读取改成并发（`reads.files_many`，同一轮里的页面也并发读，`reads.pages_many`），用户删掉的项（`dismissed`）同样按 `CHECK_EVERY` 限频。
 - **发现**：页面里链接到的文件和页面、只在单元里出现的文件也会带进来（逐个读取）。没变化的页面复用记下的链接（`lms_materials.links`）；单独读的文件与页面一天最多查一次（`CHECK_EVERY`，`checked_at`）。列表页也记一行（`state="list"`，没有项），只为下次判断它变没变。
