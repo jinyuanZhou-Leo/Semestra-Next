@@ -131,6 +131,20 @@ async def find_duplicate(
     return await ctx.db.scalar(stmt.limit(1))
 
 
+async def own_files(ctx: Ctx, course_id: str) -> list[tuple[str, int, str | None]]:
+    """The course's files that follow no source (what the user put there), as `same_file`
+    compares them: for checking a batch of incoming files with one query."""
+    rows = await ctx.db.execute(
+        select(FilesItem.display_name, FilesItem.size_bytes, FilesItem.sha256).where(
+            FilesItem.user_id == ctx.user_id,
+            FilesItem.course_id == course_id,
+            FilesItem.kind == "file",
+            FilesItem.source_kind.is_(None),
+        )
+    )
+    return [(name, size or 0, sha) for name, size, sha in rows]
+
+
 def same_file(a: tuple[str, int, str | None], b: tuple[str, int, str | None]) -> bool:
     """The one rule for “the same file” (name, size, sha256): the same bytes, or the same name
     (any case) and size. A file read from its source has no hash of its bytes here, so it

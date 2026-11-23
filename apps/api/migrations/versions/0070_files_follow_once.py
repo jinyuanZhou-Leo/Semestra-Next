@@ -14,7 +14,7 @@ stored file) or goes with its page images (a file read online: nothing is left t
 this are read the same way (`lms/older_backups.py`, step 0070).
 
 Revision ID: 0070
-Revises: 0068
+Revises: 0069
 Create Date: 2026-11-23 03:30:00
 
 """
@@ -31,15 +31,15 @@ from semestra.core.config import get_settings
 
 # revision identifiers, used by Alembic.
 revision: str = "0070"
-down_revision: str | Sequence[str] | None = "0068"
+down_revision: str | Sequence[str] | None = "0069"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 # A storage key (`core/storage._KEY` at 0070).
 _KEY = re.compile(r"[A-Za-z0-9_-][A-Za-z0-9._-]*(/[A-Za-z0-9_-][A-Za-z0-9._-]*)*")
-# Nothing applied from the platform (`sync_files.enter` at 0070).
+# Nothing applied from the platform (`materials.enter` at 0070).
 _FORGET = (
-    "state = 'absent', quiet = 0, version = NULL, name = NULL, checked_at = NULL,"
+    "state = 'absent', quiet = 0, version = NULL, name = NULL,"
     " placed_folder_id = NULL, links = '[]'"
 )
 # What a file the user owns has none of.

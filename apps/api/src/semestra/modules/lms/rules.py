@@ -1,4 +1,5 @@
-"""Pure sync rules (M09 §4.1): the common value forms and the per-field three-way merge.
+"""Pure sync rules (M09 §4.2, table 3): submission and assignment state, whether an item is
+still on the platform (`presence`), the common value forms and the per-field three-way merge.
 No database access.
 
 Every field of an imported object is compared in three versions: the base (the platform value
@@ -7,11 +8,21 @@ last applied, its snapshot), ours (the value in Semestra) and theirs (the platfo
 platform value back all go through it, so they never disagree about a field.
 """
 
-from collections.abc import Mapping
-from datetime import datetime
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass
+from datetime import datetime, timedelta
 from enum import StrEnum
 from typing import Any, Literal
 from zoneinfo import ZoneInfo
+
+from semestra.modules.lms.answers import (
+    AREA_HIDDEN,
+    AreaResult,
+    Gone,
+    ItemAnswer,
+    ItemResult,
+    Present,
+)
 
 TITLE_MAX = 200
 CLEARABLE = ("weight", "score")
@@ -211,9 +222,66 @@ def state_of(assignment: Mapping[str, Any]) -> AssignmentState:
     )
 
 
+# --- presence (table 3c) ----------------------------------------------------------------------
+
+CHECK_EVERY = timedelta(days=1)
+"""A single read this recent stands for this round (rows 7 and 8)."""
+CHECKS_PER_RUN = 100
+"""Single reads one course's round may make (row 10 and finding materials share them)."""
+
+
+@dataclass(frozen=True)
+class Check:
+    """The last single read of an item (`lms_item_checks`)."""
+
+    result: ItemResult
+    at: datetime
+    reason: str | None = None
+
+
+Presence = Literal["present", "gone", "unknown", "check"]
+"""Still on the platform; gone from it; not judged this round; read it on its own to tell
+(then ask again with the answer)."""
+
+
+def presence(
+    *,
+    listed: bool,
+    areas: Iterable[AreaResult],
+    now: datetime,
+    read: ItemAnswer | None = None,
+    last: Check | None = None,
+    before_lookback: bool = False,
+) -> Presence:
+    """The one rule for whether an item (a material, an assignment, an announcement) is still on
+    the platform, M09 table 3c, first row that holds. `listed`: in one of this round's area lists
+    (locked ones too); `areas`: this round's result of each area it may be listed in (only the
+    areas the provider offers); `read`: its single read this round, if any; `last`: its last
+    single read before; `before_lookback`: an announcement posted before the window read.
+    A round whose course could not be read judges nothing (row 1): it never gets here."""
+    if before_lookback:
+        return "unknown"  # 2: the platform was not asked
+    if listed:
+        return "present"  # 3
+    if read is not None:  # 4-6
+        if isinstance(read, Present):
+            return "present"
+        return "gone" if isinstance(read, Gone) else "unknown"
+    if last is not None and now - last.at < CHECK_EVERY:
+        if last.result == "present":
+            return "present"  # 7: only reachable on its own (linked, link-only files)
+        if last.result == "unavailable" and last.reason == AREA_HIDDEN:
+            return "unknown"  # 8: its area is closed; reading again tells nothing new
+    results = [r for r in areas if r != "unsupported"]
+    if results and all(r == "whole" for r in results):
+        return "gone"  # 9
+    if "hidden" in results and all(r in ("whole", "hidden") for r in results):
+        return "check"  # 10
+    return "unknown"  # 11
+
+
 # --- areas and the calendar (M09 表 3c, §4.8) -------------------------------------------------
 
-AreaResult = Literal["whole", "partial", "unavailable", "unsupported"]
 # A list that came back: what the sync keeps of it is the platform's as of then.
 READ_BACK: frozenset[str] = frozenset(("whole", "partial"))
 # Not read only this once (表 2 第 11、13 行): the next round reads it as usual.
@@ -227,14 +295,18 @@ def area_entry(
     reason: str | None = None,
 ) -> dict[str, str]:
     """How an area's list read this round (`LmsCourseLink.area_reads[area]`): the result and
-    when, why it was unavailable (an error code), and when it last came back at all
-    (`read_at`), which an unreadable round keeps."""
+    when, why it was unavailable (an error code), when it last came back at all (`read_at`)
+    and when it last came back whole (`whole_at`: since then what is kept of it is as the
+    platform last showed it); a round that did not read them keeps both."""
     entry = {"result": result, "at": at.isoformat()}
     if result == "unavailable" and reason:
         entry["reason"] = reason
     read_at = at.isoformat() if result in READ_BACK else (previous or {}).get("read_at")
     if read_at:
         entry["read_at"] = read_at
+    whole_at = at.isoformat() if result == "whole" else (previous or {}).get("whole_at")
+    if whole_at:
+        entry["whole_at"] = whole_at
     return entry
 
 

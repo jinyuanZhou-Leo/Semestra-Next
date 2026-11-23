@@ -312,7 +312,7 @@ def follow_once_0070(items: Sequence[Row], materials: Sequence[Row]) -> tuple[li
 
 
 def _forgotten(m: Row, *, item_id: str | None) -> Row:
-    """`absent`, nothing applied (`sync_files.enter`)."""
+    """`absent`, nothing applied (`materials.enter`)."""
     return {
         **m,
         "state": "absent",
@@ -320,7 +320,6 @@ def _forgotten(m: Row, *, item_id: str | None) -> Row:
         "quiet": False,
         "version": None,
         "name": None,
-        "checked_at": None,
         "placed_folder_id": None,
         "links": [],
     }

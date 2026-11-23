@@ -107,6 +107,18 @@ async def test_the_kept_events_follow_the_platform(api: Api, fake: FakeProvider,
     assert not [e for e in seen if e["type"] == "calendar.changed"]
 
 
+async def test_a_refused_calendar_list_leaves_the_kept_events(api: Api, fake: FakeProvider):
+    # 表 2 第 17 行: not known (the calendar is no tab, so never closed by the instructor);
+    # 表 3c 第 11 行: nothing is judged gone.
+    program_id, _, _ = await _two_courses(api)
+    fake.events = [event("e1", "101", "Review session")]
+    await api.sync(program_id)
+    fake.events = []
+    fake.calendar_error = "lms.forbidden"
+    await api.sync(program_id)
+    assert await overlay(api, program_id) == ["APS105H1 · Review session"]
+
+
 async def test_courses_whose_calendar_was_never_read_or_never_could_be(
     api: Api, fake: FakeProvider, clock: Clock
 ):

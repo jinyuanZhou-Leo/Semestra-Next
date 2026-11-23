@@ -241,7 +241,9 @@ def process_key(row: FilesItem) -> str:
 Reader = Literal["user", "upload", "source", "restore"]
 
 
-async def request_read(ctx: Ctx, row: FilesItem, by: Reader) -> None:
+async def request_read(
+    ctx: Ctx, row: FilesItem, by: Reader, *, auto_index: bool | None = None
+) -> None:
     """The one way into `pending`: the item's text is to be read. Whether it is read now:
 
     - the user asked: always, in the user's queue (`files.process`), ahead of synced files;
@@ -253,12 +255,17 @@ async def request_read(ctx: Ctx, row: FilesItem, by: Reader) -> None:
     A job queued for an older version of the item (or, for the user, behind the synced files)
     is withdrawn; one running reads again once it ends (`again`), and a result for a version the
     item no longer has is dropped (`pipeline._activate`). The caller makes sure the item can be
-    read (`content.has_content`) and tells of its change (`files.item.*`)."""
+    read (`content.has_content`) and tells of its change (`files.item.*`); one adding a batch
+    passes the course's `auto_index`, read once."""
+    from semestra.modules.files import settings
     from semestra.modules.files.jobs import ProcessPayload
-    from semestra.modules.files.settings import auto_index
 
     was_read = row.doc_status == "ready"
-    wanted = by == "user" or (by == "restore" and was_read) or await auto_index(ctx, row.course_id)
+    wanted = (
+        by == "user"
+        or (by == "restore" and was_read)
+        or (auto_index if auto_index is not None else await settings.auto_index(ctx, row.course_id))
+    )
     row.doc_error_code, row.updated_at = None, ctx.now
     if not wanted:
         row.doc_status = "none"

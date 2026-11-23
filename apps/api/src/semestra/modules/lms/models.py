@@ -91,9 +91,10 @@ class LmsCourseLink(Base, OwnedMixin, TimestampMixin):
     # has none stored: what the first read finds is kept as read and not reported, so linking a
     # course is quiet.
     watched_at: Mapped[datetime | None] = mapped_column(default=None)
-    # How each area's list read on the last sync, by area: `{"result": whole|partial|unavailable
-    # |unsupported, "at": iso time}` (M09 表 3c). Empty for an area never read: the calendar of
-    # a course listed here without `calendar` has not been read yet (§4.8).
+    # How each area's list read on the last sync, by area (`rules.area_entry`: result, when,
+    # why it was unavailable, when it last came back and came back whole; M09 表 1, 表 3c).
+    # Empty for an area never read: the calendar of a course listed here without `calendar`
+    # has not been read yet (§4.8).
     area_reads: Mapped[dict[str, dict[str, str]]] = mapped_column(JSON, default=dict)
 
 
@@ -245,13 +246,36 @@ class LmsMaterial(Base, OwnedMixin):
     placed_folder_id: Mapped[str | None] = mapped_column(String, default=None)
     # The course's files and pages a page links to, as `[kind, external id]` pairs.
     links: Mapped[list[list[str]]] = mapped_column(JSON, default=list)
-    # When it was last read on its own (an item no list gives a version for).
-    checked_at: Mapped[datetime | None] = mapped_column(default=None)
     imported_at: Mapped[datetime | None] = mapped_column(default=None)
     # What the platform last did to it, for the status panel's recent updates (`CHANGES_KEPT`);
     # none for what came in before the course settled (`materials_settled_at`).
     change: Mapped[MaterialChange | None] = mapped_column(String, default=None)
     changed_at: Mapped[datetime | None] = mapped_column(default=None, index=True)
+
+
+class LmsItemCheck(Base, OwnedMixin):
+    """The last time the sync read one platform item on its own (a material, an assignment or
+    an announcement no list showed), and what it got (M09 §4.2, table 3c's input): within
+    `rules.CHECK_EVERY` it stands for the item, so it is not read again every round. Only a
+    record of the sync: not exported (§10)."""
+
+    __tablename__ = "lms_item_checks"
+    __table_args__ = (
+        UniqueConstraint("link_id", "kind", "external_id", name="uq_lms_item_checks_item"),
+    )
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    link_id: Mapped[str] = mapped_column(
+        String, ForeignKey("lms_course_links.id", ondelete="CASCADE"), index=True
+    )
+    kind: Mapped[str] = mapped_column(String)
+    external_id: Mapped[str] = mapped_column(String)
+    result: Mapped[str] = mapped_column(String)  # 'present' | 'gone' | 'unavailable'
+    # The error code of an `unavailable` read (`lms.area_hidden`: its area was closed).
+    reason: Mapped[str | None] = mapped_column(String, default=None)
+    at: Mapped[datetime] = mapped_column()
+    # Since when the reads have been `unavailable` without a break (cleared by present or gone).
+    unavailable_since: Mapped[datetime | None] = mapped_column(default=None)
 
 
 class LmsAnnouncement(Base, OwnedMixin):

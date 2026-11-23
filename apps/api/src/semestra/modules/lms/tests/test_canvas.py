@@ -414,7 +414,7 @@ async def test_tab_links_read_state_attachments_and_front_page(
     )  # fmt: skip
     [tab] = await p.navigation(io, cfg, creds, "1")
     assert tab.web_url == f"{CANVAS}/courses/1/external_tools/4"
-    news = await p.announcements(io, cfg, creds, "1")
+    news = await p.announcements(io, cfg, creds, "1", since=datetime(2025, 1, 1, tzinfo=UTC))
     assert [(a.title, a.unread) for a in news] == [("New", True), ("Old", False)]
     assert [a.model_dump() for a in news[0].attachments] == [
         {"external_id": "9", "name": "Rubric.pdf", "mime_type": "application/pdf",

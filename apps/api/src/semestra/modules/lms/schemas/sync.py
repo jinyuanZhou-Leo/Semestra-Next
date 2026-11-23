@@ -123,6 +123,35 @@ class SyncRemovedMaterial(BaseModel):
     at: datetime = Field(description="When the user deleted it")
 
 
+class SyncUnreadable(BaseModel):
+    """What the sync can't read because its area is closed on the platform (M09 table 3c, note):
+    kept as last read, judged again once the area opens. Materials and imported assignments one
+    by one; a course's announcements as one row."""
+
+    kind: Literal["material", "assignment", "announcements"]
+    id: str | None = Field(
+        description="The material's id (`material`) or the imported assignment's sync item id "
+        "(`assignment`); none for a course's row"
+    )
+    course_id: str
+    course: str
+    area: str = Field(description="The closed area of the course on the platform")
+    title: str | None = Field(description="Its name on the platform; none for a course's row")
+    count: int = Field(description="How many it stands for (1 for one item)")
+    since: datetime | None = Field(
+        description="Announcements: when their list was last read whole (none if never)"
+    )
+    item_id: str | None = Field(
+        default=None, description="A material's course file, or an imported assignment's object"
+    )
+    external_id: str | None = Field(default=None, description="An assignment's id on the platform")
+    removable: bool = Field(
+        default=False,
+        description="A followed material read from the platform (no copy saved in Semestra): it "
+        "can be removed (lms.sync.material.remove)",
+    )
+
+
 class SyncCourseError(BaseModel):
     course_id: str
     course: str
@@ -163,6 +192,9 @@ class SyncStatus(BaseModel):
         " materials sync"
     )
     removed_count: int = Field(description="How many materials the user deleted, all told")
+    unreadable: list[SyncUnreadable] = Field(
+        description="What can't be read since its area is closed on the platform, by course"
+    )
     errors: list[SyncCourseError]
     calendar_waiting: int = Field(
         description="Courses whose calendar the sync has not read yet (M09 §4.8)"
@@ -199,4 +231,4 @@ class SyncChangeRef(BaseModel):
 
 
 class MaterialRef(BaseModel):
-    material_id: Id = Field(description="A removed material's id (lms.sync.status)")
+    material_id: Id = Field(description="A material's id (lms.sync.status)")

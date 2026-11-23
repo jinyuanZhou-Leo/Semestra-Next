@@ -8,8 +8,9 @@ again) and the
 teacher's feedback kept for assessments follow the id map of Programs, courses, assessments,
 tasks and course files (the items the sync brought in). The cache is not exported, nor is what
 the background sync keeps for itself (its change log, its conflicts, the new items it offers,
-the pages that only list others): the first sync after an import finds them again; only the new
-assignments the user ignored and the materials they deleted are kept. Registered at the bottom
+what each area and single read last answered, the pages that only list others): the first sync
+after an import finds them again; only the new assignments the user ignored and the materials
+they deleted are kept. Registered at the bottom
 with M13's `register_portability`.
 
 Version 2 imports a platform item once (one ref per item); `_v1_to_v2` keeps the assessment's ref
@@ -35,6 +36,7 @@ from semestra.modules.lms.models import (
     LmsConnection,
     LmsCourseLink,
     LmsImportedRef,
+    LmsItemCheck,
     LmsKeptAssignment,
     LmsMaterial,
     LmsProgramBinding,
@@ -145,7 +147,6 @@ class MaterialRow(BaseModel):
     # The folder the sync put its item in (M07's folder id).
     placed_folder_id: str | None = None
     links: list[list[str]] = []
-    checked_at: datetime | None = None
     imported_at: datetime | None = None
 
 
@@ -472,6 +473,7 @@ async def purge(ctx: Ctx) -> None:
         LmsSyncChange,
         LmsKeptAssignment,
         LmsImportedRef,
+        LmsItemCheck,
         LmsMaterial,
         LmsAnnouncement,
         LmsCalendarEvent,
@@ -499,6 +501,7 @@ register_portability(
         LmsImportedRef.__tablename__,
         LmsKeptAssignment.__tablename__,
         LmsMaterial.__tablename__,
+        LmsItemCheck.__tablename__,
         LmsAnnouncement.__tablename__,
         LmsCalendarEvent.__tablename__,
         LmsSyncChange.__tablename__,

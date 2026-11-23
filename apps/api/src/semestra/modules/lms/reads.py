@@ -13,7 +13,8 @@ from sqlalchemy import select
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError
 from semestra.modules.academics import service as academics
-from semestra.modules.lms import cache, html, rules, service, submissions
+from semestra.modules.lms import answers, cache, html, rules, service, submissions
+from semestra.modules.lms.answers import STOPPING
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.models import LmsCourseLink, LmsImportedRef
 from semestra.modules.lms.schemas.dto import (
@@ -39,11 +40,6 @@ from semestra.modules.lms.schemas.io import (
 )
 from semestra.modules.lms.service import Bound
 
-# What the platform answers a list of an area the user can't open with (Canvas: 404 when the
-# instructor hid the tab, 401 when the files are hidden).
-AREA_REFUSALS = frozenset(("lms.not_found", "lms.forbidden"))
-# Errors about one item (`read_many` keeps them per item); the others stop the whole read.
-ITEM_ERRORS = frozenset(("lms.not_found", "lms.forbidden"))
 # Platform requests one `read_many` runs at once.
 MANY_CONCURRENCY = 4
 # Page texts read for the assistant's search stay longer than other reads: a course has dozens
@@ -84,27 +80,27 @@ async def _read(
             scope=cache.course_scope(ext),
         )
     except AppError as exc:
-        if (
-            area is not None
-            and exc.code in AREA_REFUSALS
-            and await _area_hidden(ctx, course_id, area, refresh=refresh)
-        ):
-            raise lms_error("lms.area_hidden", area=area) from None
+        if area is not None and exc.code not in STOPPING:
+            closed = await _nav_closed(ctx, course_id, area, refresh=refresh)
+            if b.provider.area_answer(exc, nav_closed=closed) == "hidden":
+                raise lms_error("lms.area_hidden", area=area) from None
         raise
     return data, truncated, link, b
 
 
-async def _area_hidden(ctx: Ctx, course_id: str, area: NavKind, *, refresh: bool) -> bool:
-    """Whether the course's menu leaves `area` out or hides it: only then is a refused list of
-    it the instructor's doing. A course gone from the platform, or a user no longer enrolled, is
-    refused too, and keeps its own error."""
+async def _nav_closed(ctx: Ctx, course_id: str, area: NavKind, *, refresh: bool) -> bool | None:
+    """Whether the course's menu leaves `area` out or hides it (None: no menu to tell by): only
+    then is a refused list of it the instructor's doing (M09 table 2, rows 7-8). A course gone
+    from the platform, or a user no longer enrolled, is refused too, and keeps its own error."""
     try:
         found = await overview(ctx, course_id, refresh)
-    except AppError:
-        return False
-    if "navigation" not in found.features or not found.navigation:
-        return False
-    return not any(t.kind == area and not t.hidden for t in found.navigation)
+    except AppError as exc:
+        if exc.code in STOPPING:
+            raise  # about the connection, not the course: the read fails with it
+        return None
+    if "navigation" not in found.features:
+        return None
+    return answers.nav_closed(found.navigation, area)
 
 
 async def course_zone(ctx: Ctx, course_id: str) -> tzinfo:
@@ -268,7 +264,7 @@ async def assignments(ctx: Ctx, inp: AssignmentsInput) -> AssignmentList:
                 linked=linked,
             )
         except AppError as exc:
-            if exc.code not in ITEM_ERRORS:
+            if exc.code in STOPPING:
                 raise
     return AssignmentList.model_validate(
         {
@@ -514,9 +510,9 @@ async def read_many(
             try:
                 return service.dump(await wanted[n][1](b, i, ext))
             except AppError as exc:
-                if exc.code in ITEM_ERRORS:
-                    return exc
-                raise
+                if exc.code in STOPPING:
+                    raise
+                return exc  # about this item only
 
     async def run(i: Any) -> list[Any]:
         return await asyncio.gather(*(one(i, n) for n in missing))

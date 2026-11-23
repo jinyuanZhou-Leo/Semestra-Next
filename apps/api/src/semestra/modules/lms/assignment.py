@@ -19,6 +19,7 @@ from semestra.modules.academics import service as academics
 from semestra.modules.academics.models import AcademicsCourse
 from semestra.modules.grading import service as grading
 from semestra.modules.lms import announcements, reads, rules, service, sync_kept
+from semestra.modules.lms.answers import STOPPING
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.models import LmsCourseLink, LmsImportedRef, LmsKeptAssignment
 from semestra.modules.lms.rules import submission_status, submits_online
@@ -157,7 +158,7 @@ async def _live(
         try:
             submission = await reads.submission(ctx, course_id, assignment_id, refresh)
         except AppError as exc:
-            if exc.code not in reads.ITEM_ERRORS:
+            if exc.code in STOPPING:
                 raise
     quiz = await _quiz(ctx, course_id, assignment_id, b, refresh) if found.get("quiz_id") else None
     return {
