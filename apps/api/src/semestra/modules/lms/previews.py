@@ -14,6 +14,7 @@ from semestra.core.context import Ctx
 from semestra.core.errors import AppError
 from semestra.modules.academics import service as academics
 from semestra.modules.grading import service as grading
+from semestra.modules.lms import assignment_facts as facts
 from semestra.modules.lms import imports, reads, service
 from semestra.modules.lms.schemas.io import (
     AssessmentRef,
@@ -56,6 +57,11 @@ async def external_course_labels(ctx: Ctx, program_id: str, ids: list[str]) -> d
 
 
 async def _cached_assignments(ctx: Ctx, course_id: str) -> dict[str, dict[str, Any]] | None:
+    """The course's assignments without asking the platform: the mirror, else what a recent
+    read left in the cache."""
+    link = await service.link_row(ctx, course_id)
+    if link is not None and facts.as_of(link) is not None:
+        return {r.external_id: r.assignment for r in await facts.mirror_rows(ctx, link.id)}
     with suppress(AppError, service.NotCached), service.cache_only():
         data, _ = await reads.raw_assignments(ctx, course_id, refresh=False)
         return {str(a["external_id"]): a for a in data}

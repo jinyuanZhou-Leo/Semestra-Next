@@ -27,7 +27,7 @@ from semestra.modules.imports import build, register_commit_hook
 from semestra.modules.imports import service as imports
 from semestra.modules.imports.models import ImportsSession
 from semestra.modules.imports.schemas import Confidence, NewItem, SessionCreateInput, SessionTarget
-from semestra.modules.lms import html, reads, service
+from semestra.modules.lms import assignment_refs, html, reads, service
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.models import LmsCourseLink, LmsImportedRef
 from semestra.modules.lms.schemas.io import (
@@ -462,17 +462,6 @@ async def _item_ref(ctx: Ctx, link_id: str, external_id: str) -> LmsImportedRef 
     )
 
 
-def _track(
-    ref: LmsImportedRef, kind: str, target_id: str, snap: dict[str, Any], now: datetime
-) -> None:
-    """The ref now follows this object: whatever it was waiting for (new, ignored, a conflict
-    of an earlier object) is over."""
-    ref.target_kind, ref.target_id, ref.snapshot = kind, target_id, snap
-    ref.imported_at = now
-    ref.dismissed_at = ref.removed_at = None
-    ref.conflicts = {}
-
-
 async def _ref_of(ctx: Ctx, assessment_id: str) -> LmsImportedRef | None:
     return await ctx.db.scalar(
         select(LmsImportedRef).where(
@@ -501,16 +490,15 @@ async def bind_assignment(ctx: Ctx, inp: AssignmentBindInput) -> AssignmentBindi
         raise lms_error("lms.assignment_already_imported", title=a["name"])
     await grading.set_source(ctx, row.id, ("lms", source_ref(b.row.id, inp.assignment_id)))
     snap = bound_snapshot(snapshot(a, weights_of(data).get(inp.assignment_id)))
-    ref = await _item_ref(ctx, link.id, inp.assignment_id)  # offered as new until now
-    if ref is None:
-        ref = LmsImportedRef(
-            user_id=ctx.user_id,
-            link_id=link.id,
-            external_id=inp.assignment_id,
-        )
-        ctx.db.add(ref)
-    _track(ref, "assessment", row.id, snap, ctx.now)
-    await ctx.db.flush()
+    await assignment_refs.enter(
+        ctx,
+        await _item_ref(ctx, link.id, inp.assignment_id),  # none, or ignored until now
+        "import",
+        link=link,
+        external_id=inp.assignment_id,
+        target=("assessment", row.id),
+        snapshot=snap,
+    )
     await events.publish(ctx, "lms.course.imports_recorded", {"course_id": row.course_id})
     return AssignmentBinding(
         assessment_id=row.id, course_id=row.course_id, assignment_id=inp.assignment_id
@@ -525,7 +513,11 @@ async def unbind_assignment(ctx: Ctx, inp: AssessmentRef) -> AssignmentBinding:
     if ref is None and row.source_kind != "lms":
         raise lms_error("lms.assessment_not_bound")
     if ref is not None:
-        await ctx.db.delete(ref)
+        # The assessment stays: it keeps the assignment's content as last read (§3.2).
+        link = await ctx.db.get_one(LmsCourseLink, ref.link_id)
+        await assignment_refs.enter(
+            ctx, ref, "detach", link=link, external_id=ref.external_id, hold=True
+        )
     # Also when the course was unlinked meanwhile (its import records went with the link).
     await grading.set_source(ctx, row.id, None)
     await ctx.db.flush()
@@ -634,22 +626,23 @@ async def on_commit(ctx: Ctx, row: ImportsSession, created: dict[str, str]) -> N
         if str(item.data.get("existing_assessment_id")) in bound:
             snap = bound_snapshot(info["snapshot"])
         ref = await _item_ref(ctx, link.id, info["external_id"])
-        if ref is None:
-            ref = LmsImportedRef(
-                user_id=row.user_id,
-                link_id=link.id,
-                external_id=info["external_id"],
-            )
-            ctx.db.add(ref)
-        elif ref.target_kind == "assessment" and item.type == "task":
+        if ref is not None and ref.target_kind == "assessment" and item.type == "task":
             # Another session put it into the gradebook meanwhile: roll this commit back.
             raise lms_error("lms.assignment_already_imported", title=item.data.get("title", ""))
-        elif ref.target_kind == item.type:
+        if ref is not None and ref.target_kind == item.type:
             ref.target_id = target_id  # imported again meanwhile: the same object
             continue
-        # New, ignored before, or added to the gradebook (the assessment took the to-do over,
-        # M05, and is now the one Semestra object of this assignment).
-        _track(ref, item.type, target_id, snap, ctx.now)
+        # New or ignored before ("import"), or added to the gradebook ("move": the assessment
+        # took the to-do over, M05, and is now the one Semestra object of this assignment).
+        await assignment_refs.enter(
+            ctx,
+            ref,
+            "move" if assignment_refs.state_of(ref) == "imported" else "import",
+            link=link,
+            external_id=info["external_id"],
+            target=(item.type, target_id),
+            snapshot=snap,
+        )
     await ctx.db.flush()
     # What each course reports as new or imported has changed.
     for link in links.values():

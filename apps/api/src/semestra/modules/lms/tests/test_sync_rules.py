@@ -11,6 +11,9 @@ from semestra.modules.lms.rules import (
     Action,
     diverged,
     due_state_of,
+    facts_due_state,
+    facts_state,
+    is_new,
     item_due_state,
     merge,
     platform_value,
@@ -215,3 +218,37 @@ def test_due_state(name: str, assignment: dict[str, Any], due: str):
 )
 def test_module_item_due_state(name: str, item: dict[str, Any], due: str):
     assert item_due_state(item, datetime.fromisoformat(NOW)) == due
+
+
+@pytest.mark.parametrize(
+    ("name", "imported", "dismissed", "assignment", "submission", "new"),
+    [
+        # One case per row of M09 table 3e, in its order.
+        ("imported", True, False, {"due_at": AFTER}, {}, False),
+        ("ignored", False, True, {"due_at": AFTER}, {}, False),
+        ("still to do", False, False, {"due_at": AFTER}, {}, True),
+        ("past due", False, False, {"due_at": BEFORE}, {}, False),
+        ("no due date", False, False, {}, {}, False),
+        ("handed in", False, False, {"due_at": AFTER}, {"submitted_at": "2026-01-12"}, False),
+        ("excused", False, False, {"due_at": AFTER}, {"excused": True}, False),
+    ],
+)
+def test_is_new(
+    name: str,
+    imported: bool,
+    dismissed: bool,
+    assignment: dict[str, Any],
+    submission: dict[str, Any],
+    new: bool,
+):
+    now = datetime.fromisoformat(NOW)
+    got = is_new(assignment, submission, imported=imported, dismissed=dismissed, now=now)
+    assert got is new
+
+
+def test_a_submission_never_read_has_no_state_and_no_due_hint():
+    """Table 3b row 0 and 3d: not knowing whether it was handed in, nothing says it is due."""
+    assignment = {"due_at": BEFORE}
+    assert facts_state(assignment, None) is None
+    assert facts_due_state(assignment, None, datetime.fromisoformat(NOW)) == "none"
+    assert facts_state(assignment, {}) == "unsubmitted"

@@ -12,8 +12,8 @@ from semestra.modules.lms.schemas.dto import (
     Assignment,
     Attachment,
     ConnectionSummary,
+    CourseTotal,
     FileMeta,
-    GradeItem,
     Html,
     LmsCourse,
     LmsFeature,
@@ -22,9 +22,6 @@ from semestra.modules.lms.schemas.dto import (
     NavTab,
     PageSummary,
     Quiz,
-    RubricCriterion,
-    RubricScore,
-    SubmissionComment,
     SubmissionDetail,
     WebUrl,
 )
@@ -422,26 +419,28 @@ class ImportTarget(BaseModel):
     id: str
 
 
+FactsSource = Literal["mirror", "live"]
+SOURCE = (
+    "Where it was read from (M09 §3.1): `mirror`, what the sync last kept (as of `as_of`), or "
+    "`live`, the platform just now"
+)
+AS_OF = "When what is shown was read from the platform"
+
+
 class AssignmentOut(Assignment):
     ref: str = Field(default="", description="For lms.content.read: its text, score and feedback")
     imported_as: ImportTarget | None = Field(
         description="What it was imported as (an assessment, which has its to-do, or a to-do); "
         "null while not imported"
     )
+    state: AssignmentState | None = Field(
+        description="Where the user is with it (`rules.assignment_state`, M09 table 3b); null "
+        "while the submission was never read"
+    )
     due_state: DueState = Field(
         description="Whether the due date still matters (`rules.due_state`, M09 table 3d): none, "
         "upcoming, past (not handed in online) or overdue"
     )
-
-    @computed_field(description="Where the user is with it (`rules.assignment_state`)")
-    @property
-    def state(self) -> AssignmentState:
-        sub = self.submission
-        return assignment_state(
-            sub.status if sub else "unsubmitted",
-            missing=bool(sub and sub.missing),
-            online=self.online,
-        )
 
 
 AssignmentField = Literal[
@@ -452,6 +451,11 @@ AssignmentField = Literal[
 
 
 class AssignmentsInput(CourseReadInput):
+    refresh: bool = Field(
+        default=False,
+        description="Read the platform now instead of what the sync last kept (`as_of`); not "
+        "stored. Only when the user wants what is on the platform this minute",
+    )
     state: AssignmentState | None = Field(
         default=None,
         description="Only those in this state: unsubmitted (still to hand in online), missing "
@@ -465,7 +469,7 @@ class AssignmentsInput(CourseReadInput):
         default=None, description="Only those due before this (no offset: the Program's time)"
     )
     include_total: bool = Field(
-        default=False, description="Also the course total as the LMS shows it (`totals`)"
+        default=False, description="Also the course total as the LMS shows it (`total`)"
     )
     fields: list[AssignmentField] | None = Field(
         default=None,
@@ -477,18 +481,15 @@ class AssignmentsInput(CourseReadInput):
 class AssignmentList(BaseModel):
     items: list[AssignmentOut]
     new_ids: list[str] = Field(
-        description="`external_id` of the new assignments: not imported and due later"
+        description="`external_id` of the new assignments (`rules.is_new`, M09 table 3e): not "
+        "imported or ignored, still to do before their due date; soonest first"
     )
-    totals: list[GradeItem] = Field(
-        default_factory=list,
-        description="The course total as the LMS shows it, with `include_total`",
+    total: CourseTotal | None = Field(
+        default=None, description="The course total as the LMS shows it, with `include_total`"
     )
     truncated: bool
-
-
-class GradeList(BaseModel):
-    items: list[GradeItem]
-    truncated: bool
+    source: FactsSource = Field(description=SOURCE)
+    as_of: datetime | None = Field(description=AS_OF)
 
 
 class ModuleItemOut(ModuleItem):
@@ -569,46 +570,23 @@ class FileInput(CourseReadInput):
     file_id: FileId = Field(description=FILE_ID)
 
 
-class FeedbackOut(BaseModel):
-    """The teacher's feedback on an assessment, as the last sync kept it (M09 §4.4)."""
-
-    assessment_id: str
-    provider: str = Field(description="The provider it was read from")
-    assignment_id: str = Field(description="The assignment's external id")
-    web_url: str | None = None
-    points: float | None = Field(default=None, description="The assignment's points")
-    score: float | None = None
-    grade: str | None = None
-    attempt: int | None = None
-    graded_at: datetime | None = None
-    comments: list[SubmissionComment] = []
-    rubric: list[RubricCriterion] = Field(
-        default=[], description="The assignment's rubric; `rubric_scores` name its criteria"
-    )
-    rubric_scores: list[RubricScore] = []
-
-
-class FeedbackList(BaseModel):
-    items: list[FeedbackOut] = Field(
-        description="Assessments of the course with comments or rubric scores"
-    )
-
-
 class AssignmentReadInput(BaseModel):
     course_id: Id = Field(description="Course id")
     assignment_id: AssignmentId = Field(
         description="External assignment id (`external_id` of lms.assignment.list), or "
         "`quiz:<quiz id>` for a quiz: its assignment, or the quiz itself when it has none"
     )
-    refresh: bool = Field(default=False, description="Skip the 5-minute cache and ask again")
-
-
-# What the sync keeps of an imported assignment and of the user's submission, next to the
-# feedback (`LmsKeptAssignment.details` and `.work`): the rest has columns of its own.
-KEPT_ASSIGNMENT = frozenset(Assignment.model_fields) - {"submission", "rubric", "web_url", "points"}
-KEPT_SUBMISSION = frozenset(SubmissionDetail.model_fields) - {
-    "score", "grade", "attempt", "graded_at", "comments", "rubric_scores",
-}  # fmt: skip
+    refresh: bool = Field(
+        default=False,
+        description="Read the platform now instead of what the sync last kept (not stored)",
+    )
+    held_for: str | None = Field(
+        default=None,
+        pattern=r"^(assessment|task):[^:]+$",
+        description="Open what is kept for this assessment or to-do (`assessment:<id>`, "
+        "`task:<id>`): an object of lms.assignment.targets with `held`, which no longer follows "
+        "the assignment",
+    )
 
 
 class QuizFacts(BaseModel):
@@ -632,8 +610,8 @@ class AssignmentFacts(Assignment):
 
 
 class AssignmentDetail(BaseModel):
-    """One assignment, whole (M09 §5): as the platform has it now, or, when the platform
-    can't be asked, as the last sync kept it (`kept_at`)."""
+    """One assignment, whole (M09 §5): as the sync last kept it, or as the platform has it now
+    where the mirror can't stand in (`source`)."""
 
     provider: str = Field(description="The provider it was read from")
     assignment: AssignmentFacts = Field(description="Without `submission`: it is `submission` here")
@@ -645,14 +623,21 @@ class AssignmentDetail(BaseModel):
         default=False,
         description="A quiz without an assignment (a practice quiz): no submission, not importable",
     )
-    kept: bool = Field(
-        default=False, description="This is what the sync kept, not the platform's answer"
+    source: FactsSource = Field(description=SOURCE)
+    as_of: datetime | None = Field(description=AS_OF)
+    held: bool = Field(
+        default=False,
+        description="Kept for its assessment or to-do, which no longer follows the platform "
+        "(unbound, the course unlinked, gone from the platform): as last read",
     )
-    kept_at: datetime | None = Field(
-        default=None, description="When the sync read what it kept (unknown for old rows)"
+    sync_failed: bool = Field(
+        default=False,
+        description="The last sync of the course's assignments failed: what is kept may be "
+        "behind the platform",
     )
-    problem: str | None = Field(
-        default=None, description="Why the platform's answer is missing (an error code)"
+    area_hidden: bool = Field(
+        default=False,
+        description="The course's assignments are closed on the platform: kept as last read",
     )
     assessment: InGradebook | None = Field(description="The gradebook row it was imported as")
     task: InTasks | None = Field(description="Its to-do")
@@ -664,15 +649,10 @@ class AssignmentDetail(BaseModel):
         "upcoming, past (not handed in online) or overdue"
     )
 
-    @computed_field(description="Where the user is with it (`rules.assignment_state`)")
-    @property
-    def state(self) -> AssignmentState:
-        sub = self.submission
-        return assignment_state(
-            sub.status if sub else "unsubmitted",
-            missing=bool(sub and sub.missing),
-            online=self.assignment.online,
-        )
+    state: AssignmentState | None = Field(
+        description="Where the user is with it (`rules.assignment_state`, M09 table 3b); null "
+        "for a practice quiz, or while the submission was never read"
+    )
 
 
 class AssignmentTarget(BaseModel):
@@ -696,6 +676,11 @@ class AssignmentTarget(BaseModel):
     submitted_at: datetime | None = None
     online: bool = Field(
         default=True, description="Handed in on the platform (not on paper or not at all)"
+    )
+    held: bool = Field(
+        default=False,
+        description="No longer follows the assignment: kept as last read (open it with "
+        "`held_for`)",
     )
 
     @computed_field(description="Where the user is with it (`rules.assignment_state`); None "

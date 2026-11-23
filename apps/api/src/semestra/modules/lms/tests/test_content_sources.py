@@ -167,7 +167,7 @@ async def test_announcements_and_feedback_are_read_without_the_platform(
     for refresh in (False, True):  # the assignment as read lately, or none at all
         read = await _read(api, course, "assignment:a1", refresh=refresh)
         assert "Check your loop bounds" in read["text"]
-        assert "Score 9/10" in read["text"]
+        assert "score 9/10" in read["text"]
     assert read["note"].startswith("The LMS could not give the assignment")
     assert ("reconnect" in read["note"]) is reconnect
 

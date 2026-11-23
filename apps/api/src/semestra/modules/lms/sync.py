@@ -13,10 +13,9 @@ older than the account's interval, `lms.sync_every`), when the app opens a Progr
 were not synced lately, and when the user asks. The server's shortest interval
 (`lms_sync_min_interval`) holds for the first two; asking again within `COOLDOWN` of a course's
 last sync does nothing, unless that sync failed. Jobs run in the `background` lane, on workers
-of their own, so a long queue of them never delays the jobs a user waits on. The platform reads
-of a sync are cached in memory only: nobody reads them again soon enough to be worth a write to
-`lms_cache`. Only synced courses of a running, upcoming or recent term are synced, and only for
-accounts used in the last weeks; a returning user's courses sync when the app opens.
+of their own, so a long queue of them never delays the jobs a user waits on. Only synced
+courses of a running, upcoming or recent term are synced, and only for accounts used in the
+last weeks; a returning user's courses sync when the app opens.
 """
 
 from collections.abc import Awaitable, Callable, Sequence
@@ -48,6 +47,10 @@ SYNCED = "lms.course.synced"
 # The status line and panel of a Program refetch on it (enqueued, finished, decided).
 UPDATED = "lms.sync.updated"
 events.coalesce(UPDATED)
+# The mirror of a course's assignments (or what is held for its objects) changed:
+# `{course_id, program_id}`. What shows assignments reads again.
+ASSIGNMENTS_UPDATED = "lms.assignments.updated"
+events.coalesce(ASSIGNMENTS_UPDATED)
 # Grades come in a while after a term's last day (the final exam), so a term that ended within
 # this is still synced.
 RECENT = timedelta(days=30)
@@ -95,6 +98,9 @@ class StageResult:
     # Items waiting for the user: new ones, conflicts, items gone from the platform.
     pending: int = 0
     notices: list[Notice] = field(default_factory=lambda: [])
+    # A read that adds to the stage's area failed (the course's submissions, its total): the
+    # stage wrote what it read and kept the rest; recorded as the stage's error.
+    error: str | None = None
 
 
 StageRun = Callable[[Ctx, LmsCourseLink, Bound, SyncRound], Awaitable[StageResult]]
@@ -207,6 +213,8 @@ async def sync_course(
     this_round = SyncRound()
     results: list[StageResult] = []
     errors: dict[str, str] = {}
+    # Stages that raised: their area was not read this round.
+    failed: set[str] = set()
     ran: set[str] = set()
     for n, stage in enumerate(todo):
         if progress is not None:
@@ -221,8 +229,10 @@ async def sync_course(
                 return
             this_round.begin(sys.now)
             ran.add(stage.name)
-            with service.memory_cache():
-                results.append(await stage.run(sys, link, b, this_round))
+            result = await stage.run(sys, link, b, this_round)
+            results.append(result)
+            if result.error is not None:
+                errors[stage.name] = result.error
 
         try:
             await run_as_system(state, user_id, run)
@@ -230,10 +240,12 @@ async def sync_course(
             return SyncOutcome(course_id=course_id)
         except AppError as exc:
             errors[stage.name] = exc.code
+            failed.add(stage.name)
         except Exception:
             log.exception("lms.sync_stage_failed", stage=stage.name, course_id=course_id)
             errors[stage.name] = "common.internal"
-        if n == 0 and stage.name in errors:
+            failed.add(stage.name)
+        if n == 0 and stage.name in failed:
             # The course itself could not be read (M09 table 2, row 2): nothing is judged.
             break
     outcome = SyncOutcome(
@@ -254,7 +266,7 @@ async def sync_course(
         # read), was not read this round.
         ended = errors.get(todo[0].name) if todo else None
         for stage in todo:
-            if stage.area and (stage.name in errors or stage.name not in ran):
+            if stage.area and (stage.name in failed or stage.name not in ran):
                 record_area(sys, link, stage.area, "unavailable", errors.get(stage.name, ended))
         await events.publish(
             sys,
@@ -416,12 +428,26 @@ async def queue(
 
 
 async def request_sync(
-    ctx: Ctx, program_id: str, course_id: str | None = None, *, force: bool = False
+    ctx: Ctx,
+    program_id: str,
+    course_id: str | None = None,
+    *,
+    force: bool = False,
+    stages: Sequence[str] | None = None,
 ) -> int:
     """A sync the app asks for: of one course or the Program's, those not synced in the last
     `ON_OPEN` or the server's shortest interval (opening the app), or in the last `COOLDOWN`
-    (`force`: the user asked)."""
+    (`force`: the user asked). `stages`: a Refresh of one course's assignments or announcements,
+    those stages only (after the course stage), whenever it last synced."""
     await academics.get_program_row(ctx, program_id)  # owned, or not found
+    if stages is not None:
+        links = [
+            li
+            for li in await syncable_links(ctx, program_id, active_only=False)
+            if li.course_id == course_id
+        ]
+        only = ["course", *(s for s in stages if s != "course")]
+        return await queue(ctx, links, manual=True, stages=only) if links else 0
     # The user asking for one course: its term may have ended, it is read all the same.
     links = await syncable_links(ctx, program_id, active_only=not (force and course_id))
     if course_id is not None:

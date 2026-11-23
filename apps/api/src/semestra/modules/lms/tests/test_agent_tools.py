@@ -22,6 +22,8 @@ from semestra.modules.lms.schemas.dto import (
     ModuleItem,
     NavTab,
     Submission,
+    SubmissionComment,
+    SubmissionDetail,
 )
 from semestra.modules.lms.schemas.io import AssignmentImportInput
 from semestra.modules.lms.tests.conftest import Api, FakeProvider
@@ -204,6 +206,12 @@ async def test_read_an_assignment_with_score_rubric_and_feedback(api: Api, fake:
     course, _ = await _linked(api)
     lab = fake.course_assignments["101"][0]
     lab.submission = Submission(score=8, grade="B")
+    fake.course_submissions["101"] = [
+        SubmissionDetail(
+            external_id="s-a1", assignment_id="a1", score=8, grade="B",
+            comments=[SubmissionComment(author="Prof", comment="Good work")],
+        )
+    ]  # fmt: skip
     out = await api.call("GET", f"/courses/{course}/lms/content", params={"ref": "assignment:a1"})
     assert out["points"] == 10
     assert "Your submission: graded, score 8/10 (B)" in out["text"]
@@ -233,12 +241,12 @@ async def test_assignment_list_filters_and_gives_refs(api: Api, fake: FakeProvid
         params={"state": "graded", "include_total": True},
     )  # fmt: skip
     assert [(a["ref"], a["name"]) for a in graded["items"]] == [("assignment:a1", "Lab 1")]
-    assert graded["totals"][0]["score"] == 91.5
+    assert graded["total"]["score"] == 91.5
     later = await api.call(
         "GET", f"/courses/{course}/lms/assignments", params={"due_after": "2026-02-15T00:00:00Z"}
     )
     assert [a["name"] for a in later["items"]] == ["Lab 2", "Midterm"]
-    assert later["totals"] == []
+    assert later["total"] is None
 
 
 async def test_import_takes_refs_and_moves_tasks_into_the_gradebook(api: Api, fake: FakeProvider):
@@ -266,11 +274,16 @@ async def test_activity_lists_what_is_new_across_a_term(api: Api, fake: FakeProv
     fake.course_assignments["101"][0].submission = Submission(
         score=9, graded_at=datetime.fromisoformat("2026-01-20T12:00:00+00:00")
     )
+    fake.course_assignments["101"][1].updated_at = datetime.fromisoformat(
+        "2026-01-15T00:00:00+00:00"
+    )
     since = "2026-01-01T00:00:00Z"
     out = await api.call("GET", "/me/lms/activity", params={"term_id": term_id, "since": since})
     kinds = {(i["kind"], i["ref"]) for i in out["items"]}
     assert ("grade", "assignment:a1") in kinds
-    assert ("assignment", "assignment:a1") in kinds  # changed since, not imported
+    # New (not imported, still to do: M09 table 3e) and changed since; a graded one is not new.
+    assert ("assignment", "assignment:a2") in kinds
+    assert ("assignment", "assignment:a1") not in kinds
     assert all(i["course_id"] == course and i["course"] == "APS105H1" for i in out["items"])
     one = await api.call("GET", "/me/lms/activity", params={"course_id": course, "since": since})
     assert one["items"] == out["items"]

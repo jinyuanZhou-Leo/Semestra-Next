@@ -43,13 +43,13 @@ from semestra.modules.lms.schemas.dto import (
     CommentAttachment,
     Completion,
     ConnectionSummary,
+    CourseTotal,
     Discussion,
     DiscussionDetail,
     DiscussionEntry,
     FileMeta,
     Folder,
     FolderListing,
-    GradeItem,
     InternalRef,
     LmsCalendarEvent,
     LmsCourse,
@@ -730,9 +730,9 @@ class CanvasProvider:
     ) -> Literal["hidden", "unavailable"]:
         return answers.area_answer(error, nav_closed=nav_closed)
 
-    async def grade_totals(
+    async def course_total(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
-    ) -> list[GradeItem]:
+    ) -> CourseTotal | None:
         enrollments = await self._list(
             io,
             cfg,
@@ -740,22 +740,12 @@ class CanvasProvider:
             f"/courses/{quote(course_id)}/enrollments",
             [("user_id", "self"), ("type[]", "StudentEnrollment")],
         )
-        out: list[GradeItem] = []
-        for e in enrollments:
+        for e in enrollments:  # one student enrollment is enough for the course total
             grades = cast(dict[str, Any], e.get("grades") or {})
-            out.append(
-                GradeItem(
-                    external_id=f"total:{e.get('id')}",
-                    web_url=_text(grades.get("html_url")),
-                    raw_kind="enrollment",
-                    name="Course total",
-                    score=_num(grades.get("current_score")),
-                    grade=_text(grades.get("current_grade")),
-                    kind="total",
-                )
+            return CourseTotal(
+                score=_num(grades.get("current_score")), grade=_text(grades.get("current_grade"))
             )
-            break  # one student enrollment is enough for the course total
-        return out
+        return None
 
     async def modules(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str

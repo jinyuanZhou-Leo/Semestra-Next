@@ -1,10 +1,15 @@
-"""One assignment, whole (M09 §5): read from the platform, or from what the sync kept when the
-platform can't be asked; which assessments and to-dos are an assignment; the files handed in."""
+"""One assignment, whole (M09 §3.1, §5): from the mirror, or from the platform where the mirror
+can't stand in; which assessments and to-dos are an assignment; the files handed in."""
 
+import json
+import sqlite3
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 import pytest
+from alembic import command
+from alembic.config import Config
 from sqlalchemy import delete
 
 from semestra.modules.lms.schemas.dto import (
@@ -17,7 +22,7 @@ from semestra.modules.lms.schemas.dto import (
 from semestra.modules.lms.tests.conftest import Api, FakeProvider
 from semestra.modules.lms.tests.test_sync import _assessments, _course
 from semestra.modules.tasks.models import TasksItem
-from semestra.testing import Clock
+from semestra.testing import API_DIR, Clock
 
 pytestmark = pytest.mark.usefixtures("fake")
 
@@ -47,7 +52,7 @@ async def _open(api: Api, course: str, assignment: str, status: int = 200, **par
     )
 
 
-async def test_an_assignment_opens_from_the_platform_then_from_what_was_kept(
+async def test_an_assignment_opens_from_the_platform_then_from_the_mirror(
     api: Api, fake: FakeProvider, clock: Clock
 ):
     program_id, course = await _course(api, "a1")
@@ -61,8 +66,9 @@ async def test_an_assignment_opens_from_the_platform_then_from_what_was_kept(
     ]
     lab = (await _assessments(api, course))["a1"]
 
+    # Never synced: read from the platform now (M09 §3.1).
     live = await _open(api, course, "a1")
-    assert (live["kept"], live["assignment"]["name"]) == (False, "Lab 1")
+    assert (live["source"], live["held"], live["assignment"]["name"]) == ("live", False, "Lab 1")
     assert live["assignment"]["html"] == "<p>Do it</p>"
     assert live["submission"]["body"] == "<p>My answer</p>"
     # A file handed in is named; its address stays on the server.
@@ -82,22 +88,22 @@ async def test_an_assignment_opens_from_the_platform_then_from_what_was_kept(
     opened = await api.client.get(path)
     assert (opened.status_code, opened.content) == (200, b"hello")
     await api.call("GET", path.replace("/f1/", "/nope/"), 404)
-
-    # An assignment that was not imported has nothing kept: the platform's error stands.
+    # Not found only when the platform says so; the platform's other errors stand.
+    gone = await _open(api, course, "nope", 404)
+    assert gone["error"]["code"] == "lms.not_found"
     fake.down = True
-    err = await _open(api, course, "a2", 502, refresh=True)
+    err = await _open(api, course, "a2", 502)
     assert err["error"]["code"] == "lms.unreachable"
-    # Nor has an imported one before its first sync.
-    await _open(api, course, "a1", 502, refresh=True)
 
+    # Once synced, the mirror answers, imported or not, without the platform.
     fake.down = False
     await api.sync(program_id)
-    kept_at = clock.now
+    synced_at = clock.now
     fake.down = True
     clock.advance(minutes=10)
-    kept = await _open(api, course, "a1", refresh=True)
-    assert (kept["kept"], kept["problem"]) == (True, "lms.unreachable")
-    assert datetime.fromisoformat(kept["kept_at"]) == kept_at
+    kept = await _open(api, course, "a1")
+    assert (kept["source"], kept["held"], kept["sync_failed"]) == ("mirror", False, False)
+    assert datetime.fromisoformat(kept["as_of"]) == synced_at
     assert kept["state"] == "graded"
     assert (kept["assignment"]["name"], kept["assignment"]["html"]) == ("Lab 1", "<p>Do it</p>")
     assert (kept["assignment"]["points"], kept["assignment"]["group_name"]) == (10, "Labs")
@@ -105,13 +111,17 @@ async def test_an_assignment_opens_from_the_platform_then_from_what_was_kept(
     assert [f["name"] for f in kept["submission"]["files"]] == ["lab1.c"]
     assert kept["submission"]["comments"][0]["comment"] == "Good"
     assert kept["assessment"]["id"] == lab["id"]
+    assert (await _open(api, course, "a2"))["assignment"]["name"] == "Lab 2"
+    # Asked to refresh, it reads the platform now.
+    await _open(api, course, "a1", 502, refresh=True)
 
-    # A course no longer linked still opens what it kept.
+    # A course no longer linked keeps the content for the assessment, as last read.
     fake.down = False
     await api.call("DELETE", f"/courses/{course}/lms-link")
-    kept = await _open(api, course, "a1")
-    assert (kept["kept"], kept["problem"]) == (True, "lms.course_not_linked")
-    assert kept["assessment"]["id"] == lab["id"]
+    held = await _open(api, course, "a1", held_for=f"assessment:{lab['id']}")
+    assert (held["source"], held["held"]) == ("mirror", True)
+    assert datetime.fromisoformat(held["as_of"]) == synced_at
+    assert held["assessment"]["id"] == lab["id"]
     targets = await api.call("GET", f"/programs/{program_id}/lms/assignment-targets")
     assert targets["items"] == [
         {
@@ -127,12 +137,15 @@ async def test_an_assignment_opens_from_the_platform_then_from_what_was_kept(
             "late": False,
             "submitted_at": "2026-02-05T20:00:00Z",
             "online": True,
+            "held": True,
             "state": "graded",
         }
     ]
+    # The rest of the mirror went with the link.
+    await _open(api, course, "a2", 409)
 
 
-async def test_to_dos_are_kept_too_and_follow_into_the_gradebook(
+async def test_to_dos_are_in_the_mirror_too_and_follow_into_the_gradebook(
     api: Api, fake: FakeProvider, clock: Clock
 ):
     fake.course_assignments["101"].append(
@@ -158,14 +171,14 @@ async def test_to_dos_are_kept_too_and_follow_into_the_gradebook(
     fake.course_submissions["101"] = [_handed_in("a9")]
     await api.sync(program_id)
     fake.down = True
-    kept = await _open(api, course, "a9", refresh=True)
-    assert (kept["kept"], kept["assignment"]["html"]) == (True, "<p>Chapter 2</p>")
+    kept = await _open(api, course, "a9")
+    assert (kept["source"], kept["assignment"]["html"]) == ("mirror", "<p>Chapter 2</p>")
     assert (kept["assessment"], kept["task"]["id"]) == (None, reading["id"])
     # A to-do's feedback is not the gradebook's.
     found = await api.call("GET", f"/programs/{program_id}/lms/assignment-targets")
     assert [t["feedback"] for t in found["items"] if t["assignment_id"] == "a9"] == [False]
 
-    # Moved into the gradebook, what was kept follows to the assessment; its to-do stays.
+    # Moved into the gradebook, the assignment is the assessment's; its to-do stays.
     fake.down = False
     fake.course_assignments["101"][-1] = fake.course_assignments["101"][-1].model_copy(
         update={"points": 5}
@@ -179,12 +192,11 @@ async def test_to_dos_are_kept_too_and_follow_into_the_gradebook(
     await api.sync(program_id)
     assert (await targets())["a9"] == (graded["id"], None)
     fake.down = True
-    kept = await _open(api, course, "a9", refresh=True)
-    assert kept["kept"]
+    kept = await _open(api, course, "a9")
     assert (kept["assessment"]["id"], kept["task"]["id"]) == (graded["id"], reading["id"])
 
 
-async def test_a_quiz_opens_by_its_own_id_also_from_what_was_kept(api: Api, fake: FakeProvider):
+async def test_a_quiz_opens_by_its_own_id_also_from_the_mirror(api: Api, fake: FakeProvider):
     fake.course_assignments["101"].append(
         Assignment(
             external_id="a8",
@@ -212,8 +224,8 @@ async def test_a_quiz_opens_by_its_own_id_also_from_what_was_kept(api: Api, fake
 
     await api.sync(program_id)
     fake.down = True
-    kept = await _open(api, course, "quiz:q8", refresh=True)
-    assert (kept["kept"], kept["assignment"]["external_id"]) == (True, "a8")
+    kept = await _open(api, course, "quiz:q8")
+    assert (kept["source"], kept["assignment"]["external_id"]) == ("mirror", "a8")
     assert kept["quiz"] == {"question_count": 10, "time_limit": 30}
 
 
@@ -231,3 +243,60 @@ async def test_a_to_do_deleted_a_moment_ago_does_not_fail_the_sync(
     status = await api.sync(program_id)
     assert status["errors"] == []
     assert (await api.call("GET", f"/programs/{program_id}/lms/assignment-targets"))["items"]
+
+
+def test_migration_moves_what_was_kept_into_the_mirror(tmp_path: Path):
+    """0070 (M09 §3.2): a kept assignment whose object is still imported from it becomes its
+    mirror row, the others are held for their object; refs kept for new assignments go."""
+    path = tmp_path / "m.db"
+    cfg = Config(str(API_DIR / "alembic.ini"))
+    cfg.set_main_option("script_location", str(API_DIR / "migrations"))
+    cfg.attributes["database_url"] = f"sqlite+aiosqlite:///{path}"
+    command.upgrade(cfg, "0069")
+    db = sqlite3.connect(path)  # foreign keys are off: no other rows needed
+    for ref_id, ext, kind, target, dismissed in (
+        ("r1", "a1", "assessment", "x1", None),
+        ("r2", "a5", None, None, None),  # offered as new
+        ("r3", "a6", None, None, "2026-01-02 00:00:00"),  # ignored
+    ):
+        db.execute(
+            "INSERT INTO lms_imported_refs (id, user_id, link_id, external_id, target_kind,"
+            " target_id, snapshot, conflicts, dismissed_at) VALUES (?, 'u1', 'l1', ?, ?, ?,"
+            " ?, '{}', ?)",
+            (ref_id, ext, kind, target, json.dumps({"title": "Lab 1"}), dismissed),
+        )
+    for kept_id, assessment, task, ext in (("k1", "x1", None, "a1"), ("k2", None, "t2", "a2")):
+        db.execute(
+            "INSERT INTO lms_kept_assignments (id, user_id, assessment_id, task_id, course_id,"
+            " provider, assignment_id, points, score, comments, rubric, rubric_scores, details,"
+            " work, read_at) VALUES (?, 'u1', ?, ?, 'c1', 'canvas', ?, 10, 9, ?, '[]', '[]', ?,"
+            " ?, '2026-01-10 00:00:00')",
+            (
+                kept_id, assessment, task, ext,
+                json.dumps([{"id": "1", "author": "Prof", "comment": "Good"}]),
+                json.dumps({"quiz": {"question_count": 3}}),
+                json.dumps({"body": "<p>Mine</p>"}),
+            ),
+        )  # fmt: skip
+    db.commit()
+    db.close()
+    command.upgrade(cfg, "head")
+    db = sqlite3.connect(path)
+    refs = [r[0] for r in db.execute("SELECT external_id FROM lms_imported_refs ORDER BY 1")]
+    assert refs == ["a1", "a6"]
+    rows = {
+        r[0]: r[1:]
+        for r in db.execute(
+            "SELECT external_id, link_id, held_for_kind, held_for_id, seen_at, assignment,"
+            " submission, quiz FROM lms_assignments"
+        )
+    }
+    db.close()
+    link_id, kind, held_for, seen_at, assignment, submission, quiz = rows["a1"]
+    assert (link_id, kind, held_for, seen_at) == ("l1", None, None, None)
+    assert json.loads(assignment)["name"] == "Lab 1"
+    assert json.loads(submission)["body"] == "<p>Mine</p>"
+    assert json.loads(submission)["comments"][0]["comment"] == "Good"
+    assert json.loads(quiz) == {"question_count": 3}
+    assert rows["a2"][:3] == (None, "task", "t2")
+    assert rows["a2"][3] is not None

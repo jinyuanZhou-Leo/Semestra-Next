@@ -24,13 +24,13 @@ from semestra.modules.lms.schemas.dto import (
     Announcement,
     Assignment,
     ConnectionSummary,
+    CourseTotal,
     Discussion,
     DiscussionDetail,
     DiscussionEntry,
     FileMeta,
     Folder,
     FolderListing,
-    GradeItem,
     InternalRef,
     LmsCalendarEvent,
     LmsCourse,
@@ -265,11 +265,11 @@ class FakeProvider:
     ) -> Literal["hidden", "unavailable"]:
         return canvas_answers.area_answer(error, nav_closed=nav_closed)
 
-    async def grade_totals(
+    async def course_total(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
-    ) -> list[GradeItem]:
-        self.calls.append(("grade_totals", course_id))
-        return [GradeItem(external_id="t", name="total", score=91.5, kind="total")]
+    ) -> CourseTotal | None:
+        self.calls.append(("course_total", course_id))
+        return CourseTotal(score=91.5, grade="A")
 
     async def modules(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str

@@ -1,13 +1,16 @@
 """Inputs and outputs of the sync capabilities (M09 §4.1)."""
 
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any, Literal, Self
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from semestra.modules.academics.schemas import Id
 from semestra.modules.lms.models import MaterialChange
 from semestra.modules.lms.settings import SyncInterval
+
+# The stages a Refresh may ask for alone (the course stage always runs first).
+RefreshStage = Literal["assignments", "announcements"]
 
 
 class SyncRequestInput(BaseModel):
@@ -17,6 +20,17 @@ class SyncRequestInput(BaseModel):
         default=False,
         description="Sync even the courses synced in the last half hour (the user asked)",
     )
+    stages: list[RefreshStage] | None = Field(
+        default=None,
+        description="Only these stages of the course (`course_id` required): the Refresh of "
+        "what the app keeps of it (its assignments, its announcements)",
+    )
+
+    @model_validator(mode="after")
+    def _stages_of_one_course(self) -> Self:
+        if self.stages is not None and self.course_id is None:
+            raise ValueError("stages need course_id")
+        return self
 
 
 class SyncQueued(BaseModel):
@@ -126,9 +140,9 @@ class SyncRemovedMaterial(BaseModel):
 class SyncUnreadable(BaseModel):
     """What the sync can't read because its area is closed on the platform (M09 table 3c, note):
     kept as last read, judged again once the area opens. Materials and imported assignments one
-    by one; a course's announcements as one row."""
+    by one; a course's announcements, and its assignments not imported, as one row each."""
 
-    kind: Literal["material", "assignment", "announcements"]
+    kind: Literal["material", "assignment", "assignments", "announcements"]
     id: str | None = Field(
         description="The material's id (`material`) or the imported assignment's sync item id "
         "(`assignment`); none for a course's row"
@@ -139,7 +153,8 @@ class SyncUnreadable(BaseModel):
     title: str | None = Field(description="Its name on the platform; none for a course's row")
     count: int = Field(description="How many it stands for (1 for one item)")
     since: datetime | None = Field(
-        description="Announcements: when their list was last read whole (none if never)"
+        description="Announcements, assignments: when their list was last read whole (none if "
+        "never)"
     )
     item_id: str | None = Field(
         default=None, description="A material's course file, or an imported assignment's object"
@@ -213,7 +228,11 @@ class SyncResolveInput(BaseModel):
 
 class SyncDismissInput(BaseModel):
     program_id: Id = Field(description="Program id")
-    item_ids: list[Id] = Field(min_length=1, max_length=200, description="New items")
+    assignment_ids: list[Id] = Field(
+        min_length=1,
+        max_length=200,
+        description="New assignments, by their id in the mirror (`SyncNew.assignment_id`)",
+    )
     dismissed: bool = Field(default=True, description="False offers them again")
 
 

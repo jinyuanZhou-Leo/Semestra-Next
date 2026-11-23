@@ -217,6 +217,77 @@ def _0066(lms: Row, archive: OlderArchive) -> Row:
     return {**lms, "materials": materials}
 
 
+# What a kept row's fields were of the submission (the rest was in `work`), as in 0070.
+_SUBMISSION_FIELDS = ("score", "grade", "attempt", "graded_at", "comments", "rubric_scores")
+
+
+def _kept_to_mirror(row: Row, title: object) -> Row:
+    """The mirror columns of a kept assignment (`feedback` up to 2.4), as migration 0070 moves
+    them."""
+    details = dict(row.get("details") or {})
+    quiz = details.pop("quiz", None)
+    assignment_id = row.get("assignment_id")
+    feedback = {name: row.get(name) for name in _SUBMISSION_FIELDS}
+    submission = None
+    if row.get("work") is not None or any(feedback[n] not in (None, []) for n in feedback):
+        submission = {
+            **(row.get("work") or {}),
+            **feedback,
+            "comments": feedback["comments"] or [],
+            "rubric_scores": feedback["rubric_scores"] or [],
+            "external_id": assignment_id,
+            "assignment_id": assignment_id,
+        }
+    return {
+        "assignment": {
+            **details,
+            "external_id": assignment_id,
+            "name": details.get("name") or title or "",
+            "web_url": row.get("web_url"),
+            "points": row.get("points"),
+            "rubric": row.get("rubric") or [],
+        },
+        "submission": submission,
+        "quiz": quiz,
+    }
+
+
+def _0070(lms: Row, archive: OlderArchive) -> Row:
+    """The kept assignments become the mirror: one whose object is still imported from the same
+    assignment is its mirror row, the others are held for their object. The refs kept for new
+    assignments go (new is worked out from the mirror now); the ignored ones stay."""
+    del archive
+    refs = _rows(lms, "refs")
+    imported = {(r.get("target_kind"), r.get("target_id")): r for r in refs if r.get("target_id")}
+    assignments = _rows(lms, "assignments")
+    for row in _rows(lms, "feedback"):
+        kind, target = (
+            ("assessment", row.get("assessment_id"))
+            if row.get("assessment_id")
+            else ("task", row.get("task_id"))
+        )
+        ref = imported.get((kind, target))
+        tied = ref is not None and ref.get("external_id") == row.get("assignment_id")
+        title = (ref.get("snapshot") or {}).get("title") if ref is not None else None
+        assignments.append(
+            {
+                "link_id": ref.get("link_id") if tied and ref is not None else None,
+                "held_for_kind": None if tied else kind,
+                "held_for_id": None if tied else target,
+                "course_id": row.get("course_id"),
+                "provider": row.get("provider"),
+                "external_id": row.get("assignment_id"),
+                **_kept_to_mirror(row, title),
+                "seen_at": None if tied else row.get("read_at"),
+            }
+        )
+    return {
+        **{k: v for k, v in lms.items() if k != "feedback"},
+        "refs": [r for r in refs if r.get("target_id") or r.get("dismissed_at")],
+        "assignments": assignments,
+    }
+
+
 def _files_0066(files: Row, archive: OlderArchive) -> Row:
     """The files 2.0's Canvas tab saved: followed as their material's item (`_0066`), else the
     user's own (their copy's hash back from `source_version`, where 0062 put it)."""
@@ -361,6 +432,7 @@ register_reshape("0060", "lms", _0060)
 register_reshape("0061", "lms", _0061)
 register_reshape("0063", "lms", _0063)
 register_reshape("0066", "lms", _0066)
+register_reshape("0070", "lms", _0070)
 register_reshape("0066", "files", _files_0066)
 register_reshape("0060", "settings", _settings_0060)
 register_reshape("0064", "settings", _settings_0064)

@@ -26,10 +26,11 @@ from semestra.core.events import events
 from semestra.core.http import safe_client
 from semestra.core.security import decrypt, encrypt
 from semestra.modules.academics import service as academics
-from semestra.modules.lms import cache, html
+from semestra.modules.lms import assignment_refs, cache, html
 from semestra.modules.lms.errors import BROKEN_ON_READ, CONNECTION_ERRORS, lms_error
 from semestra.modules.lms.models import (
     LmsAnnouncement,
+    LmsAssignment,
     LmsConnection,
     LmsCourseLink,
     LmsImportedRef,
@@ -309,7 +310,7 @@ async def update_connection(ctx: Ctx, inp: ConnectionUpdateInput) -> Connection:
         row.last_checked_at = ctx.now
         before = row.status
         row.status, row.last_error_code = "connected", None
-        await cache.drop_connection(ctx, row.id)
+        cache.drop_connection(ctx, row.id)
         if before != row.status:
             await _status_changed(ctx, row)
     row.updated_at = ctx.now
@@ -338,7 +339,7 @@ async def delete_connection(ctx: Ctx, connection_id: str, detach_all: bool) -> C
     for link in links:
         await _remove_link(ctx, link)
     await ctx.db.execute(delete(LmsProgramBinding).where(LmsProgramBinding.connection_id == row.id))
-    await cache.drop_connection(ctx, row.id)
+    cache.drop_connection(ctx, row.id)
     _revoke_later(ctx, get_provider(row.provider), row)
     await ctx.db.delete(row)
     await ctx.db.flush()
@@ -592,7 +593,6 @@ class NotCached(Exception):
 
 
 _cache_only: ContextVar[bool] = ContextVar("lms_cache_only", default=False)
-_memory_only: ContextVar[bool] = ContextVar("lms_memory_only", default=False)
 
 
 @contextmanager
@@ -604,18 +604,6 @@ def cache_only() -> Iterator[None]:
         yield
     finally:
         _cache_only.reset(token)
-
-
-@contextmanager
-def memory_cache() -> Iterator[None]:
-    """Reads inside keep what they fetch in the in-process cache only, not in `lms_cache`: the
-    background sync reads whole lists (assignment descriptions included) that nobody reads
-    again before they expire."""
-    token = _memory_only.set(True)
-    try:
-        yield
-    finally:
-        _memory_only.reset(token)
 
 
 async def cached(
@@ -633,7 +621,7 @@ async def cached(
     are dropped together (`cache.course_scope`)."""
     key = cache.cache_key(ctx.user_id, b.row.id, method, params)
     if not refresh:
-        hit = await cache.get(ctx, key)
+        hit = cache.get(ctx, key)
         if hit is not None:
             return hit["data"], bool(hit["truncated"])
     if _cache_only.get():
@@ -641,13 +629,8 @@ async def cached(
     result, truncated = await call(ctx, b, fn)
     data = dump(result)
     entry = {"data": data, "truncated": truncated}
-    await cache.put(ctx, key, b.row.id, entry, scope=scope, persist=persists())
+    cache.put(ctx, key, b.row.id, entry, scope=scope)
     return data, truncated
-
-
-def persists() -> bool:
-    """Whether a read keeps what it fetched in `lms_cache` too (not inside `memory_cache`)."""
-    return not _memory_only.get()
 
 
 def dump(value: Any) -> Any:
@@ -1023,7 +1006,7 @@ async def refresh_link(ctx: Ctx, link: LmsCourseLink, b: Bound) -> None:
     link.updated_at = ctx.now
     # Only what shows the course's own details; its content is not affected.
     key = cache.cache_key(ctx.user_id, b.row.id, "overview", {"course": link.external_course_id})
-    await cache.drop(ctx, key)
+    cache.drop(ctx, key)
     if b.row.status != "connected" or b.row.last_error_code is not None:
         await _record(ctx, b.row, None)
     await events.publish(ctx, "lms.course.link_updated", {"course_id": link.course_id})
@@ -1032,7 +1015,7 @@ async def refresh_link(ctx: Ctx, link: LmsCourseLink, b: Bound) -> None:
 async def _forget_tracked(ctx: Ctx, link: LmsCourseLink) -> None:
     """The assignments, materials and announcements the sync kept for the link, and what it read
     of the platform course."""
-    for model in (LmsImportedRef, LmsMaterial, LmsAnnouncement, LmsItemCheck):
+    for model in (LmsImportedRef, LmsAssignment, LmsMaterial, LmsAnnouncement, LmsItemCheck):
         await ctx.db.execute(delete(model).where(model.link_id == link.id))
     link.area_reads = {}
 
@@ -1041,6 +1024,12 @@ async def _remove_link(ctx: Ctx, link: LmsCourseLink) -> None:
     data = {"course_id": link.course_id, "program_id": link.program_id, "link_id": link.id}
     # While the refs are still there: what was only read from the platform course goes too.
     await events.publish_in_transaction(ctx, "lms.course.unlinking", data)
+    # The objects stay: each keeps its assignment's content as last read (M09 table 4b, §3.2).
+    refs = await ctx.db.scalars(select(LmsImportedRef).where(LmsImportedRef.link_id == link.id))
+    for ref in list(refs):
+        await assignment_refs.enter(
+            ctx, ref, "unlink", link=link, external_id=ref.external_id, hold=True
+        )
     await _forget_tracked(ctx, link)
     await ctx.db.delete(link)
     await ctx.db.flush()
@@ -1076,15 +1065,28 @@ async def forget_program(ctx: Ctx, program_id: str) -> None:
 
 
 async def forget_targets(ctx: Ctx, target_kind: str, target_ids: Sequence[str]) -> bool:
-    """Forgets what was imported as these objects; whether anything was."""
-    result = await ctx.db.execute(
-        delete(LmsImportedRef).where(
-            LmsImportedRef.user_id == ctx.user_id,
-            LmsImportedRef.target_kind == target_kind,
-            LmsImportedRef.target_id.in_(target_ids),
+    """Forgets what was imported as these deleted objects, and what was held for them; whether
+    anything was imported."""
+    refs = list(
+        await ctx.db.scalars(
+            select(LmsImportedRef).where(
+                LmsImportedRef.user_id == ctx.user_id,
+                LmsImportedRef.target_kind == target_kind,
+                LmsImportedRef.target_id.in_(target_ids),
+            )
         )
     )
-    return bool(getattr(result, "rowcount", 0))
+    for ref in refs:
+        link = await ctx.db.get_one(LmsCourseLink, ref.link_id)
+        await assignment_refs.enter(ctx, ref, "detach", link=link, external_id=ref.external_id)
+    await ctx.db.execute(
+        delete(LmsAssignment).where(
+            LmsAssignment.user_id == ctx.user_id,
+            LmsAssignment.held_for_kind == target_kind,
+            LmsAssignment.held_for_id.in_(target_ids),
+        )
+    )
+    return bool(refs)
 
 
 async def any_imported(ctx: Ctx, target_kind: str, target_ids: Sequence[str]) -> bool:

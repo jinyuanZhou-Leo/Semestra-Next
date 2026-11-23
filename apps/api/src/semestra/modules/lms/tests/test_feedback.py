@@ -1,6 +1,6 @@
-"""The teacher's feedback kept in Semestra (M09 §4.4): the sync keeps the comments and rubric of
-imported assessments from one read of the course, the gradebook reads them from the database,
-and new comments are a recent update of the assessment."""
+"""The teacher's feedback kept in Semestra (M09 §4.5): the sync keeps the comments and rubric in
+the assignments mirror from one read of the course, the gradebook reads them from the database,
+and new comments on an imported assessment are a recent update of it."""
 
 from typing import Any
 
@@ -42,7 +42,8 @@ def _submission(assignment_id: str, *comments: SubmissionComment, **kw: Any) -> 
 
 async def _feedback(api: Api, fake: FakeProvider, course: str) -> dict[str, dict[str, Any]]:
     """The course's assessments with feedback, as the gradebook's assignment column tells them
-    (`feedback`), and what was kept of each, as the details open it with the platform down."""
+    (`feedback`), and what the app keeps of each, as the details open it with the platform
+    down."""
     program_id = (await api.call("GET", f"/courses/{course}"))["program_id"]
     targets = (await api.call("GET", f"/programs/{program_id}/lms/assignment-targets"))["items"]
     down, fake.down = fake.down, True
@@ -50,8 +51,9 @@ async def _feedback(api: Api, fake: FakeProvider, course: str) -> dict[str, dict
     for t in targets:
         if t["course_id"] == course and t["feedback"]:
             url = f"/courses/{course}/lms/assignments/{t['assignment_id']}"
-            kept = await api.call("GET", url, params={"refresh": True})
-            assert kept["kept"]
+            target = f"assessment:{t['assessment_id']}"
+            kept = await api.call("GET", url, params={"held_for": target} if t["held"] else {})
+            assert kept["source"] == "mirror"
             found[t["assignment_id"]] = {
                 "assessment_id": t["assessment_id"],
                 "provider": kept["provider"],

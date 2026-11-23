@@ -57,9 +57,8 @@ async def check_provider(
             one = await provider.assignment(io, cfg, creds, course_id, listed[0].external_id)
             assert one.external_id == listed[0].external_id
     if "grades" in f:
-        totals = await provider.grade_totals(io, cfg, creds, course_id)
-        assert all(t.kind == "total" for t in totals)
-        reads.append(("grades", totals))
+        total = await provider.course_total(io, cfg, creds, course_id)
+        assert total is None or isinstance(total, dto.CourseTotal)
     if "modules" in f:
         modules = await provider.modules(io, cfg, creds, course_id)
         reads.append(("modules", modules))
