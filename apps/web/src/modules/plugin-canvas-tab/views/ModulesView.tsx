@@ -1,4 +1,4 @@
-import type { Completion, Module, ModuleItem } from '@semestra/api-client'
+import type { Completion, ModuleOut, ModuleItemOut } from '@semestra/api-client'
 import { lmsModuleItemListOptions } from '@semestra/api-client/react-query'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import {
@@ -160,7 +160,13 @@ export function ModulesView({ selected }: { selected?: string }) {
  * it is done, "2/5" while items with requirements are left, else how many items it has. The
  * items are the module's own or, when the list left them out, those loaded on opening it.
  */
-function ModuleStatus({ module, items }: { module: Module; items: ModuleItem[] | undefined }) {
+function ModuleStatus({
+  module,
+  items,
+}: {
+  module: ModuleOut
+  items: ModuleItemOut[] | undefined
+}) {
   const [now] = useState(Date.now)
   // Only students get `state`; anyone else still sees when a module opens.
   const unlocks =
@@ -212,7 +218,7 @@ function ModuleSection({
   onOpenChange,
   onExternal,
 }: {
-  module: Module
+  module: ModuleOut
   names: ReadonlyMap<string, string>
   focused: boolean
   open: boolean
@@ -323,7 +329,7 @@ function ItemList({
   items,
   onExternal,
 }: {
-  items: ModuleItem[]
+  items: ModuleItemOut[]
   onExternal: (url: string) => void
 }) {
   if (items.length === 0) {
@@ -380,7 +386,7 @@ function CompletionMark({ completion, overdue }: { completion: Completion; overd
   const state = completion.completed
     ? m.canvas_tab_requirement_done()
     : overdue
-      ? m.canvas_tab_overdue()
+      ? m.lms_assignment_overdue()
       : m.canvas_tab_requirement_todo()
   return (
     <Tooltip>
@@ -412,24 +418,20 @@ function ModuleItemRow({
   item,
   onExternal,
 }: {
-  item: ModuleItem
+  item: ModuleItemOut
   onExternal: (url: string) => void
 }) {
-  const [now] = useState(Date.now)
   if (item.kind === 'subheader') {
     return <p className="px-9 pt-3 pb-1 text-xs font-medium text-muted-foreground">{item.title}</p>
   }
   const completion = item.completion
-  const overdue =
-    completion != null &&
-    !completion.completed &&
-    item.due_at != null &&
-    new Date(item.due_at).getTime() < now
+  // Past the due date and not done (M09 table 3d, worked out by the server).
+  const overdue = item.due_state === 'overdue'
   const due = item.due_at
     ? m.canvas_tab_due_at({ time: formatDate(item.due_at, { short: true }) })
     : null
   const meta = [
-    overdue ? m.canvas_tab_overdue() : due,
+    overdue ? m.lms_assignment_overdue() : due,
     item.points != null && item.points > 0 ? m.canvas_tab_points({ points: item.points }) : null,
   ]
     .filter(Boolean)
@@ -469,7 +471,7 @@ function ModuleItemLink({
   item,
   onExternal,
 }: {
-  item: ModuleItem
+  item: ModuleItemOut
   onExternal: (url: string) => void
 }) {
   const { go } = useCanvasPage()

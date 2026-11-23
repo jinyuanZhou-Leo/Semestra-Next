@@ -71,7 +71,7 @@ async def test_an_assignment_opens_from_the_platform_then_from_what_was_kept(
          "mime_type": "text/plain", "size_bytes": 5}
     ]  # fmt: skip
     assert live["submission"]["comments"][0]["comment"] == "Good"
-    assert live["state"] == "graded"
+    assert (live["state"], live["due_state"]) == ("graded", "none")
     assert "state" not in live["assignment"]  # the assignment alone doesn't know its submission
     # Where it is in Semestra: its gradebook row and that row's to-do.
     assert live["assessment"] == {"id": lab["id"], "weight": lab["weight"]}

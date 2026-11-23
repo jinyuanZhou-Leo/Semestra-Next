@@ -1,6 +1,6 @@
 """A user with a row in every table that holds user data, written directly (no services)."""
 
-from datetime import UTC, date, datetime, time
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -52,6 +52,7 @@ from semestra.modules.layouts.models import (
 from semestra.modules.lms.models import (
     LmsAnnouncement,
     LmsCache,
+    LmsCalendarEvent,
     LmsConnection,
     LmsCourseLink,
     LmsImportedRef,
@@ -190,6 +191,9 @@ async def populate(
         connection_id=connection.id,
         external_course_id="101",
         external_code="APS100",
+        area_reads={
+            "calendar": {"result": "whole", "at": NOW.isoformat(), "read_at": NOW.isoformat()}
+        },
     )
     db.add_all(
         [
@@ -338,6 +342,15 @@ async def populate(
                 posted_at=NOW,
                 attachments=[{"external_id": "88", "name": "map.pdf", "size_bytes": 10}],
                 read_at=NOW,
+            ),
+            LmsCalendarEvent(
+                **u,
+                link_id=course_link.id,
+                external_id="900",
+                title="Office hours",
+                location="BA 1200",
+                start_at=NOW,
+                end_at=NOW + timedelta(hours=1),
             ),
             AgentProposal(
                 **u,

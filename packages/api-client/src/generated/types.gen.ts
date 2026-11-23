@@ -1151,6 +1151,12 @@ export type AssignmentDetail = {
      */
     targets?: Array<LinkTarget>;
     /**
+     * Due State
+     *
+     * Whether the due date still matters (`rules.due_state`, M09 table 3d): none, upcoming, past (not handed in online) or overdue
+     */
+    due_state: 'none' | 'upcoming' | 'past' | 'overdue';
+    /**
      * State
      *
      * Where the user is with it (`rules.assignment_state`)
@@ -1403,6 +1409,12 @@ export type AssignmentOut = {
      * What it was imported as (an assessment, which has its to-do, or a to-do); null while not imported
      */
     imported_as: ImportTarget | null;
+    /**
+     * Due State
+     *
+     * Whether the due date still matters (`rules.due_state`, M09 table 3d): none, upcoming, past (not handed in online) or overdue
+     */
+    due_state: 'none' | 'upcoming' | 'past' | 'overdue';
     /**
      * Online
      *
@@ -7780,71 +7792,23 @@ export type ModelParams = {
 };
 
 /**
- * Module
+ * ModuleItemList
  */
-export type Module = {
-    /**
-     * External Id
-     */
-    external_id: string;
-    /**
-     * Web Url
-     *
-     * Opens the item on the platform
-     */
-    web_url?: string | null;
-    /**
-     * Raw Kind
-     *
-     * The platform's own type (debugging)
-     */
-    raw_kind?: string | null;
-    /**
-     * Name
-     */
-    name: string;
-    /**
-     * Position
-     */
-    position?: number;
-    /**
-     * State
-     *
-     * The user's progress: locked, unlocked, started or completed
-     */
-    state?: string | null;
-    /**
-     * Unlock At
-     */
-    unlock_at?: string | null;
-    /**
-     * Item Count
-     */
-    item_count?: number;
-    /**
-     * Completed At
-     */
-    completed_at?: string | null;
-    /**
-     * Prerequisite Module Ids
-     */
-    prerequisite_module_ids?: Array<string>;
-    /**
-     * Require Sequential Progress
-     */
-    require_sequential_progress?: boolean;
+export type ModuleItemList = {
     /**
      * Items
-     *
-     * The module's items when the platform sent them along (None: ask for them)
      */
-    items?: Array<ModuleItem> | null;
+    items: Array<ModuleItemOut>;
+    /**
+     * Truncated
+     */
+    truncated: boolean;
 };
 
 /**
- * ModuleItem
+ * ModuleItemOut
  */
-export type ModuleItem = {
+export type ModuleItemOut = {
     /**
      * External Id
      */
@@ -7907,20 +7871,12 @@ export type ModuleItem = {
      * Points
      */
     points?: number | null;
-};
-
-/**
- * ModuleItemList
- */
-export type ModuleItemList = {
     /**
-     * Items
+     * Due State
+     *
+     * Whether the due date still matters (`rules.item_due_state`, M09 table 3d)
      */
-    items: Array<ModuleItem>;
-    /**
-     * Truncated
-     */
-    truncated: boolean;
+    due_state: 'none' | 'upcoming' | 'past' | 'overdue';
 };
 
 /**
@@ -7930,11 +7886,73 @@ export type ModuleList = {
     /**
      * Items
      */
-    items: Array<Module>;
+    items: Array<ModuleOut>;
     /**
      * Truncated
      */
     truncated: boolean;
+};
+
+/**
+ * ModuleOut
+ */
+export type ModuleOut = {
+    /**
+     * External Id
+     */
+    external_id: string;
+    /**
+     * Web Url
+     *
+     * Opens the item on the platform
+     */
+    web_url?: string | null;
+    /**
+     * Raw Kind
+     *
+     * The platform's own type (debugging)
+     */
+    raw_kind?: string | null;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Position
+     */
+    position?: number;
+    /**
+     * State
+     *
+     * The user's progress: locked, unlocked, started or completed
+     */
+    state?: string | null;
+    /**
+     * Unlock At
+     */
+    unlock_at?: string | null;
+    /**
+     * Item Count
+     */
+    item_count?: number;
+    /**
+     * Completed At
+     */
+    completed_at?: string | null;
+    /**
+     * Prerequisite Module Ids
+     */
+    prerequisite_module_ids?: Array<string>;
+    /**
+     * Require Sequential Progress
+     */
+    require_sequential_progress?: boolean;
+    /**
+     * Items
+     *
+     * The module's items when the platform sent them along (None: ask for them)
+     */
+    items?: Array<ModuleItemOut> | null;
 };
 
 /**
@@ -12159,6 +12177,18 @@ export type SyncStatus = {
      * Errors
      */
     errors: Array<SyncCourseError>;
+    /**
+     * Calendar Waiting
+     *
+     * Courses whose calendar the sync has not read yet (M09 §4.8)
+     */
+    calendar_waiting: number;
+    /**
+     * Calendar Unreadable
+     *
+     * Courses whose calendar the sync tried and never could read
+     */
+    calendar_unreadable: number;
 };
 
 /**
@@ -14206,6 +14236,12 @@ export type AssignmentDetailWritable = {
      * What the description's links to course files are in the app
      */
     targets?: Array<LinkTarget>;
+    /**
+     * Due State
+     *
+     * Whether the due date still matters (`rules.due_state`, M09 table 3d): none, upcoming, past (not handed in online) or overdue
+     */
+    due_state: 'none' | 'upcoming' | 'past' | 'overdue';
 };
 
 /**
@@ -14423,6 +14459,12 @@ export type AssignmentOutWritable = {
      * What it was imported as (an assessment, which has its to-do, or a to-do); null while not imported
      */
     imported_as: ImportTarget | null;
+    /**
+     * Due State
+     *
+     * Whether the due date still matters (`rules.due_state`, M09 table 3d): none, upcoming, past (not handed in online) or overdue
+     */
+    due_state: 'none' | 'upcoming' | 'past' | 'overdue';
 };
 
 /**

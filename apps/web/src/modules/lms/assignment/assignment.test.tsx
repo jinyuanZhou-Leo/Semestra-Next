@@ -18,6 +18,7 @@ const PhoneHost = assignmentHost(AssignmentSheet)
 
 const LAB: AssignmentDetail = {
   provider: 'canvas',
+  due_state: 'none',
   assignment: {
     external_id: 'a1',
     name: 'Lab 1',
@@ -114,6 +115,19 @@ test('an assignment opens with its description, where the user is with it and it
   await userEvent.click(within(dialog).getByRole('button', { name: /Gradebook/ }))
   await waitFor(() => expect(router.state.location.pathname).toBe('/p/p1/c/c1/grades'))
   expect(router.state.location.search).toEqual({ assessment: 'as1' })
+})
+
+test('a missing assignment says it is missing, not when it was due', async () => {
+  mount({
+    ...LAB,
+    state: 'missing',
+    due_state: 'overdue',
+    assignment: { ...LAB.assignment, due_at: '2026-02-01T20:00:00Z' },
+    submission: { external_id: 's1', assignment_id: 'a1', status: 'unsubmitted', missing: true },
+  })
+  const dialog = await screen.findByRole('dialog', { name: 'Lab 1' })
+  expect(await within(dialog).findByText('Missing')).toBeInTheDocument()
+  expect(within(dialog).queryByText('Overdue')).toBeNull()
 })
 
 test('opened on the feedback, it says when what it shows was kept and closes into the page', async () => {

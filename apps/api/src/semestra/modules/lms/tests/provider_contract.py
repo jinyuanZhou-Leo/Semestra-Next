@@ -80,9 +80,7 @@ async def check_provider(
     if "syllabus" in f:
         assert isinstance(await provider.syllabus(io, cfg, creds, course_id), dto.RichText)
     if "calendar" in f:
-        start = datetime(2026, 1, 1, tzinfo=UTC)
-        end = datetime(2026, 6, 1, tzinfo=UTC)
-        events = await provider.calendar_events(io, cfg, creds, [course_id], start, end)
+        events = await provider.calendar_events(io, cfg, creds, [course_id])
         assert all(e.external_course_id == course_id for e in events)
         reads.append(("calendar", events))
     if "submissions" in f and "assignments" in f:

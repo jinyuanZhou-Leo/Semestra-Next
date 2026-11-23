@@ -2,7 +2,9 @@
 
 Connections are exported without credentials: after an import they need the token entered
 again (`has_credentials` false, status `error` with `lms.credentials_missing`). Bindings, links,
-imported assignments (refs), materials, announcements (with whether each was read) and the
+imported assignments (refs), materials, announcements (with whether each was read), calendar
+events, how each area's list last read (`area_reads`: a backup without it reads the calendar
+again) and the
 teacher's feedback kept for assessments follow the id map of Programs, courses, assessments,
 tasks and course files (the items the sync brought in). The cache is not exported, nor is what
 the background sync keeps for itself (its change log, its conflicts, the new items it offers,
@@ -19,7 +21,7 @@ read as their migrations changed the tables (`older_backups.py`).
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Protocol
 
 from pydantic import BaseModel
@@ -30,6 +32,7 @@ from semestra.core.db import new_id
 from semestra.modules.lms.models import (
     LmsAnnouncement,
     LmsCache,
+    LmsCalendarEvent,
     LmsConnection,
     LmsCourseLink,
     LmsImportedRef,
@@ -86,6 +89,7 @@ class LinkRow(BaseModel):
     external_term: str | None = None
     web_url: str | None = None
     sync_enabled: bool = True
+    area_reads: dict[str, dict[str, str]] = {}
 
 
 class KeptRow(BaseModel):
@@ -168,6 +172,19 @@ class AnnouncementRow(BaseModel):
     read_at: datetime | None = None
 
 
+class CalendarEventRow(BaseModel):
+    link_id: str
+    external_id: str
+    title: str
+    html: str | None = None
+    location: str | None = None
+    web_url: str | None = None
+    start_at: datetime
+    end_at: datetime | None = None
+    all_day: bool = False
+    all_day_date: date | None = None
+
+
 class LmsPayload(BaseModel):
     schema_version: int = SCHEMA_VERSION
     connections: list[ConnectionRow] = []
@@ -176,6 +193,8 @@ class LmsPayload(BaseModel):
     refs: list[RefRow] = []
     materials: list[MaterialRow] = []
     announcements: list[AnnouncementRow] = []
+    # Left out of backups made before the sync kept them: the next sync reads them (M09 §4.8).
+    calendar_events: list[CalendarEventRow] = []
     # Left out of backups made before feedback was kept: the next sync reads it again.
     feedback: list[KeptRow] = []
 
@@ -207,6 +226,7 @@ async def export(ctx: Ctx, writer: Writer) -> None:
         )
     )
     posts = await ctx.db.scalars(select(LmsAnnouncement).where(LmsAnnouncement.user_id == uid))
+    events = await ctx.db.scalars(select(LmsCalendarEvent).where(LmsCalendarEvent.user_id == uid))
     writer.write_json(
         LmsPayload(
             connections=[
@@ -242,6 +262,12 @@ async def export(ctx: Ctx, writer: Writer) -> None:
                 )
                 for r in posts
             ],
+            calendar_events=[
+                CalendarEventRow.model_validate(
+                    {k: getattr(e, k) for k in CalendarEventRow.model_fields}
+                )
+                for e in events
+            ],
             feedback=[
                 KeptRow.model_validate(
                     {k: getattr(f, k) for k in KeptRow.model_fields}
@@ -270,6 +296,7 @@ async def import_(
             "refs": 0,
             "materials": 0,
             "announcements": 0,
+            "calendar_events": 0,
             "feedback": 0,
         },
         {},
@@ -335,6 +362,7 @@ async def import_(
             external_term=li.external_term,
             web_url=li.web_url,
             sync_enabled=li.sync_enabled,
+            area_reads=li.area_reads,
             created_at=ctx.now,
             updated_at=ctx.now,
         )
@@ -412,6 +440,15 @@ async def import_(
             )
         )
         report.imported["announcements"] += 1
+    for r in data.calendar_events:
+        if (got := mapped("calendar_events", r.link_id, None)) is None:
+            continue
+        ctx.db.add(
+            LmsCalendarEvent(
+                **r.model_dump(exclude={"link_id"}), user_id=ctx.user_id, link_id=got[0]
+            )
+        )
+        report.imported["calendar_events"] += 1
     await ctx.db.flush()
     return report
 
@@ -425,6 +462,7 @@ async def preview(payload: dict[str, Any]) -> dict[str, int]:
         "refs": len(data.refs),
         "materials": len(data.materials),
         "announcements": len(data.announcements),
+        "calendar_events": len(data.calendar_events),
         "feedback": len(data.feedback),
     }
 
@@ -438,6 +476,7 @@ async def purge(ctx: Ctx) -> None:
         LmsItemCheck,
         LmsMaterial,
         LmsAnnouncement,
+        LmsCalendarEvent,
         LmsCourseLink,
         LmsProgramBinding,
         LmsCache,
@@ -464,6 +503,7 @@ register_portability(
         LmsMaterial.__tablename__,
         LmsItemCheck.__tablename__,
         LmsAnnouncement.__tablename__,
+        LmsCalendarEvent.__tablename__,
         LmsSyncChange.__tablename__,
         LmsCache.__tablename__,
     ),

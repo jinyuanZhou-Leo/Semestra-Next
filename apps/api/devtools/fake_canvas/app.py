@@ -383,6 +383,7 @@ class FakeCanvas:
 
     def calendar_events(self, request: Request) -> list[Json]:
         codes = set(request.query_params.getlist("context_codes[]"))
+        every = request.query_params.get("all_events") == "true"
         start, end = (
             _since(request.query_params.get("start_date")),
             _since(request.query_params.get("end_date")),
@@ -390,11 +391,12 @@ class FakeCanvas:
         rows = []
         for e in self.world.events:
             at = _since(e["start_at"])
+            course = e.get("effective_context_code") or e["context_code"]
             if (
-                e["context_code"] in codes
+                course in codes
                 and at
-                and not (start and at < start)
-                and not (end and at > end)
+                and (every or not (start and at < start))
+                and (every or not (end and at > end))
             ):
                 rows.append(e | {"type": "event", "all_day": False})
         return sorted(rows, key=lambda e: e["start_at"])

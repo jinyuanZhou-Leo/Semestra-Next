@@ -179,6 +179,39 @@ def assignment_state(status: SubmissionStatus, *, missing: bool, online: bool) -
     return "unsubmitted" if online else "offline"
 
 
+DueState = Literal["none", "upcoming", "past", "overdue"]
+"""Whether an assignment's due date still matters to the user (M09 table 3d)."""
+
+
+def due_state(due_at: datetime | None, state: AssignmentState, now: datetime) -> DueState:
+    """M09 table 3d: nothing to show without a due date or once handed in, graded or excused;
+    `upcoming` before the due date; past it, `past` for work not handed in on the platform
+    (whether it was done can't be known) and `overdue` for the rest."""
+    if due_at is None or state in ("graded", "excused", "submitted"):
+        return "none"
+    if due_at > now:
+        return "upcoming"
+    return "past" if state == "offline" else "overdue"
+
+
+def item_due_state(item: Mapping[str, Any], now: datetime) -> DueState:
+    """M09 table 3d for a module item (as the reads give it): nothing without a due date, a
+    completion requirement, or once done; else `upcoming` or, past the date, `overdue`."""
+    raw = item.get("due_at")
+    completion = item.get("completion")
+    if not raw or not completion or completion.get("completed"):
+        return "none"
+    due = raw if isinstance(raw, datetime) else datetime.fromisoformat(raw)
+    return "upcoming" if due > now else "overdue"
+
+
+def due_state_of(assignment: Mapping[str, Any], now: datetime) -> DueState:
+    """`due_state` of an assignment as the reads give it (a dumped `Assignment`)."""
+    raw = assignment.get("due_at")
+    due = (raw if isinstance(raw, datetime) else datetime.fromisoformat(raw)) if raw else None
+    return due_state(due, state_of(assignment), now)
+
+
 def state_of(assignment: Mapping[str, Any]) -> AssignmentState:
     """`assignment_state` of an assignment as the reads give it (a dumped `Assignment`)."""
     sub = assignment.get("submission") or {}
@@ -245,3 +278,49 @@ def presence(
     if "hidden" in results and all(r in ("whole", "hidden") for r in results):
         return "check"  # 10
     return "unknown"  # 11
+
+
+# --- areas and the calendar (M09 表 3c, §4.8) -------------------------------------------------
+
+# A list that came back: what the sync keeps of it is the platform's as of then.
+READ_BACK: frozenset[str] = frozenset(("whole", "partial"))
+# Not read only this once (表 2 第 11、13 行): the next round reads it as usual.
+PASSING: frozenset[str] = frozenset(("lms.rate_limited", "lms.unreachable"))
+
+
+def area_entry(
+    previous: Mapping[str, Any] | None,
+    result: AreaResult,
+    at: datetime,
+    reason: str | None = None,
+) -> dict[str, str]:
+    """How an area's list read this round (`LmsCourseLink.area_reads[area]`): the result and
+    when, why it was unavailable (an error code), when it last came back at all (`read_at`)
+    and when it last came back whole (`whole_at`: since then what is kept of it is as the
+    platform last showed it); a round that did not read them keeps both."""
+    entry = {"result": result, "at": at.isoformat()}
+    if result == "unavailable" and reason:
+        entry["reason"] = reason
+    read_at = at.isoformat() if result in READ_BACK else (previous or {}).get("read_at")
+    if read_at:
+        entry["read_at"] = read_at
+    whole_at = at.isoformat() if result == "whole" else (previous or {}).get("whole_at")
+    if whole_at:
+        entry["whole_at"] = whole_at
+    return entry
+
+
+CalendarRead = Literal["read", "waiting", "unreadable", "unsupported"]
+
+
+def calendar_read(entry: Mapping[str, Any] | None) -> CalendarRead:
+    """Where a course's calendar stands (§4.8, first row that holds): read once at least, never
+    tried, tried and never read back; a platform without calendars counts as none of these."""
+    if entry and entry.get("read_at"):
+        return "read"
+    # Never tried, or kept from it only by a rate limit or an outage.
+    if not entry or entry.get("reason") in PASSING:
+        return "waiting"
+    if entry.get("result") == "unsupported":
+        return "unsupported"
+    return "unreadable"

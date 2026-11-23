@@ -196,6 +196,12 @@ class SyncStatus(BaseModel):
         description="What can't be read since its area is closed on the platform, by course"
     )
     errors: list[SyncCourseError]
+    calendar_waiting: int = Field(
+        description="Courses whose calendar the sync has not read yet (M09 §4.8)"
+    )
+    calendar_unreadable: int = Field(
+        description="Courses whose calendar the sync tried and never could read"
+    )
 
 
 class SyncResolveInput(BaseModel):

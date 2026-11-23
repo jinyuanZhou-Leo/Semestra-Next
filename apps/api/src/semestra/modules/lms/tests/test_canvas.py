@@ -297,14 +297,35 @@ async def test_calendar_batches_context_codes(settings: Settings, io: Io, mock: 
     p, cfg, creds = _cfg(settings)
     route = mock.get(f"{API}/calendar_events").mock(return_value=Response(200, json=[]))
     ids = [str(i) for i in range(12)]
-    start, end = datetime(2026, 1, 1, tzinfo=UTC), datetime(2026, 2, 1, tzinfo=UTC)
-    await p.calendar_events(io, cfg, creds, ids, start, end)
+    await p.calendar_events(io, cfg, creds, ids)
     # 12 courses → 2 batches of calendar events (assignments are not fetched).
     assert route.call_count == 2
     first = route.calls[0].request.url
     assert first.params.get_list("context_codes[]")[:2] == ["course_0", "course_1"]
     assert len(first.params.get_list("context_codes[]")) == 10
     assert {c.request.url.params["type"] for c in route.calls} == {"event"}
+    # Every date: the sync keeps them all (M09 §4.8).
+    assert {c.request.url.params["all_events"] for c in route.calls} == {"true"}
+
+
+async def test_a_section_event_belongs_to_its_course(
+    settings: Settings, io: Io, mock: respx.MockRouter
+):
+    p, cfg, creds = _cfg(settings)
+    lecture = {"id": 1, "title": "Lecture", "start_at": "2026-01-12T14:00:00Z"}
+    mock.get(f"{API}/calendar_events").mock(
+        return_value=Response(200, json=[
+            lecture | {"context_code": "course_101"},
+            lecture | {"id": 2, "title": "Lab", "context_code": "course_section_7",
+                       "effective_context_code": "course_101"},
+            lecture | {"id": 3, "title": "Unknown", "context_code": "course_section_8"},
+        ])
+    )  # fmt: skip
+    events = await p.calendar_events(io, cfg, creds, ["101"])
+    assert [(e.title, e.external_course_id) for e in events] == [
+        ("Lecture", "101"),
+        ("Lab", "101"),
+    ]
 
 
 @pytest.mark.parametrize(

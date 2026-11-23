@@ -1,12 +1,12 @@
-"""lms: area reads and single reads of the course sync
+"""lms: single reads of the course sync
 
-What the sync last got from each area's list (`lms_course_links.area_reads`) and from each item
-read on its own (`lms_item_checks`), the input of the one rule for "gone from the platform"
-(M09 §4.2, table 3c). The materials' `checked_at` was such a single read of a material still in
-the files: it becomes a `present` check.
+What the sync last got from each item read on its own (`lms_item_checks`); with how each area's
+list read (`lms_course_links.area_reads`, 0068), the input of the one rule for "gone from the
+platform" (M09 §4.2, table 3c). The materials' `checked_at` was such a single read of a
+material still in the files: it becomes a `present` check.
 
-Revision ID: 0068
-Revises: 0067
+Revision ID: 0069
+Revises: 0068
 Create Date: 2026-11-22 20:00:00.000000
 
 """
@@ -20,8 +20,8 @@ import semestra.core.db
 from semestra.core.db import new_id
 
 # revision identifiers, used by Alembic.
-revision: str = "0068"
-down_revision: str | Sequence[str] | None = "0067"
+revision: str = "0069"
+down_revision: str | Sequence[str] | None = "0068"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
@@ -67,9 +67,6 @@ def upgrade() -> None:
     with op.batch_alter_table("lms_item_checks", schema=None) as batch_op:
         batch_op.create_index(batch_op.f("ix_lms_item_checks_link_id"), ["link_id"], unique=False)
         batch_op.create_index(batch_op.f("ix_lms_item_checks_user_id"), ["user_id"], unique=False)
-    with op.batch_alter_table("lms_course_links", schema=None) as batch_op:
-        batch_op.add_column(sa.Column("area_reads", sa.JSON(), server_default="{}", nullable=False))
-
     bind = op.get_bind()
     rows = bind.execute(
         sa.select(
@@ -121,8 +118,6 @@ def downgrade() -> None:
             )
             .values(checked_at=r.at)
         )
-    with op.batch_alter_table("lms_course_links", schema=None) as batch_op:
-        batch_op.drop_column("area_reads")
     with op.batch_alter_table("lms_item_checks", schema=None) as batch_op:
         batch_op.drop_index(batch_op.f("ix_lms_item_checks_user_id"))
         batch_op.drop_index(batch_op.f("ix_lms_item_checks_link_id"))

@@ -214,10 +214,9 @@ class LmsProvider(Protocol):
         cfg: BaseModel,
         creds: BaseModel,
         course_ids: Sequence[str],
-        start: datetime,
-        end: datetime,
     ) -> list[LmsCalendarEvent]:
-        """Calendar events of the courses (feature `calendar`), not assignments."""
+        """All calendar events of the courses, of any date (feature `calendar`), not assignments;
+        an event for one section belongs to its course (M09 表 2 第 18 行)."""
         ...
 
 

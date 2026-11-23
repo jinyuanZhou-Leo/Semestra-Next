@@ -141,3 +141,4 @@ defineModule({
   - 文件图标与课程文件共用 `files/components/FileIcon`；测验的 `quiz:` 编码只在 `lms/assignment/queries.ts` 的 `quizRef`。
   - 作业表的勾选改用 `useRowSelection` + `SelectionToolbar` + memo 行，勾选时只重绘该行；`useAssignmentDetails` 不再订阅地址，点开时才读路由。
   - 页面 `prefetch`（`prefetch.ts`）：与概览并行预取要打开的视图的数据，首次打开不再先等概览再发列表请求。
+- **提交状态**：徽章、标记、截止提示与筛选都按 M09 表 3b（`state`、筛选列、缺交/迟交标记）与表 3d（`due_state`）显示，本插件不另写规则。

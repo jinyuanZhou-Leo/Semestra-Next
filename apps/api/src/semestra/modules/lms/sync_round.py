@@ -31,7 +31,7 @@ from semestra.modules.lms.answers import (
     result_of,
 )
 from semestra.modules.lms.models import LmsCourseLink, LmsItemCheck
-from semestra.modules.lms.rules import CHECKS_PER_RUN, Check
+from semestra.modules.lms.rules import CHECKS_PER_RUN, Check, area_entry
 from semestra.modules.lms.service import Bound
 
 Key = tuple[str, str]
@@ -68,6 +68,8 @@ class SyncRound:
     _new: dict[Key, _Read] = field(default_factory=lambda: {})
     # Items a list showed this round: a check of theirs that said otherwise is out of date.
     _listed: set[Key] = field(default_factory=lambda: set[Key]())
+    # Why an area was unavailable this round (an error code).
+    _reasons: dict[str, str] = field(default_factory=lambda: {})
 
     def begin(self, now: datetime) -> None:
         if self.started is None:
@@ -121,6 +123,8 @@ class SyncRound:
             else:
                 closed = await self._nav_closed(ctx, link, b, area)
                 result = b.provider.area_answer(exc, nav_closed=closed)
+                if result == "unavailable":
+                    self._reasons[area] = exc.code
         else:
             result = "partial" if truncated(got) else "whole"
         before = self.areas.get(area)
@@ -281,11 +285,8 @@ class SyncRound:
                     row.unavailable_since = None
                 row.result, row.reason, row.at = r.result, r.reason, r.at
         if self.areas:
-            at = ctx.now.isoformat()
             merged: dict[str, Any] = dict(link.area_reads or {})
             for a, r in self.areas.items():
-                # Since when what it holds is as the platform last showed it whole.
-                whole_at = at if r == "whole" else (merged.get(a) or {}).get("whole_at")
-                merged[a] = {"result": r, "at": at, "whole_at": whole_at}
+                merged[a] = area_entry(merged.get(a), r, ctx.now, self._reasons.get(a))
             if merged != link.area_reads:
                 link.area_reads = merged

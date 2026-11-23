@@ -2118,6 +2118,17 @@ export const AssignmentDetailSchema = {
             description: 'What the description\'s links to course files are in the app',
             default: []
         },
+        due_state: {
+            type: 'string',
+            enum: [
+                'none',
+                'upcoming',
+                'past',
+                'overdue'
+            ],
+            title: 'Due State',
+            description: 'Whether the due date still matters (`rules.due_state`, M09 table 3d): none, upcoming, past (not handed in online) or overdue'
+        },
         state: {
             type: 'string',
             enum: [
@@ -2140,6 +2151,7 @@ export const AssignmentDetailSchema = {
         'submission',
         'assessment',
         'task',
+        'due_state',
         'state'
     ],
     title: 'AssignmentDetail',
@@ -2667,6 +2679,17 @@ export const AssignmentOutSchema = {
             ],
             description: 'What it was imported as (an assessment, which has its to-do, or a to-do); null while not imported'
         },
+        due_state: {
+            type: 'string',
+            enum: [
+                'none',
+                'upcoming',
+                'past',
+                'overdue'
+            ],
+            title: 'Due State',
+            description: 'Whether the due date still matters (`rules.due_state`, M09 table 3d): none, upcoming, past (not handed in online) or overdue'
+        },
         online: {
             type: 'boolean',
             title: 'Online',
@@ -2699,6 +2722,7 @@ export const AssignmentOutSchema = {
         'external_id',
         'name',
         'imported_as',
+        'due_state',
         'online',
         'is_quiz',
         'state'
@@ -13723,123 +13747,29 @@ export const ModelParamsSchema = {
     title: 'ModelParams'
 } as const;
 
-export const ModuleSchema = {
+export const ModuleItemListSchema = {
     properties: {
-        external_id: {
-            type: 'string',
-            title: 'External Id'
-        },
-        web_url: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Web Url',
-            description: 'Opens the item on the platform'
-        },
-        raw_kind: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Raw Kind',
-            description: 'The platform\'s own type (debugging)'
-        },
-        name: {
-            type: 'string',
-            title: 'Name'
-        },
-        position: {
-            type: 'integer',
-            title: 'Position',
-            default: 0
-        },
-        state: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'State',
-            description: 'The user\'s progress: locked, unlocked, started or completed'
-        },
-        unlock_at: {
-            anyOf: [
-                {
-                    type: 'string',
-                    format: 'date-time'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Unlock At'
-        },
-        item_count: {
-            type: 'integer',
-            title: 'Item Count',
-            default: 0
-        },
-        completed_at: {
-            anyOf: [
-                {
-                    type: 'string',
-                    format: 'date-time'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Completed At'
-        },
-        prerequisite_module_ids: {
+        items: {
             items: {
-                type: 'string'
+                $ref: '#/components/schemas/ModuleItemOut'
             },
             type: 'array',
-            title: 'Prerequisite Module Ids'
+            title: 'Items'
         },
-        require_sequential_progress: {
+        truncated: {
             type: 'boolean',
-            title: 'Require Sequential Progress',
-            default: false
-        },
-        items: {
-            anyOf: [
-                {
-                    items: {
-                        $ref: '#/components/schemas/ModuleItem'
-                    },
-                    type: 'array'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Items',
-            description: 'The module\'s items when the platform sent them along (None: ask for them)'
+            title: 'Truncated'
         }
     },
     type: 'object',
     required: [
-        'external_id',
-        'name'
+        'items',
+        'truncated'
     ],
-    title: 'Module'
+    title: 'ModuleItemList'
 } as const;
 
-export const ModuleItemSchema = {
+export const ModuleItemOutSchema = {
     properties: {
         external_id: {
             type: 'string',
@@ -13970,44 +13900,34 @@ export const ModuleItemSchema = {
                 }
             ],
             title: 'Points'
+        },
+        due_state: {
+            type: 'string',
+            enum: [
+                'none',
+                'upcoming',
+                'past',
+                'overdue'
+            ],
+            title: 'Due State',
+            description: 'Whether the due date still matters (`rules.item_due_state`, M09 table 3d)'
         }
     },
     type: 'object',
     required: [
         'external_id',
         'title',
-        'kind'
+        'kind',
+        'due_state'
     ],
-    title: 'ModuleItem'
-} as const;
-
-export const ModuleItemListSchema = {
-    properties: {
-        items: {
-            items: {
-                $ref: '#/components/schemas/ModuleItem'
-            },
-            type: 'array',
-            title: 'Items'
-        },
-        truncated: {
-            type: 'boolean',
-            title: 'Truncated'
-        }
-    },
-    type: 'object',
-    required: [
-        'items',
-        'truncated'
-    ],
-    title: 'ModuleItemList'
+    title: 'ModuleItemOut'
 } as const;
 
 export const ModuleListSchema = {
     properties: {
         items: {
             items: {
-                $ref: '#/components/schemas/Module'
+                $ref: '#/components/schemas/ModuleOut'
             },
             type: 'array',
             title: 'Items'
@@ -14023,6 +13943,122 @@ export const ModuleListSchema = {
         'truncated'
     ],
     title: 'ModuleList'
+} as const;
+
+export const ModuleOutSchema = {
+    properties: {
+        external_id: {
+            type: 'string',
+            title: 'External Id'
+        },
+        web_url: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Web Url',
+            description: 'Opens the item on the platform'
+        },
+        raw_kind: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Raw Kind',
+            description: 'The platform\'s own type (debugging)'
+        },
+        name: {
+            type: 'string',
+            title: 'Name'
+        },
+        position: {
+            type: 'integer',
+            title: 'Position',
+            default: 0
+        },
+        state: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'State',
+            description: 'The user\'s progress: locked, unlocked, started or completed'
+        },
+        unlock_at: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date-time'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Unlock At'
+        },
+        item_count: {
+            type: 'integer',
+            title: 'Item Count',
+            default: 0
+        },
+        completed_at: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date-time'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Completed At'
+        },
+        prerequisite_module_ids: {
+            items: {
+                type: 'string'
+            },
+            type: 'array',
+            title: 'Prerequisite Module Ids'
+        },
+        require_sequential_progress: {
+            type: 'boolean',
+            title: 'Require Sequential Progress',
+            default: false
+        },
+        items: {
+            anyOf: [
+                {
+                    items: {
+                        $ref: '#/components/schemas/ModuleItemOut'
+                    },
+                    type: 'array'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Items',
+            description: 'The module\'s items when the platform sent them along (None: ask for them)'
+        }
+    },
+    type: 'object',
+    required: [
+        'external_id',
+        'name'
+    ],
+    title: 'ModuleOut'
 } as const;
 
 export const NavSchema = {
@@ -21297,6 +21333,16 @@ export const SyncStatusSchema = {
             },
             type: 'array',
             title: 'Errors'
+        },
+        calendar_waiting: {
+            type: 'integer',
+            title: 'Calendar Waiting',
+            description: 'Courses whose calendar the sync has not read yet (M09 §4.8)'
+        },
+        calendar_unreadable: {
+            type: 'integer',
+            title: 'Calendar Unreadable',
+            description: 'Courses whose calendar the sync tried and never could read'
         }
     },
     type: 'object',
@@ -21317,7 +21363,9 @@ export const SyncStatusSchema = {
         'removed_materials',
         'removed_count',
         'unreadable',
-        'errors'
+        'errors',
+        'calendar_waiting',
+        'calendar_unreadable'
     ],
     title: 'SyncStatus'
 } as const;
@@ -24820,6 +24868,17 @@ export const AssignmentDetailWritableSchema = {
             title: 'Targets',
             description: 'What the description\'s links to course files are in the app',
             default: []
+        },
+        due_state: {
+            type: 'string',
+            enum: [
+                'none',
+                'upcoming',
+                'past',
+                'overdue'
+            ],
+            title: 'Due State',
+            description: 'Whether the due date still matters (`rules.due_state`, M09 table 3d): none, upcoming, past (not handed in online) or overdue'
         }
     },
     type: 'object',
@@ -24828,7 +24887,8 @@ export const AssignmentDetailWritableSchema = {
         'assignment',
         'submission',
         'assessment',
-        'task'
+        'task',
+        'due_state'
     ],
     title: 'AssignmentDetail',
     description: 'One assignment, whole (M09 §5): as the platform has it now, or, when the platform\ncan\'t be asked, as the last sync kept it (`kept_at`).'
@@ -25308,13 +25368,25 @@ export const AssignmentOutWritableSchema = {
                 }
             ],
             description: 'What it was imported as (an assessment, which has its to-do, or a to-do); null while not imported'
+        },
+        due_state: {
+            type: 'string',
+            enum: [
+                'none',
+                'upcoming',
+                'past',
+                'overdue'
+            ],
+            title: 'Due State',
+            description: 'Whether the due date still matters (`rules.due_state`, M09 table 3d): none, upcoming, past (not handed in online) or overdue'
         }
     },
     type: 'object',
     required: [
         'external_id',
         'name',
-        'imported_as'
+        'imported_as',
+        'due_state'
     ],
     title: 'AssignmentOut'
 } as const;

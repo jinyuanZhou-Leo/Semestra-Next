@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Literal
 
 from sqlalchemy import JSON, Boolean, CheckConstraint, ForeignKey, Index, String, UniqueConstraint
@@ -78,15 +78,15 @@ class LmsCourseLink(Base, OwnedMixin, TimestampMixin):
     # Error code of each stage whose last run failed, by stage name; a stage that ran cleanly
     # is left out.
     sync_errors: Mapped[dict[str, str]] = mapped_column(JSON, default=dict)
-    # The last result of each area's list a sync read, `{area: {"result": AreaResult, "at":
-    # iso time}}` (M09 §4.1): a record of the rounds, each overwriting the areas it read.
-    area_reads: Mapped[dict[str, dict[str, str]]] = mapped_column(
-        JSON, default=dict, server_default="{}"
-    )
     # When the announcements stage last read the course's announcements. Until then the course
     # has none stored: what the first read finds is kept as read and not reported, so linking a
     # course is quiet.
     watched_at: Mapped[datetime | None] = mapped_column(default=None)
+    # How each area's list read on the last sync, by area (`rules.area_entry`: result, when,
+    # why it was unavailable, when it last came back and came back whole; M09 表 1, 表 3c).
+    # Empty for an area never read: the calendar of a course listed here without `calendar`
+    # has not been read yet (§4.8).
+    area_reads: Mapped[dict[str, dict[str, str]]] = mapped_column(JSON, default=dict)
 
 
 class LmsImportedRef(Base, OwnedMixin):
@@ -291,6 +291,33 @@ class LmsAnnouncement(Base, OwnedMixin):
     # When the user opened it here, or the platform said it was read (writes allowed). Null:
     # unread.
     read_at: Mapped[datetime | None] = mapped_column(default=None)
+
+
+class LmsCalendarEvent(Base, OwnedMixin):
+    """An event on the platform's calendar of a linked course (a lecture, office hours, an exam
+    sitting) as the sync's calendar stage last read it (`calendar.py`), its HTML cleaned. The
+    calendar reads these rows, never the platform (M09 §4.8)."""
+
+    __tablename__ = "lms_calendar_events"
+    __table_args__ = (
+        UniqueConstraint("link_id", "external_id", name="uq_lms_calendar_events_item"),
+        Index("ix_lms_calendar_events_link_start", "link_id", "start_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    link_id: Mapped[str] = mapped_column(
+        String, ForeignKey("lms_course_links.id", ondelete="CASCADE")
+    )
+    external_id: Mapped[str] = mapped_column(String)
+    title: Mapped[str] = mapped_column(String)
+    html: Mapped[str | None] = mapped_column(String, default=None)
+    location: Mapped[str | None] = mapped_column(String, default=None)
+    web_url: Mapped[str | None] = mapped_column(String, default=None)
+    start_at: Mapped[datetime] = mapped_column()
+    end_at: Mapped[datetime | None] = mapped_column(default=None)
+    all_day: Mapped[bool] = mapped_column(Boolean, default=False)
+    # The platform's day of an all-day event (`start_at` is midnight where it was made).
+    all_day_date: Mapped[date | None] = mapped_column(default=None)
 
 
 class LmsSyncChange(Base, OwnedMixin):
