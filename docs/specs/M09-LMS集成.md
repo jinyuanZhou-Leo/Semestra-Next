@@ -218,23 +218,23 @@ provider 读**单项**的结果只有三种，共享代码只认这三种：
 
 读**课程本身**（同步阶段 `course` 的 `get_course`，每轮第一个读取）的结果是 `present` 或 `unavailable`；`unavailable` 时这一轮到此结束，不判断任何东西（§4.4）。
 
-Canvas 的映射（`providers/canvas/`）。同一个 HTTP 回应只对应一种归一结果；要靠上下文区分的（下面第 5–8 行），由 provider 用同一轮读到的课程导航区分，共享代码看不到 HTTP 状态。标“待确认”的行由 PR 7 用真实 Canvas 的响应记录核对（录制脚本 `python -m devtools record-canvas`，§11）：
+Canvas 的映射（`providers/canvas/`）。同一个 HTTP 回应只对应一种归一结果；要靠上下文区分的（下面第 5–8 行），由 provider 用同一轮读到的课程导航区分，共享代码看不到 HTTP 状态。标“待确认”的行由 PR 7 用真实 Canvas 的响应记录核对（录制脚本 `python -m devtools record-canvas`，§11）。2026-11-23 以学生身份录了两门课（`lms/tests/fixtures/canvas/`，`test_canvas_recorded.py` 逐行回放）：标“已核对”的行与记录一致；学生看不到的情况（未发布、仅凭链接、隐藏文件夹、关闭区域里未发布的项、锁定的文件与页面）和课程结束、限流录不到，仍标“待确认”：
 
 | # | 读的是 | Canvas 的回应 | 情况 | 归一结果 | 落地 |
 |---|---|---|---|---|---|
 | 1 | 课程 | 200 | 课程读得到 | `present` | 现状 |
 | 2 | 课程 | 401 不带 `WWW-Authenticate`、403（非限流）、404 | 课程已结束、被移出、课程被删（待确认各是哪一种） | `unavailable`（这一轮结束） | 现状 |
-| 3 | 单项 | 200 | 在（含 `locked_for_user: true` 的锁定项；含只能凭链接打开的隐藏文件：列表里没有，直接读得到） | `present`（锁定的带 `locked`） | 现状 |
-| 4 | 单项 | 404 | 删除，或对学生取消发布（待确认：页面、作业取消发布是不是 404） | `gone` | 现状 |
+| 3 | 单项 | 200 | 在（含 `locked_for_user: true` 的锁定项；含只能凭链接打开的隐藏文件：列表里没有，直接读得到（待确认）；含区域从菜单里去掉、但从单元链接的已发布文件与页面：区域列表被拒，单项照常 200） | `present`（锁定的带 `locked`） | 已核对（锁定的作业、关闭区域里的文件与页面） |
+| 4 | 单项 | 404 | 删除，或对学生取消发布（待确认：页面、作业取消发布是不是 404） | `gone` | 已核对（不存在的文件、页面、作业、讨论、文件夹、单元、测验都是 404） |
 | 5 | 单项 | 401 不带 `WWW-Authenticate`、403（非限流），且它的类型所属的区域（见下）这一轮读到了（`whole` 或 `partial`） | 取消发布或对本人隐藏的文件（待确认） | `gone` | 现状 |
-| 6 | 单项 | 同第 5 行，但它的类型所属的区域这一轮是 `hidden` | 分不清是这一项不在，还是整个区域被关掉 | `unavailable`（原因 `lms.area_hidden`；PR 7 确认 Canvas 对关闭区域里的单项回什么后再看能否改成 `gone`） | 现状 |
+| 6 | 单项 | 同第 5 行，但它的类型所属的区域这一轮是 `hidden` | 分不清是这一项不在，还是整个区域被关掉 | `unavailable`（原因 `lms.area_hidden`）。记录显示关闭区域里已发布的项照常 200（第 3 行），所以被拒的只会是未发布或隐藏的项；学生录不到它们，暂不改成 `gone` | 现状 |
 | 6b | 单项 | 同第 5 行，但它的类型所属的区域这一轮是 `unavailable`（导航读不到或开着，原因不明），或这一轮没读 | 区域状态不明，拒绝可能是对整个区域的 | `unavailable`（原因即错误码） | 2026-11-23 代码评审 |
-| 7 | 区域列表 | 404、401 不带 `WWW-Authenticate`、403（非限流），且同一轮课程导航里这个区域缺失或隐藏 | 老师关闭了这个区域（Canvas `tab_enabled?`） | `hidden` | 现状（`reads._area_hidden`） |
+| 7 | 区域列表 | 404、401 不带 `WWW-Authenticate`、403（非限流），且同一轮课程导航里这个区域缺失或隐藏 | 老师关闭了这个区域（Canvas `tab_enabled?`）。学生的菜单里关闭的栏目直接缺失（不带 `hidden`）；文件列表回 403，页面、测验列表回 404；文件夹列表仍然 200 | `hidden` | 已核对（`reads._area_hidden`） |
 | 8 | 区域列表 | 同第 7 行，但导航里这个区域开着，或这一轮导航读不到 | 原因不明 | `unavailable` | 现状 |
-| 9 | 区域列表 | 200，最后一页 | — | `whole`；带 `hidden_for_user` 的文件与文件夹（以及隐藏文件夹里的文件）不算列出 | 现状 |
+| 9 | 区域列表 | 200，最后一页 | — | `whole`；带 `hidden_for_user` 的文件与文件夹（以及隐藏文件夹里的文件）不算列出。菜单里缺失的区域，列表照样读得到时也是 `whole`（记录里作业不在菜单上，作业列表 200） | 现状 |
 | 10 | 区域列表 | 200，分页超过上限 | — | `partial` | 现状 |
 | 11 | 任意 | 403 正文含 `Rate Limit Exceeded`，或 `X-Rate-Limit-Remaining` ≤ 0；站点开启时 429 + `Retry-After` | 限流 | `unavailable`（`lms.rate_limited`，带 `retry_after`） | 现状 |
-| 12 | 任意 | 401 带 `WWW-Authenticate` | 凭证失效 | `unavailable`（`lms.invalid_credentials`，记到连接上） | 现状 |
+| 12 | 任意 | 401 带 `WWW-Authenticate` | 凭证失效 | `unavailable`（`lms.invalid_credentials`，记到连接上） | 已核对 |
 | 13 | 任意 | 网络错误、超时、≥ 500 | 连不上 | `unavailable`（`lms.unreachable`） | 现状 |
 | 14 | 任意 | 3xx | 地址不是 Canvas API | `unavailable`（`lms.invalid_config`，记到连接上） | 现状 |
 | 15 | provider 没有这个功能 | — | — | 区域 `unsupported`，单项不读 | 现状 |

@@ -9,7 +9,8 @@ from typing import Literal
 from semestra.core.errors import AppError
 from semestra.modules.lms.answers import AREA_HIDDEN, AreaResult, Gone, Unavailable
 
-# Canvas's refusals of a list: a hidden tab answers 404 (`tab_enabled?`), hidden files 401.
+# Canvas's refusals of a list: a closed tab answers 404 (`tab_enabled?`), closed files 403
+# (recorded, `lms/tests/fixtures/canvas/`).
 REFUSALS = frozenset(("lms.not_found", "lms.forbidden"))
 
 
