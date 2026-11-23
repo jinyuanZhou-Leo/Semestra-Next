@@ -137,7 +137,7 @@ lms_course_links
   external_course_id, external_code?, external_name?, external_term?, web_url?,
   total_score?, total_grade?,        # 课程总成绩（#427）
   sync_enabled (default true), synced_at?, watched_at?,  # watched_at：公告阶段上次读这门课的时间
-  area_reads {部分: {result, at, reason?, read_at?, whole_at?, hidden_at?}},    # 每一部分（各区域，加上课程本身 course、补充读取 submissions 与 total，表 5c）上次读取的结果、unavailable 的原因、最后一次读回来与读全的时间（read_at：whole/partial 时更新，whole_at：whole 时更新，否则沿用；“暂时无法同步”里公告行的 {时间}）（表 3c 的输入；取代 sync_errors 与资料的 materials_settled_at 之外的“读全了”判断）
+  area_reads {部分: {result, at, reason?, read_at?, whole_at?, hidden_at?, unavailable_since?, retry_at?}},    # 每一部分（各区域，加上课程本身 course、补充读取 submissions 与 total，表 5c）上次读取的结果、unavailable 的原因、最后一次读回来与读全的时间（read_at：whole/partial 时更新，whole_at：whole 时更新，否则沿用；“暂时无法同步”里公告行的 {时间}）（表 3c 的输入；取代 sync_errors 与资料的 materials_settled_at 之外的“读全了”判断）
   sync_problems {阶段: {code, request_id, items[{kind, external_id, title, code}], reads[部分]}},  # 只记 Semestra 自己这一边的问题（表 5c；取代 sync_errors {阶段: 错误码}）
   materials_settled_at?,
   created_at, updated_at
