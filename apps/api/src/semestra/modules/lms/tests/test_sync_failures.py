@@ -503,7 +503,9 @@ async def test_matrix(
         and read.kind == "side"
         and not (read.method == "quizzes" and answer in ("closed", "not_found"))
     )
-    expected = {read.stage: code} if ended or side_error else {}
+    # A bug of Semestra's is about that read too, but its stage reports it: it will happen every
+    # round (table 2, row 20).
+    expected = {read.stage: code} if ended or side_error or answer == "bug" else {}
     assert _errors(status) == expected
 
     seen = await _seen(app, api)

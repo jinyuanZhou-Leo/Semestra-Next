@@ -37,7 +37,7 @@ from semestra.core.jobs import CoreJob, JobCtx, enqueue, job_handler, periodic
 from semestra.modules.academics import service as academics
 from semestra.modules.auth import service as auth
 from semestra.modules.lms import rules, service
-from semestra.modules.lms.answers import STOPPING
+from semestra.modules.lms.answers import BUG, STOPPING
 from semestra.modules.lms.models import LmsConnection, LmsCourseLink
 from semestra.modules.lms.service import Bound
 from semestra.modules.lms.settings import account, floor, interval
@@ -315,9 +315,14 @@ async def sync_course(
                 return
             this_round.begin(sys.now)
             ran.add(stage.name)
+            bugs = this_round.bugs
             result = await stage.run(sys, link, b, this_round)
             results.append(result)
             code = result.error or (result.skipped[0].code if result.skipped else None)
+            if code is None and this_round.bugs > bugs:
+                # A read failed on a bug of Semestra's (M09 table 2, row 20): it will every round,
+                # so the stage reports it, though the rest of it went on.
+                code = BUG
             if code is not None:
                 errors[stage.name] = code
 

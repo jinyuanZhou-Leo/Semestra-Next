@@ -27,6 +27,7 @@ from semestra.core.http import safe_client
 from semestra.core.security import decrypt, encrypt
 from semestra.modules.academics import service as academics
 from semestra.modules.lms import assignment_refs, cache, html
+from semestra.modules.lms.answers import BUG
 from semestra.modules.lms.errors import BROKEN_ON_READ, CONNECTION_ERRORS, lms_error
 from semestra.modules.lms.models import (
     LmsAnnouncement,
@@ -604,7 +605,7 @@ def provider_failure(b: Bound, exc: Exception) -> AppError:
         log.error("lms.provider_payload", exc_info=True, provider=b.row.provider)
         return lms_error("lms.unreachable", reason="payload")
     log.error("lms.provider_failed", exc_info=True, provider=b.row.provider)
-    return AppError("common.internal", 500)
+    return AppError(BUG, 500)
 
 
 class NotCached(Exception):

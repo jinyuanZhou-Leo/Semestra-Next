@@ -70,6 +70,11 @@ OFF_NAV: frozenset[str] = frozenset(("calendar",))
 # (nothing is changed), the round ends, and the next round reads again (M09 table 5b, row 2).
 # The platform not answering one read, or answering what can't be read (`lms.unreachable`), is
 # about that read: its area or item is not known this round (rows 3-4).
+# A provider call that raised something other than an answer: Semestra's own bug, not the
+# platform's (M09 table 2, row 20). About that read only, like `lms.unreachable`, but the stage
+# it was read in reports it: every round will hit it again (table 5b, row 3).
+BUG = "common.internal"
+
 STOPPING = frozenset(
     (
         "lms.rate_limited",
