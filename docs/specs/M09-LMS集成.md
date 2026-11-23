@@ -87,7 +87,7 @@ class LmsProvider(Protocol):
 | 数据 | 真实来源 | 存在哪 | 谁写 | 读的时候从哪读（所有界面、Sem、MCP 都一样） | 刷新 | 落地 |
 |---|---|---|---|---|---|---|
 | 课程元数据（代码、名称、学期、地址） | 平台课程 | `lms_course_links` 的 `external_*`、`web_url` | 同步阶段 `course` | 镜像 | 排这门课的同步 | 现状 |
-| 各区域这一轮的读取结果（表 2 的区域结果，含从课程导航得出的 `hidden`）、`unavailable` 的原因 `reason`、最后一次读回来的时间 `read_at` 与最后一次读全的时间 `whole_at` | 同步各阶段读区域列表的结果；`read_at` 在结果为 `whole`/`partial` 时、`whole_at` 在结果为 `whole` 时更新为这一轮的时间，其余结果沿用上次的值（一个写法：`rules.area_entry`） | `lms_course_links.area_reads` | 读这个区域的同步阶段 | 只有同步自己读（表 3c 的输入） | 每轮同步覆盖 | 现状 |
+| 各区域这一轮的读取结果（表 2 的区域结果，含从课程导航得出的 `hidden`）、`unavailable` 的原因 `reason`、最后一次读回来的时间 `read_at`、最后一次读全的时间 `whole_at` 与最后一次对本人关闭的时间 `hidden_at` | 同步各阶段读区域列表的结果；`read_at` 在结果为 `whole`/`partial` 时、`whole_at` 在结果为 `whole` 时、`hidden_at` 在结果为 `hidden` 时更新为这一轮的时间，其余结果沿用上次的值（一个写法：`rules.area_entry`） | `lms_course_links.area_reads` | 读这个区域的同步阶段 | 只有同步自己读（表 3c 的输入） | 每轮同步覆盖 | 现状 |
 | 单独读取一项的最近一次结果 | 同步对单项的读取 | `lms_item_checks` | 读这一项的同步阶段 | 表 3c 的输入；因栏目关闭读不到的项列在同步面板的“暂时无法同步”（3c 注） | 每次单独读覆盖 | 现状 |
 | 作业（说明、截止、开放与关闭时间、分值、作业组、提交方式、测验的事实） | 平台作业列表 | `lms_assignments`（关联课程的全部作业，不只已导入的；§3.2） | 同步阶段 `assignments` | 镜像：作业详情、成绩册作业列、待办卡片、Canvas 标签页的作业与测验视图、`lms.assignment.list`、Sem、MCP | 排这门课的 `assignments` 阶段 | PR 4（现在：未导入的作业实时读，已导入的另存 `lms_imported_refs.snapshot` 与 `lms_kept_assignments`） |
 | 我的提交与老师反馈（提交时间、得分、等级、是否等批改、免交、缺交、迟交、评语、评分细则得分、提交的文件名） | 平台提交列表（整门课一次） | `lms_assignments` 同一行 | 同步阶段 `assignments`（与作业同一次读取） | 镜像 | 同上 | PR 4（现在：`lms_kept_assignments`，只存已导入的） |
@@ -137,7 +137,7 @@ lms_course_links
   external_course_id, external_code?, external_name?, external_term?, web_url?,
   total_score?, total_grade?,        # 课程总成绩（PR 4）
   sync_enabled (default true), synced_at?, watched_at?,  # watched_at：公告阶段上次读这门课的时间
-  area_reads {区域: {result, at, reason?, read_at?, whole_at?}},    # 每个区域上次读取的结果、unavailable 的原因、最后一次读回来与读全的时间（read_at：whole/partial 时更新，whole_at：whole 时更新，否则沿用；“暂时无法同步”里公告行的 {时间}）（表 3c 的输入；取代 sync_errors 与资料的 materials_settled_at 之外的“读全了”判断）
+  area_reads {区域: {result, at, reason?, read_at?, whole_at?, hidden_at?}},    # 每个区域上次读取的结果、unavailable 的原因、最后一次读回来与读全的时间（read_at：whole/partial 时更新，whole_at：whole 时更新，否则沿用；“暂时无法同步”里公告行的 {时间}）（表 3c 的输入；取代 sync_errors 与资料的 materials_settled_at 之外的“读全了”判断）
   sync_errors {阶段: 错误码}, materials_settled_at?,
   created_at, updated_at
   UNIQUE(program_id, connection_id, external_course_id)
@@ -314,17 +314,19 @@ Canvas 的映射（`providers/canvas/`）。同一个 HTTP 回应只对应一种
 
 - 只看**最近一次**单独读取：最近一次是 `unavailable` 时，更早读到过 `present` 也不算；超过 1 天的结果不用（落到第 9–11 行）。其它原因的 `unavailable`（限流、连不上等，表 2 第 11–14 行）只说明这一次没读到，不适用第 8 行，下一轮照常重读。
 - **单独读的名额**：每门课每轮最多单独读 `CHECKS_PER_RUN` = 100 项，第 10 行和资料发现（§4.6：页面链接、只在单元里的文件）共用，按最近一次单独读取的时间从早到晚排（从没读过的最先）；没轮到的这一轮不判断，下一轮先读。因栏目关闭读不到的项 1 天才重读一次（第 8 行），不会每轮占名额。
-- **暂时无法同步，用户看得到**：栏目关着时分不清里面的项还在不在（表 2 第 6 行），这些项列在同步面板的“暂时无法同步”里。只有这一种原因会进列表：限流、连不上只是一时没读到，下一轮重读；连接或整门课的问题显示在状态行与连接状态上。列表只由下面的输入决定，不另存状态；平台上又读得到（最近一次单独读取变成 `present` 或 `gone`，或区域结果不再是 `hidden`）时自动消失，按表 3c 与表 4 照常处理。
+- **暂时无法同步，用户看得到**：栏目关着时分不清里面的项还在不在（表 2 第 6 行），这些项列在同步面板的“暂时无法同步”里。只有这一种原因会进列表：限流、连不上只是一时没读到，下一轮重读；连接或整门课的问题显示在状态行与连接状态上。列表只由下面的输入决定，不另存状态；平台上又读得到（最近一次单独读取变成 `present` 或 `gone`，或它的区域又读回来，见下面的“仍关着”）时自动消失，按表 3c 与表 4 照常处理。
 
   | 行 | 入列条件（全部满足） | 显示 | 操作 | 落地 |
   |---|---|---|---|---|
-  | 资料（逐项） | 课程的资料同步开着（`lms.materials.sync`）；`lms_materials.state` 是 `synced`，或是带 `quiet` 的 `absent`（用户恢复了、还在等带回）；它的 `lms_item_checks` 最近一次是 `unavailable` 且原因 `lms.area_hidden` | 名称、课程、原因“{平台} 上的“{栏目}”栏目已关闭”（栏目按表 2 的“类型所属的区域”） | `synced` 且没有本地副本：“移除”（红色，经 `ConfirmDialog`）；其余没有操作（有本地副本的照常打开，栏目重新打开后照常跟随；恢复中的等栏目重新打开后带回） | 现状 |
-  | 已导入的作业（逐项） | `lms_imported_refs` 有对象；它的 `lms_item_checks` 最近一次是 `unavailable` 且原因 `lms.area_hidden` | 作业名、课程、同一句原因 | 打开作业详情；没有删除操作（对象由用户在成绩册或待办里自己处理） | 现状；作业详情里注明“这是 {时间} 时的内容”随作业镜像（PR 4） |
-  | 公告（每门课一行） | 课程的区域结果 `area_reads.announcements.result` 是 `hidden` | “N 条公告”（N = 这门课 `lms_announcements` 的行数）、课程、“{原因}，保持 {时间} 时的样子”，{时间} = `area_reads.announcements.whole_at`（最后一次读全的时间；为空时不写这半句） | 打开这门课的公告页 | 现状；公告页上的说明 PR 4 |
-  | 未导入的作业（每门课一行） | 作业区域的结果是 `hidden` | “N 份未导入的作业”，保持 {时间} 时的样子 | 打开这门课的作业页 | PR 4（要等作业镜像 `lms_assignments` 才有 N 与 {时间}；在那之前不显示这一行） |
+  | 资料（逐项） | 课程的资料同步开着（`lms.materials.sync`）；`lms_materials.state` 是 `synced`，或是带 `quiet` 的 `absent`（用户恢复了、还在等带回）；它的 `lms_item_checks` 最近一次是 `unavailable` 且原因 `lms.area_hidden`；它类型所属的区域（表 2）仍关着 | 名称、课程、原因“{平台} 上的“{栏目}”栏目已关闭”（栏目按表 2 的“类型所属的区域”） | `synced` 且没有本地副本：“移除”（红色，经 `ConfirmDialog`）；其余没有操作（有本地副本的照常打开，栏目重新打开后照常跟随；恢复中的等栏目重新打开后带回） | 现状 |
+  | 已导入的作业（逐项） | `lms_imported_refs` 有对象；它的 `lms_item_checks` 最近一次是 `unavailable` 且原因 `lms.area_hidden`；作业区域仍关着 | 作业名、课程、同一句原因 | 打开作业详情；没有删除操作（对象由用户在成绩册或待办里自己处理） | 现状；作业详情里注明“这是 {时间} 时的内容”随作业镜像（PR 4） |
+  | 公告（每门课一行） | 课程的公告区域仍关着 | “N 条公告”（N = 这门课 `lms_announcements` 的行数）、课程、“{原因}，保持 {时间} 时的样子”，{时间} = `area_reads.announcements.whole_at`（最后一次读全的时间；为空时不写这半句） | 打开这门课的公告页 | 现状；公告页上的说明 PR 4 |
+  | 未导入的作业（每门课一行） | 作业区域仍关着 | “N 份未导入的作业”，保持 {时间} 时的样子 | 打开这门课的作业页 | PR 4（要等作业镜像 `lms_assignments` 才有 N 与 {时间}；在那之前不显示这一行） |
 
+  - **区域“仍关着”**（`rules.area_closed`）：这一轮的结果是 `hidden`，或最后一次关闭（`hidden_at`）晚于最后一次读回来（`read_at`）。分不清的一轮（`unavailable`：导航或列表没读到）不改变它，所以列表项不会因为某一轮没读清就消失、下一轮又回来；只有区域真的又读回来（`whole`/`partial`）才消失。
   - **移除**只对没有本地副本的资料提供，单项与批量同一条规则：有本地副本的那份可能是用户唯一的一份，不经这里删。单项是 `lms.sync.material.remove`，标题行的“全部移除”（这类资料多于一项时显示，同样经 `ConfirmDialog`）是 `lms.sync.material.remove_all`，按 Program 处理列表里所有这类资料（见 §5）。两者都按表 4a 的“用户在“暂时无法同步”里移除”一列转换，返回最新的 `SyncStatus`。
 
+- `lms_item_checks` 只记单独读取的结果（§3 数据表）：一项出现在这一轮的某个区域列表里时按第 3 行判“在”，不改写它的单独读取记录；“暂时无法同步”里的项在它的区域重新打开时按区域结果消失。若把“列出”写成一次 `present` 读取，只在别的区域列出、自己的区域仍关着的项（文件区关着、只在单元里的文件）会在相邻两轮之间来回改写（这一轮单独读到 `area_hidden`，下一轮按第 8 行不重读却被“列出”改成 `present`，再下一轮又重读），平台没变也写库。
 - “已离开”之后做什么由各自的状态转移表决定（表 4a、4b），本表只回答在不在。
 - 用户在这一轮读取期间恢复的资料（`state_at` 晚于这一轮开始读的时间）不在这一轮判断。
 - 第 2–11 行的“在这一轮的区域列表里”“单独读”对作业与公告同样适用；它们的单独读取同样记进 `lms_item_checks`。

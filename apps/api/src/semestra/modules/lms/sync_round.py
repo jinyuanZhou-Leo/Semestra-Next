@@ -67,8 +67,6 @@ class SyncRound:
     _nav: Any = _UNREAD
     _checks: dict[Key, Check] | None = None
     _new: dict[Key, _Read] = field(default_factory=lambda: {})
-    # Items a list showed this round: a check of theirs that said otherwise is out of date.
-    _listed: set[Key] = field(default_factory=lambda: set[Key]())
     # Why an area was unavailable this round (an error code).
     _reasons: dict[str, str] = field(default_factory=lambda: {})
 
@@ -133,11 +131,6 @@ class SyncRound:
             result = before
         self.areas[area] = result
         return got
-
-    def listed(self, kind: str, external_ids: Iterable[str]) -> None:
-        """These items were in one of this round's lists (table 3c, row 3): a single read of
-        theirs that could not tell (their area closed) no longer stands (`save`)."""
-        self._listed.update((kind, e) for e in external_ids)
 
     def unsupported(self, area: str) -> None:
         """The provider does not offer the area: it is no place an item can be listed in."""
@@ -259,12 +252,6 @@ class SyncRound:
         under the stage's write lock (`sync.hold`)."""
         wanted = set(kinds) if kinds is not None else None
         todo = {k: r for k, r in self._new.items() if wanted is None or k[0] in wanted}
-        checks = await self._load(ctx, link)
-        for key in self._listed:
-            last = checks.get(key)
-            stale = last is not None and last.result != "present"
-            if stale and (wanted is None or key[0] in wanted) and key not in todo:
-                todo[key] = _Read("present", None, ctx.now)
         if todo:
             rows = {
                 (c.kind, c.external_id): c

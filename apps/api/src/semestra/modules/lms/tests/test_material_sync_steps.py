@@ -21,7 +21,7 @@ from typing import Any
 import pytest
 from fastapi import FastAPI
 from httpx import AsyncClient
-from hypothesis import HealthCheck, given, settings
+from hypothesis import HealthCheck, example, given, settings
 from hypothesis import strategies as st
 from sqlalchemy import event, select
 
@@ -219,6 +219,13 @@ class Writes:
     max_examples=12,
     deadline=None,
     suppress_health_check=[HealthCheck.function_scoped_fixture, HealthCheck.too_slow],
+)
+# A file only in a module, read on its own while the files area is closed: a listing does not
+# rewrite its refused read, so the next sync writes nothing (table 3c, note).
+@example(
+    where={"f1": "files", "f2": "files", "f3": "module"},
+    store="online",
+    steps=[("hide_files", True), ("user_delete", "f3"), ("refuse", "f3", True)],
 )
 @given(
     where=st.fixed_dictionaries({f: st.sampled_from(["files", "module", "page"]) for f in FILES}),
