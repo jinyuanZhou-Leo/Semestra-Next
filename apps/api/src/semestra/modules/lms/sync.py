@@ -130,10 +130,10 @@ def register_sync_stage(
     area: str | None = None,
 ) -> None:
     """Adds a stage to every course sync. `run(ctx, link, b, round)` reads the platform through
-    the round (`SyncRound.area`, `.read`), then writes in `ctx`'s transaction (committed after it
-    returns; rolled back if it raises), taking the write lock with `hold` before it reads what it
-    compares, and saving what it read with `round.save`. An `AppError` is recorded as the stage's
-    error; the other stages still run. `enabled(ctx, link, b)` skips the
+    the round (`SyncRound.area`, `.judge`, `.read_many`), then writes in `ctx`'s transaction
+    (committed after it returns; rolled back if it raises), taking the write lock with `hold`
+    before it reads what it compares, and saving what it read with `round.save`. An `AppError` is
+    recorded as the stage's error; the other stages still run. `enabled(ctx, link, b)` skips the
     stage for a course (its settings, the provider's features). A stage with an `area` that
     reads it on its own records how its list read with `record_area`."""
     if name in _stages:

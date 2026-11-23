@@ -24,7 +24,7 @@ from semestra.modules.lms.answers import (
 from semestra.modules.lms.providers import Io
 from semestra.modules.lms.providers.canvas import CanvasProvider
 from semestra.modules.lms.rules import CHECK_EVERY, Check, presence
-from semestra.modules.lms.sync_round import SyncRound
+from semestra.modules.lms.sync_round import SyncRound, one_by_one
 from semestra.modules.lms.tests.conftest import CANVAS, TOKEN
 
 API = f"{CANVAS}/api/v1"
@@ -81,7 +81,9 @@ async def _item(
     sync_round, ctx, b, _ = _round(p)
     if area is not None:
         sync_round.areas["files"] = area
-    return await sync_round.read(ctx, b, "file", "7", lambda: p.file(io, cfg, creds, "101", "7"))
+    read = one_by_one(lambda _, file_id: p.file(io, cfg, creds, "101", file_id))
+    got = await sync_round.read_many(ctx, b, "file", ["7"], lambda ids: read("file", ids))
+    return got.get("7")
 
 
 async def _area(

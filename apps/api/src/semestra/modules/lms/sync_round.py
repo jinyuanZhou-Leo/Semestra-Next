@@ -1,11 +1,11 @@
 """What one course sync read (M09 §4.1, §4.2 table 3c): each area's list result, and the items
 read on its own, within this round's budget (`rules.CHECKS_PER_RUN`).
 
-Every stage of a course's sync reads the platform through the round (`area`, `read`), and the
-materials, the assignments and the announcements it did not find are judged by `judge`: the one
-flow around `rules.presence` (M09 table 3c). The round keeps only plain values: each stage has
-a transaction (and a database session) of its own, and writes what it read with `save` once it
-holds the write lock.
+Every stage of a course's sync reads the platform through the round (`area`, `judge`,
+`read_many`), and the materials, the assignments and the announcements it did not find are judged
+by `judge`: the one flow around `rules.presence` (M09 table 3c). The budget is spent in one place
+(`_spend`). The round keeps only plain values: each stage has a transaction (and a database
+session) of its own, and writes what it read with `save` once it holds the write lock.
 """
 
 from collections.abc import Awaitable, Callable, Iterable, Sequence
@@ -227,33 +227,6 @@ class SyncRound:
             return Gone()
         return Unavailable(r.reason or "")
 
-    async def read[T](
-        self,
-        ctx: Ctx,
-        b: Bound,
-        kind: str,
-        external_id: str,
-        read: Callable[[], Awaitable[T]],
-        *,
-        budgeted: bool = True,
-    ) -> ItemAnswer | None:
-        """Reads one item on its own within the budget, and records what it got; None when the
-        budget is spent. Throttling, the platform down or the token failing is raised (the
-        stage stops; the next round reads it again). Not `budgeted`: the contents of an item a
-        list showed changed (a page), read whatever the budget."""
-        if budgeted:
-            if self.budget <= 0:
-                self.out_of_budget = True
-                return None
-            self.budget -= 1
-        try:
-            got: T | AppError = await read()
-        except AppError as exc:
-            if exc.code in STOPPING:
-                raise
-            got = exc
-        return self._record(ctx, b, kind, external_id, got)
-
     async def read_many[T](
         self,
         ctx: Ctx,
@@ -264,19 +237,27 @@ class SyncRound:
         *,
         budgeted: bool = True,
     ) -> dict[str, ItemAnswer]:
-        """Like `read`, for several items of one kind read side by side (`reads.files_many`,
-        `reads.pages_many`): those the budget allows, in the order given (`oldest_first`); the
-        answer of each one read."""
-        wanted = list(external_ids)
-        if budgeted:
-            if len(wanted) > self.budget:
-                self.out_of_budget = True
-                wanted = wanted[: max(self.budget, 0)]
-            self.budget -= len(wanted)
+        """Reads items of one kind on their own, side by side (`reads.files_many`,
+        `reads.pages_many`), and records what each got: those the budget allows, in the order
+        given (`oldest_first`); the answer of each one read. `read` gives each one's data or the
+        error it got; throttling, the platform down or the token failing is raised (the stage
+        stops; the next round reads it again). Not `budgeted`: the contents of items a list
+        showed changed (pages), read whatever the budget."""
+        wanted = self._spend(list(external_ids)) if budgeted else list(external_ids)
         if not wanted:
             return {}
         got = await read(wanted)
         return {e: self._record(ctx, b, kind, e, one) for e, one in zip(wanted, got, strict=True)}
+
+    def _spend[K](self, wanted: list[K]) -> list[K]:
+        """The round's budget rule, the one place it is applied: the first of `wanted` (in the
+        order the budget goes) up to what is left, spent before reading; the rest wait for a
+        later round (`out_of_budget`)."""
+        if len(wanted) > self.budget:
+            self.out_of_budget = True
+            wanted = wanted[: max(self.budget, 0)]
+        self.budget -= len(wanted)
+        return wanted
 
     def _record(self, ctx: Ctx, b: Bound, kind: str, external_id: str, got: object) -> ItemAnswer:
         if isinstance(got, AppError):
@@ -322,11 +303,7 @@ class SyncRound:
                     wanted.append(key)
                 verdict = "unknown"
             verdicts[key] = verdict
-        ordered = await self.oldest_first(ctx, link, wanted)
-        if len(ordered) > self.budget:
-            self.out_of_budget = True
-            ordered = ordered[: max(self.budget, 0)]
-        self.budget -= len(ordered)
+        ordered = self._spend(await self.oldest_first(ctx, link, wanted))
         answers: dict[Key, ItemAnswer] = {}
         for kind in dict.fromkeys(k for k, _ in ordered):
             ids = [e for k, e in ordered if k == kind]
