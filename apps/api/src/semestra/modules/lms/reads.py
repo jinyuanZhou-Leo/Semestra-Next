@@ -245,7 +245,12 @@ async def assignments(ctx: Ctx, inp: AssignmentsInput) -> AssignmentList:
     zone = await course_zone(ctx, course_id) if inp.due_after or inp.due_before else UTC
     after, before = aware(inp.due_after, zone), aware(inp.due_before, zone)
     items = [
-        {**a, "ref": f"assignment:{a['external_id']}", "imported_as": targets.get(a["external_id"])}
+        {
+            **a,
+            "ref": f"assignment:{a['external_id']}",
+            "imported_as": targets.get(a["external_id"]),
+            "due_state": rules.due_state_of(a, ctx.now),
+        }
         for a in data
         if _wanted(a, inp, after, before)
     ]
@@ -338,7 +343,23 @@ async def modules(ctx: Ctx, course_id: str, refresh: bool) -> ModuleList:
     data, truncated, *_ = await _read(
         ctx, course_id, "modules", "modules", {}, fetch, refresh=refresh, area="modules"
     )
-    return ModuleList.model_validate({"items": data, "truncated": truncated})
+    return ModuleList.model_validate(
+        {
+            "items": [
+                {**module, "items": _with_due(ctx, module["items"])}
+                if module.get("items") is not None
+                else module
+                for module in data
+            ],
+            "truncated": truncated,
+        }
+    )
+
+
+def _with_due(ctx: Ctx, items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Module items with their due state (table 3d), worked out as they are read: what is
+    stored and cached stays the platform's facts."""
+    return [{**item, "due_state": rules.item_due_state(item, ctx.now)} for item in items]
 
 
 async def module_items(ctx: Ctx, course_id: str, module_id: str, refresh: bool) -> ModuleItemList:
@@ -351,7 +372,9 @@ async def module_items(ctx: Ctx, course_id: str, module_id: str, refresh: bool) 
         hit = await cache.get(ctx, key)
         for module in (hit or {}).get("data", []):
             if module.get("external_id") == module_id and module.get("items") is not None:
-                return ModuleItemList.model_validate({"items": module["items"], "truncated": False})
+                return ModuleItemList.model_validate(
+                    {"items": _with_due(ctx, module["items"]), "truncated": False}
+                )
 
     async def fetch(b: Bound, i: Any, ext: str) -> Any:
         return [
@@ -369,7 +392,7 @@ async def module_items(ctx: Ctx, course_id: str, module_id: str, refresh: bool) 
         refresh=refresh,
         linked=linked,
     )
-    return ModuleItemList.model_validate({"items": data, "truncated": truncated})
+    return ModuleItemList.model_validate({"items": _with_due(ctx, data), "truncated": truncated})
 
 
 async def pages(ctx: Ctx, course_id: str, refresh: bool) -> PageList:

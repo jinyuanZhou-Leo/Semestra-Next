@@ -267,13 +267,23 @@ Canvas 的映射（`providers/canvas/`）。同一个 HTTP 回应只对应一种
 
 **3b 作业状态 `assignment_state`**（按顺序取第一行）
 
-| # | 提交状态 | 平台标为缺交 | 在平台上提交（提交方式不全是 `on_paper`、`none`、`not_graded`；没写提交方式算在平台上） | 结果 | 显示 |
-|---|---|---|---|---|---|
-| 1 | `graded` / `excused` / `submitted` | 任意 | 任意 | 同提交状态 | 已评分 / 免交 / 已提交 |
-| 2 | `unsubmitted` | 是 | 任意 | `missing` | 缺交 |
-| 3 | `unsubmitted` | 否 | 否 | `offline` | 无需在线提交 |
-| 4 | `unsubmitted` | 否 | 是 | `unsubmitted` | 未提交 |
+| # | 提交状态 | 平台标为缺交 | 在平台上提交（提交方式不全是 `on_paper`、`none`、`not_graded`；没写提交方式算在平台上） | 结果 | 显示 | 筛选（Canvas 标签页作业表） |
+|---|---|---|---|---|---|---|
+| 0 | 不是平台上的作业（练习测验；没有对应作业的待办）；或已导入的作业，同步还没读到它的提交（`lms.assignment.targets` 的 `status` 为空） | — | — | 无（`state` 为空） | 不显示状态 | 只在「全部」 |
+| 1 | `graded` | 任意 | 任意 | `graded` | 已评分 | 已出分 |
+| 2 | `excused` / `submitted` | 任意 | 任意 | 同提交状态 | 免交 / 已提交 | 只在「全部」 |
+| 3 | `unsubmitted` | 是 | 任意 | `missing` | 缺交 | 缺交 |
+| 4 | `unsubmitted` | 否 | 否 | `offline` | 无需在线提交 | 3d 为 `upcoming` 时在「待完成」（截止前留着，之后平台无从知道做没做；owner 2026-11-23），否则只在「全部」 |
+| 5 | `unsubmitted` | 否 | 是 | `unsubmitted` | 未提交 | 待完成 |
 
+标记（与状态并列显示，不参与筛选）：
+
+| 标记 | 条件 | 显示 |
+|---|---|---|
+| 缺交 | 平台标了缺交，且状态是 `graded`（缺交按 0 分计入） | “缺交”（标红） |
+| 迟交 | 平台标了迟交，且状态是 `graded` 或 `submitted` | “迟交” |
+
+- 用在：作业详情（对话框与侧栏）、待办的提交行、Canvas 标签页的作业表与单元条目、Sem 与 MCP 的作业文本。状态与标记只按本表显示，各处不另写规则。
 - 只有平台的缺交标志算缺交：过了截止但平台没标的仍可迟交，是 `unsubmitted`，再由 3d 给出 `overdue`。
 - 状态只有一个，用于筛选与计数（一个作业只落在一个筛选里）；缺交与迟交另外作为标记并列显示：缺交按 0 分计入的作业状态是 `graded`，同时显示“缺交”标记，与平台一致。
 - 作业状态在作业对象上（作业列表的每项、作业详情、`lms.assignment.targets`、Sem 与 MCP 的作业文本），作业本身的 DTO 不带它。落地：#417（后端）、PR 1（前端只显示）。
@@ -317,6 +327,9 @@ Canvas 的映射（`providers/canvas/`）。同一个 HTTP 回应只对应一种
 | 3 | 截止 > 现在 | `upcoming` | “N 天后截止” |
 | 4 | 作业状态是 `offline`（纸质、考试、无需提交） | `past` | “已过截止”（平台无从知道做没做，不标红） |
 | 5 | 其余（`unsubmitted`、`missing`，或有完成要求而未完成） | `overdue` | “已逾期”（标红） |
+
+- 作业状态是 `missing` 时不显示截止提示（已有“缺交”）；`due_state` 仍是 `overdue`，供过滤与计数用。
+- 用在：作业列表的每项、作业详情、单元条目（`lms.module.list`、`lms.module_item.list` 的每个条目）。落地：PR 1（后端算，前端只显示）。
 
 **3e 新作业 `is_new`**（同步面板的“新作业”提醒、`lms.assignment.list` 的 `new_ids`、`lms.activity.list` 的新作业都用它）
 
@@ -574,7 +587,7 @@ Agent 与 MCP 只看到 11 个按任务设计的工具，而不是每个平台�
 - 修改连接的配置（例如地址）时必须重新填写凭证，否则返回 `lms.credentials_missing`：已保存的令牌永远不会发往新地址。令牌格式不对时返回 `lms.invalid_credentials`（reason `format`）。
 - 课程导入的 session 提交时，如果 Program 已经换绑到别的连接，课程照常创建，但不建立关联（关联必须使用当前绑定的连接）。
 - 提交状态归一：`rules.submission_status` 是唯一的判断（excused → graded（有分数或等级，且没有等老师批改）→ submitted（有提交时间，或 `needs_grading`：provider 给出的“交了、等老师批改”，如人工批改的测验、评分后重交）→ unsubmitted）；`Submission`/`SubmissionDetail` 的 `status`、`Assignment` 的 `online`（是否在平台上提交）与 `is_quiz` 都是计算字段（作业状态 `state` 见下一条），所以缓存、同步保存的内容和旧备份不需要迁移就带上它们；`lms.assignment_targets` 的每项同时给出上次同步时的 `status`、`missing`、`late`、`submitted_at`（同步读到之前为空）与由它们算出的 `state`。平台原样的提交 `state` 字段已删除。
-- 作业状态：`rules.assignment_state` 是界面、Sem 与 MCP 共用的唯一规则，作为列表项（`AssignmentOut`）、作业详情（`AssignmentDetail.state`，用详情里的 `submission` 算；`assignment` 本身不带提交，所以不输出 state）和 `AssignmentTarget.state` 的计算字段返回，前端只负责显示。顺序：提交已是 graded / excused / submitted 时取它；否则平台标了 missing 为 `missing`；否则不在平台上提交（纸质、无需提交）为 `offline`；否则 `unsubmitted`。只有平台的 missing 标志算缺交：过了截止而平台没标的仍是 `unsubmitted`（还能迟交）。状态不含截止日期，“即将截止”用 `state=unsubmitted` 加 `due_after` 表达。列表过滤用 `rules.state_of` 直接从缓存里的原始字段算，部署前缓存的内容也判得一样。
+- 作业状态、截止提示与标记：见表 3b、3d（`rules.assignment_state`、`rules.due_state`，列表过滤用 `rules.state_of` 直接从缓存里的原始字段算）。
 - 定期任务 `lms.refresh_status`（每 6 小时）重新验证连接状态并清理过期缓存：每个连接一个短事务，先问平台、再重新读取该行写状态，期间被删或换了凭证的连接不动；清理缓存单独一个事务。Canvas 公告与日历事件的时间范围都以完整的 UTC 时间传给平台（只传日期时 Canvas 按用户时区的零点算，会漏掉当天零点前的公告）；全天日历事件按平台给的 `all_day_date` 落在 Program 时区的那一天。`set_link` 读外部课程不再写缓存（没有读者）。读缓存在内存 LRU（`app.state.lms`）和表 `lms_cache` 两层，TTL 5 分钟，`refresh=true` 跳过缓存。
 - `lms_imported_refs` 多了 `snapshot`（导入时作业的标题、截止时间、分值，以及按作业组推算的实际权重），用于更新检测；`check_updates` 比较的是快照与平台当前值，所以组权重或同组其他作业分值变化也会作为权重更新提示。旧快照没有权重字段时不比较权重。分值变化只在作业组加权的课程里提示（导入不复制分值，未加权课程的分值变化在本地没有可应用的字段）。审核提交时，应用失败的修改项不刷新快照，下次仍会提示。读取平台内容时遇到 `lms.forbidden` 只说明那一项资源没权限，不会把连接标成失效；连接检查（读取本人资料）遇到 403 仍算连接错误。“显示往期课程”时 Canvas 课程列表会额外请求一次 `enrollment_state=completed` 并按 id 去重，因为不带该参数时只返回当前的选课。作业成绩带上 submission 的 `graded_at`。测验列表只含 Classic Quizzes（New Quizzes 是 LTI 作业，暂未识别为测验）；讨论 checkpoint（`type=sub_assignment`）暂不进日历；学期公告卡片仍按课程分别请求，后续可合并成一次多 `context_codes[]` 请求。作业导入或更新审核的 session 未提交期间，课程被取消关联或改关联到另一门平台课程时，提交会整体回滚并返回 `lms.course_not_linked`。
 - 导入记录不是订阅 `imports.session.committed` 写的，而是 `register_commit_hook("lms", ...)`：与 M08 提交在同一事务里创建课程关联、写导入记录、刷新快照，提交失败时一起回滚。LMS 侧的对应关系存在 session 的 `source_meta.lms.items`（item id → 外部 id），因为 M08 的 item 数据模型会丢掉未知字段。

@@ -7,7 +7,7 @@ from pydantic import BaseModel, BeforeValidator, Field, SecretStr, computed_fiel
 
 from semestra.core.capability import HTTP_ONLY
 from semestra.modules.academics.schemas import Id
-from semestra.modules.lms.rules import AssignmentState, SubmissionStatus, assignment_state
+from semestra.modules.lms.rules import AssignmentState, DueState, SubmissionStatus, assignment_state
 from semestra.modules.lms.schemas.dto import (
     Assignment,
     Attachment,
@@ -428,6 +428,10 @@ class AssignmentOut(Assignment):
         description="What it was imported as (an assessment, which has its to-do, or a to-do); "
         "null while not imported"
     )
+    due_state: DueState = Field(
+        description="Whether the due date still matters (`rules.due_state`, M09 table 3d): none, "
+        "upcoming, past (not handed in online) or overdue"
+    )
 
     @computed_field(description="Where the user is with it (`rules.assignment_state`)")
     @property
@@ -487,8 +491,21 @@ class GradeList(BaseModel):
     truncated: bool
 
 
+class ModuleItemOut(ModuleItem):
+    due_state: DueState = Field(
+        description="Whether the due date still matters (`rules.item_due_state`, M09 table 3d)"
+    )
+
+
+class ModuleOut(Module):
+    items: list[ModuleItemOut] | None = Field(  # pyright: ignore[reportIncompatibleVariableOverride]
+        default=None,
+        description="The module's items when the platform sent them along (None: ask for them)",
+    )
+
+
 class ModuleList(BaseModel):
-    items: list[Module]
+    items: list[ModuleOut]
     truncated: bool
 
 
@@ -497,7 +514,7 @@ class ModuleItemsInput(CourseReadInput):
 
 
 class ModuleItemList(BaseModel):
-    items: list[ModuleItem]
+    items: list[ModuleItemOut]
     truncated: bool
 
 
@@ -641,6 +658,10 @@ class AssignmentDetail(BaseModel):
     task: InTasks | None = Field(description="Its to-do")
     targets: list[LinkTarget] = Field(
         default=[], description="What the description's links to course files are in the app"
+    )
+    due_state: DueState = Field(
+        description="Whether the due date still matters (`rules.due_state`, M09 table 3d): none, "
+        "upcoming, past (not handed in online) or overdue"
     )
 
     @computed_field(description="Where the user is with it (`rules.assignment_state`)")

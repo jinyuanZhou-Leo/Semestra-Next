@@ -487,6 +487,8 @@ function assignmentHandlers(body: (path: string, body: unknown) => void) {
             group_weight: 20,
             points: 10,
             imported_as: null,
+            state: 'unsubmitted',
+            due_state: 'none',
           },
           {
             external_id: 'x2',
@@ -495,6 +497,8 @@ function assignmentHandlers(body: (path: string, body: unknown) => void) {
             group_name: 'Labs',
             points: 10,
             imported_as: { kind: 'assessment', id: 'as1' },
+            state: 'unsubmitted',
+            due_state: 'none',
           },
           {
             external_id: 'x3',
@@ -503,6 +507,8 @@ function assignmentHandlers(body: (path: string, body: unknown) => void) {
             group_name: 'Labs',
             points: 0,
             imported_as: { kind: 'task', id: 't3' },
+            state: 'unsubmitted',
+            due_state: 'none',
           },
         ],
         new_ids: ['x1'],
@@ -548,6 +554,98 @@ test('ticked assignments open the import review', async () => {
   expect(openImport).toHaveBeenCalledWith(
     expect.objectContaining({ programId: 'p1', source: 'session', sessionId: 's1' }),
   )
+})
+
+test('each assignment shows the state and due state the server gives it', async () => {
+  const soon = new Date(Date.now() + 3 * 86_400_000).toISOString()
+  const gone = new Date(Date.now() - 3 * 86_400_000).toISOString()
+  const row = (
+    id: string,
+    name: string,
+    [state, dueState]: [string, string],
+    submission: Record<string, unknown>,
+    dueAt = soon,
+  ) => ({
+    external_id: id,
+    name,
+    group_id: 'g1',
+    group_name: 'Labs',
+    points: 10,
+    due_at: dueAt,
+    online: state !== 'offline',
+    imported_as: null,
+    state,
+    due_state: dueState,
+    submission: { missing: false, late: false, excused: false, ...submission },
+  })
+  server.use(
+    http.get(`${API}/courses/c1/lms/assignments`, () =>
+      HttpResponse.json({
+        items: [
+          row('e1', 'Excused lab', ['excused', 'none'], { status: 'excused', excused: true }),
+          row('z1', 'Zeroed lab', ['graded', 'none'], {
+            status: 'graded',
+            missing: true,
+            score: 0,
+          }),
+          row('l1', 'Late lab', ['submitted', 'none'], { status: 'submitted', late: true }),
+          row('p1', 'Paper lab', ['offline', 'upcoming'], { status: 'unsubmitted' }),
+          row('q1', 'Paper quiz', ['offline', 'past'], { status: 'unsubmitted' }, gone),
+          row(
+            'm1',
+            'Missed lab',
+            ['missing', 'overdue'],
+            { status: 'unsubmitted', missing: true },
+            gone,
+          ),
+          row('d1', 'Overdue lab', ['unsubmitted', 'overdue'], { status: 'unsubmitted' }, gone),
+          row('o1', 'Open lab', ['unsubmitted', 'upcoming'], { status: 'unsubmitted' }),
+        ],
+        new_ids: [],
+        truncated: false,
+      }),
+    ),
+    // A practice quiz has no assignment behind it: no state, and in no filter but All.
+    http.get(`${API}/courses/c1/lms/quizzes`, () =>
+      HttpResponse.json({
+        items: [{ external_id: 'pq1', title: 'Practice quiz', due_at: soon }],
+        truncated: false,
+      }),
+    ),
+  )
+  renderPage('/?tab=assignments')
+  const cell = async (name: string) => within((await screen.findByText(name)).closest('tr')!)
+  expect((await cell('Excused lab')).getByText('Excused')).toBeInTheDocument()
+  // A zero for missing it: graded, with the missing marker beside it.
+  expect((await cell('Zeroed lab')).getByText('Graded')).toBeInTheDocument()
+  expect((await cell('Zeroed lab')).getByText('Missing')).toBeInTheDocument()
+  expect((await cell('Late lab')).getByText('Late')).toBeInTheDocument()
+  expect((await cell('Paper lab')).getByText('No online submission')).toBeInTheDocument()
+  expect((await cell('Paper lab')).getByText(/Due in/)).toBeInTheDocument()
+  expect((await cell('Paper quiz')).getByText('Past due')).toBeInTheDocument()
+  expect((await cell('Missed lab')).getByText('Missing')).toBeInTheDocument()
+  expect((await cell('Missed lab')).queryByText('Overdue')).toBeNull()
+  expect((await cell('Overdue lab')).getByText('Overdue')).toBeInTheDocument()
+  expect((await cell('Open lab')).getByText(/Due in/)).toBeInTheDocument()
+  expect((await cell('Practice quiz')).queryByText(/Due in|Not submitted/)).toBeNull()
+  const all = [
+    'Practice quiz',
+    'Excused lab',
+    'Zeroed lab',
+    'Late lab',
+    'Paper lab',
+    'Paper quiz',
+    'Missed lab',
+    'Overdue lab',
+    'Open lab',
+  ]
+  const shown = () => all.filter((name) => screen.queryByText(name) !== null)
+  await userEvent.click(screen.getByRole('button', { name: 'Graded' }))
+  expect(shown()).toEqual(['Zeroed lab'])
+  await userEvent.click(screen.getByRole('button', { name: 'Missing' }))
+  expect(shown()).toEqual(['Missed lab'])
+  await userEvent.click(screen.getByRole('button', { name: 'To do' }))
+  expect(shown()).toEqual(['Paper lab', 'Overdue lab', 'Open lab'])
 })
 
 test('a to-do can join the gradebook through the review', async () => {
@@ -675,7 +773,16 @@ test('an assignment opens its details over the list', async () => {
   server.use(
     http.get(`${API}/courses/c1/lms/assignments`, () =>
       HttpResponse.json({
-        items: [{ external_id: 'x1', name: 'Essay', points: 20, imported_as: null }],
+        items: [
+          {
+            external_id: 'x1',
+            name: 'Essay',
+            points: 20,
+            imported_as: null,
+            state: 'unsubmitted',
+            due_state: 'none',
+          },
+        ],
         truncated: false,
       }),
     ),
@@ -715,6 +822,8 @@ test('modules show progress, prerequisites, locks and what finishing an item tak
             locked: true,
             lock_explanation: 'Finish Week 1 first.',
             completion: { type: 'min_score', min_score: 7, completed: false },
+            due_at: '2026-01-10T12:00:00Z',
+            due_state: 'overdue',
           },
         ],
         truncated: false,
@@ -728,7 +837,8 @@ test('modules show progress, prerequisites, locks and what finishing an item tak
     await screen.findByText('Finish first: Week 1 · Items must be done in order'),
   ).toBeInTheDocument()
   expect(await screen.findByRole('button', { name: 'Finish Week 1 first.' })).toBeInTheDocument()
-  expect(screen.getByRole('button', { name: 'Score at least 7: not done yet' })).toBeInTheDocument()
+  // Past due and not done, as the server says (table 3d): the mark and the date say so in red.
+  expect(screen.getByRole('button', { name: 'Score at least 7: Overdue' })).toBeInTheDocument()
 })
 
 test('inline module items show without asking for them again', async () => {

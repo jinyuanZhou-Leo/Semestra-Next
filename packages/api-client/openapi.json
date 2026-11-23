@@ -22072,6 +22072,17 @@
             "description": "What the description's links to course files are in the app",
             "default": []
           },
+          "due_state": {
+            "type": "string",
+            "enum": [
+              "none",
+              "upcoming",
+              "past",
+              "overdue"
+            ],
+            "title": "Due State",
+            "description": "Whether the due date still matters (`rules.due_state`, M09 table 3d): none, upcoming, past (not handed in online) or overdue"
+          },
           "state": {
             "type": "string",
             "enum": [
@@ -22094,6 +22105,7 @@
           "submission",
           "assessment",
           "task",
+          "due_state",
           "state"
         ],
         "title": "AssignmentDetail",
@@ -22618,6 +22630,17 @@
             ],
             "description": "What it was imported as (an assessment, which has its to-do, or a to-do); null while not imported"
           },
+          "due_state": {
+            "type": "string",
+            "enum": [
+              "none",
+              "upcoming",
+              "past",
+              "overdue"
+            ],
+            "title": "Due State",
+            "description": "Whether the due date still matters (`rules.due_state`, M09 table 3d): none, upcoming, past (not handed in online) or overdue"
+          },
           "online": {
             "type": "boolean",
             "title": "Online",
@@ -22650,6 +22673,7 @@
           "external_id",
           "name",
           "imported_as",
+          "due_state",
           "online",
           "is_quiz",
           "state"
@@ -33484,122 +33508,28 @@
         "type": "object",
         "title": "ModelParams"
       },
-      "Module": {
+      "ModuleItemList": {
         "properties": {
-          "external_id": {
-            "type": "string",
-            "title": "External Id"
-          },
-          "web_url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Web Url",
-            "description": "Opens the item on the platform"
-          },
-          "raw_kind": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Raw Kind",
-            "description": "The platform's own type (debugging)"
-          },
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
-          "position": {
-            "type": "integer",
-            "title": "Position",
-            "default": 0
-          },
-          "state": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "State",
-            "description": "The user's progress: locked, unlocked, started or completed"
-          },
-          "unlock_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Unlock At"
-          },
-          "item_count": {
-            "type": "integer",
-            "title": "Item Count",
-            "default": 0
-          },
-          "completed_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Completed At"
-          },
-          "prerequisite_module_ids": {
+          "items": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/ModuleItemOut"
             },
             "type": "array",
-            "title": "Prerequisite Module Ids"
+            "title": "Items"
           },
-          "require_sequential_progress": {
+          "truncated": {
             "type": "boolean",
-            "title": "Require Sequential Progress",
-            "default": false
-          },
-          "items": {
-            "anyOf": [
-              {
-                "items": {
-                  "$ref": "#/components/schemas/ModuleItem"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Items",
-            "description": "The module's items when the platform sent them along (None: ask for them)"
+            "title": "Truncated"
           }
         },
         "type": "object",
         "required": [
-          "external_id",
-          "name"
+          "items",
+          "truncated"
         ],
-        "title": "Module"
+        "title": "ModuleItemList"
       },
-      "ModuleItem": {
+      "ModuleItemOut": {
         "properties": {
           "external_id": {
             "type": "string",
@@ -33730,42 +33660,33 @@
               }
             ],
             "title": "Points"
+          },
+          "due_state": {
+            "type": "string",
+            "enum": [
+              "none",
+              "upcoming",
+              "past",
+              "overdue"
+            ],
+            "title": "Due State",
+            "description": "Whether the due date still matters (`rules.item_due_state`, M09 table 3d)"
           }
         },
         "type": "object",
         "required": [
           "external_id",
           "title",
-          "kind"
+          "kind",
+          "due_state"
         ],
-        "title": "ModuleItem"
-      },
-      "ModuleItemList": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/ModuleItem"
-            },
-            "type": "array",
-            "title": "Items"
-          },
-          "truncated": {
-            "type": "boolean",
-            "title": "Truncated"
-          }
-        },
-        "type": "object",
-        "required": [
-          "items",
-          "truncated"
-        ],
-        "title": "ModuleItemList"
+        "title": "ModuleItemOut"
       },
       "ModuleList": {
         "properties": {
           "items": {
             "items": {
-              "$ref": "#/components/schemas/Module"
+              "$ref": "#/components/schemas/ModuleOut"
             },
             "type": "array",
             "title": "Items"
@@ -33781,6 +33702,121 @@
           "truncated"
         ],
         "title": "ModuleList"
+      },
+      "ModuleOut": {
+        "properties": {
+          "external_id": {
+            "type": "string",
+            "title": "External Id"
+          },
+          "web_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Web Url",
+            "description": "Opens the item on the platform"
+          },
+          "raw_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw Kind",
+            "description": "The platform's own type (debugging)"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "position": {
+            "type": "integer",
+            "title": "Position",
+            "default": 0
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State",
+            "description": "The user's progress: locked, unlocked, started or completed"
+          },
+          "unlock_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unlock At"
+          },
+          "item_count": {
+            "type": "integer",
+            "title": "Item Count",
+            "default": 0
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "prerequisite_module_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Prerequisite Module Ids"
+          },
+          "require_sequential_progress": {
+            "type": "boolean",
+            "title": "Require Sequential Progress",
+            "default": false
+          },
+          "items": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ModuleItemOut"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Items",
+            "description": "The module's items when the platform sent them along (None: ask for them)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "external_id",
+          "name"
+        ],
+        "title": "ModuleOut"
       },
       "Nav": {
         "properties": {

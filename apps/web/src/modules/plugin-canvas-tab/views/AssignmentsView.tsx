@@ -66,7 +66,9 @@ import { viewQueries } from '../queries'
  * quiz, which has no assignment, no grade and can't be imported. Its id is the assignment's, or
  * `quiz:<id>` for a practice quiz.
  */
-type Row = { id: string; assignment: AssignmentOut; quiz: Quiz | null; practice: boolean }
+/** An assignment as a row shows it: a practice quiz has none behind it, so no state (M09 表 3b 第 0 行). */
+type Shown = Omit<AssignmentOut, 'state'> & { state: AssignmentOut['state'] | null }
+type Row = { id: string; assignment: Shown; quiz: Quiz | null; practice: boolean }
 
 const PRACTICE_GROUP = 'quiz:practice'
 
@@ -102,7 +104,8 @@ function rowsOf(assignments: readonly AssignmentOut[], quizzes: readonly Quiz[])
         allowed_attempts: q.allowed_attempts,
         imported_as: null,
         online: true,
-        state: 'unsubmitted',
+        state: null,
+        due_state: 'none',
         // Not graded: no assignment behind it.
         is_quiz: false,
       },
@@ -128,7 +131,7 @@ type TableState = {
   /** Read once, so "due in 3 days" doesn't change between renders. */
   now: number
   /** "Add to gradebook" for an assignment imported as a to-do. */
-  toGradebook: (a: AssignmentOut) => void
+  toGradebook: (a: Shown) => void
 }
 const TableContext = createContext<TableState | null>(null)
 
@@ -139,7 +142,7 @@ function useTableState() {
 }
 
 /** An assignment is imported once: an assessment (with its to-do) or a to-do (M09 §4). */
-const imported = (a: AssignmentOut) => a.imported_as != null
+const imported = (a: Shown) => a.imported_as != null
 
 /** What can be ticked for import: not a practice quiz, not imported already. */
 const selectable = ({ assignment: a, practice }: Row) => !practice && !imported(a)
@@ -290,7 +293,17 @@ const ScoreCell = ({ row }: CellProps) => (
 function StatusCell({ row }: CellProps) {
   const { now } = useTableState()
   const a = row.original.assignment
-  return <SubmissionStatus submission={a.submission} dueAt={a.due_at} now={now} />
+  if (a.state === null) return null
+  return (
+    <SubmissionStatus
+      state={a.state}
+      missing={a.submission?.missing ?? false}
+      late={a.submission?.late ?? false}
+      dueState={a.due_state}
+      dueAt={a.due_at}
+      now={now}
+    />
+  )
 }
 
 type SortValue = string | number | null
@@ -416,16 +429,18 @@ const FILTER_LABELS: Record<Filter, () => string> = {
 
 function matches({ assignment: a }: Row, filter: Filter, query: string): boolean {
   if (query && !a.name.toLocaleLowerCase().includes(query)) return false
-  const s = a.submission
+  // Each row in at most one of the filters: by the state its badge shows.
+  const state = a.state
   switch (filter) {
     case 'all':
       return true
     case 'graded':
-      return s?.status === 'graded'
+      return state === 'graded'
     case 'missing':
-      return !!s?.missing
+      return state === 'missing'
     case 'todo':
-      return !s?.missing && (s?.status ?? 'unsubmitted') === 'unsubmitted'
+      // Work handed in off the platform stays until its due date: nothing tells us when it is done.
+      return state === 'unsubmitted' || (state === 'offline' && a.due_state === 'upcoming')
   }
 }
 
