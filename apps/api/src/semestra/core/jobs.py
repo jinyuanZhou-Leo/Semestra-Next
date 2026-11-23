@@ -27,8 +27,10 @@
   run by `job_background_concurrency` workers of its own, so a queue of it never delays the
   others even on a server with a single worker.
 * Due jobs run oldest first, except that kinds of a lower `priority` wait for the others: the
-  files a course sync brings (hundreds at first) are read after any sync queued since, however
-  few workers there are (`job_handler(priority=-1)`).
+  files a course sync brings (hundreds at first) are stored (`priority=-1`) and read (`-2`)
+  after any sync queued since, however few workers there are. Within a priority users take
+  turns: the user served least lately goes first, so one user's hundreds of jobs never hold
+  back another's (`_first`).
 * `async with waiting("ai.rate_limited", until=...)` inside a job tells its owner what the job is
   waiting for (`JobOut.waiting`); kept in memory, as it changes too often to be worth a write.
 """
@@ -64,11 +66,13 @@ from sqlalchemy import (
     or_,
     select,
     text,
+    true,
     update,
 )
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import InstrumentedAttribute, Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.sql import Subquery
 from starlette.datastructures import State
 
 from semestra.core.capability import Http, capability
@@ -83,6 +87,8 @@ JobStatus = Literal["pending", "running", "succeeded", "failed", "cancelled"]
 TERMINAL: tuple[JobStatus, ...] = ("succeeded", "failed", "cancelled")
 LEASE_SECONDS = 60
 POLL_SECONDS = 2.0
+# Picks a claim makes before leaving the jobs to the next poll (each lost to another worker).
+CLAIM_TRIES = 3
 RETENTION = timedelta(days=7)
 JOB_PROGRESS = "core.job.progress"
 JOB_FINISHED = "core.job.finished"
@@ -96,6 +102,8 @@ class CoreJob(Base, OwnedMixin):
         # Per user, so one user's key can never return another user's job.
         UniqueConstraint("user_id", "dedupe_key"),
         Index("ix_core_jobs_status_run_after", "status", "run_after"),
+        # Each user's last turn (`_first`).
+        Index("ix_core_jobs_user_claimed", "user_id", "claimed_at"),
     )
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
@@ -124,6 +132,8 @@ class CoreJob(Base, OwnedMixin):
     next_payload: Mapped[dict[str, Any] | None] = mapped_column(JSON, default=None)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime)
     started_at: Mapped[datetime | None] = mapped_column(UTCDateTime, default=None)
+    # When a worker last took it (each attempt; `started_at` keeps the first).
+    claimed_at: Mapped[datetime | None] = mapped_column(UTCDateTime, default=None)
     finished_at: Mapped[datetime | None] = mapped_column(UTCDateTime, default=None)
 
 
@@ -530,12 +540,30 @@ def _kinds(lanes: Iterable[Lane]) -> list[str]:
     return [kind for kind, handler in _handlers.items() if handler.lane in wanted]
 
 
-def _first() -> tuple[ColumnElement[Any] | InstrumentedAttribute[datetime], ...]:
-    """The order due jobs are taken in: higher priority, then oldest."""
+def _in_lanes(lanes: frozenset[Lane]) -> ColumnElement[bool]:
+    """Jobs of these lanes (a kind with no handler counts as `default`, as in `_lane`)."""
+    if closed := LANES - lanes:
+        return CoreJob.kind.not_in(_kinds(closed))
+    return true()
+
+
+def _first(lanes: frozenset[Lane], users: Sequence[str]) -> tuple[Subquery | None, tuple[Any, ...]]:
+    """The order due jobs of these lanes are taken in (M00 §3.7): higher priority; then, when
+    several `users` have due jobs, the one whose last turn in these lanes (the latest
+    `claimed_at` of their jobs there) is the oldest, one never served first, so users take
+    turns; then the oldest; then the first made. Returns the users' last turns (to outer-join on
+    `user_id`; none for a single user) and the order."""
     ranked = {kind: h.priority for kind, h in _handlers.items() if h.priority}
-    if not ranked:
-        return (CoreJob.run_after,)
-    return (case(ranked, value=CoreJob.kind, else_=0).desc(), CoreJob.run_after)
+    priority = (case(ranked, value=CoreJob.kind, else_=0).desc(),) if ranked else ()
+    if len(users) < 2:
+        return None, (*priority, CoreJob.run_after, CoreJob.id)
+    turns = (
+        select(CoreJob.user_id.label("user_id"), func.max(CoreJob.claimed_at).label("at"))
+        .where(CoreJob.user_id.in_(users), CoreJob.claimed_at.is_not(None), _in_lanes(lanes))
+        .group_by(CoreJob.user_id)
+        .subquery("turns")
+    )
+    return turns, (*priority, turns.c.at.asc().nulls_first(), CoreJob.run_after, CoreJob.id)
 
 
 async def _ended(state: State, job: CoreJob) -> None:
@@ -676,9 +704,10 @@ class JobRunner:
         # A job whose worker died runs again, unless it was asked to stop or is out of attempts:
         # then it ends, each in its own transaction with its `on_failure`.
         lapsed = _lease_lapsed(now)
-        due = or_(and_(CoreJob.status == "pending", CoreJob.run_after <= now), lapsed)
-        if closed := LANES - lanes:
-            due = and_(due, CoreJob.kind.not_in(_kinds(closed)))
+        due = and_(
+            or_(and_(CoreJob.status == "pending", CoreJob.run_after <= now), lapsed),
+            _in_lanes(lanes),
+        )
         async with self.state.session_factory() as db:
             # Most polls find nothing: check with a read first, so an idle worker does not take
             # SQLite's write lock every POLL_SECONDS.
@@ -691,24 +720,39 @@ class JobRunner:
             await self._end_lapsed(job_id, user_id, now)
         # One that could not be ended (its `on_failure` failed) is left for the next poll.
         due = and_(due, not_(and_(lapsed, _GIVE_UP)))
-        async with self.state.session_factory() as db:
-            pick = select(CoreJob.id).where(due).order_by(*_first()).limit(1)
-            job = await db.scalar(
-                update(CoreJob)
-                .where(CoreJob.id == pick.scalar_subquery(), due)
-                .values(
-                    status="running",
-                    attempts=CoreJob.attempts + 1,
-                    lease_owner=self.owner,
-                    lease_expires_at=now + timedelta(seconds=LEASE_SECONDS),
-                    started_at=func.coalesce(CoreJob.started_at, now),
+        job: CoreJob | None = None
+        # The job is chosen with reads, outside SQLite's write lock; taking it only checks it is
+        # still due, and one another worker took meanwhile is chosen again.
+        for _ in range(CLAIM_TRIES):
+            async with self.state.session_factory() as db:
+                users = (
+                    await db.scalars(select(CoreJob.user_id).where(due).distinct().limit(2))
+                ).all()
+                turns, order = _first(lanes, users)
+                pick = select(CoreJob.id).where(due).order_by(*order).limit(1)
+                if turns is not None:
+                    pick = pick.outerjoin(turns, turns.c.user_id == CoreJob.user_id)
+                if (job_id := await db.scalar(pick)) is None:
+                    return None
+            async with self.state.session_factory() as db:
+                job = await db.scalar(
+                    update(CoreJob)
+                    .where(CoreJob.id == job_id, due)
+                    .values(
+                        status="running",
+                        attempts=CoreJob.attempts + 1,
+                        lease_owner=self.owner,
+                        lease_expires_at=now + timedelta(seconds=LEASE_SECONDS),
+                        started_at=func.coalesce(CoreJob.started_at, now),
+                        claimed_at=now,
+                    )
+                    .returning(CoreJob)
                 )
-                .returning(CoreJob)
-            )
-            await db.commit()
-        if job is not None:
-            await events.dispatch(self.state, _event(job))
-        return job
+                await db.commit()
+            if job is not None:
+                await events.dispatch(self.state, _event(job))
+                return job
+        return None
 
     async def _end_lapsed(self, job_id: str, user_id: str, now: datetime) -> None:
         """End a job whose worker died: cancelled if asked, else failed. Its `on_failure` runs in
