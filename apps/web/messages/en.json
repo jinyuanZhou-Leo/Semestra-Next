@@ -2659,6 +2659,8 @@
   "lms_announcements_not_read_paused_term": "Sync is paused for some of this term's courses.",
   "lms_announcements_sync_now": "Sync now",
   "lms_calendar_source": "LMS calendar",
+  "lms_calendar_waiting": "Course calendars not read yet: {count}. Their events appear here once read.",
+  "lms_calendar_unreadable": "Course calendars that can’t be read: {count}",
   "error_lms_provider_unknown": "This platform isn't supported",
   "error_lms_invalid_config": "Check the address",
   "error_lms_invalid_credentials": "The platform credentials aren't valid",

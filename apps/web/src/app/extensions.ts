@@ -398,6 +398,11 @@ export type CalendarSourceContribution = {
    */
   Mark?: ComponentType<{ programId: string }>
   /**
+   * A line under the source in the calendar's filters: what the user should know about its items
+   * (M09: course calendars the sync has not read yet). Renders nothing when there is nothing.
+   */
+  Note?: ComponentType<{ programId: string }>
+  /**
    * Where an item leads: the button at the foot of its details, and the item's row in the
    * schedule cards. Without it the details have no open action and the rows stay plain text.
    */

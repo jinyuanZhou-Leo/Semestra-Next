@@ -515,6 +515,7 @@ function TermCalendar({
 
   const filterPanel = (
     <FilterPanel
+      programId={programId}
       filters={filters}
       onChange={setFilters}
       sources={sources}

@@ -9,12 +9,14 @@ import { Switch } from '@/ui/switch'
 import { type CalendarFilters, visibleSources } from '../filters'
 
 export function FilterPanel({
+  programId,
   filters,
   onChange,
   sources,
   courses,
   showCancelled,
 }: {
+  programId: string
   filters: CalendarFilters
   onChange: (next: CalendarFilters) => void
   sources: readonly CalendarSourceContribution[]
@@ -31,19 +33,22 @@ export function FilterPanel({
           {m.schedule_filter_sources()}
         </FieldLegend>
         {sources.map((s) => (
-          <Field key={s.source} orientation="horizontal" className="w-auto gap-2">
-            <Checkbox
-              id={`${id}-source-${s.source}`}
-              checked={shown.has(s.source)}
-              onCheckedChange={(on) =>
-                onChange({ ...filters, sources: { ...filters.sources, [s.source]: on } })
-              }
-            />
-            <FieldLabel htmlFor={`${id}-source-${s.source}`} className="font-normal">
-              <s.icon aria-hidden className="size-4 text-muted-foreground" />
-              {s.label()}
-            </FieldLabel>
-          </Field>
+          <div key={s.source} className="space-y-1">
+            <Field orientation="horizontal" className="w-auto gap-2">
+              <Checkbox
+                id={`${id}-source-${s.source}`}
+                checked={shown.has(s.source)}
+                onCheckedChange={(on) =>
+                  onChange({ ...filters, sources: { ...filters.sources, [s.source]: on } })
+                }
+              />
+              <FieldLabel htmlFor={`${id}-source-${s.source}`} className="font-normal">
+                <s.icon aria-hidden className="size-4 text-muted-foreground" />
+                {s.label()}
+              </FieldLabel>
+            </Field>
+            {s.Note ? <s.Note programId={programId} /> : null}
+          </div>
         ))}
       </FieldSet>
       {courses.length > 0 ? (
