@@ -21,7 +21,7 @@
       "html_url": "[text]",
       "mobile_url": "[text]",
       "description": "",
-      "quiz_type": "[text]",
+      "quiz_type": "assignment",
       "time_limit": 60,
       "timer_autosubmit_disabled": false,
       "shuffle_answers": false,
