@@ -12961,6 +12961,44 @@ export const MaterialCountsSchema = {
     description: 'The course files that follow the linked course\'s materials, by what unlinking does to\nthem.'
 } as const;
 
+export const MaterialSettleAllInputBodySchema = {
+    properties: {
+        choice: {
+            type: 'string',
+            enum: [
+                'mine',
+                'remove'
+            ],
+            title: 'Choice',
+            description: 'mine: every one with a local copy; remove: every one read from the platform'
+        }
+    },
+    type: 'object',
+    required: [
+        'choice'
+    ],
+    title: 'MaterialSettleAllInputBody'
+} as const;
+
+export const MaterialSettleInputBodySchema = {
+    properties: {
+        choice: {
+            type: 'string',
+            enum: [
+                'mine',
+                'remove'
+            ],
+            title: 'Choice',
+            description: 'mine: make it the user\'s own file (it has a local copy); remove: delete it'
+        }
+    },
+    type: 'object',
+    required: [
+        'choice'
+    ],
+    title: 'MaterialSettleInputBody'
+} as const;
+
 export const MaterialsScopeBodySchema = {
     properties: {
         course_id: {
@@ -21283,6 +21321,14 @@ export const SyncStatusSchema = {
             title: 'Removed Count',
             description: 'How many materials the user deleted, all told'
         },
+        unreadable: {
+            items: {
+                $ref: '#/components/schemas/SyncUnreadable'
+            },
+            type: 'array',
+            title: 'Unreadable',
+            description: 'What can\'t be read since its area is closed on the platform, by course'
+        },
         errors: {
             items: {
                 $ref: '#/components/schemas/SyncCourseError'
@@ -21308,9 +21354,123 @@ export const SyncStatusSchema = {
         'materials',
         'removed_materials',
         'removed_count',
+        'unreadable',
         'errors'
     ],
     title: 'SyncStatus'
+} as const;
+
+export const SyncUnreadableSchema = {
+    properties: {
+        kind: {
+            type: 'string',
+            enum: [
+                'material',
+                'assignment',
+                'assignments',
+                'announcements'
+            ],
+            title: 'Kind'
+        },
+        id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Id',
+            description: 'The material\'s id (`material`) or the imported assignment\'s sync item id (`assignment`); none for a course\'s row'
+        },
+        course_id: {
+            type: 'string',
+            title: 'Course Id'
+        },
+        course: {
+            type: 'string',
+            title: 'Course'
+        },
+        area: {
+            type: 'string',
+            title: 'Area',
+            description: 'The closed area of the course on the platform'
+        },
+        title: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Title',
+            description: 'Its name on the platform; none for a course\'s row'
+        },
+        count: {
+            type: 'integer',
+            title: 'Count',
+            description: 'How many it stands for (1 for one item)'
+        },
+        since: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date-time'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Since',
+            description: 'When it was last read as it is kept (none if not known)'
+        },
+        item_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Item Id',
+            description: 'A material\'s course file, or an imported assignment\'s object'
+        },
+        external_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'External Id',
+            description: 'An assignment\'s id on the platform'
+        },
+        local_copy: {
+            type: 'boolean',
+            title: 'Local Copy',
+            description: 'A material with a copy saved in Semestra: it can become the user\'s own file',
+            default: false
+        }
+    },
+    type: 'object',
+    required: [
+        'kind',
+        'id',
+        'course_id',
+        'course',
+        'area',
+        'title',
+        'count',
+        'since'
+    ],
+    title: 'SyncUnreadable',
+    description: 'What the sync can\'t read because its area is closed on the platform (M09 table 3c, note):\nkept as last read, judged again once the area opens. Materials and imported assignments one\nby one; a course\'s assignments not imported and its announcements as one row per area.'
 } as const;
 
 export const TaskSchema = {

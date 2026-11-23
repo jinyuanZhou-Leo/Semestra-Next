@@ -1866,3 +1866,93 @@ def test_migration_to_a_source_side_and_a_copy_side(tmp_path: Path):
         ("h5", None, None, None, None, 0),
         ("h6", None, None, None, None, 0),
     ]
+
+
+async def test_what_a_closed_area_hides_is_listed_until_it_opens(
+    api: Api, fake: FakeProvider, clock: Clock
+):
+    """The files area closed and a file refused on its own (M09 table 3c, rows 6, 8, 10 and its
+    note): it stays as it was, listed in the panel; with a copy the user can make it theirs,
+    and it leaves the list once the platform shows it again."""
+    _materials(fake)
+    program_id, course = await _course(api)
+    await _materials_setting(api, course, store="local")
+    await api.sync(program_id)
+    await api.run_jobs()
+    fake.files_hidden = True
+    fake.refused_files = {"201", "203", "205"}
+    clock.advance(days=2)
+    status = await api.sync(program_id)
+    rows = {u["title"]: u for u in status["unreadable"]}
+    assert set(rows) == {"Lecture 1.pdf", "Midterm 2025.pdf", "data.zip"}
+    assert {(u["kind"], u["area"], u["local_copy"]) for u in rows.values()} == {
+        ("material", "files", True)
+    }
+    _, items = await _files(api, course)
+    assert {"Lecture 1.pdf", "Midterm 2025.pdf"} <= set(items)  # kept as they were
+    # Not read again within a day: the area is closed, reading again tells nothing new.
+    fake.calls.clear()
+    clock.advance(hours=1)
+    await api.sync(program_id)
+    assert ("file", "201") not in fake.calls
+
+    lecture_id = rows["Lecture 1.pdf"]["id"]
+    status = await api.call(
+        "POST", f"/lms/sync/materials/{lecture_id}:settle", json={"choice": "mine"}
+    )
+    assert [u["title"] for u in status["unreadable"]] == ["data.zip", "Midterm 2025.pdf"]
+    lecture = (await _files(api, course))[1]["Lecture 1.pdf"]
+    assert (lecture["follows_source"], lecture["source_ref"]) == (False, None)  # theirs now
+    assert [(m["title"], m["change"]) for m in status["materials"]][:1] == [
+        ("Lecture 1.pdf", "handed_over")
+    ]
+
+    # Removed instead: deleted, and not brought back until restored.
+    midterm_id = rows["Midterm 2025.pdf"]["id"]
+    status = await api.call(
+        "POST", f"/lms/sync/materials/{midterm_id}:settle", json={"choice": "remove"}
+    )
+    assert [u["title"] for u in status["unreadable"]] == ["data.zip"]
+    assert [r["title"] for r in status["removed_materials"]] == ["Midterm 2025.pdf"]
+    assert "Midterm 2025.pdf" not in (await _files(api, course))[1]
+
+    # The area opens again: listed, so there; gone from the panel by itself.
+    fake.files_hidden = False
+    clock.advance(minutes=1)
+    status = await api.sync(program_id)
+    assert status["unreadable"] == []
+
+
+@pytest.mark.parametrize("store", ["local", "online"])
+async def test_every_unreadable_material_is_answered_at_once(
+    api: Api, fake: FakeProvider, clock: Clock, store: str
+):
+    """The panel's action for all of them (M09 table 3c, note): saved copies become the user's
+    files; read online, they are removed. Only the ones the answer fits."""
+    _materials(fake)
+    program_id, course = await _course(api)
+    await _materials_setting(api, course, store=store)
+    await api.sync(program_id)
+    await api.run_jobs()
+    fake.files_hidden = True
+    fake.refused_files = {"201", "203", "205"}
+    clock.advance(days=2)
+    status = await api.sync(program_id)
+    titles = {u["title"] for u in status["unreadable"]}
+    assert len(titles) == 3
+    url = f"/programs/{program_id}/lms/sync/materials:settle"
+
+    wrong = "remove" if store == "local" else "mine"
+    error = await api.call("POST", url, status=409, json={"choice": wrong})
+    assert error["error"]["code"] == "lms.sync_nothing_to_resolve"
+
+    status = await api.call("POST", url, json={"choice": "mine" if store == "local" else "remove"})
+    assert status["unreadable"] == []
+    _, items = await _files(api, course)
+    if store == "local":
+        assert {(items[t]["follows_source"], items[t]["source_ref"]) for t in titles} == {
+            (False, None)
+        }
+    else:
+        assert not titles & set(items)
+        assert {r["title"] for r in status["removed_materials"]} == titles

@@ -12,7 +12,7 @@ import re
 import socket
 from collections.abc import AsyncIterator, Sequence
 from datetime import UTC, datetime, timedelta
-from typing import Any, ClassVar, cast
+from typing import Any, ClassVar, Literal, cast
 from urllib.parse import quote, unquote, urljoin, urlsplit
 
 import anyio
@@ -22,9 +22,10 @@ from pydantic import BaseModel
 from semestra.core.config import Settings
 from semestra.core.errors import AppError
 from semestra.core.http import egress_allowed
+from semestra.modules.lms.answers import Gone, Unavailable
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.providers.base import Io
-from semestra.modules.lms.providers.canvas import sign_in
+from semestra.modules.lms.providers.canvas import answers, sign_in
 from semestra.modules.lms.providers.canvas.config import (
     API_PREFIX,
     CanvasConfig,
@@ -76,7 +77,6 @@ PER_PAGE = 100
 MAX_REDIRECTS = 5
 # Canvas accepts at most 10 context codes per calendar request.
 CONTEXT_CODES_PER_REQUEST = 10
-ANNOUNCEMENT_LOOKBACK = timedelta(days=180)
 # Replies of one discussion read (`discussion`), in thread order.
 DISCUSSION_MAX_ENTRIES = 100
 # Where Canvas hands out file downloads besides the instance itself.
@@ -257,6 +257,37 @@ def _comment(c: dict[str, Any], user_id: str | None) -> SubmissionComment:
         comment=_text(c.get("comment")) or "",
         created_at=c.get("created_at"),
         attachments=files,
+    )
+
+
+def _assignment(a: dict[str, Any], group: dict[str, Any], weighted: bool) -> Assignment:
+    """An assignment as Canvas lists it in its group (`assignment_groups?include[]=assignments`)
+    or gives it alone; the group's weight only when the course weighs its groups."""
+    sub = a.get("submission")
+    return Assignment(
+        external_id=str(a.get("id") or ""),
+        web_url=_text(a.get("html_url")),
+        raw_kind="quiz" if a.get("is_quiz_assignment") else "assignment",
+        name=_text(a.get("name")) or str(a.get("id") or ""),
+        html=_text(a.get("description")),
+        due_at=a.get("due_at"),
+        unlock_at=a.get("unlock_at"),
+        lock_at=a.get("lock_at"),
+        points=_num(a.get("points_possible")),
+        group_id=_text(group.get("id")),
+        group_name=_text(group.get("name")),
+        group_weight=_num(group.get("group_weight")) if weighted else None,
+        submission_types=[str(t) for t in a.get("submission_types") or []],
+        submission=_submission(_dict(sub)) if isinstance(sub, dict) else None,
+        published=a.get("published", True) is not False,
+        updated_at=a.get("updated_at"),
+        locked=bool(a.get("locked_for_user")),
+        lock_explanation=_text(a.get("lock_explanation")),
+        allowed_attempts=_opt_int(a.get("allowed_attempts")),
+        allowed_extensions=[str(x) for x in a.get("allowed_extensions") or []],
+        statistics=_statistics(a.get("score_statistics")),
+        rubric=_rubric(a.get("rubric")),
+        quiz_id=_text(a.get("quiz_id")),
     )
 
 
@@ -605,10 +636,10 @@ class CanvasProvider:
         creds: BaseModel,
         course_ids: Sequence[str],
         *,
-        since: datetime | None = None,
+        since: datetime,
     ) -> list[Announcement]:
         now = datetime.now(UTC)
-        start = since or now - ANNOUNCEMENT_LOOKBACK
+        start = since
         rows: list[tuple[str, dict[str, Any]]] = []
         ids = list(dict.fromkeys(course_ids))
         for i in range(0, len(ids), CONTEXT_CODES_PER_REQUEST):
@@ -672,39 +703,32 @@ class CanvasProvider:
             ),
         )
         weighted = bool(cast(dict[str, Any], course).get("apply_assignment_group_weights"))
-        out: list[Assignment] = []
-        for group in groups:
-            for a in cast(list[dict[str, Any]], group.get("assignments") or []):
-                sub = a.get("submission")
-                submission = _submission(_dict(sub)) if isinstance(sub, dict) else None
-                out.append(
-                    Assignment(
-                        external_id=str(a.get("id") or ""),
-                        web_url=_text(a.get("html_url")),
-                        raw_kind="quiz" if a.get("is_quiz_assignment") else "assignment",
-                        name=_text(a.get("name")) or str(a.get("id") or ""),
-                        html=_text(a.get("description")),
-                        due_at=a.get("due_at"),
-                        unlock_at=a.get("unlock_at"),
-                        lock_at=a.get("lock_at"),
-                        points=_num(a.get("points_possible")),
-                        group_id=_text(group.get("id")),
-                        group_name=_text(group.get("name")),
-                        group_weight=_num(group.get("group_weight")) if weighted else None,
-                        submission_types=[str(t) for t in a.get("submission_types") or []],
-                        submission=submission,
-                        published=a.get("published", True) is not False,
-                        updated_at=a.get("updated_at"),
-                        locked=bool(a.get("locked_for_user")),
-                        lock_explanation=_text(a.get("lock_explanation")),
-                        allowed_attempts=_opt_int(a.get("allowed_attempts")),
-                        allowed_extensions=[str(x) for x in a.get("allowed_extensions") or []],
-                        statistics=_statistics(a.get("score_statistics")),
-                        rubric=_rubric(a.get("rubric")),
-                        quiz_id=_text(a.get("quiz_id")),
-                    )
-                )
-        return out
+        return [
+            _assignment(a, group, weighted)
+            for group in groups
+            for a in cast(list[dict[str, Any]], group.get("assignments") or [])
+        ]
+
+    async def assignment(
+        self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, assignment_id: str
+    ) -> Assignment:
+        r = await self._get(
+            io,
+            cfg,
+            creds,
+            f"/courses/{quote(course_id)}/assignments/{quote(assignment_id)}",
+            [("include[]", "submission")],
+        )
+        a = _dict(r)
+        return _assignment(a, {"id": a.get("assignment_group_id")}, weighted=False)
+
+    def item_answer(self, error: AppError, *, area_hidden: bool) -> Gone | Unavailable:
+        return answers.item_answer(error, area_hidden=area_hidden)
+
+    def area_answer(
+        self, error: AppError, *, nav_closed: bool | None
+    ) -> Literal["hidden", "unavailable"]:
+        return answers.area_answer(error, nav_closed=nav_closed)
 
     async def grade_totals(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
@@ -996,8 +1020,10 @@ class CanvasProvider:
         )
         current = self._folder(cfg, course_id, _dict(raw))
         fid = quote(current.external_id)
-        folders = await self._list(io, cfg, creds, f"/folders/{fid}/folders")
-        files = await self._list(io, cfg, creds, f"/folders/{fid}/files", [("sort", "name")])
+        folders, files = await asyncio.gather(
+            self._list(io, cfg, creds, f"/folders/{fid}/folders"),
+            self._list(io, cfg, creds, f"/folders/{fid}/files", [("sort", "name")]),
+        )
         trail = [current]
         if current.path:
             # Every folder from the root down, in one request.
@@ -1022,7 +1048,10 @@ class CanvasProvider:
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> list[FileMeta]:
         course = quote(course_id)
-        folders = await self._list(io, cfg, creds, f"/courses/{course}/folders")
+        folders, files = await asyncio.gather(
+            self._list(io, cfg, creds, f"/courses/{course}/folders"),
+            self._list(io, cfg, creds, f"/courses/{course}/files", [("sort", "name")]),
+        )
         paths = {
             str(f.get("id")): self._folder(cfg, course_id, f).path
             for f in folders
@@ -1038,7 +1067,6 @@ class CanvasProvider:
                 folder = up
             return ids
 
-        files = await self._list(io, cfg, creds, f"/courses/{course}/files", [("sort", "name")])
         out: list[FileMeta] = []
         for r in files:
             folder = str(r.get("folder_id") or "")

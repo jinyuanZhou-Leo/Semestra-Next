@@ -38,6 +38,7 @@ from semestra.modules.lms import service
 from semestra.modules.lms.models import LmsConnection, LmsCourseLink
 from semestra.modules.lms.service import Bound
 from semestra.modules.lms.settings import account, floor, interval
+from semestra.modules.lms.sync_round import SyncRound
 from semestra.modules.notifications import service as notifications
 
 log = structlog.get_logger()
@@ -98,7 +99,7 @@ class StageResult:
     cap_reached: bool = False
 
 
-StageRun = Callable[[Ctx, LmsCourseLink, Bound], Awaitable[StageResult]]
+StageRun = Callable[[Ctx, LmsCourseLink, Bound, SyncRound], Awaitable[StageResult]]
 StageEnabled = Callable[[Ctx, LmsCourseLink, Bound], Awaitable[bool]]
 
 
@@ -116,10 +117,11 @@ _stages: dict[str, SyncStage] = {}
 def register_sync_stage(
     name: str, run: StageRun, *, order: int, enabled: StageEnabled | None = None
 ) -> None:
-    """Adds a stage to every course sync. `run(ctx, link, b)` reads the platform, then writes in
-    `ctx`'s transaction (committed after it returns; rolled back if it raises), taking the write
-    lock with `hold` before it reads what it compares. An `AppError` is
-    recorded as the stage's error; the other stages still run. `enabled(ctx, link, b)` skips the
+    """Adds a stage to every course sync. `run(ctx, link, b, round)` reads the platform through
+    the round (`SyncRound.area`, `.read`), then writes in `ctx`'s transaction (committed after it
+    returns; rolled back if it raises), taking the write lock with `hold` before it reads what it
+    compares, and saving what it read with `round.save`. An `AppError` is recorded as the stage's
+    error; the other stages still run. `enabled(ctx, link, b)` skips the
     stage for a course (its settings, the provider's features)."""
     if name in _stages:
         raise ValueError(f"duplicate sync stage {name!r}")
@@ -178,6 +180,7 @@ async def sync_course(
 ) -> SyncOutcome:
     """Runs every stage for one course, each in a transaction of its own."""
     todo = stages()
+    this_round = SyncRound()
     results: list[StageResult] = []
     errors: dict[str, str] = {}
     for n, stage in enumerate(todo):
@@ -191,8 +194,9 @@ async def sync_course(
             b = await service.bound(sys, await service.get_connection_row(sys, link.connection_id))
             if stage.enabled is not None and not await stage.enabled(sys, link, b):
                 return
+            this_round.begin(sys.now)
             with service.memory_cache():
-                results.append(await stage.run(sys, link, b))
+                results.append(await stage.run(sys, link, b, this_round))
 
         try:
             await run_as_system(state, user_id, run)
@@ -204,7 +208,8 @@ async def sync_course(
             log.exception("lms.sync_stage_failed", stage=stage.name, course_id=course_id)
             errors[stage.name] = "common.internal"
         if n == 0 and stage.name in errors:
-            break  # the course itself could not be read: the others would fail the same way
+            # The course itself could not be read (M09 table 2, row 2): nothing is judged.
+            break
     outcome = SyncOutcome(
         course_id=course_id,
         applied=sum(len(r.applied) for r in results),

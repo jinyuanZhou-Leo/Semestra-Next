@@ -7360,6 +7360,30 @@ export type MaterialCounts = {
 };
 
 /**
+ * MaterialSettleAllInputBody
+ */
+export type MaterialSettleAllInputBody = {
+    /**
+     * Choice
+     *
+     * mine: every one with a local copy; remove: every one read from the platform
+     */
+    choice: 'mine' | 'remove';
+};
+
+/**
+ * MaterialSettleInputBody
+ */
+export type MaterialSettleInputBody = {
+    /**
+     * Choice
+     *
+     * mine: make it the user's own file (it has a local copy); remove: delete it
+     */
+    choice: 'mine' | 'remove';
+};
+
+/**
  * MaterialsScopeBody
  */
 export type MaterialsScopeBody = {
@@ -12150,9 +12174,85 @@ export type SyncStatus = {
      */
     removed_count: number;
     /**
+     * Unreadable
+     *
+     * What can't be read since its area is closed on the platform, by course
+     */
+    unreadable: Array<SyncUnreadable>;
+    /**
      * Errors
      */
     errors: Array<SyncCourseError>;
+};
+
+/**
+ * SyncUnreadable
+ *
+ * What the sync can't read because its area is closed on the platform (M09 table 3c, note):
+ * kept as last read, judged again once the area opens. Materials and imported assignments one
+ * by one; a course's assignments not imported and its announcements as one row per area.
+ */
+export type SyncUnreadable = {
+    /**
+     * Kind
+     */
+    kind: 'material' | 'assignment' | 'assignments' | 'announcements';
+    /**
+     * Id
+     *
+     * The material's id (`material`) or the imported assignment's sync item id (`assignment`); none for a course's row
+     */
+    id: string | null;
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * Course
+     */
+    course: string;
+    /**
+     * Area
+     *
+     * The closed area of the course on the platform
+     */
+    area: string;
+    /**
+     * Title
+     *
+     * Its name on the platform; none for a course's row
+     */
+    title: string | null;
+    /**
+     * Count
+     *
+     * How many it stands for (1 for one item)
+     */
+    count: number;
+    /**
+     * Since
+     *
+     * When it was last read as it is kept (none if not known)
+     */
+    since: string | null;
+    /**
+     * Item Id
+     *
+     * A material's course file, or an imported assignment's object
+     */
+    item_id?: string | null;
+    /**
+     * External Id
+     *
+     * An assignment's id on the platform
+     */
+    external_id?: string | null;
+    /**
+     * Local Copy
+     *
+     * A material with a copy saved in Semestra: it can become the user's own file
+     */
+    local_copy?: boolean;
 };
 
 /**
@@ -22931,6 +23031,70 @@ export type LmsSyncMaterialRestoreAllResponses = {
 };
 
 export type LmsSyncMaterialRestoreAllResponse = LmsSyncMaterialRestoreAllResponses[keyof LmsSyncMaterialRestoreAllResponses];
+
+export type LmsSyncMaterialSettleData = {
+    body: MaterialSettleInputBody;
+    path: {
+        /**
+         * Material Id
+         *
+         * An unreadable material's id (lms.sync.status)
+         */
+        material_id: string;
+    };
+    query?: never;
+    url: '/lms/sync/materials/{material_id}:settle';
+};
+
+export type LmsSyncMaterialSettleErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsSyncMaterialSettleError = LmsSyncMaterialSettleErrors[keyof LmsSyncMaterialSettleErrors];
+
+export type LmsSyncMaterialSettleResponses = {
+    /**
+     * Successful Response
+     */
+    200: SyncStatus;
+};
+
+export type LmsSyncMaterialSettleResponse = LmsSyncMaterialSettleResponses[keyof LmsSyncMaterialSettleResponses];
+
+export type LmsSyncMaterialSettleAllData = {
+    body: MaterialSettleAllInputBody;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/lms/sync/materials:settle';
+};
+
+export type LmsSyncMaterialSettleAllErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsSyncMaterialSettleAllError = LmsSyncMaterialSettleAllErrors[keyof LmsSyncMaterialSettleAllErrors];
+
+export type LmsSyncMaterialSettleAllResponses = {
+    /**
+     * Successful Response
+     */
+    200: SyncStatus;
+};
+
+export type LmsSyncMaterialSettleAllResponse = LmsSyncMaterialSettleAllResponses[keyof LmsSyncMaterialSettleAllResponses];
 
 export type LmsSyncStatusData = {
     body?: never;

@@ -193,10 +193,12 @@ function Panel({
         />
         <MoreSections
           {...shared}
+          programId={programId}
           status={status}
           broken={Boolean(broken)}
           now={now}
           onImport={(items) => void importItems(items)}
+          onClose={onClose}
         />
       </div>
 

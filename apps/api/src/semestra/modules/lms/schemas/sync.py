@@ -123,6 +123,34 @@ class SyncRemovedMaterial(BaseModel):
     at: datetime = Field(description="When the user deleted it")
 
 
+class SyncUnreadable(BaseModel):
+    """What the sync can't read because its area is closed on the platform (M09 table 3c, note):
+    kept as last read, judged again once the area opens. Materials and imported assignments one
+    by one; a course's assignments not imported and its announcements as one row per area."""
+
+    kind: Literal["material", "assignment", "assignments", "announcements"]
+    id: str | None = Field(
+        description="The material's id (`material`) or the imported assignment's sync item id "
+        "(`assignment`); none for a course's row"
+    )
+    course_id: str
+    course: str
+    area: str = Field(description="The closed area of the course on the platform")
+    title: str | None = Field(description="Its name on the platform; none for a course's row")
+    count: int = Field(description="How many it stands for (1 for one item)")
+    since: datetime | None = Field(
+        description="When it was last read as it is kept (none if not known)"
+    )
+    item_id: str | None = Field(
+        default=None, description="A material's course file, or an imported assignment's object"
+    )
+    external_id: str | None = Field(default=None, description="An assignment's id on the platform")
+    local_copy: bool = Field(
+        default=False,
+        description="A material with a copy saved in Semestra: it can become the user's own file",
+    )
+
+
 class SyncCourseError(BaseModel):
     course_id: str
     course: str
@@ -163,6 +191,9 @@ class SyncStatus(BaseModel):
         " materials sync"
     )
     removed_count: int = Field(description="How many materials the user deleted, all told")
+    unreadable: list[SyncUnreadable] = Field(
+        description="What can't be read since its area is closed on the platform, by course"
+    )
     errors: list[SyncCourseError]
 
 
@@ -194,3 +225,17 @@ class SyncChangeRef(BaseModel):
 
 class MaterialRef(BaseModel):
     material_id: Id = Field(description="A removed material's id (lms.sync.status)")
+
+
+class MaterialSettleInput(BaseModel):
+    material_id: Id = Field(description="An unreadable material's id (lms.sync.status)")
+    choice: Literal["mine", "remove"] = Field(
+        description="mine: make it the user's own file (it has a local copy); remove: delete it"
+    )
+
+
+class MaterialSettleAllInput(BaseModel):
+    program_id: Id = Field(description="Program id")
+    choice: Literal["mine", "remove"] = Field(
+        description="mine: every one with a local copy; remove: every one read from the platform"
+    )

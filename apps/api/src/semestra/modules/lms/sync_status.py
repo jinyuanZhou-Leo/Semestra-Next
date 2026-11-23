@@ -13,9 +13,13 @@ from semestra.modules.academics import service as academics
 from semestra.modules.files import sources
 from semestra.modules.files.models import FilesItem
 from semestra.modules.lms import service, sync, sync_kept
+from semestra.modules.lms.answers import AREA_HIDDEN, AREA_OF
+from semestra.modules.lms.material_items import has_copy
 from semestra.modules.lms.models import (
+    LmsAnnouncement,
     LmsCourseLink,
     LmsImportedRef,
+    LmsItemCheck,
     LmsMaterial,
     LmsSyncChange,
     MaterialChange,
@@ -31,6 +35,7 @@ from semestra.modules.lms.schemas.sync import (
     SyncRemovedMaterial,
     SyncRound,
     SyncStatus,
+    SyncUnreadable,
 )
 from semestra.modules.lms.settings import account
 from semestra.modules.lms.settings import materials as material_settings
@@ -70,6 +75,7 @@ async def status(ctx: Ctx, program_id: str) -> SyncStatus:
         materials=[],
         removed_materials=[],
         removed_count=0,
+        unreadable=[],
         errors=[],
     )
     if binding is None:
@@ -207,6 +213,9 @@ async def status(ctx: Ctx, program_id: str) -> SyncStatus:
     materials, removed, removed_count = await _materials(
         ctx, [li for li in by_link.values() if li.id not in paused], label
     )
+    unreadable = await _unreadable(
+        ctx, [li for li in by_link.values() if li.id not in paused], label
+    )
     errors = [
         SyncCourseError(course_id=li.course_id, course=label(li.course_id), stage=stage, code=code)
         for li in links
@@ -231,6 +240,7 @@ async def status(ctx: Ctx, program_id: str) -> SyncStatus:
             "materials": materials,
             "removed_materials": removed,
             "removed_count": removed_count,
+            "unreadable": unreadable,
             "errors": errors,
         }
     )
@@ -336,6 +346,137 @@ async def _materials(
         for m in removed_rows
     ]
     return recent, removed, removed_count
+
+
+def _whole_at(link: LmsCourseLink, area: str) -> datetime | None:
+    raw = ((link.area_reads or {}).get(area) or {}).get("whole_at")
+    return datetime.fromisoformat(raw) if raw else None
+
+
+async def _unreadable(
+    ctx: Ctx, links: list[LmsCourseLink], label: Callable[[str], str]
+) -> list[SyncUnreadable]:
+    """What the sync can't read since its area is closed on the platform (M09 table 3c, note):
+    the materials and imported assignments whose last single read was refused for it, and each
+    course's assignments not imported and announcements while their list is closed, as one row.
+    Gone from the list by itself once the platform shows it (or tells it gone) again."""
+    if not links:
+        return []
+    by_id = {li.id: li for li in links}
+    syncing = {li.id for li in links if (await material_settings(ctx, li.course_id)).sync}
+    checks = list(
+        await ctx.db.scalars(
+            select(LmsItemCheck).where(
+                LmsItemCheck.user_id == ctx.user_id,
+                LmsItemCheck.link_id.in_(list(by_id)),
+                LmsItemCheck.result == "unavailable",
+                LmsItemCheck.reason == AREA_HIDDEN,
+            )
+        )
+    )
+    held = {(c.link_id, c.kind, c.external_id): c for c in checks}
+    mats = [
+        m
+        for m in await ctx.db.scalars(
+            select(LmsMaterial).where(
+                LmsMaterial.user_id == ctx.user_id,
+                LmsMaterial.link_id.in_(list(syncing)),
+                LmsMaterial.state == "synced",
+            )
+        )
+        if (m.link_id, m.kind, m.external_id) in held
+    ]
+    rows = {r.id: r for r in await sources.find_items(ctx, [m.item_id for m in mats if m.item_id])}
+    out: list[SyncUnreadable] = []
+    for m in mats:
+        course_id = by_id[m.link_id].course_id
+        row = rows.get(m.item_id or "")
+        out.append(
+            SyncUnreadable(
+                kind="material",
+                id=m.id,
+                course_id=course_id,
+                course=label(course_id),
+                area=AREA_OF.get(m.kind, "files"),
+                title=m.title or m.name or "",
+                count=1,
+                since=held[(m.link_id, m.kind, m.external_id)].unavailable_since,
+                item_id=m.item_id,
+                local_copy=row is not None and has_copy(row),
+            )
+        )
+    refs = list(
+        await ctx.db.scalars(
+            select(LmsImportedRef).where(
+                LmsImportedRef.user_id == ctx.user_id, LmsImportedRef.link_id.in_(list(by_id))
+            )
+        )
+    )
+    for ref in refs:
+        check = held.get((ref.link_id, "assignment", ref.external_id))
+        if ref.target_id is None or ref.removed_at is not None or check is None:
+            continue
+        course_id = by_id[ref.link_id].course_id
+        out.append(
+            SyncUnreadable(
+                kind="assignment",
+                id=ref.id,
+                course_id=course_id,
+                course=label(course_id),
+                area="assignments",
+                title=str(ref.snapshot.get("title") or ""),
+                count=1,
+                since=check.unavailable_since,
+                item_id=ref.target_id,
+                external_id=ref.external_id,
+            )
+        )
+    closed = {
+        (li.id, area)
+        for li in links
+        for area, read in (li.area_reads or {}).items()
+        if (read or {}).get("result") == "hidden"
+    }
+    not_imported: dict[str, int] = {}
+    for ref in refs:
+        if ref.target_id is None and (ref.link_id, "assignments") in closed:
+            not_imported[ref.link_id] = not_imported.get(ref.link_id, 0) + 1
+    announced: dict[str, int] = dict(
+        (
+            await ctx.db.execute(
+                select(LmsAnnouncement.link_id, func.count())
+                .where(
+                    LmsAnnouncement.user_id == ctx.user_id,
+                    LmsAnnouncement.link_id.in_(
+                        [link_id for link_id, area in closed if area == "announcements"]
+                    ),
+                )
+                .group_by(LmsAnnouncement.link_id)
+            )
+        ).all()
+    )
+    for kind, area, counts in (
+        ("assignments", "assignments", not_imported),
+        ("announcements", "announcements", announced),
+    ):
+        for link_id, count in counts.items():
+            if not count:
+                continue
+            li = by_id[link_id]
+            out.append(
+                SyncUnreadable(
+                    kind=kind,  # type: ignore[arg-type]
+                    id=None,
+                    course_id=li.course_id,
+                    course=label(li.course_id),
+                    area=area,
+                    title=None,
+                    count=count,
+                    since=_whole_at(li, area),
+                )
+            )
+    out.sort(key=lambda u: (u.course, u.kind, (u.title or "").casefold()))
+    return out
 
 
 async def forget_old_changes(ctx: Ctx) -> None:

@@ -14,6 +14,7 @@ a date only), a grade `{points_earned, points_possible}` or `{score_percentage}`
 number, a title a string.
 """
 
+from collections.abc import Iterable, Mapping
 from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -27,15 +28,24 @@ from semestra.modules.academics import service as academics
 from semestra.modules.grading import service as grading
 from semestra.modules.grading.models import GradingAssessment
 from semestra.modules.imports import deps
-from semestra.modules.lms import reads
+from semestra.modules.lms import reads, service
 from semestra.modules.lms import settings as lms_settings
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.imports import advance, snapshot, taken_in, weights_of
 from semestra.modules.lms.models import LmsCourseLink, LmsImportedRef, LmsSyncChange
-from semestra.modules.lms.rules import Action, diverged, merge, platform_value, same
+from semestra.modules.lms.rules import (
+    Action,
+    Presence,
+    diverged,
+    merge,
+    platform_value,
+    presence,
+    same,
+)
 from semestra.modules.lms.schemas.sync import SyncField
 from semestra.modules.lms.service import Bound
 from semestra.modules.lms.sync import UPDATED, Applied, StageResult, hold, register_sync_stage
+from semestra.modules.lms.sync_round import SyncRound
 from semestra.modules.tasks.models import TasksItem
 
 FIELDS: dict[str, tuple[SyncField, ...]] = {
@@ -214,10 +224,35 @@ async def _follow(
     return applied
 
 
-async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
-    data, truncated = await reads.raw_assignments(ctx, link.course_id, True, linked=(link, b))
-    await hold(ctx, link)
+async def run(ctx: Ctx, link: LmsCourseLink, b: Bound, sync_round: SyncRound) -> StageResult:
+    got = await sync_round.area(
+        ctx,
+        link,
+        b,
+        AREA,
+        lambda: reads.raw_assignments(ctx, link.course_id, True, linked=(link, b)),
+        truncated=lambda r: r[1],
+    )
+    data = got[0] if got is not None else []
     by_id = {str(a["external_id"]): a for a in data}
+    sync_round.listed(KIND, by_id)
+    stored = list(
+        await ctx.db.scalars(select(LmsImportedRef).where(LmsImportedRef.link_id == link.id))
+    )
+    # Only what has a state to change is asked about one at a time (table 4b): an imported or
+    # ignored assignment. A new one not listed simply stops being offered once it is gone.
+    presences = await _presences(
+        ctx,
+        link,
+        b,
+        sync_round,
+        {
+            r.external_id: r.target_id is not None or r.dismissed_at is not None for r in stored
+        }.items(),
+        listed=by_id,
+    )
+    await hold(ctx, link)
+    await sync_round.save(ctx, link, [KIND])
     weights = weights_of(data)
     program = await academics.get_program_row(ctx, link.program_id)
     tz = ZoneInfo(program.timezone)
@@ -230,22 +265,26 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
     result = StageResult()
     for ref in refs:
         a = by_id.get(ref.external_id)
+        verdict = presences.get(ref.external_id, "unknown")
         if ref.target_id is None:
-            if a is None and truncated:
-                pass  # a cut-off list says nothing about what is missing from it
-            elif a is None or (ref.dismissed_at is None and not _new(a, ctx.now)):
+            if verdict == "gone" or (
+                a is not None and ref.dismissed_at is None and not _new(a, ctx.now)
+            ):
                 await ctx.db.delete(ref)  # gone, or no longer new: nothing to offer
                 continue
-            else:
+            if a is not None:
                 ref.snapshot = snapshot(a, weights.get(ref.external_id))
             result.pending += ref.dismissed_at is None
             continue
+        if verdict == "gone" and ref.removed_at is None:
+            ref.removed_at = ctx.now
+        elif verdict == "present":
+            ref.removed_at = None  # back on the platform
         if a is None:
-            if not truncated and ref.removed_at is None:
-                ref.removed_at = ctx.now
+            # Not listed (the list closed, or cut short): its fields wait for a round that
+            # lists it, as a single read gives no group weights.
             result.pending += ref.removed_at is not None
             continue
-        ref.removed_at = None
         if ref.id not in local:
             continue  # its object is being deleted
         platform = snapshot(a, weights.get(ref.external_id))
@@ -273,11 +312,51 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
     return result
 
 
+async def _presences(
+    ctx: Ctx,
+    link: LmsCourseLink,
+    b: Bound,
+    sync_round: SyncRound,
+    refs: Iterable[tuple[str, bool]],
+    *,
+    listed: Mapping[str, Any],
+) -> dict[str, Presence]:
+    """Whether each assignment (with whether it may be read on its own) is still on the
+    platform (M09 table 3c): listed this round, read alone when its list is closed (within the
+    round's budget), or told by the list read whole."""
+    areas = sync_round.results([AREA])
+    ext = link.external_course_id
+    out: dict[str, Presence] = {}
+    pending: list[str] = []
+    for external_id, readable in refs:
+        last = await sync_round.last(ctx, link, KIND, external_id)
+        verdict = presence(listed=external_id in listed, areas=areas, now=ctx.now, last=last)
+        if verdict == "check":
+            if readable:
+                pending.append(external_id)
+            verdict = "unknown"
+        out[external_id] = verdict
+    for _, external_id in await sync_round.oldest_first(ctx, link, [(KIND, e) for e in pending]):
+
+        async def one(aid: str = external_id) -> object:
+            got, _ = await service.call(
+                ctx, b, lambda i: b.provider.assignment(i, b.cfg, b.creds, ext, aid)
+            )
+            return got
+
+        answer = await sync_round.read(ctx, b, KIND, external_id, one)
+        if answer is not None:
+            out[external_id] = presence(listed=False, areas=areas, now=ctx.now, read=answer)
+    return out
+
+
 async def _enabled(ctx: Ctx, link: LmsCourseLink, b: Bound) -> bool:
     del ctx, link
     return "assignments" in b.provider.features
 
 
+AREA = "assignments"
+KIND = "assignment"
 register_sync_stage("assignments", run, order=20, enabled=_enabled)
 
 

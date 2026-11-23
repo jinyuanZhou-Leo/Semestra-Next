@@ -7,12 +7,12 @@ from semestra.modules.lms import (
     announcements,
     assignment,
     imports,
+    material_items,
     previews,
     reads,
     service,
     sync,
     sync_assignments,
-    sync_files,
     sync_status,
 )
 from semestra.modules.lms.schemas.dto import (
@@ -86,6 +86,8 @@ from semestra.modules.lms.schemas.io import (
 )
 from semestra.modules.lms.schemas.sync import (
     MaterialRef,
+    MaterialSettleAllInput,
+    MaterialSettleInput,
     SyncChangeRef,
     SyncDismissInput,
     SyncFieldResolveInput,
@@ -871,7 +873,7 @@ async def sync_field_resolve(ctx: Ctx, inp: SyncFieldResolveInput) -> SyncStatus
     tags=TAGS,
 )
 async def sync_material_restore(ctx: Ctx, inp: MaterialRef) -> SyncStatus:
-    program_id = await sync_files.restore(ctx, inp.material_id)
+    program_id = await material_items.restore(ctx, inp.material_id)
     return await sync_status.status(ctx, program_id)
 
 
@@ -886,7 +888,39 @@ materials don't sync are left alone).""",
     tags=TAGS,
 )
 async def sync_material_restore_all(ctx: Ctx, inp: ProgramRef) -> SyncStatus:
-    await sync_files.restore_all(ctx, inp.program_id)
+    await material_items.restore_all(ctx, inp.program_id)
+    return await sync_status.status(ctx, inp.program_id)
+
+
+@capability(
+    name="lms.sync.material.settle",
+    summary="Answer about a course material that can't be read on the platform.",
+    description="""Only for a material whose area is closed on the platform. mine: one with a copy
+saved in Semestra becomes the user's own file, no longer following the platform. remove: its course
+file is deleted, and it is not brought back until restored.""",
+    effect="destructive",
+    http=Http("POST", "/lms/sync/materials/{material_id}:settle"),
+    expose=HTTP_ONLY,
+    tags=TAGS,
+)
+async def sync_material_settle(ctx: Ctx, inp: MaterialSettleInput) -> SyncStatus:
+    program_id = await material_items.settle_unreadable(ctx, inp.material_id, inp.choice)
+    return await sync_status.status(ctx, program_id)
+
+
+@capability(
+    name="lms.sync.material.settle_all",
+    summary="Answer at once about every course material of a Program that can't be read.",
+    description="""Only materials whose area is closed on the platform. mine: each with a copy saved
+in Semestra becomes the user's own file. remove: each read from the platform (no copy) is deleted
+from the course files, and not brought back until restored; those with a copy are left alone.""",
+    effect="destructive",
+    http=Http("POST", "/programs/{program_id}/lms/sync/materials:settle"),
+    expose=HTTP_ONLY,
+    tags=TAGS,
+)
+async def sync_material_settle_all(ctx: Ctx, inp: MaterialSettleAllInput) -> SyncStatus:
+    await material_items.settle_all_unreadable(ctx, inp.program_id, inp.choice)
     return await sync_status.status(ctx, inp.program_id)
 
 
@@ -901,7 +935,7 @@ or every linked course.""",
     tags=TAGS,
 )
 async def materials_held(ctx: Ctx, inp: MaterialsScope) -> HeldMaterials:
-    return await sync_files.held(ctx, inp.course_id)
+    return await material_items.held(ctx, inp.course_id)
 
 
 @capability(
@@ -915,7 +949,7 @@ on again brings them back.""",
     tags=TAGS,
 )
 async def materials_remove(ctx: Ctx, inp: MaterialsScope) -> HeldMaterials:
-    return await sync_files.remove_held(ctx, inp.course_id)
+    return await material_items.remove_held(ctx, inp.course_id)
 
 
 @capability(
