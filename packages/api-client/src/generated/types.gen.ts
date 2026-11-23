@@ -7360,30 +7360,6 @@ export type MaterialCounts = {
 };
 
 /**
- * MaterialSettleAllInputBody
- */
-export type MaterialSettleAllInputBody = {
-    /**
-     * Choice
-     *
-     * mine: every one with a local copy; remove: every one read from the platform
-     */
-    choice: 'mine' | 'remove';
-};
-
-/**
- * MaterialSettleInputBody
- */
-export type MaterialSettleInputBody = {
-    /**
-     * Choice
-     *
-     * mine: make it the user's own file (it has a local copy); remove: delete it
-     */
-    choice: 'mine' | 'remove';
-};
-
-/**
  * MaterialsScopeBody
  */
 export type MaterialsScopeBody = {
@@ -12190,13 +12166,13 @@ export type SyncStatus = {
  *
  * What the sync can't read because its area is closed on the platform (M09 table 3c, note):
  * kept as last read, judged again once the area opens. Materials and imported assignments one
- * by one; a course's assignments not imported and its announcements as one row per area.
+ * by one; a course's announcements as one row.
  */
 export type SyncUnreadable = {
     /**
      * Kind
      */
-    kind: 'material' | 'assignment' | 'assignments' | 'announcements';
+    kind: 'material' | 'assignment' | 'announcements';
     /**
      * Id
      *
@@ -12232,7 +12208,7 @@ export type SyncUnreadable = {
     /**
      * Since
      *
-     * When it was last read as it is kept (none if not known)
+     * Announcements: when their list was last read whole (none if never)
      */
     since: string | null;
     /**
@@ -12248,11 +12224,11 @@ export type SyncUnreadable = {
      */
     external_id?: string | null;
     /**
-     * Local Copy
+     * Removable
      *
-     * A material with a copy saved in Semestra: it can become the user's own file
+     * A followed material read from the platform (no copy saved in Semestra): it can be removed (lms.sync.material.remove)
      */
-    local_copy?: boolean;
+    removable?: boolean;
 };
 
 /**
@@ -22968,13 +22944,77 @@ export type LmsSyncFieldResolveResponses = {
 
 export type LmsSyncFieldResolveResponse = LmsSyncFieldResolveResponses[keyof LmsSyncFieldResolveResponses];
 
+export type LmsSyncMaterialRemoveData = {
+    body?: never;
+    path: {
+        /**
+         * Material Id
+         *
+         * A material's id (lms.sync.status)
+         */
+        material_id: string;
+    };
+    query?: never;
+    url: '/lms/sync/materials/{material_id}:remove';
+};
+
+export type LmsSyncMaterialRemoveErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsSyncMaterialRemoveError = LmsSyncMaterialRemoveErrors[keyof LmsSyncMaterialRemoveErrors];
+
+export type LmsSyncMaterialRemoveResponses = {
+    /**
+     * Successful Response
+     */
+    200: SyncStatus;
+};
+
+export type LmsSyncMaterialRemoveResponse = LmsSyncMaterialRemoveResponses[keyof LmsSyncMaterialRemoveResponses];
+
+export type LmsSyncMaterialRemoveAllData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/lms/sync/materials:remove';
+};
+
+export type LmsSyncMaterialRemoveAllErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsSyncMaterialRemoveAllError = LmsSyncMaterialRemoveAllErrors[keyof LmsSyncMaterialRemoveAllErrors];
+
+export type LmsSyncMaterialRemoveAllResponses = {
+    /**
+     * Successful Response
+     */
+    200: SyncStatus;
+};
+
+export type LmsSyncMaterialRemoveAllResponse = LmsSyncMaterialRemoveAllResponses[keyof LmsSyncMaterialRemoveAllResponses];
+
 export type LmsSyncMaterialRestoreData = {
     body?: never;
     path: {
         /**
          * Material Id
          *
-         * A removed material's id (lms.sync.status)
+         * A material's id (lms.sync.status)
          */
         material_id: string;
     };
@@ -23031,70 +23071,6 @@ export type LmsSyncMaterialRestoreAllResponses = {
 };
 
 export type LmsSyncMaterialRestoreAllResponse = LmsSyncMaterialRestoreAllResponses[keyof LmsSyncMaterialRestoreAllResponses];
-
-export type LmsSyncMaterialSettleData = {
-    body: MaterialSettleInputBody;
-    path: {
-        /**
-         * Material Id
-         *
-         * An unreadable material's id (lms.sync.status)
-         */
-        material_id: string;
-    };
-    query?: never;
-    url: '/lms/sync/materials/{material_id}:settle';
-};
-
-export type LmsSyncMaterialSettleErrors = {
-    /**
-     * Default Response
-     */
-    default: ErrorResponse;
-};
-
-export type LmsSyncMaterialSettleError = LmsSyncMaterialSettleErrors[keyof LmsSyncMaterialSettleErrors];
-
-export type LmsSyncMaterialSettleResponses = {
-    /**
-     * Successful Response
-     */
-    200: SyncStatus;
-};
-
-export type LmsSyncMaterialSettleResponse = LmsSyncMaterialSettleResponses[keyof LmsSyncMaterialSettleResponses];
-
-export type LmsSyncMaterialSettleAllData = {
-    body: MaterialSettleAllInputBody;
-    path: {
-        /**
-         * Program Id
-         *
-         * Program id
-         */
-        program_id: string;
-    };
-    query?: never;
-    url: '/programs/{program_id}/lms/sync/materials:settle';
-};
-
-export type LmsSyncMaterialSettleAllErrors = {
-    /**
-     * Default Response
-     */
-    default: ErrorResponse;
-};
-
-export type LmsSyncMaterialSettleAllError = LmsSyncMaterialSettleAllErrors[keyof LmsSyncMaterialSettleAllErrors];
-
-export type LmsSyncMaterialSettleAllResponses = {
-    /**
-     * Successful Response
-     */
-    200: SyncStatus;
-};
-
-export type LmsSyncMaterialSettleAllResponse = LmsSyncMaterialSettleAllResponses[keyof LmsSyncMaterialSettleAllResponses];
 
 export type LmsSyncStatusData = {
     body?: never;

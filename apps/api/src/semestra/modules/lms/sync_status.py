@@ -12,9 +12,8 @@ from semestra.core.context import Ctx
 from semestra.modules.academics import service as academics
 from semestra.modules.files import sources
 from semestra.modules.files.models import FilesItem
-from semestra.modules.lms import service, sync, sync_kept
+from semestra.modules.lms import material_items, service, sync, sync_kept
 from semestra.modules.lms.answers import AREA_HIDDEN, AREA_OF
-from semestra.modules.lms.material_items import has_copy
 from semestra.modules.lms.models import (
     LmsAnnouncement,
     LmsCourseLink,
@@ -357,40 +356,15 @@ async def _unreadable(
     ctx: Ctx, links: list[LmsCourseLink], label: Callable[[str], str]
 ) -> list[SyncUnreadable]:
     """What the sync can't read since its area is closed on the platform (M09 table 3c, note):
-    the materials and imported assignments whose last single read was refused for it, and each
-    course's assignments not imported and announcements while their list is closed, as one row.
+    the materials (`material_items.unreadable`) and imported assignments whose last single read
+    was refused for it, and each course's announcements while their list is closed, as one row.
     Gone from the list by itself once the platform shows it (or tells it gone) again."""
     if not links:
         return []
     by_id = {li.id: li for li in links}
-    syncing = {li.id for li in links if (await material_settings(ctx, li.course_id)).sync}
-    checks = list(
-        await ctx.db.scalars(
-            select(LmsItemCheck).where(
-                LmsItemCheck.user_id == ctx.user_id,
-                LmsItemCheck.link_id.in_(list(by_id)),
-                LmsItemCheck.result == "unavailable",
-                LmsItemCheck.reason == AREA_HIDDEN,
-            )
-        )
-    )
-    held = {(c.link_id, c.kind, c.external_id): c for c in checks}
-    mats = [
-        m
-        for m in await ctx.db.scalars(
-            select(LmsMaterial).where(
-                LmsMaterial.user_id == ctx.user_id,
-                LmsMaterial.link_id.in_(list(syncing)),
-                LmsMaterial.state == "synced",
-            )
-        )
-        if (m.link_id, m.kind, m.external_id) in held
-    ]
-    rows = {r.id: r for r in await sources.find_items(ctx, [m.item_id for m in mats if m.item_id])}
     out: list[SyncUnreadable] = []
-    for m in mats:
+    for m, row in await material_items.unreadable(ctx, links):
         course_id = by_id[m.link_id].course_id
-        row = rows.get(m.item_id or "")
         out.append(
             SyncUnreadable(
                 kind="material",
@@ -400,11 +374,23 @@ async def _unreadable(
                 area=AREA_OF.get(m.kind, "files"),
                 title=m.title or m.name or "",
                 count=1,
-                since=held[(m.link_id, m.kind, m.external_id)].unavailable_since,
-                item_id=m.item_id,
-                local_copy=row is not None and has_copy(row),
+                since=None,
+                item_id=row.id if row is not None else None,
+                removable=material_items.removable(m, row),
             )
         )
+    held = {
+        c.external_id: c
+        for c in await ctx.db.scalars(
+            select(LmsItemCheck).where(
+                LmsItemCheck.user_id == ctx.user_id,
+                LmsItemCheck.link_id.in_(list(by_id)),
+                LmsItemCheck.kind == "assignment",
+                LmsItemCheck.result == "unavailable",
+                LmsItemCheck.reason == AREA_HIDDEN,
+            )
+        )
+    }
     refs = list(
         await ctx.db.scalars(
             select(LmsImportedRef).where(
@@ -413,7 +399,7 @@ async def _unreadable(
         )
     )
     for ref in refs:
-        check = held.get((ref.link_id, "assignment", ref.external_id))
+        check = held.get(ref.external_id)
         if ref.target_id is None or ref.removed_at is not None or check is None:
             continue
         course_id = by_id[ref.link_id].course_id
@@ -426,7 +412,7 @@ async def _unreadable(
                 area="assignments",
                 title=str(ref.snapshot.get("title") or ""),
                 count=1,
-                since=check.unavailable_since,
+                since=None,
                 item_id=ref.target_id,
                 external_id=ref.external_id,
             )
@@ -437,10 +423,6 @@ async def _unreadable(
         for area, read in (li.area_reads or {}).items()
         if (read or {}).get("result") == "hidden"
     }
-    not_imported: dict[str, int] = {}
-    for ref in refs:
-        if ref.target_id is None and (ref.link_id, "assignments") in closed:
-            not_imported[ref.link_id] = not_imported.get(ref.link_id, 0) + 1
     announced: dict[str, int] = dict(
         (
             await ctx.db.execute(
@@ -455,26 +437,20 @@ async def _unreadable(
             )
         ).all()
     )
-    for kind, area, counts in (
-        ("assignments", "assignments", not_imported),
-        ("announcements", "announcements", announced),
-    ):
-        for link_id, count in counts.items():
-            if not count:
-                continue
-            li = by_id[link_id]
-            out.append(
-                SyncUnreadable(
-                    kind=kind,  # type: ignore[arg-type]
-                    id=None,
-                    course_id=li.course_id,
-                    course=label(li.course_id),
-                    area=area,
-                    title=None,
-                    count=count,
-                    since=_whole_at(li, area),
-                )
+    for link_id, count in announced.items():
+        li = by_id[link_id]
+        out.append(
+            SyncUnreadable(
+                kind="announcements",
+                id=None,
+                course_id=li.course_id,
+                course=label(li.course_id),
+                area="announcements",
+                title=None,
+                count=count,
+                since=_whole_at(li, "announcements"),
             )
+        )
     out.sort(key=lambda u: (u.course, u.kind, (u.title or "").casefold()))
     return out
 

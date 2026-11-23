@@ -8,7 +8,6 @@ States change only through `materials.enter` (table 4a).
 
 from collections.abc import AsyncIterator, Mapping
 from html import escape
-from typing import Literal
 
 from sqlalchemy import select
 
@@ -22,7 +21,7 @@ from semestra.modules.files.source_folders import SourceFolders
 from semestra.modules.lms import reads, service
 from semestra.modules.lms.answers import AREA_HIDDEN
 from semestra.modules.lms.errors import lms_error
-from semestra.modules.lms.materials import enter, note
+from semestra.modules.lms.materials import enter
 from semestra.modules.lms.models import LmsCourseLink, LmsItemCheck, LmsMaterial
 from semestra.modules.lms.schemas.io import HeldMaterials
 from semestra.modules.lms.settings import materials as material_settings
@@ -233,91 +232,88 @@ async def restore_all(ctx: Ctx, program_id: str) -> None:
         await sync_queue(ctx, list(restored.values()), manual=True)
 
 
-Choice = Literal["mine", "remove"]
-
-
-async def _unreadable(ctx: Ctx, links: list[LmsCourseLink]) -> list[LmsMaterial]:
-    """The followed materials of these courses whose last single read was refused since their
-    area is closed (M09 table 3c, note)."""
+async def unreadable(
+    ctx: Ctx, links: list[LmsCourseLink]
+) -> list[tuple[LmsMaterial, FilesItem | None]]:
+    """The materials listed under "Not syncing for now" (M09 table 3c, note): of courses whose
+    materials sync, followed (`synced`) or restored and waiting (`absent` with `quiet`), whose
+    last single read was refused since their area is closed. With their course file, if any."""
+    links = [li for li in links if (await material_settings(ctx, li.course_id)).sync]
+    if not links:
+        return []
+    ids = [li.id for li in links]
     held = {
         (c.link_id, c.kind, c.external_id)
         for c in await ctx.db.scalars(
             select(LmsItemCheck).where(
                 LmsItemCheck.user_id == ctx.user_id,
-                LmsItemCheck.link_id.in_([li.id for li in links]),
+                LmsItemCheck.link_id.in_(ids),
                 LmsItemCheck.result == "unavailable",
                 LmsItemCheck.reason == AREA_HIDDEN,
             )
         )
     }
-    return [
+    mats = [
         m
         for m in await ctx.db.scalars(
             select(LmsMaterial)
             .where(
                 LmsMaterial.user_id == ctx.user_id,
-                LmsMaterial.link_id.in_([li.id for li in links]),
-                LmsMaterial.state == "synced",
+                LmsMaterial.link_id.in_(ids),
+                (LmsMaterial.state == "synced")
+                | ((LmsMaterial.state == "absent") & LmsMaterial.quiet),
             )
             .execution_options(populate_existing=True)
         )
         if (m.link_id, m.kind, m.external_id) in held
     ]
+    rows = {r.id: r for r in await sources.find_items(ctx, [m.item_id for m in mats if m.item_id])}
+    return [(m, rows.get(m.item_id or "")) for m in mats]
 
 
-async def _settle(ctx: Ctx, mat: LmsMaterial, row: FilesItem, choice: Choice) -> None:
-    """`mine`: the file and its copy become the user's, no longer followed (table 4a: absent,
-    handed over); `remove`: the file is deleted and the material not brought back until
-    restored (dismissed)."""
-    if choice == "mine":
-        await sources.detach_from_source(ctx, [row])
-        enter(mat, "absent", ctx.now, item_id=row.id)
-        note(mat, "handed_over", ctx.now)
-    else:
-        # Before the item goes, so `on_item_deleted` finds nothing left to dismiss.
-        enter(mat, "dismissed", ctx.now)
-        await sources.purge_items(ctx, [row])
+def removable(mat: LmsMaterial, row: FilesItem | None) -> bool:
+    """Only a followed material read from the platform: a saved copy may be the user's only
+    one, so it is never removed from this list (M09 table 3c, note)."""
+    return mat.state == "synced" and row is not None and not has_copy(row)
 
 
-async def settle_unreadable(ctx: Ctx, material_id: str, choice: Choice) -> str:
-    """The user's answer about a material that can't be read since its area is closed on the
-    platform (M09 table 3c, note; table 4a): `mine` needs a local copy. Returns its Program."""
+async def _remove(ctx: Ctx, mat: LmsMaterial, row: FilesItem) -> None:
+    """Table 4a, "remove in Not syncing for now": dismissed first, so `on_item_deleted` finds
+    nothing left to dismiss; then the course file goes."""
+    enter(mat, "dismissed", ctx.now)
+    await sources.purge_items(ctx, [row])
+
+
+async def remove_unreadable(ctx: Ctx, material_id: str) -> str:
+    """Removes one material listed under "Not syncing for now" that has no local copy. Returns
+    its Program."""
     mat = await ctx.db.get(LmsMaterial, material_id)
     if mat is None or mat.user_id != ctx.user_id:
         raise not_found("lms_material", material_id)
     link = await ctx.db.get(LmsCourseLink, mat.link_id)
     assert link is not None
     await hold(ctx, link)
-    found = await _unreadable(ctx, [link])
-    rows = await sources.find_items(ctx, [mat.item_id] if mat.item_id else [])
-    if mat not in found or not rows or (choice == "mine" and not has_copy(rows[0])):
+    found = dict((m.id, row) for m, row in await unreadable(ctx, [link]))
+    row = found.get(mat.id)
+    if mat.id not in found or row is None or not removable(mat, row):
         raise lms_error("lms.sync_nothing_to_resolve")
-    await _settle(ctx, mat, rows[0], choice)
+    await _remove(ctx, mat, row)
     await events.publish(ctx, UPDATED, {"program_id": link.program_id})
     return link.program_id
 
 
-async def settle_all_unreadable(ctx: Ctx, program_id: str, choice: Choice) -> None:
-    """The same answer for every such material of the Program: `mine` for each with a local
-    copy, `remove` for each read online (those with a copy are left for the user to decide one by
-    one: their copy may be the only one)."""
+async def remove_all_unreadable(ctx: Ctx, program_id: str) -> None:
+    """Removes every such material of the Program, in one transaction."""
     await academics.get_program_row(ctx, program_id)  # owned, or not found
-    links = [
-        li for li in await service.program_links(ctx, program_id) if await _restorable(ctx, li)
-    ]
-    if not links:
+    links = await service.program_links(ctx, program_id)
+    if links:
+        await hold(ctx, links[0])  # the database's write lock: one for every course
+    found = [(m, row) for m, row in await unreadable(ctx, links) if removable(m, row)]
+    if not found:
         raise lms_error("lms.sync_nothing_to_resolve")
-    await hold(ctx, links[0])  # the database's write lock: one for every course
-    mats = await _unreadable(ctx, links)
-    rows = {r.id: r for r in await sources.find_items(ctx, [m.item_id for m in mats if m.item_id])}
-    settled = 0
-    for mat in mats:
-        row = rows.get(mat.item_id or "")
-        if row is not None and has_copy(row) == (choice == "mine"):
-            await _settle(ctx, mat, row, choice)
-            settled += 1
-    if not settled:
-        raise lms_error("lms.sync_nothing_to_resolve")
+    for mat, row in found:
+        assert row is not None
+        await _remove(ctx, mat, row)
     await events.publish(ctx, UPDATED, {"program_id": program_id})
 
 

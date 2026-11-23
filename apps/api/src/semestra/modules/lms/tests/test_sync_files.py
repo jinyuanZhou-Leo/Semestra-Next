@@ -1872,8 +1872,8 @@ async def test_what_a_closed_area_hides_is_listed_until_it_opens(
     api: Api, fake: FakeProvider, clock: Clock
 ):
     """The files area closed and a file refused on its own (M09 table 3c, rows 6, 8, 10 and its
-    note): it stays as it was, listed in the panel; with a copy the user can make it theirs,
-    and it leaves the list once the platform shows it again."""
+    note): it stays as it was, listed in the panel; a saved copy can't be removed from there; a
+    material restored meanwhile is listed too; all leave the list once the platform shows them."""
     _materials(fake)
     program_id, course = await _course(api)
     await _materials_setting(api, course, store="local")
@@ -1885,8 +1885,8 @@ async def test_what_a_closed_area_hides_is_listed_until_it_opens(
     status = await api.sync(program_id)
     rows = {u["title"]: u for u in status["unreadable"]}
     assert set(rows) == {"Lecture 1.pdf", "Midterm 2025.pdf", "data.zip"}
-    assert {(u["kind"], u["area"], u["local_copy"]) for u in rows.values()} == {
-        ("material", "files", True)
+    assert {(u["kind"], u["area"], u["removable"]) for u in rows.values()} == {
+        ("material", "files", False)
     }
     _, items = await _files(api, course)
     assert {"Lecture 1.pdf", "Midterm 2025.pdf"} <= set(items)  # kept as they were
@@ -1896,63 +1896,54 @@ async def test_what_a_closed_area_hides_is_listed_until_it_opens(
     await api.sync(program_id)
     assert ("file", "201") not in fake.calls
 
+    # The copy may be the user's only one: not removed from here.
     lecture_id = rows["Lecture 1.pdf"]["id"]
-    status = await api.call(
-        "POST", f"/lms/sync/materials/{lecture_id}:settle", json={"choice": "mine"}
-    )
-    assert [u["title"] for u in status["unreadable"]] == ["data.zip", "Midterm 2025.pdf"]
-    lecture = (await _files(api, course))[1]["Lecture 1.pdf"]
-    assert (lecture["follows_source"], lecture["source_ref"]) == (False, None)  # theirs now
-    assert [(m["title"], m["change"]) for m in status["materials"]][:1] == [
-        ("Lecture 1.pdf", "handed_over")
-    ]
+    error = await api.call("POST", f"/lms/sync/materials/{lecture_id}:remove", status=409)
+    assert error["error"]["code"] == "lms.sync_nothing_to_resolve"
 
-    # Removed instead: deleted, and not brought back until restored.
+    # Deleted by the user, then restored while the area is closed: listed, waiting.
+    await api.call("DELETE", f"/files/{items['Midterm 2025.pdf']['id']}")
     midterm_id = rows["Midterm 2025.pdf"]["id"]
-    status = await api.call(
-        "POST", f"/lms/sync/materials/{midterm_id}:settle", json={"choice": "remove"}
-    )
-    assert [u["title"] for u in status["unreadable"]] == ["data.zip"]
-    assert [r["title"] for r in status["removed_materials"]] == ["Midterm 2025.pdf"]
-    assert "Midterm 2025.pdf" not in (await _files(api, course))[1]
+    await api.call("POST", f"/lms/sync/materials/{midterm_id}:restore")
+    status = await api.sync(program_id)
+    waiting = {u["title"]: u for u in status["unreadable"]}
+    assert set(waiting) == set(rows)
+    assert waiting["Midterm 2025.pdf"]["removable"] is False
 
     # The area opens again: listed, so there; gone from the panel by itself.
     fake.files_hidden = False
+    fake.refused_files = set()
     clock.advance(minutes=1)
     status = await api.sync(program_id)
     assert status["unreadable"] == []
 
 
-@pytest.mark.parametrize("store", ["local", "online"])
-async def test_every_unreadable_material_is_answered_at_once(
-    api: Api, fake: FakeProvider, clock: Clock, store: str
+async def test_what_a_closed_area_hides_read_online_is_removed(
+    api: Api, fake: FakeProvider, clock: Clock
 ):
-    """The panel's action for all of them (M09 table 3c, note): saved copies become the user's
-    files; read online, they are removed. Only the ones the answer fits."""
+    """Read from the platform, it can't open while the area is closed: removed one by one or all
+    at once (M09 table 3c, note; table 4a), and not brought back until restored."""
     _materials(fake)
     program_id, course = await _course(api)
-    await _materials_setting(api, course, store=store)
     await api.sync(program_id)
     await api.run_jobs()
     fake.files_hidden = True
     fake.refused_files = {"201", "203", "205"}
     clock.advance(days=2)
     status = await api.sync(program_id)
-    titles = {u["title"] for u in status["unreadable"]}
-    assert len(titles) == 3
-    url = f"/programs/{program_id}/lms/sync/materials:settle"
+    rows = {u["title"]: u for u in status["unreadable"]}
+    assert len(rows) == 3
+    assert all(u["removable"] for u in rows.values())
 
-    wrong = "remove" if store == "local" else "mine"
-    error = await api.call("POST", url, status=409, json={"choice": wrong})
-    assert error["error"]["code"] == "lms.sync_nothing_to_resolve"
+    midterm_id = rows["Midterm 2025.pdf"]["id"]
+    status = await api.call("POST", f"/lms/sync/materials/{midterm_id}:remove")
+    assert {u["title"] for u in status["unreadable"]} == set(rows) - {"Midterm 2025.pdf"}
+    assert [r["title"] for r in status["removed_materials"]] == ["Midterm 2025.pdf"]
 
-    status = await api.call("POST", url, json={"choice": "mine" if store == "local" else "remove"})
+    url = f"/programs/{program_id}/lms/sync/materials:remove"
+    status = await api.call("POST", url)
     assert status["unreadable"] == []
-    _, items = await _files(api, course)
-    if store == "local":
-        assert {(items[t]["follows_source"], items[t]["source_ref"]) for t in titles} == {
-            (False, None)
-        }
-    else:
-        assert not titles & set(items)
-        assert {r["title"] for r in status["removed_materials"]} == titles
+    assert {r["title"] for r in status["removed_materials"]} == set(rows)
+    assert not set(rows) & set((await _files(api, course))[1])
+    error = await api.call("POST", url, status=409)
+    assert error["error"]["code"] == "lms.sync_nothing_to_resolve"

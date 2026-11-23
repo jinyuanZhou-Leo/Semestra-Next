@@ -12961,44 +12961,6 @@ export const MaterialCountsSchema = {
     description: 'The course files that follow the linked course\'s materials, by what unlinking does to\nthem.'
 } as const;
 
-export const MaterialSettleAllInputBodySchema = {
-    properties: {
-        choice: {
-            type: 'string',
-            enum: [
-                'mine',
-                'remove'
-            ],
-            title: 'Choice',
-            description: 'mine: every one with a local copy; remove: every one read from the platform'
-        }
-    },
-    type: 'object',
-    required: [
-        'choice'
-    ],
-    title: 'MaterialSettleAllInputBody'
-} as const;
-
-export const MaterialSettleInputBodySchema = {
-    properties: {
-        choice: {
-            type: 'string',
-            enum: [
-                'mine',
-                'remove'
-            ],
-            title: 'Choice',
-            description: 'mine: make it the user\'s own file (it has a local copy); remove: delete it'
-        }
-    },
-    type: 'object',
-    required: [
-        'choice'
-    ],
-    title: 'MaterialSettleInputBody'
-} as const;
-
 export const MaterialsScopeBodySchema = {
     properties: {
         course_id: {
@@ -21367,7 +21329,6 @@ export const SyncUnreadableSchema = {
             enum: [
                 'material',
                 'assignment',
-                'assignments',
                 'announcements'
             ],
             title: 'Kind'
@@ -21425,7 +21386,7 @@ export const SyncUnreadableSchema = {
                 }
             ],
             title: 'Since',
-            description: 'When it was last read as it is kept (none if not known)'
+            description: 'Announcements: when their list was last read whole (none if never)'
         },
         item_id: {
             anyOf: [
@@ -21451,10 +21412,10 @@ export const SyncUnreadableSchema = {
             title: 'External Id',
             description: 'An assignment\'s id on the platform'
         },
-        local_copy: {
+        removable: {
             type: 'boolean',
-            title: 'Local Copy',
-            description: 'A material with a copy saved in Semestra: it can become the user\'s own file',
+            title: 'Removable',
+            description: 'A followed material read from the platform (no copy saved in Semestra): it can be removed (lms.sync.material.remove)',
             default: false
         }
     },
@@ -21470,7 +21431,7 @@ export const SyncUnreadableSchema = {
         'since'
     ],
     title: 'SyncUnreadable',
-    description: 'What the sync can\'t read because its area is closed on the platform (M09 table 3c, note):\nkept as last read, judged again once the area opens. Materials and imported assignments one\nby one; a course\'s assignments not imported and its announcements as one row per area.'
+    description: 'What the sync can\'t read because its area is closed on the platform (M09 table 3c, note):\nkept as last read, judged again once the area opens. Materials and imported assignments one\nby one; a course\'s announcements as one row.'
 } as const;
 
 export const TaskSchema = {

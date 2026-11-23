@@ -86,8 +86,6 @@ from semestra.modules.lms.schemas.io import (
 )
 from semestra.modules.lms.schemas.sync import (
     MaterialRef,
-    MaterialSettleAllInput,
-    MaterialSettleInput,
     SyncChangeRef,
     SyncDismissInput,
     SyncFieldResolveInput,
@@ -893,34 +891,32 @@ async def sync_material_restore_all(ctx: Ctx, inp: ProgramRef) -> SyncStatus:
 
 
 @capability(
-    name="lms.sync.material.settle",
-    summary="Answer about a course material that can't be read on the platform.",
-    description="""Only for a material whose area is closed on the platform. mine: one with a copy
-saved in Semestra becomes the user's own file, no longer following the platform. remove: its course
-file is deleted, and it is not brought back until restored.""",
+    name="lms.sync.material.remove",
+    summary="Remove a course material that can't be read since its area is closed.",
+    description="""Only one read from the platform (no copy saved in Semestra): its course file is
+deleted, and it is not brought back until restored.""",
     effect="destructive",
-    http=Http("POST", "/lms/sync/materials/{material_id}:settle"),
+    http=Http("POST", "/lms/sync/materials/{material_id}:remove"),
     expose=HTTP_ONLY,
     tags=TAGS,
 )
-async def sync_material_settle(ctx: Ctx, inp: MaterialSettleInput) -> SyncStatus:
-    program_id = await material_items.settle_unreadable(ctx, inp.material_id, inp.choice)
+async def sync_material_remove(ctx: Ctx, inp: MaterialRef) -> SyncStatus:
+    program_id = await material_items.remove_unreadable(ctx, inp.material_id)
     return await sync_status.status(ctx, program_id)
 
 
 @capability(
-    name="lms.sync.material.settle_all",
-    summary="Answer at once about every course material of a Program that can't be read.",
-    description="""Only materials whose area is closed on the platform. mine: each with a copy saved
-in Semestra becomes the user's own file. remove: each read from the platform (no copy) is deleted
-from the course files, and not brought back until restored; those with a copy are left alone.""",
+    name="lms.sync.material.remove_all",
+    summary="Remove every course material of a Program that can't be read for now.",
+    description="""Only those read from the platform (no copy saved in Semestra); those with a copy
+are left alone.""",
     effect="destructive",
-    http=Http("POST", "/programs/{program_id}/lms/sync/materials:settle"),
+    http=Http("POST", "/programs/{program_id}/lms/sync/materials:remove"),
     expose=HTTP_ONLY,
     tags=TAGS,
 )
-async def sync_material_settle_all(ctx: Ctx, inp: MaterialSettleAllInput) -> SyncStatus:
-    await material_items.settle_all_unreadable(ctx, inp.program_id, inp.choice)
+async def sync_material_remove_all(ctx: Ctx, inp: ProgramRef) -> SyncStatus:
+    await material_items.remove_all_unreadable(ctx, inp.program_id)
     return await sync_status.status(ctx, inp.program_id)
 
 

@@ -15186,6 +15186,112 @@
         }
       }
     },
+    "/lms/sync/materials/{material_id}:remove": {
+      "post": {
+        "tags": [
+          "lms"
+        ],
+        "summary": "Remove a course material that can't be read since its area is closed.",
+        "description": "Only one read from the platform (no copy saved in Semestra): its course file is\ndeleted, and it is not brought back until restored.",
+        "operationId": "lmsSyncMaterialRemove",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "material_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "A material's id (lms.sync.status)",
+              "title": "Material Id"
+            },
+            "description": "A material's id (lms.sync.status)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncStatus"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/programs/{program_id}/lms/sync/materials:remove": {
+      "post": {
+        "tags": [
+          "lms"
+        ],
+        "summary": "Remove every course material of a Program that can't be read for now.",
+        "description": "Only those read from the platform (no copy saved in Semestra); those with a copy\nare left alone.",
+        "operationId": "lmsSyncMaterialRemoveAll",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "program_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Program id",
+              "title": "Program Id"
+            },
+            "description": "Program id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncStatus"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/lms/sync/materials/{material_id}:restore": {
       "post": {
         "tags": [
@@ -15209,10 +15315,10 @@
             "required": true,
             "schema": {
               "type": "string",
-              "description": "A removed material's id (lms.sync.status)",
+              "description": "A material's id (lms.sync.status)",
               "title": "Material Id"
             },
-            "description": "A removed material's id (lms.sync.status)"
+            "description": "A material's id (lms.sync.status)"
           }
         ],
         "responses": {
@@ -15268,132 +15374,6 @@
             "description": "Program id"
           }
         ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SyncStatus"
-                }
-              }
-            }
-          },
-          "default": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Default Response"
-          }
-        }
-      }
-    },
-    "/lms/sync/materials/{material_id}:settle": {
-      "post": {
-        "tags": [
-          "lms"
-        ],
-        "summary": "Answer about a course material that can't be read on the platform.",
-        "description": "Only for a material whose area is closed on the platform. mine: one with a copy\nsaved in Semestra becomes the user's own file, no longer following the platform. remove: its course\nfile is deleted, and it is not brought back until restored.",
-        "operationId": "lmsSyncMaterialSettle",
-        "security": [
-          {
-            "sessionCookie": []
-          },
-          {
-            "accessToken": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "material_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "An unreadable material's id (lms.sync.status)",
-              "title": "Material Id"
-            },
-            "description": "An unreadable material's id (lms.sync.status)"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/MaterialSettleInputBody"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SyncStatus"
-                }
-              }
-            }
-          },
-          "default": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Default Response"
-          }
-        }
-      }
-    },
-    "/programs/{program_id}/lms/sync/materials:settle": {
-      "post": {
-        "tags": [
-          "lms"
-        ],
-        "summary": "Answer at once about every course material of a Program that can't be read.",
-        "description": "Only materials whose area is closed on the platform. mine: each with a copy saved\nin Semestra becomes the user's own file. remove: each read from the platform (no copy) is deleted\nfrom the course files, and not brought back until restored; those with a copy are left alone.",
-        "operationId": "lmsSyncMaterialSettleAll",
-        "security": [
-          {
-            "sessionCookie": []
-          },
-          {
-            "accessToken": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "program_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "Program id",
-              "title": "Program Id"
-            },
-            "description": "Program id"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/MaterialSettleAllInputBody"
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -32863,42 +32843,6 @@
         "title": "MaterialCounts",
         "description": "The course files that follow the linked course's materials, by what unlinking does to\nthem."
       },
-      "MaterialSettleAllInputBody": {
-        "properties": {
-          "choice": {
-            "type": "string",
-            "enum": [
-              "mine",
-              "remove"
-            ],
-            "title": "Choice",
-            "description": "mine: every one with a local copy; remove: every one read from the platform"
-          }
-        },
-        "type": "object",
-        "required": [
-          "choice"
-        ],
-        "title": "MaterialSettleAllInputBody"
-      },
-      "MaterialSettleInputBody": {
-        "properties": {
-          "choice": {
-            "type": "string",
-            "enum": [
-              "mine",
-              "remove"
-            ],
-            "title": "Choice",
-            "description": "mine: make it the user's own file (it has a local copy); remove: delete it"
-          }
-        },
-        "type": "object",
-        "required": [
-          "choice"
-        ],
-        "title": "MaterialSettleInputBody"
-      },
       "MaterialsScopeBody": {
         "properties": {
           "course_id": {
@@ -41116,7 +41060,6 @@
             "enum": [
               "material",
               "assignment",
-              "assignments",
               "announcements"
             ],
             "title": "Kind"
@@ -41174,7 +41117,7 @@
               }
             ],
             "title": "Since",
-            "description": "When it was last read as it is kept (none if not known)"
+            "description": "Announcements: when their list was last read whole (none if never)"
           },
           "item_id": {
             "anyOf": [
@@ -41200,10 +41143,10 @@
             "title": "External Id",
             "description": "An assignment's id on the platform"
           },
-          "local_copy": {
+          "removable": {
             "type": "boolean",
-            "title": "Local Copy",
-            "description": "A material with a copy saved in Semestra: it can become the user's own file",
+            "title": "Removable",
+            "description": "A followed material read from the platform (no copy saved in Semestra): it can be removed (lms.sync.material.remove)",
             "default": false
           }
         },
@@ -41219,7 +41162,7 @@
           "since"
         ],
         "title": "SyncUnreadable",
-        "description": "What the sync can't read because its area is closed on the platform (M09 table 3c, note):\nkept as last read, judged again once the area opens. Materials and imported assignments one\nby one; a course's assignments not imported and its announcements as one row per area."
+        "description": "What the sync can't read because its area is closed on the platform (M09 table 3c, note):\nkept as last read, judged again once the area opens. Materials and imported assignments one\nby one; a course's announcements as one row."
       },
       "Task": {
         "properties": {

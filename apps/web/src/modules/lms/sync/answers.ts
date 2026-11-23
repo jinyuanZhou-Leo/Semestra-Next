@@ -6,8 +6,8 @@ import {
   lmsSyncFieldResolve,
   lmsSyncMaterialRestore,
   lmsSyncMaterialRestoreAll,
-  lmsSyncMaterialSettle,
-  lmsSyncMaterialSettleAll,
+  lmsSyncMaterialRemove,
+  lmsSyncMaterialRemoveAll,
   lmsSyncResolve,
 } from '@semestra/api-client'
 import { lmsSyncStatusQueryKey } from '@semestra/api-client/react-query'
@@ -72,20 +72,15 @@ export function useSyncAnswers(programId: string) {
       void answer([id], () =>
         lmsSyncMaterialRestore({ path: { material_id: id }, throwOnError: true }),
       ),
-    /** A material that can't be read: made the user's own file, or removed. */
-    settleMaterial: (id: string, choice: 'mine' | 'remove') =>
+    /** A material that can't be read for now, read from the platform: removed. */
+    removeMaterial: (id: string) =>
       void answer([id], () =>
-        lmsSyncMaterialSettle({ path: { material_id: id }, body: { choice }, throwOnError: true }),
+        lmsSyncMaterialRemove({ path: { material_id: id }, throwOnError: true }),
       ),
-    /** The same answer for every material that can't be read: `mine` for those saved in
-     * Semestra, `remove` for those read from the platform (`ids`: the rows it settles). */
-    settleAllMaterials: (ids: readonly string[], choice: 'mine' | 'remove') =>
+    /** Every such material of the Program (`ids`: the rows it removes). */
+    removeAllMaterials: (ids: readonly string[]) =>
       void answer(ids, () =>
-        lmsSyncMaterialSettleAll({
-          path: { program_id: programId },
-          body: { choice },
-          throwOnError: true,
-        }),
+        lmsSyncMaterialRemoveAll({ path: { program_id: programId }, throwOnError: true }),
       ),
     /** Every removed material of the Program, also those past the rows listed. */
     restoreAll: (ids: readonly string[]) =>

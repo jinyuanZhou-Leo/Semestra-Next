@@ -266,31 +266,39 @@ test('every removed material is restored at once, also those past the listed row
   )
 })
 
-test('what a closed area hides is listed; a saved file becomes mine, the online ones are removed at once', async () => {
+test('what a closed area hides is listed; only materials read online can be removed', async () => {
   const since = new Date().toISOString()
   const base = {
     course_id: 'c1',
     course: 'CSC148',
     count: 1,
-    since,
+    since: null,
     item_id: null,
     external_id: null,
-    local_copy: false,
+    removable: false,
   }
-  const settled = vi.fn<(url: string, body: unknown) => void>()
+  const removed = vi.fn<(url: string) => void>()
   const listed = status({
     unreadable: [
+      { ...base, kind: 'material', id: 'm1', area: 'files', title: 'Week 3.pdf', item_id: 'i1' },
       {
         ...base,
         kind: 'material',
-        id: 'm1',
+        id: 'm2',
         area: 'files',
-        title: 'Week 3.pdf',
-        item_id: 'i1',
-        local_copy: true,
+        title: 'Rubric.pdf',
+        item_id: 'i2',
+        removable: true,
       },
-      { ...base, kind: 'material', id: 'm2', area: 'files', title: 'Rubric.pdf' },
-      { ...base, kind: 'material', id: 'm3', area: 'files', title: 'Notes.pdf' },
+      {
+        ...base,
+        kind: 'material',
+        id: 'm3',
+        area: 'files',
+        title: 'Notes.pdf',
+        item_id: 'i3',
+        removable: true,
+      },
       {
         ...base,
         kind: 'announcements',
@@ -298,19 +306,20 @@ test('what a closed area hides is listed; a saved file becomes mine, the online 
         area: 'announcements',
         title: null,
         count: 4,
+        since,
       },
     ],
   })
   server.use(
     ...handlers(listed),
-    http.post(`${API}/lms/sync/materials/:id`, async ({ request }) => {
+    http.post(`${API}/lms/sync/materials/:id`, ({ request }) => {
       const path = new URL(request.url).pathname
-      settled(path, await request.json())
+      removed(path)
       const left = listed.unreadable.filter((u) => !path.includes(`/${u.id}:`))
       return HttpResponse.json({ ...listed, unreadable: left })
     }),
-    http.post(`${API}/programs/p1/lms/sync/materials\\:settle`, async ({ request }) => {
-      settled(new URL(request.url).pathname, await request.json())
+    http.post(`${API}/programs/p1/lms/sync/materials\\:remove`, ({ request }) => {
+      removed(new URL(request.url).pathname)
       return HttpResponse.json(status())
     }),
   )
@@ -318,20 +327,48 @@ test('what a closed area hides is listed; a saved file becomes mine, the online 
   await userEvent.click(await screen.findByRole('button', { name: /^Not syncing for now\s*4$/ }))
   expect(await screen.findByText('Announcements: 4')).toBeInTheDocument()
   expect(screen.getAllByText(/The “Files” area is turned off on Canvas/)).toHaveLength(3)
+  expect(screen.getAllByRole('button', { name: 'Remove' })).toHaveLength(2)
 
-  await userEvent.click(screen.getByRole('button', { name: 'Make it my file' }))
-  await waitFor(() =>
-    expect(settled).toHaveBeenCalledWith('/lms/sync/materials/m1:settle', { choice: 'mine' }),
+  await userEvent.click(screen.getAllByRole('button', { name: 'Remove' })[0]!)
+  const one = await screen.findByRole('alertdialog')
+  await userEvent.click(within(one).getByRole('button', { name: 'Remove' }))
+  await waitFor(() => expect(removed).toHaveBeenCalledWith('/lms/sync/materials/m2:remove'))
+  await waitFor(() => expect(screen.queryByText('Rubric.pdf')).not.toBeInTheDocument())
+  expect(screen.queryByRole('button', { name: 'Remove all' })).not.toBeInTheDocument()
+})
+
+test('every material read online is removed at once', async () => {
+  const material = (id: string, title: string) => ({
+    kind: 'material' as const,
+    id,
+    area: 'files',
+    title,
+    course_id: 'c1',
+    course: 'CSC148',
+    count: 1,
+    since: null,
+    item_id: `i-${id}`,
+    external_id: null,
+    removable: true,
+  })
+  const removed = vi.fn<(url: string) => void>()
+  server.use(
+    ...handlers(
+      status({ unreadable: [material('m2', 'Rubric.pdf'), material('m3', 'Notes.pdf')] }),
+    ),
+    http.post(`${API}/programs/p1/lms/sync/materials\\:remove`, ({ request }) => {
+      removed(new URL(request.url).pathname)
+      return HttpResponse.json(status())
+    }),
   )
-  await waitFor(() => expect(screen.queryByText('Week 3.pdf')).not.toBeInTheDocument())
-  await userEvent.click(screen.getByRole('button', { name: 'Remove all' }))
+  renderWithRouter(<InPopover />, undefined, IN_PROGRAM)
+  await userEvent.click(await screen.findByRole('button', { name: /^Not syncing for now\s*2$/ }))
+  await userEvent.click(await screen.findByRole('button', { name: 'Remove all' }))
   const dialog = await screen.findByRole('alertdialog')
   expect(within(dialog).getByText('Remove 2 materials?')).toBeInTheDocument()
   await userEvent.click(within(dialog).getByRole('button', { name: 'Remove all' }))
   await waitFor(() =>
-    expect(settled).toHaveBeenCalledWith('/programs/p1/lms/sync/materials:settle', {
-      choice: 'remove',
-    }),
+    expect(removed).toHaveBeenCalledWith('/programs/p1/lms/sync/materials:remove'),
   )
 })
 
