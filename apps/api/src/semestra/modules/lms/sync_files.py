@@ -1018,7 +1018,16 @@ async def on_unlinking(ctx: Ctx, event: Event) -> None:
     link_id = event.data.get("link_id")
     if not isinstance(link_id, str):
         return
-    rows = await synced_items(ctx, link_id)
+    mats = list(
+        await ctx.db.scalars(
+            select(LmsMaterial).where(LmsMaterial.link_id == link_id, LmsMaterial.state == "synced")
+        )
+    )
+    rows = await sources.find_items(ctx, [m.item_id for m in mats if m.item_id])
+    # Moved on before the items go, so `on_item_deleting` does not take them as the user's
+    # deletes; the rows go with the link right after.
+    for mat in mats:
+        enter(mat, "absent", ctx.now)
     await sources.purge_items(ctx, [r for r in rows if not has_copy(r)])
     await sources.detach_from_source(ctx, [r for r in rows if has_copy(r)])
 

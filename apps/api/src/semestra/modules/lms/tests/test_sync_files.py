@@ -18,7 +18,7 @@ from fastapi import FastAPI
 from sqlalchemy import func, select
 
 from semestra.core import jobs
-from semestra.core.config import Settings
+from semestra.core.config import Settings, get_settings
 from semestra.core.context import run_as_system
 from semestra.core.jobs import BACKGROUND, CoreJob
 from semestra.modules.agent import view
@@ -2042,6 +2042,7 @@ _ITEMS_0069 = [
     ("shared", "lms", "lms:file:4", False, "file", None),
     ("orphan", "lms", "lms:file:5", False, "file", None),
     ("orphan-kept", "lms", "lms:file:6", True, "file", "https://lms/6"),
+    ("orphan-link", "lms", "lms:link:7", False, "link", "https://example.com/7"),
 ]
 _MATERIALS_0069 = [
     ("m-followed", "followed", "file", "2026-01-10 00:00:00", "v1"),
@@ -2054,7 +2055,7 @@ _MATERIALS_0069 = [
 _LINK_VERSION = hashlib.sha256(b"https://lms/2").hexdigest()
 
 
-def test_migration_keeps_following_once(tmp_path: Path):
+def test_migration_keeps_following_once(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """0070: `source_kind` alone says the LMS keeps an item, a followed link's version moves to
     it, each followed item is one `synced` material's (what broke that is mended), and a file
     handed over loses the platform's address."""
@@ -2063,7 +2064,23 @@ def test_migration_keeps_following_once(tmp_path: Path):
     cfg.set_main_option("script_location", str(API_DIR / "migrations"))
     cfg.attributes["database_url"] = f"sqlite+aiosqlite:///{path}"
     command.upgrade(cfg, "0068")
+    root = tmp_path / "storage"
+    image = root / "pages" / "orphan-1.png"
+    image.parent.mkdir(parents=True)
+    image.write_bytes(b"png")
+    monkeypatch.setenv("SEMESTRA_STORAGE_LOCAL_ROOT", str(root))
+    get_settings.cache_clear()
     db = sqlite3.connect(path)  # foreign keys are off: no user, course or link rows needed
+    db.execute(
+        "INSERT INTO files_documents (id, user_id, item_id, parser_fingerprint, page_count,"
+        " char_count, status, ocr_skipped_pages, created_at) VALUES ('d1', 'u1', 'orphan', 'p',"
+        " 1, 0, 'ready', 0, '2026-01-10 00:00:00')"
+    )
+    db.execute(
+        "INSERT INTO files_document_pages (id, user_id, document_id, page_no, markdown,"
+        " ocr_used, image_storage_key) VALUES ('p1', 'u1', 'd1', 1, '', 0,"
+        " 'pages/orphan-1.png')"
+    )
     for iid, kind, ref, stored, item_kind, url in _ITEMS_0069:
         db.execute(
             "INSERT INTO files_items (id, user_id, course_id, kind, display_name, size_bytes,"
@@ -2082,7 +2099,10 @@ def test_migration_keeps_following_once(tmp_path: Path):
     db.commit()
     db.close()
     command.upgrade(cfg, "0070")
+    get_settings.cache_clear()
+    assert not image.exists()  # the gone file's page image went with it
     db = sqlite3.connect(path)
+    assert db.execute("SELECT count(*) FROM files_document_pages").fetchone() == (0,)
     items = db.execute(
         "SELECT id, source_kind, source_version, url, keep_copy FROM files_items ORDER BY id"
     ).fetchall()
@@ -2102,6 +2122,7 @@ def test_migration_keeps_following_once(tmp_path: Path):
         ("handed", None, None, None, 1),  # handed over: no platform address
         ("link", "lms", _LINK_VERSION, "https://lms/2", None),
         ("orphan-kept", None, None, None, None),  # no material follows it: handed over
+        ("orphan-link", None, None, "https://example.com/7", None),  # the user's link now
         ("shared", "lms", None, None, None),
         ("upload", None, None, None, 1),
     ]  # the orphan read online is gone
@@ -2138,6 +2159,7 @@ def test_a_backup_before_0070_keeps_following_once():
         ("handed", None, None, None, True),
         ("link", "lms", _LINK_VERSION, "https://lms/2", None),
         ("orphan-kept", None, None, None, None),
+        ("orphan-link", None, None, "https://example.com/7", None),
         ("shared", "lms", None, None, None),
         ("upload", None, None, None, True),
     ]

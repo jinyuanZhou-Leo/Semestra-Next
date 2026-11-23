@@ -253,7 +253,8 @@ def follow_once_0070(items: Sequence[Row], materials: Sequence[Row]) -> tuple[li
     keep a version; and each followed item is exactly one `synced` material's. What broke that
     is mended as the migration does: of materials sharing an item the latest stays; one whose
     item is gone is the user's delete (`dismissed`); one whose item was handed over is
-    `absent`; a followed item no material names is handed over (stored) or goes (not)."""
+    `absent`; a followed item no material names is handed over (a link, a stored file) or goes (a
+    file read online: nothing is left to open)."""
     by_id = {str(i.get("id")): i for i in items}
 
     def followed(item: Row | None) -> bool:
@@ -287,13 +288,20 @@ def follow_once_0070(items: Sequence[Row], materials: Sequence[Row]) -> tuple[li
         item_id = str(item.get("id"))
         item = by_id[item_id]
         kept = followed(item) and item_id in owner
-        if followed(item) and not kept and not item.get("storage_key"):
-            continue  # followed by nothing, and nothing kept of it
+        if (
+            followed(item)
+            and not kept
+            and item.get("kind") == "file"
+            and not item.get("storage_key")
+        ):
+            continue  # followed by nothing, and nothing kept of it to open
         item = {k: v for k, v in item.items() if k not in ("source_ref", "source_name")}
         if kept:
             item["source_kind"] = "lms"
         else:
-            if followed(by_id[item_id]):  # handed over now
+            if followed(by_id[item_id]) and item.get("kind") == "link":  # the user's link now
+                item = {**item, "source_version": None}
+            elif followed(by_id[item_id]):  # handed over now
                 item = {**item, **dict.fromkeys(_SOURCE_SIDE), "url": None}
                 item = {k: v for k, v in item.items() if k not in ("source_ref", "source_name")}
             elif item.get("source_kind") == "lms" and item.get("kind") == "file":
