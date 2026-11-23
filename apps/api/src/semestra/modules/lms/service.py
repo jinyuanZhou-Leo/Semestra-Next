@@ -640,8 +640,13 @@ async def cached(
     result, truncated = await call(ctx, b, fn)
     data = dump(result)
     entry = {"data": data, "truncated": truncated}
-    await cache.put(ctx, key, b.row.id, entry, scope=scope, persist=not _memory_only.get())
+    await cache.put(ctx, key, b.row.id, entry, scope=scope, persist=persists())
     return data, truncated
+
+
+def persists() -> bool:
+    """Whether a read keeps what it fetched in `lms_cache` too (not inside `memory_cache`)."""
+    return not _memory_only.get()
 
 
 def dump(value: Any) -> Any:

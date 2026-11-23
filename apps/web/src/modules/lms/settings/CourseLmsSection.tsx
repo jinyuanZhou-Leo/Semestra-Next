@@ -1,9 +1,15 @@
-import type { CourseLink, ExternalCourse, MaterialCounts } from '@semestra/api-client'
+import type {
+  CourseLink,
+  CourseLinkState,
+  ExternalCourse,
+  MaterialCounts,
+} from '@semestra/api-client'
 import {
   academicsCourseGetOptions,
   lmsConnectionListOptions,
   lmsCourseLinkDeleteMutation,
   lmsCourseLinkGetOptions,
+  lmsCourseLinkGetQueryKey,
   lmsCourseLinkSetMutation,
   lmsCourseLinkUpdateMutation,
   lmsCourseListOptions,
@@ -69,7 +75,7 @@ import { Switch } from '@/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { externalLabel, groupByTerm } from '../external'
 import { useProviderName, useProviderUis } from '../providers'
-import { MATERIALS, invalidateLms } from '../queries'
+import { MATERIALS } from '../queries'
 import { CONNECTION_ERROR_LABEL } from '../labels'
 import { LogoTile } from './ConnectionsSection'
 import { HeldMaterials } from './HeldMaterials'
@@ -207,10 +213,13 @@ function LinkedCourse({
   const Logo = useProviderUis().get(link.provider)?.logo ?? Link2
   const provider = useProviderName(link.provider) ?? link.provider
   const [unlinking, setUnlinking] = useState(false)
-  const refresh = () => invalidateLms(queryClient, { courseId })
+  // Each change answers with the course's link as it now is; what else it changes (the
+  // Program's lists of links, the sync) follows its event.
+  const show = (state: CourseLinkState) =>
+    queryClient.setQueryData(lmsCourseLinkGetQueryKey({ path: { course_id: courseId } }), state)
   const update = useMutation({
     ...lmsCourseLinkUpdateMutation(),
-    onSuccess: refresh,
+    onSuccess: show,
     onError: toastError,
   })
   // Runs in the background; the sync's status line and reminders tell how it went.
@@ -225,9 +234,9 @@ function LinkedCourse({
     })
   const remove = useMutation({
     ...lmsCourseLinkDeleteMutation(),
-    onSuccess: async () => {
+    onSuccess: (state) => {
       setUnlinking(false)
-      await invalidateLms(queryClient, { courseId })
+      show(state)
     },
     onError: (err) => (setUnlinking(false), toastError(err)),
   })
@@ -443,9 +452,10 @@ function CoursePicker({
   const provider = useProviderName(courses.data?.provider) ?? m.lms_name()
   const link = useMutation({
     ...lmsCourseLinkSetMutation(),
-    onSuccess: async () => {
+    onSuccess: (state) => {
       replacing.close()
-      await invalidateLms(queryClient, { courseId })
+      // The course's link at once; the rest follows `lms.course.linked`.
+      queryClient.setQueryData(lmsCourseLinkGetQueryKey({ path: { course_id: courseId } }), state)
       toast.success(m.lms_course_linked())
       onDone()
     },

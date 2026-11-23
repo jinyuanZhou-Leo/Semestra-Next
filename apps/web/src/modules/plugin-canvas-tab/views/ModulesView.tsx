@@ -1,5 +1,5 @@
 import type { Completion, ModuleOut, ModuleItemOut } from '@semestra/api-client'
-import { lmsModuleItemListOptions, lmsModuleListOptions } from '@semestra/api-client/react-query'
+import { lmsModuleItemListOptions } from '@semestra/api-client/react-query'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import {
   ChevronRight,
@@ -47,6 +47,7 @@ import { refLocation } from '../navigation'
 import { openExternal } from '../open-in-canvas'
 import { FileActions } from './FilePreview'
 import { useScrollIntoView } from './scroll'
+import { viewQueries } from '../queries'
 
 /**
  * Modules of the course, with their items when the platform sends them along; otherwise a
@@ -56,7 +57,7 @@ export function ModulesView({ selected }: { selected?: string }) {
   const { title, courseId } = useCanvasPage()
   const confirmUrl = useDialogTarget<string>()
   const list = useQuery({
-    ...lmsModuleListOptions({ path: { course_id: courseId } }),
+    ...viewQueries.modules(courseId),
     placeholderData: keepPreviousData,
   })
   // Which modules are open; until the user opens or closes one, the one being worked through

@@ -1,9 +1,7 @@
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { useEffect } from 'react'
 import { useUiPref } from '@/app/ui-pref'
-import type { CanvasLocation } from './navigation'
-
-const HOME: CanvasLocation = { tab: 'home' }
+import { canvasLocation, type CanvasLocation } from './navigation'
 
 function same(a: CanvasLocation | null, b: CanvasLocation | null) {
   return a?.tab === b?.tab && (a?.ref ?? null) === (b?.ref ?? null)
@@ -28,14 +26,8 @@ export function useCanvasLocation(
   const search = useSearch({ strict: false }) as { tab?: unknown; ref?: unknown }
   const navigate = useNavigate()
   const [saved, save] = useUiPref<CanvasLocation | null>(`canvas-tab.location.${courseId}`, null)
-  const fromUrl: CanvasLocation | null =
-    typeof search.tab === 'string' && search.tab
-      ? {
-          tab: search.tab,
-          ...(typeof search.ref === 'string' && search.ref ? { ref: search.ref } : {}),
-        }
-      : null
-  const location = fromUrl ?? saved ?? HOME
+  const fromUrl = typeof search.tab === 'string' && search.tab ? canvasLocation(search, null) : null
+  const location = canvasLocation(search, saved)
 
   const urlTab = fromUrl?.tab
   const urlRef = fromUrl?.ref

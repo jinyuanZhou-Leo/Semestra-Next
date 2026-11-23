@@ -346,7 +346,7 @@ export function ConnectionsSection() {
   const check = useMutation({
     ...lmsConnectionValidateMutation(),
     onSuccess: async (result) => {
-      await invalidateLms(queryClient, { all: true })
+      await invalidateLms(queryClient)
       if (result.ok) toast.success(m.lms_connection_check_ok())
       else
         toast.error(
@@ -365,7 +365,7 @@ export function ConnectionsSection() {
     ...lmsConnectionDeleteMutation(),
     onSuccess: async () => {
       deleting.close()
-      await invalidateLms(queryClient, { all: true })
+      await invalidateLms(queryClient)
     },
     onError: (err) => (deleting.close(), toastError(err)),
   })

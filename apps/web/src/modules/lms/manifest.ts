@@ -59,9 +59,15 @@ import { assignmentTargetsOptions } from './assignment/queries'
 import { AssessmentAssignmentCell } from './components/AssessmentAssignment'
 import { prefetchCourseLink, prefetchCourseTools } from './course-info'
 import { taskAssignmentLink } from './components/TaskAssignment'
-import { assignmentSource, wizardCourseSource } from './import/sources'
+import { assignmentSource, syllabusSource, wizardCourseSource } from './import/sources'
 import { canvasUi } from './providers/canvas'
-import { LMS_KEPT_QUERIES, LMS_QUERIES, LMS_STATE_QUERIES, settingsPrefetch } from './queries'
+import {
+  courseLinkTargets,
+  LMS_KEPT_QUERIES,
+  LMS_QUERIES,
+  programStateTargets,
+  settingsPrefetch,
+} from './queries'
 import { LMS_PROVIDER_UI } from './types'
 import { hiddenExcept } from '@/modules/notifications/categories'
 import { SYNC_LINE, hasSyncLine, syncStatusOptions } from './sync/status'
@@ -77,7 +83,6 @@ const CONNECTION_EVENTS = [
   'lms.connection.deleted',
   'lms.connection.status_changed',
 ] as const
-const STATE_EVENTS = ['lms.program.bound', 'lms.course.link_updated'] as const
 // Linking or unlinking also changes which courses the term announcements card reads.
 const LINK_EVENTS = ['lms.course.linked', 'lms.course.unlinked'] as const
 
@@ -356,7 +361,7 @@ export default defineModule({
     [LMS_PROVIDER_UI]: PROVIDER_UIS,
     [ONBOARDING_STEPS]: onboardingSteps,
     [TERM_WIZARD_IMPORT_SOURCES]: [wizardCourseSource],
-    [ASSESSMENT_IMPORT_SOURCES]: [assignmentSource],
+    [ASSESSMENT_IMPORT_SOURCES]: [assignmentSource, syllabusSource],
     [ASSESSMENT_ACTIONS]: [bindAction, unbindAction],
     // Only in a gradebook where some assessment is an assignment of the platform (imported, or
     // kept from when it was): each such row opens the assignment's details, or its feedback.
@@ -419,11 +424,26 @@ export default defineModule({
     },
   },
   realtimeInvalidations: {
+    // Every read goes through the connection's credentials and address.
     ...Object.fromEntries(CONNECTION_EVENTS.map((event) => [event, LMS_QUERIES])),
-    ...Object.fromEntries(STATE_EVENTS.map((event) => [event, LMS_STATE_QUERIES])),
+    // The Program's connection was set, changed or cleared.
+    'lms.program.bound': [(data) => programStateTargets(String(data.program_id))],
     ...Object.fromEntries(
-      LINK_EVENTS.map((event) => [event, [...LMS_STATE_QUERIES, 'lmsTermAnnouncementList']]),
+      LINK_EVENTS.map((event) => [
+        event,
+        [(data) => courseLinkTargets(String(data.course_id), data.program_id)],
+      ]),
     ),
+    // A course's sync was switched, or the sync read its name, code and term afresh: its link,
+    // the overview that shows them, the Program's list of links and what the sync covers.
+    'lms.course.link_updated': [
+      (data) => [
+        { _id: 'lmsCourseLinkGet', path: { course_id: data.course_id } },
+        { _id: 'lmsCourseOverview', path: { course_id: data.course_id } },
+        'lmsCourseLinkList',
+        'lmsSyncStatus',
+      ],
+    ],
     // A course's files changed: how many of its materials are kept locally or read online (what
     // unlinking it would do to them).
     ...Object.fromEntries(
@@ -470,13 +490,19 @@ export default defineModule({
         'lmsAssignmentTargets',
       ],
     ],
-    // An import committed: what the course reports as new, and its assignments' "imported as".
+    // An assignment was imported, bound or unbound: what the course reports as new, its
+    // assignments' "imported as", and which assessments and to-dos follow an assignment.
     'lms.course.imports_recorded': [
       (data) => [
-        ...LMS_STATE_QUERIES,
+        { _id: 'lmsCourseLinkGet', path: { course_id: data.course_id } },
         { _id: 'lmsAssignmentList', path: { course_id: data.course_id } },
         { _id: 'lmsAssignmentGet', path: { course_id: data.course_id } },
+        'lmsAssignmentTargets',
       ],
     ],
   },
+  // Caused here, already applied: opening an announcement marks it read in the lists at once
+  // and refetches the unread counts itself (`useMarkRead`); the Program's connection is
+  // refetched by the section that set it.
+  realtimeSkipOwn: ['lms.announcement.updated', 'lms.program.bound'],
 })

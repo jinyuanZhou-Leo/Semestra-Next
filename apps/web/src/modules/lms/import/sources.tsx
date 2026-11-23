@@ -1,6 +1,6 @@
 import type { ImportSessionDetail } from '@semestra/api-client'
 import { lmsProgramBindingGetOptions } from '@semestra/api-client/react-query'
-import { ClipboardList, School } from 'lucide-react'
+import { ClipboardList, School, ScrollText } from 'lucide-react'
 import { Suspense, useEffect } from 'react'
 import { preload, preloadable } from '@/app/extensions'
 import type { TermWizardImportSource } from '@/modules/academics/types'
@@ -12,6 +12,7 @@ import { wizardTarget } from '@/modules/imports/unfinished'
 import { m } from '@/paraglide/messages'
 import { useProgramProviderName } from '../providers'
 import type { CourseImportTarget } from './CoursePicker'
+import { syllabusImportKey } from './keys'
 
 type Started = { onStarted: (session: ImportSessionDetail) => void }
 
@@ -21,6 +22,9 @@ const CoursePicker = preloadable<Started & { programId: string; target: CourseIm
 )
 const AssignmentPicker = preloadable<Started & { courseId: string }>(() =>
   import('./AssignmentPicker').then((mod) => ({ default: mod.AssignmentPicker })),
+)
+const SyllabusPicker = preloadable<Started & { courseId: string }>(() =>
+  import('./SyllabusPicker').then((mod) => ({ default: mod.SyllabusPicker })),
 )
 
 /** "Import courses from {provider}": the Program's platform, "LMS" while unbound or loading. */
@@ -36,6 +40,13 @@ function AssignmentsTitle({ programId }: { programId: string }) {
   const provider = useProgramProviderName(programId)
   useEffect(() => void preload(AssignmentPicker), [])
   return provider ? m.lms_import_assignments_from({ provider }) : m.lms_import_assignments()
+}
+
+/** "{provider} syllabus" for a course's gradebook menu, from the Program's platform. */
+function SyllabusTitle({ programId }: { programId: string }) {
+  const provider = useProgramProviderName(programId)
+  useEffect(() => void preload(SyllabusPicker), [])
+  return provider ? m.lms_import_syllabus_from({ provider }) : m.lms_import_syllabus()
 }
 
 /** The M08 import dialog, starting with the course picker (M09 §7.2). */
@@ -116,6 +127,44 @@ export const assignmentSource: AssessmentImportSource = {
           target: { kind: 'course', course_id: courseId },
           lms: 'assignments',
         },
+      },
+    })
+    return []
+  },
+}
+
+/**
+ * The gradebook's "Import from… → {provider} syllabus": the grading scheme and dates read from
+ * the course's syllabus on the platform, reviewed in the dialog. The Canvas tab's "Read syllabus"
+ * next to the syllabus starts the same import (`SyllabusImportButton`).
+ */
+export const syllabusSource: AssessmentImportSource = {
+  id: 'lms.syllabus',
+  title: m.lms_import_syllabus,
+  Title: SyllabusTitle,
+  query: ({ programId }) => lmsProgramBindingGetOptions({ path: { program_id: programId } }),
+  icon: ScrollText,
+  description: m.lms_import_syllabus_hint,
+  Detail: importDetail(
+    ({ courseId }: { programId: string; courseId: string }) => syllabusImportKey(courseId),
+    m.lms_import_syllabus_hint,
+  ),
+  launch: async ({ programId, courseId }) => {
+    void preload(SyllabusPicker)
+    await openImport({
+      programId,
+      mode: 'direct',
+      source: 'picker',
+      picker: {
+        title: m.lms_import_syllabus,
+        Title: () => <SyllabusTitle programId={programId} />,
+        hint: m.lms_import_syllabus_hint,
+        component: ({ onStarted }) => (
+          <Suspense fallback={null}>
+            <SyllabusPicker courseId={courseId} onStarted={onStarted} />
+          </Suspense>
+        ),
+        resumes: syllabusImportKey(courseId),
       },
     })
     return []

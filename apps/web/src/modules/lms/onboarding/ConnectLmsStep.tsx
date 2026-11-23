@@ -17,7 +17,7 @@ import { Button } from '@/ui/button'
 import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from '@/ui/item'
 import { Skeleton } from '@/ui/skeleton'
 import { useOfferedProviders, useProviderName, useProviderUis } from '../providers'
-import { invalidateLms, MATERIALS } from '../queries'
+import { invalidateTargets, MATERIALS, programStateTargets } from '../queries'
 import { AddConnectionDialog, ConnectionStatus, LogoTile } from '../settings/ConnectionsSection'
 import { MATERIAL_FIELDS } from '../settings/MaterialsSection'
 
@@ -43,7 +43,7 @@ export default function ConnectLmsStep({ programId, nav }: OnboardingStepProps) 
       path: { program_id: programId },
       body: { connection_id: connection.id },
     })
-    await invalidateLms(queryClient)
+    await invalidateTargets(queryClient, programStateTargets(programId))
   }
 
   if (!connections.data || !binding.data) return <Skeleton className="h-40 w-full rounded-2xl" />

@@ -29,7 +29,7 @@ import {
   SelectValue,
 } from '@/ui/select'
 import { useProviderUis } from '../providers'
-import { invalidateLms } from '../queries'
+import { invalidateTargets, programStateTargets } from '../queries'
 import { ConnectionStatus } from './ConnectionsSection'
 
 const NONE = 'none'
@@ -51,7 +51,11 @@ export function ProgramLmsSection({ scope }: SettingsSectionProps) {
   const uis = useProviderUis()
   const connections = useQuery(lmsConnectionListOptions())
   const binding = useQuery(lmsProgramBindingGetOptions({ path: { program_id: programId } }))
-  const done = { onSuccess: () => invalidateLms(queryClient), onError: toastError }
+  // The binding's own event skips this tab (`realtimeSkipOwn`): refetched here.
+  const done = {
+    onSuccess: () => invalidateTargets(queryClient, programStateTargets(programId)),
+    onError: toastError,
+  }
   const set = useMutation({ ...lmsProgramBindingSetMutation(), ...done })
   const clear = useMutation({ ...lmsProgramBindingClearMutation(), ...done })
 

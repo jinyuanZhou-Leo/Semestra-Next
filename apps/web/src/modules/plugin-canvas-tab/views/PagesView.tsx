@@ -1,4 +1,3 @@
-import { lmsPageGetOptions, lmsPageListOptions } from '@semestra/api-client/react-query'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { FileText, Lock } from 'lucide-react'
 import { formatDateTime } from '@/lib/format'
@@ -9,6 +8,7 @@ import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle }
 import { CanvasBoundary } from '../CanvasBoundary'
 import { useCanvasPage } from '../context'
 import { DetailHeader, LmsHtml, ViewHeader } from '@/modules/lms/content/LmsContent'
+import { viewQueries } from '../queries'
 
 /** The course's pages; `selected` (a page ref) opens one in place (M16 §4). */
 export function PagesView({ selected }: { selected?: string }) {
@@ -19,7 +19,7 @@ export function PagesView({ selected }: { selected?: string }) {
 function PageList() {
   const { title, courseId, go } = useCanvasPage()
   const list = useQuery({
-    ...lmsPageListOptions({ path: { course_id: courseId } }),
+    ...viewQueries.pages(courseId),
     placeholderData: keepPreviousData,
   })
   return (
@@ -80,7 +80,7 @@ function PageList() {
 export function PageView({ pageRef, withBack }: { pageRef: string; withBack?: boolean }) {
   const { courseId, go } = useCanvasPage()
   const page = useQuery({
-    ...lmsPageGetOptions({ path: { course_id: courseId, ref: pageRef } }),
+    ...viewQueries.page(courseId, pageRef),
     placeholderData: keepPreviousData,
   })
   return (
