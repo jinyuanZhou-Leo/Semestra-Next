@@ -59,7 +59,9 @@ import { ScoreText, SubmissionStatus } from './common'
  * quiz, which has no assignment, no grade and can't be imported. Its id is the assignment's, or
  * `quiz:<id>` for a practice quiz.
  */
-type Row = { id: string; assignment: AssignmentOut; quiz: Quiz | null; practice: boolean }
+/** An assignment as a row shows it: a practice quiz has none behind it, so no state (M09 表 3b 第 0 行). */
+type Shown = Omit<AssignmentOut, 'state'> & { state: AssignmentOut['state'] | null }
+type Row = { id: string; assignment: Shown; quiz: Quiz | null; practice: boolean }
 
 /** The id of a quiz's practice row, which is also its `ref` in the location (M16 §3). */
 export const quizRef = (quizId: string) => `quiz:${quizId}`
@@ -98,8 +100,7 @@ function rowsOf(assignments: readonly AssignmentOut[], quizzes: readonly Quiz[])
         allowed_attempts: q.allowed_attempts,
         imported_as: null,
         online: true,
-        // Not shown: a practice quiz has no assignment, so no state or due hint (StatusCell).
-        state: 'unsubmitted',
+        state: null,
         due_state: 'none',
         // Not graded: no assignment behind it.
         is_quiz: false,
@@ -132,7 +133,7 @@ type TableState = {
   selectable: readonly string[]
   setSelected: (ids: readonly string[], on: boolean) => void
   /** "Add to gradebook" for an assignment imported as a to-do. */
-  toGradebook: (a: AssignmentOut) => void
+  toGradebook: (a: Shown) => void
 }
 const TableContext = createContext<TableState | null>(null)
 
@@ -143,7 +144,7 @@ function useTableState() {
 }
 
 /** An assignment is imported once: an assessment (with its to-do) or a to-do (M09 §4). */
-const imported = (a: AssignmentOut) => a.imported_as != null
+const imported = (a: Shown) => a.imported_as != null
 
 /** A box that ticks several rows: all of them, or an assignment group's. */
 function SelectMany({ ids, label }: { ids: readonly string[]; label: string }) {
@@ -307,8 +308,8 @@ const ScoreCell = ({ row }: CellProps) => (
 
 function StatusCell({ row }: CellProps) {
   const { now } = useTableState()
-  if (row.original.practice) return null
   const a = row.original.assignment
+  if (a.state === null) return null
   return (
     <SubmissionStatus
       state={a.state}

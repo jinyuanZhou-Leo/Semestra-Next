@@ -73,7 +73,7 @@ export function AssignmentStatus({
               : null,
             late,
           ]
-        : state === 'excused'
+        : state === 'excused' || state === 'missing'
           ? null
           : (dueHint(dueState, a.due_at, now) ?? m.lms_assignment_no_due())
   const text = Array.isArray(line) ? line.filter(Boolean).join(' · ') : line

@@ -567,6 +567,13 @@ test('each assignment shows the state and due state the server gives it', async 
         truncated: false,
       }),
     ),
+    // A practice quiz has no assignment behind it: no state, and in no filter but All.
+    http.get(`${API}/courses/c1/lms/quizzes`, () =>
+      HttpResponse.json({
+        items: [{ external_id: 'pq1', title: 'Practice quiz', due_at: soon }],
+        truncated: false,
+      }),
+    ),
   )
   renderPage('/?tab=assignments')
   const cell = async (name: string) => within((await screen.findByText(name)).closest('tr')!)
@@ -582,7 +589,9 @@ test('each assignment shows the state and due state the server gives it', async 
   expect((await cell('Missed lab')).queryByText('Overdue')).toBeNull()
   expect((await cell('Overdue lab')).getByText('Overdue')).toBeInTheDocument()
   expect((await cell('Open lab')).getByText(/Due in/)).toBeInTheDocument()
+  expect((await cell('Practice quiz')).queryByText(/Due in|Not submitted/)).toBeNull()
   const all = [
+    'Practice quiz',
     'Excused lab',
     'Zeroed lab',
     'Late lab',
