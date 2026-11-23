@@ -57,6 +57,15 @@ function storeOf(queryClient: QueryClient): Store {
 
 const queryKeyFor = (key: string) => ['ui-pref', key] as const
 
+/**
+ * A stored value as far as it is already loaded (a prefetched prefix, or a component that read
+ * it), without asking the server: for a page's `prefetch`, which must not wait.
+ */
+export function cachedUiPref<T>(queryClient: QueryClient, key: string): T | undefined {
+  const entry = queryClient.getQueryData<Entry>(queryKeyFor(key))
+  return entry?.found ? (entry.value as T) : undefined
+}
+
 async function sendBatch(queryClient: QueryClient) {
   const store = storeOf(queryClient)
   const batch = [...store.waiting]

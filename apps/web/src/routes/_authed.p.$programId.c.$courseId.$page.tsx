@@ -6,12 +6,13 @@ import { CourseView } from '@/modules/academics/shell/ScopeView'
 /** Other string search params belong to the page itself (e.g. the Canvas tab's location, M16). */
 export const Route = createFileRoute('/_authed/p/$programId/c/$courseId/$page')({
   validateSearch: pageSearch,
-  loader: ({ context, params, preload }) =>
+  loader: ({ context, params, preload, location }) =>
     preloadPage(
       { kind: 'course', programId: params.programId, courseId: params.courseId },
       params.page,
       context.queryClient,
-      { preload },
+      // The Canvas tab opens where the link points (`?tab=&ref=`, M16).
+      { preload, search: location.search },
     ),
   component: CoursePage,
 })

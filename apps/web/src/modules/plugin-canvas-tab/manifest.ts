@@ -5,6 +5,7 @@ import { coursePath } from '@/modules/academics/paths'
 import { LMS_LINK_OPENERS, type LmsLinkOpener } from '@/modules/lms/types'
 import { m } from '@/paraglide/messages'
 import { openLinkedCourse, programLinksOptions } from './open-in-canvas'
+import { prefetchCanvasPage } from './prefetch'
 
 // The Program's links, not each course's: the sidebar asks for every course of the term at once.
 function linkQuery(scope: Scope) {
@@ -38,6 +39,7 @@ export default defineModule({
         ) ??
           false),
       component: preloadable(() => import('./CanvasCoursePage')),
+      prefetch: prefetchCanvasPage,
     },
   ],
   commands: [

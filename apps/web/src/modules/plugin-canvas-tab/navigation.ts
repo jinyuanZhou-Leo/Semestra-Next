@@ -1,4 +1,5 @@
 import type { NavTab } from '@semestra/api-client'
+import { quizRef } from '@/modules/lms/assignment/queries'
 import { m } from '@/paraglide/messages'
 
 /** Canvas tabs the plugin shows with its own views (M16 §3). */
@@ -35,6 +36,23 @@ function isNative(kind: string): kind is NativeView {
  * or a tab the app does not know; `ref` is the item open in it (a page, an announcement...).
  */
 export type CanvasLocation = { tab: string; ref?: string }
+
+/**
+ * Where the tab opens (M16 §3): the URL's `?tab=&ref=` (a shared link, a notification), else
+ * where the user left it, else the course's home. The page and its prefetch both choose by this.
+ */
+export function canvasLocation(
+  search: { tab?: unknown; ref?: unknown },
+  saved: CanvasLocation | null,
+): CanvasLocation {
+  if (typeof search.tab === 'string' && search.tab) {
+    return {
+      tab: search.tab,
+      ...(typeof search.ref === 'string' && search.ref ? { ref: search.ref } : {}),
+    }
+  }
+  return saved ?? { tab: 'home' }
+}
 
 export type NavEntry =
   | { key: NativeView; kind: 'native'; label: string; tab: NavTab }
@@ -113,7 +131,7 @@ export function refLocation(ref: { kind: string; ref: string }): CanvasLocation 
     case 'assignment':
       return { tab: 'assignments', ref: ref.ref }
     case 'quiz':
-      return { tab: 'assignments', ref: `quiz:${ref.ref}` }
+      return { tab: 'assignments', ref: quizRef(ref.ref) }
     case 'module':
       return { tab: 'modules', ref: ref.ref }
     case 'announcement':

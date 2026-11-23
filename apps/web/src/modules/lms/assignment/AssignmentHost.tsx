@@ -1,5 +1,5 @@
 import { type ComponentType, Suspense, useState } from 'react'
-import { type AssignmentTarget, useAssignmentDetails } from './target'
+import { type AssignmentTarget, useAssignmentDetails, useOpenAssignmentTarget } from './target'
 
 /** What the details take: the assignment the URL names (null while closing) and how to close. */
 export type AssignmentDetailsProps = { target: AssignmentTarget | null; onClose: () => void }
@@ -11,7 +11,8 @@ export type AssignmentDetailsProps = { target: AssignmentTarget | null; onClose:
  */
 export function assignmentHost(Details: ComponentType<AssignmentDetailsProps>) {
   return function AssignmentHost() {
-    const { target, close } = useAssignmentDetails()
+    const target = useOpenAssignmentTarget()
+    const { close } = useAssignmentDetails()
     const [used, setUsed] = useState(false)
     if (target && !used) setUsed(true)
     if (!used) return null
