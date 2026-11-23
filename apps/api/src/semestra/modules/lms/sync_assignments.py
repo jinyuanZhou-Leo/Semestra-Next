@@ -235,7 +235,6 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound, sync_round: SyncRound) ->
     )
     data = got[0] if got is not None else []
     by_id = {str(a["external_id"]): a for a in data}
-    sync_round.listed(KIND, by_id)
     stored = list(
         await ctx.db.scalars(select(LmsImportedRef).where(LmsImportedRef.link_id == link.id))
     )

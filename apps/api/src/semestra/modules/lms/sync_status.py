@@ -387,8 +387,9 @@ async def _unreadable(
 ) -> list[SyncUnreadable]:
     """What the sync can't read since its area is closed on the platform (M09 table 3c, note):
     the materials (`material_items.unreadable`) and imported assignments whose last single read
-    was refused for it, and each course's announcements while their list is closed, as one row.
-    Gone from the list by itself once the platform shows it (or tells it gone) again."""
+    was refused for it, while their area stays closed, and each course's announcements while
+    their list is closed, as one row. Gone from the list by itself once the platform shows it
+    (or tells it gone) again."""
     if not links:
         return []
     by_id = {li.id: li for li in links}
@@ -431,6 +432,8 @@ async def _unreadable(
     for ref in refs:
         check = held.get(ref.external_id)
         if ref.target_id is None or ref.removed_at is not None or check is None:
+            continue
+        if not rules.area_closed(by_id[ref.link_id].area_reads, AREA_OF["assignment"]):
             continue
         course_id = by_id[ref.link_id].course_id
         out.append(

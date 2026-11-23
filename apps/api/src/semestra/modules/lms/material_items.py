@@ -18,8 +18,8 @@ from semestra.modules.academics import service as academics
 from semestra.modules.files import register_content_source, sources
 from semestra.modules.files.models import FilesItem
 from semestra.modules.files.source_folders import SourceFolders
-from semestra.modules.lms import reads, service
-from semestra.modules.lms.answers import AREA_HIDDEN
+from semestra.modules.lms import reads, rules, service
+from semestra.modules.lms.answers import AREA_HIDDEN, AREA_OF
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.materials import enter
 from semestra.modules.lms.models import LmsConnection, LmsCourseLink, LmsItemCheck, LmsMaterial
@@ -262,8 +262,10 @@ async def unreadable(
 ) -> list[tuple[LmsMaterial, FilesItem | None]]:
     """The materials listed under "Not syncing for now" (M09 table 3c, note): of courses whose
     materials sync, followed (`synced`) or restored and waiting (`absent` with `quiet`), whose
-    last single read was refused since their area is closed. With their course file, if any."""
+    last single read was refused since their area is closed, while it still is. With their
+    course file, if any."""
     links = [li for li in links if (await material_settings(ctx, li.course_id)).sync]
+    by_id = {li.id: li for li in links}
     if not links:
         return []
     ids = [li.id for li in links]
@@ -291,6 +293,7 @@ async def unreadable(
             .execution_options(populate_existing=True)
         )
         if (m.link_id, m.kind, m.external_id) in held
+        and rules.area_closed(by_id[m.link_id].area_reads, AREA_OF.get(m.kind, "files"))
     ]
     rows = {r.id: r for r in await sources.find_items(ctx, [m.item_id for m in mats if m.item_id])}
     return [(m, rows.get(m.item_id or "")) for m in mats]

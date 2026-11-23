@@ -174,8 +174,6 @@ async def read(
         await _pages(r)
     await _files(r)
     _place(r.found)
-    for kind in READABLE:
-        sync_round.listed(kind, (e for k, e in r.found.listed if k == kind))
     return r.found
 
 

@@ -310,6 +310,13 @@ def area_entry(
     return entry
 
 
+def area_closed(area_reads: Mapping[str, Any] | None, area: str) -> bool:
+    """Whether the area was last read closed to the user (`hidden`, table 2 row 6): what a
+    single read could not tell for it stays under "Not syncing for now" (table 3c, note) until
+    it opens."""
+    return ((area_reads or {}).get(area) or {}).get("result") == "hidden"
+
+
 CalendarRead = Literal["read", "waiting", "unreadable", "unsupported"]
 
 
