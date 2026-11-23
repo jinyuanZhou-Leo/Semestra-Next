@@ -1,0 +1,93 @@
+{
+  "case": "area-quizzes",
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/courses/{course}/quizzes",
+    "params": {
+      "per_page": "10"
+    }
+  },
+  "status": 200,
+  "headers": {
+    "x-rate-limit-remaining": "700.0",
+    "content-type": "application/json; charset=utf-8"
+  },
+  "link_next": false,
+  "items_in_page": 1,
+  "body": [
+    {
+      "id": 1021,
+      "title": "[text]",
+      "html_url": "[text]",
+      "mobile_url": "[text]",
+      "description": "",
+      "quiz_type": "[text]",
+      "time_limit": 60,
+      "timer_autosubmit_disabled": false,
+      "shuffle_answers": false,
+      "show_correct_answers": false,
+      "scoring_policy": "[text]",
+      "allowed_attempts": 2,
+      "one_question_at_a_time": false,
+      "question_count": 8,
+      "points_possible": 8.0,
+      "cant_go_back": false,
+      "ip_filter": null,
+      "due_at": "2026-12-08T04:59:59Z",
+      "lock_at": "2026-12-08T04:59:59Z",
+      "unlock_at": "2026-11-23T22:00:00Z",
+      "published": true,
+      "locked_for_user": true,
+      "lock_info": {
+        "unlock_at": "2026-11-23T22:00:00Z",
+        "asset_string": "[text]"
+      },
+      "lock_explanation": "[text]",
+      "hide_results": "[text]",
+      "show_correct_answers_at": null,
+      "hide_correct_answers_at": null,
+      "all_dates": [
+        {
+          "due_at": "2026-12-08T04:59:59Z",
+          "unlock_at": "2026-11-23T22:00:00Z",
+          "lock_at": "2026-12-08T04:59:59Z",
+          "title": "[text]",
+          "base": true
+        }
+      ],
+      "can_update": false,
+      "require_lockdown_browser": false,
+      "require_lockdown_browser_for_results": false,
+      "require_lockdown_browser_monitor": false,
+      "lockdown_browser_monitor_data": "",
+      "permissions": {
+        "read": true,
+        "create": false,
+        "manage": false,
+        "update": false,
+        "submit": true,
+        "preview": false,
+        "delete": false,
+        "read_statistics": false,
+        "grade": false,
+        "review_grades": false,
+        "view_answer_audits": false,
+        "manage_assign_to": false
+      },
+      "quiz_reports_url": "[text]",
+      "quiz_statistics_url": "[text]",
+      "important_dates": false,
+      "quiz_submission_versions_html_url": "[text]",
+      "assignment_id": 1022,
+      "one_time_results": false,
+      "visible_to_everyone": true,
+      "assignment_group_id": 1023,
+      "show_correct_answers_last_attempt": false,
+      "version_number": 5,
+      "has_access_code": false,
+      "post_to_sis": false,
+      "migration_id": "[text]",
+      "in_paced_course": false
+    }
+  ]
+}

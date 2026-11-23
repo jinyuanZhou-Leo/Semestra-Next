@@ -1,0 +1,40 @@
+{
+  "case": "file-in-hidden-area",
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/courses/{course}/files/{item}",
+    "params": {}
+  },
+  "status": 200,
+  "headers": {
+    "x-rate-limit-remaining": "700.0",
+    "content-type": "application/json; charset=utf-8"
+  },
+  "link_next": false,
+  "items_in_page": null,
+  "body": {
+    "id": 1015,
+    "folder_id": 1036,
+    "display_name": "[text]",
+    "filename": "[text]",
+    "upload_status": "[text]",
+    "content-type": "[text]",
+    "url": "[text]",
+    "size": 1,
+    "created_at": "2026-10-06T00:12:29Z",
+    "updated_at": "2026-10-06T00:16:49Z",
+    "unlock_at": null,
+    "locked": false,
+    "hidden": false,
+    "lock_at": null,
+    "hidden_for_user": false,
+    "thumbnail_url": null,
+    "modified_at": "2026-10-06T00:12:29Z",
+    "mime_class": "pdf",
+    "media_entry_id": null,
+    "category": "[text]",
+    "locked_for_user": false,
+    "visibility_level": "[text]",
+    "canvadoc_session_url": "[text]"
+  }
+}

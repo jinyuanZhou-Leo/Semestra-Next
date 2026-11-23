@@ -1,0 +1,81 @@
+{
+  "case": "area-course",
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/courses/{course}",
+    "params": {
+      "include[]": [
+        "term"
+      ]
+    }
+  },
+  "status": 200,
+  "headers": {
+    "x-rate-limit-remaining": "700.0",
+    "content-type": "application/json; charset=utf-8"
+  },
+  "link_next": false,
+  "items_in_page": null,
+  "body": {
+    "id": 1001,
+    "name": "[text]",
+    "course_code": "[text]",
+    "account_id": 1002,
+    "created_at": "2026-06-02T05:21:07Z",
+    "start_at": null,
+    "default_view": "[text]",
+    "enrollment_term_id": 1003,
+    "is_public": false,
+    "grading_standard_id": null,
+    "root_account_id": 1004,
+    "uuid": "[text]",
+    "license": "[text]",
+    "grade_passback_setting": null,
+    "end_at": null,
+    "public_syllabus": false,
+    "public_syllabus_to_auth": false,
+    "storage_quota_mb": 3145,
+    "is_public_to_auth_users": false,
+    "homeroom_course": false,
+    "course_color": null,
+    "friendly_name": null,
+    "term": {
+      "id": 1003,
+      "name": "[text]",
+      "start_at": "2026-05-04T04:00:00Z",
+      "end_at": "2027-01-31T05:00:00Z",
+      "workflow_state": "active",
+      "grading_period_group_id": null,
+      "created_at": "2026-05-01T05:18:34Z"
+    },
+    "apply_assignment_group_weights": false,
+    "calendar": {
+      "ics": "[text]"
+    },
+    "time_zone": "[text]",
+    "blueprint": false,
+    "template": false,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "[text]",
+        "role_id": 1005,
+        "user_id": 1,
+        "enrollment_state": "[text]",
+        "limit_privileges_to_course_section": false
+      },
+      {
+        "type": "student",
+        "role": "[text]",
+        "role_id": 1005,
+        "user_id": 1,
+        "enrollment_state": "[text]",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "hide_final_grades": true,
+    "workflow_state": "available",
+    "restrict_enrollments_to_course_dates": true,
+    "horizon_course": false
+  }
+}

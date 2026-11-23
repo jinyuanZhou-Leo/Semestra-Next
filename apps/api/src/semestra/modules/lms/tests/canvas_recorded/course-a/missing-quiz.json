@@ -1,0 +1,22 @@
+{
+  "case": "missing-quiz",
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/courses/{course}/quizzes/999999999",
+    "params": {}
+  },
+  "status": 404,
+  "headers": {
+    "x-rate-limit-remaining": "700.0",
+    "content-type": "application/json; charset=utf-8"
+  },
+  "link_next": false,
+  "items_in_page": null,
+  "body": {
+    "errors": [
+      {
+        "message": "[text]"
+      }
+    ]
+  }
+}

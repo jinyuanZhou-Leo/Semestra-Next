@@ -1,0 +1,25 @@
+{
+  "case": "area-files",
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/courses/{course}/files",
+    "params": {
+      "per_page": "10"
+    }
+  },
+  "status": 403,
+  "headers": {
+    "x-rate-limit-remaining": "700.0",
+    "content-type": "application/json; charset=utf-8"
+  },
+  "link_next": false,
+  "items_in_page": null,
+  "body": {
+    "status": "[text]",
+    "errors": [
+      {
+        "message": "[text]"
+      }
+    ]
+  }
+}

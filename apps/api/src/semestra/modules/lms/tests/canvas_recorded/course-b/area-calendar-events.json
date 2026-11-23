@@ -1,0 +1,23 @@
+{
+  "case": "area-calendar-events",
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/calendar_events",
+    "params": {
+      "type": "event",
+      "all_events": "true",
+      "per_page": "10",
+      "context_codes[]": [
+        "course_{course}"
+      ]
+    }
+  },
+  "status": 200,
+  "headers": {
+    "x-rate-limit-remaining": "700.0",
+    "content-type": "application/json; charset=utf-8"
+  },
+  "link_next": false,
+  "items_in_page": 0,
+  "body": []
+}
