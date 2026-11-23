@@ -199,7 +199,7 @@ async def test_a_new_grade_is_applied_and_announced(api: Api, app: FastAPI, fake
     program_id, course = await _course(api, "a1", "a2")
     user_id = (await api.call("GET", "/account/me"))["id"]
     labs = fake.course_assignments["101"]
-    labs[1] = labs[1].model_copy(update={"submission": Submission(state="graded", score=27)})
+    labs[1] = labs[1].model_copy(update={"submission": Submission(score=27)})
     with collect_events(app, user_id) as messages:
         await api.sync(program_id)
     lab2 = (await _assessments(api, course))["a2"]
@@ -306,7 +306,7 @@ async def test_a_bound_assessment_fills_in_what_it_lacks_and_asks_about_the_rest
     labs = fake.course_assignments["101"]
     labs.append(
         labs[1].model_copy(update={"external_id": "a6", "name": "Essay", "group_id": "g9",
-                                   "submission": Submission(state="graded", score=20)})
+                                   "submission": Submission(score=20)})
     )  # fmt: skip
     made = await api.call(
         "POST", f"/courses/{course}/assessments", json={"title": "My essay", "weight": 3}
@@ -565,7 +565,7 @@ async def test_a_grade_taken_back_on_the_platform_is_no_longer_offered(
     lab = (await _assessments(api, course))["a2"]
     await api.call("PATCH", f"/assessments/{lab['id']}", json={"score_percentage": 50})
     labs = fake.course_assignments["101"]
-    labs[1] = labs[1].model_copy(update={"submission": Submission(state="graded", score=27)})
+    labs[1] = labs[1].model_copy(update={"submission": Submission(score=27)})
     [asked] = [i for i in (await api.sync(program_id))["pending"] if i["kind"] == "conflict"]
     assert [c["field"] for c in asked["conflicts"]] == ["score"]
     labs[1] = labs[1].model_copy(update={"submission": None})

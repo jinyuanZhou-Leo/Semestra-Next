@@ -47,7 +47,7 @@ about the course's structure or a search keeps missing.
 
 **What is new or due.** `lms.activity.list` (one course or a whole term) for announcements,
 grades, new assignments and course materials (new, updated or removed files and pages; read one
-with its `item_id`); `lms.assignment.list` with `status` for what is due, missing or graded.
+with its `item_id`); `lms.assignment.list` with `state` (and `due_after`/`due_before`) for what is still to hand in, missing or graded.
 
 **Refs.** Every item comes with a `ref` (`page:…`, `assignment:…`, `file:…`). Pass it on as it
 is, never build one. A link written `lms:<ref>` inside a text is a ref too; a link the user

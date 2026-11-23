@@ -26,7 +26,6 @@ def _handed_in(assignment_id: str, **kw: Any) -> SubmissionDetail:
     return SubmissionDetail(
         external_id=f"s-{assignment_id}",
         assignment_id=assignment_id,
-        state="graded",
         submitted_at=datetime(2026, 2, 5, 20, tzinfo=UTC),
         submission_type="online_upload",
         files=[
@@ -72,6 +71,8 @@ async def test_an_assignment_opens_from_the_platform_then_from_what_was_kept(
          "mime_type": "text/plain", "size_bytes": 5}
     ]  # fmt: skip
     assert live["submission"]["comments"][0]["comment"] == "Good"
+    assert live["state"] == "graded"
+    assert "state" not in live["assignment"]  # the assignment alone doesn't know its submission
     # Where it is in Semestra: its gradebook row and that row's to-do.
     assert live["assessment"] == {"id": lab["id"], "weight": lab["weight"]}
     tasks = (await api.call("GET", f"/programs/{program_id}/tasks"))["items"]
@@ -97,6 +98,7 @@ async def test_an_assignment_opens_from_the_platform_then_from_what_was_kept(
     kept = await _open(api, course, "a1", refresh=True)
     assert (kept["kept"], kept["problem"]) == (True, "lms.unreachable")
     assert datetime.fromisoformat(kept["kept_at"]) == kept_at
+    assert kept["state"] == "graded"
     assert (kept["assignment"]["name"], kept["assignment"]["html"]) == ("Lab 1", "<p>Do it</p>")
     assert (kept["assignment"]["points"], kept["assignment"]["group_name"]) == (10, "Labs")
     assert (kept["submission"]["score"], kept["submission"]["body"]) == (9, "<p>My answer</p>")
@@ -119,6 +121,13 @@ async def test_an_assignment_opens_from_the_platform_then_from_what_was_kept(
             "task_id": None,
             # The teacher's comment: the gradebook opens the details on the feedback.
             "feedback": True,
+            # How it stands as of the last sync, so the gradebook shows it without asking.
+            "status": "graded",
+            "missing": False,
+            "late": False,
+            "submitted_at": "2026-02-05T20:00:00Z",
+            "online": True,
+            "state": "graded",
         }
     ]
 

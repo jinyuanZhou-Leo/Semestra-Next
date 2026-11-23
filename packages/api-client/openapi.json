@@ -12220,7 +12220,7 @@
           "lms"
         ],
         "summary": "Assignments and graded quizzes of a linked course on its LMS (Canvas), with the user's scores and the course total, marked when imported.",
-        "description": "For \"what is due\", \"what is missing\" and \"what did I get\": filter by `status`\nor due dates; `include_total` adds the course total. Each has a `ref`: lms.content.read gives\nits text, rubric and the teacher's feedback. To add them to the gradebook or tasks use\nlms.assignment.import, never the gradebook or task capabilities directly.",
+        "description": "For \"what is due\", \"what is missing\" and \"what did I get\": filter by `state`\nand due dates; `include_total` adds the course total. Each has a `ref`: lms.content.read gives\nits text, rubric and the teacher's feedback. To add them to the gradebook or tasks use\nlms.assignment.import, never the gradebook or task capabilities directly.",
         "operationId": "lmsAssignmentList",
         "security": [
           {
@@ -12258,16 +12258,19 @@
             "description": "Skip the 5-minute cache and ask again"
           },
           {
-            "name": "status",
+            "name": "state",
             "in": "query",
             "required": false,
             "schema": {
               "anyOf": [
                 {
                   "enum": [
-                    "upcoming",
+                    "graded",
+                    "excused",
+                    "submitted",
                     "missing",
-                    "graded"
+                    "offline",
+                    "unsubmitted"
                   ],
                   "type": "string"
                 },
@@ -12275,10 +12278,10 @@
                   "type": "null"
                 }
               ],
-              "description": "Only those due later and not handed in (upcoming), past due and not handed in (missing), or graded",
-              "title": "Status"
+              "description": "Only those in this state: unsubmitted (still to hand in online), missing (marked missing by the LMS), offline (not handed in on the LMS), submitted, graded or excused. With `due_after`/`due_before` for what is due when",
+              "title": "State"
             },
-            "description": "Only those due later and not handed in (upcoming), past due and not handed in (missing), or graded"
+            "description": "Only those in this state: unsubmitted (still to hand in online), missing (marked missing by the LMS), offline (not handed in on the LMS), submitted, graded or excused. With `due_after`/`due_before` for what is due when"
           },
           {
             "name": "due_after",
@@ -12359,7 +12362,8 @@
                       "lock_explanation",
                       "allowed_attempts",
                       "rubric",
-                      "imported_as"
+                      "imported_as",
+                      "state"
                     ],
                     "type": "string"
                   }
@@ -12368,10 +12372,10 @@
                   "type": "null"
                 }
               ],
-              "description": "Agent/MCP only: return just these fields of each item (and its external_id); default name, due_at, points, group_name, submission, imported_as. `markdown` (or `html`) is the body, as Markdown",
+              "description": "Agent/MCP only: return just these fields of each item (and its external_id); default name, due_at, points, group_name, submission, imported_as, state. `markdown` (or `html`) is the body, as Markdown",
               "title": "Fields"
             },
-            "description": "Agent/MCP only: return just these fields of each item (and its external_id); default name, due_at, points, group_name, submission, imported_as. `markdown` (or `html`) is the body, as Markdown"
+            "description": "Agent/MCP only: return just these fields of each item (and its external_id); default name, due_at, points, group_name, submission, imported_as, state. `markdown` (or `html`) is the body, as Markdown"
           }
         ],
         "responses": {
@@ -22067,6 +22071,20 @@
             "title": "Targets",
             "description": "What the description's links to course files are in the app",
             "default": []
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "graded",
+              "excused",
+              "submitted",
+              "missing",
+              "offline",
+              "unsubmitted"
+            ],
+            "title": "State",
+            "description": "Where the user is with it (`rules.assignment_state`)",
+            "readOnly": true
           }
         },
         "type": "object",
@@ -22075,7 +22093,8 @@
           "assignment",
           "submission",
           "assessment",
-          "task"
+          "task",
+          "state"
         ],
         "title": "AssignmentDetail",
         "description": "One assignment, whole (M09 §5): as the platform has it now, or, when the platform\ncan't be asked, as the last sync kept it (`kept_at`)."
@@ -22303,12 +22322,26 @@
               }
             ],
             "title": "Quiz Id"
+          },
+          "online": {
+            "type": "boolean",
+            "title": "Online",
+            "description": "Handed in on the platform (not on paper or not at all)",
+            "readOnly": true
+          },
+          "is_quiz": {
+            "type": "boolean",
+            "title": "Is Quiz",
+            "description": "A graded quiz",
+            "readOnly": true
           }
         },
         "type": "object",
         "required": [
           "external_id",
-          "name"
+          "name",
+          "online",
+          "is_quiz"
         ],
         "title": "AssignmentFacts",
         "description": "The assignment as `AssignmentDetail` gives it (its own name in the API: the AI module has\nan `Assignment` too)."
@@ -22584,13 +22617,42 @@
               }
             ],
             "description": "What it was imported as (an assessment, which has its to-do, or a to-do); null while not imported"
+          },
+          "online": {
+            "type": "boolean",
+            "title": "Online",
+            "description": "Handed in on the platform (not on paper or not at all)",
+            "readOnly": true
+          },
+          "is_quiz": {
+            "type": "boolean",
+            "title": "Is Quiz",
+            "description": "A graded quiz",
+            "readOnly": true
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "graded",
+              "excused",
+              "submitted",
+              "missing",
+              "offline",
+              "unsubmitted"
+            ],
+            "title": "State",
+            "description": "Where the user is with it (`rules.assignment_state`)",
+            "readOnly": true
           }
         },
         "type": "object",
         "required": [
           "external_id",
           "name",
-          "imported_as"
+          "imported_as",
+          "online",
+          "is_quiz",
+          "state"
         ],
         "title": "AssignmentOut"
       },
@@ -22660,12 +22722,80 @@
             "title": "Feedback",
             "description": "The teacher left comments or rubric scores on the assessment",
             "default": false
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "unsubmitted",
+                  "submitted",
+                  "graded",
+                  "excused"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status",
+            "description": "Where the user's submission stands as of the last sync; None until the sync has read it"
+          },
+          "missing": {
+            "type": "boolean",
+            "title": "Missing",
+            "default": false
+          },
+          "late": {
+            "type": "boolean",
+            "title": "Late",
+            "default": false
+          },
+          "submitted_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submitted At"
+          },
+          "online": {
+            "type": "boolean",
+            "title": "Online",
+            "description": "Handed in on the platform (not on paper or not at all)",
+            "default": true
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "graded",
+                  "excused",
+                  "submitted",
+                  "missing",
+                  "offline",
+                  "unsubmitted"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State",
+            "description": "Where the user is with it (`rules.assignment_state`); None until the sync has read it",
+            "readOnly": true
           }
         },
         "type": "object",
         "required": [
           "course_id",
-          "assignment_id"
+          "assignment_id",
+          "state"
         ],
         "title": "AssignmentTarget"
       },
@@ -39560,18 +39690,6 @@
       },
       "Submission": {
         "properties": {
-          "state": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "State",
-            "description": "e.g. submitted, graded, unsubmitted"
-          },
           "submitted_at": {
             "anyOf": [
               {
@@ -39644,9 +39762,30 @@
             "type": "boolean",
             "title": "Excused",
             "default": false
+          },
+          "needs_grading": {
+            "type": "boolean",
+            "title": "Needs Grading",
+            "description": "Handed in and waiting on the teacher (graded by hand, or resubmitted after a grade)",
+            "default": false
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "unsubmitted",
+              "submitted",
+              "graded",
+              "excused"
+            ],
+            "title": "Status",
+            "description": "Where the submission stands (`rules.submission_status`)",
+            "readOnly": true
           }
         },
         "type": "object",
+        "required": [
+          "status"
+        ],
         "title": "Submission"
       },
       "SubmissionComment": {
@@ -39741,17 +39880,6 @@
             "type": "string",
             "title": "Assignment Id"
           },
-          "state": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "State"
-          },
           "submitted_at": {
             "anyOf": [
               {
@@ -39822,6 +39950,12 @@
           "excused": {
             "type": "boolean",
             "title": "Excused",
+            "default": false
+          },
+          "needs_grading": {
+            "type": "boolean",
+            "title": "Needs Grading",
+            "description": "Handed in and waiting on the teacher (graded by hand, or resubmitted after a grade)",
             "default": false
           },
           "seconds_late": {
@@ -39903,12 +40037,25 @@
             },
             "type": "array",
             "title": "Rubric Scores"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "unsubmitted",
+              "submitted",
+              "graded",
+              "excused"
+            ],
+            "title": "Status",
+            "description": "Where the submission stands (`rules.submission_status`)",
+            "readOnly": true
           }
         },
         "type": "object",
         "required": [
           "external_id",
-          "assignment_id"
+          "assignment_id",
+          "status"
         ],
         "title": "SubmissionDetail",
         "description": "The user's own submission of one assignment (what they handed in last), with the\nteacher's feedback."
