@@ -155,6 +155,17 @@ async def test_an_ended_course_reads_only_its_calendar_the_first_time(api: Api, 
     assert not [c for c in fake.calls if c[0] == "calendar_events"]
 
 
+async def test_an_ended_course_whose_calendar_cannot_be_read_says_why(api: Api, fake: FakeProvider):
+    program_id, course = await _ended_course(api)
+    fake.calendar_error = "lms.forbidden"
+    await _open(api, program_id)
+    status = await api.call("GET", f"/programs/{program_id}/lms/sync")
+    assert status["calendar_unreadable"] == 1
+    assert [(e["course_id"], e["stage"], e["code"]) for e in status["errors"]] == [
+        (course, "calendar", "lms.forbidden")
+    ]
+
+
 async def _ended_course(api: Api) -> tuple[str, str]:
     program_id, _, _ = await setup_program(api)
     term = {"name": "Fall 2025", "start_date": "2025-09-02", "end_date": "2025-12-05"}

@@ -33,5 +33,11 @@ export function CalendarLines({
 
 /** Under the platform in the calendar's filters (`calendarSources` `Note`). */
 export function CalendarNote({ programId }: { programId: string }) {
-  return <CalendarLines status={useQuery(syncStatusOptions(programId)).data} className="pl-6" />
+  return (
+    <CalendarLines
+      status={useQuery(syncStatusOptions(programId)).data}
+
+      className="pl-6"
+    />
+  )
 }

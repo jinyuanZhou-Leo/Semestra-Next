@@ -215,6 +215,19 @@ async def status(ctx: Ctx, program_id: str) -> SyncStatus:
         for li in links
         for stage, code in li.sync_errors.items()
     ]
+    # Courses the sync no longer visits (their term ended) still have their calendar read once
+    # (§4.8): when it could not be, the reason is told here like any course's stage error.
+    syncing_ids = {li.id for li in links}
+    errors += [
+        SyncCourseError(
+            course_id=li.course_id, course=label(li.course_id), stage="calendar", code=reason
+        )
+        for li in by_link.values()
+        if li.id not in syncing_ids
+        and li.sync_enabled
+        and rules.calendar_read(entry := li.area_reads.get("calendar")) == "unreadable"
+        and (reason := (entry or {}).get("reason"))
+    ]
     synced = [li.synced_at for li in links]
     busy = await sync.syncing_courses(ctx, [li.course_id for li in links])
     round_ = await sync.sync_round(ctx, [li.course_id for li in links])

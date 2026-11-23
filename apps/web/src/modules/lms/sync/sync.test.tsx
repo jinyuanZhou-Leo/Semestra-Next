@@ -384,10 +384,6 @@ test('a sync the user asked for shows how many courses are done', async () => {
 test('the panel says how many course calendars are not read yet or cannot be read', async () => {
   server.use(...handlers(status({ calendar_waiting: 3, calendar_unreadable: 1 })))
   renderWithRouter(<InPopover />, undefined, IN_PROGRAM)
-  expect(
-    await screen.findByText(
-      'Course calendars not read yet: 3. Their events appear here once read.',
-    ),
-  ).toBeInTheDocument()
-  expect(screen.getByText('Course calendars that can’t be read: 1')).toBeInTheDocument()
+  expect(await screen.findByText('Course calendars not yet synced: 3')).toBeInTheDocument()
+  expect(screen.getByText('Course calendars unavailable: 1')).toBeInTheDocument()
 })
