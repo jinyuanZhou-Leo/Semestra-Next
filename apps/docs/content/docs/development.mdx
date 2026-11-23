@@ -73,6 +73,20 @@ It differs from CI in two places: dependency installs are skipped, and the "noth
 
 The script only understands the forms `ci.yml` uses today. If a change to `ci.yml` adds a new `if:` condition, step field or `${{ }}` expression, `pnpm check` stops and points at it; update `scripts/check.py` to match.
 
+### Exhaustive LMS sync tests
+
+The LMS sync has a set of exhaustive tests: every sequence of up to two platform and user actions
+on a small course (more than a thousand), plus longer sequences picked by Hypothesis. One run takes
+several minutes, so neither CI nor `pnpm check` runs them. Run them locally when you change the
+LMS sync, imports or course materials:
+
+```bash
+pnpm test:exhaustive
+```
+
+They carry the `exhaustive` pytest marker and are left out by default; `pnpm test:exhaustive` runs
+only them.
+
 ## Cloud sessions
 
 `.claude/hooks/session-start.sh` prepares Claude Code cloud sessions: it installs the Node 26 that CI uses and the pnpm version `packageManager` pins, installs both dependency trees, and points `CHROME` at the Chromium that ships with the image. Installs are skipped when no dependency file changed. On a local machine it does nothing.

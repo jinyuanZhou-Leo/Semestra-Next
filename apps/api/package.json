@@ -9,6 +9,7 @@
     "format": "uv run ruff check --fix . && uv run ruff format .",
     "typecheck": "uv run pyright",
     "test": "uv run pytest -q",
+    "test:exhaustive": "uv run pytest -q -n auto -m exhaustive",
     "migrate": "uv run alembic upgrade head",
     "openapi": "uv run semestra openapi > ../../packages/api-client/openapi.json && uv run semestra capabilities > ../../packages/api-client/capabilities.json"
   }

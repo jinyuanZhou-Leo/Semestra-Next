@@ -108,8 +108,9 @@ pythonpath = ["."]
 markers = [
     "live: hits real external services; skipped in CI",
     "streamed: AI tests whose fake Claude answers stream (see ai/tests/conftest.py)",
+    "exhaustive: the LMS sync's exhaustive sequences; run locally only (`pnpm test:exhaustive`)",
 ]
-addopts = "-m 'not live' -p semestra.testing"
+addopts = "-m 'not live and not exhaustive' -p semestra.testing"
 # A test that hangs fails after this long, with its stack, instead of holding CI until the job
 # times out (the default "signal" method keeps the xdist worker alive).
 timeout = 120

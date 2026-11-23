@@ -13,7 +13,8 @@ from semestra.modules.lms.tests.conftest import Api, FakeProvider
 from semestra.modules.lms.tests.sync_world import ACTIONS, World
 from semestra.testing import Clock
 
-pytestmark = pytest.mark.usefixtures("fake")
+# Too long for every CI run (owner 2026-11-23): `pnpm test:exhaustive` runs them locally.
+pytestmark = [pytest.mark.usefixtures("fake"), pytest.mark.exhaustive]
 
 LENGTH = 2
 SEQUENCES = [s for n in range(1, LENGTH + 1) for s in product(ACTIONS, repeat=n)]
