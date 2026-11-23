@@ -218,12 +218,12 @@ def _0066(lms: Row, archive: OlderArchive) -> Row:
     return {**lms, "materials": materials}
 
 
-# What a kept row's fields were of the submission (the rest was in `work`), as in 0071.
+# What a kept row's fields were of the submission (the rest was in `work`), as in 0072.
 _SUBMISSION_FIELDS = ("score", "grade", "attempt", "graded_at", "comments", "rubric_scores")
 
 
 def _kept_to_mirror(row: Row, snapshot: object) -> Row:
-    """The mirror columns of a kept assignment (`feedback` up to 2.4), as migration 0071 moves
+    """The mirror columns of a kept assignment (`feedback` up to 2.4), as migration 0072 moves
     them: its `details`, else what its ref's snapshot has."""
     details = dict(row.get("details") or {})
     snap: Row = dict(snapshot) if isinstance(snapshot, dict) else {}
@@ -255,7 +255,7 @@ def _kept_to_mirror(row: Row, snapshot: object) -> Row:
     }
 
 
-def _0071(lms: Row, archive: OlderArchive) -> Row:
+def _0072(lms: Row, archive: OlderArchive) -> Row:
     """The kept assignments become the mirror: one whose object is still imported from the same
     assignment is its mirror row, the others are held for their object. The refs kept for new
     assignments go (new is worked out from the mirror now); the ignored ones stay. The mirror
@@ -540,6 +540,6 @@ register_reshape("0066", "lms", _0066)
 register_reshape("0066", "files", _files_0066)
 register_reshape("0070", "lms", _0070)
 register_reshape("0070", "files", _files_0070)
-register_reshape("0071", "lms", _0071)
+register_reshape("0072", "lms", _0072)
 register_reshape("0060", "settings", _settings_0060)
 register_reshape("0064", "settings", _settings_0064)

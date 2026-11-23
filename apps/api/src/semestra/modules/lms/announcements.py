@@ -97,7 +97,6 @@ async def stage(ctx: Ctx, link: LmsCourseLink, b: Bound, sync_round: SyncRound) 
     found = got[0] if got is not None else []
     platform_marks = "mark_read" in b.provider.features and await writes_allowed(ctx)
     listed = {a.external_id for a in found}
-    sync_round.listed(KIND, listed)
     # Not listed this round: gone only as `rules.presence` says (one read alone when the list is
     # closed); posted before the window, never asked about.
     stored = list(

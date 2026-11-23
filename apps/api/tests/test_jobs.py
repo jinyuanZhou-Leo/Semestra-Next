@@ -95,6 +95,11 @@ async def background(ctx: JobCtx, payload: Payload) -> Result:
     return Result()
 
 
+@job_handler("test.low", priority=-1)
+async def low(ctx: JobCtx, payload: Payload) -> Result:
+    return Result()
+
+
 @job_handler("test.waits")
 async def waits(ctx: JobCtx, payload: Payload) -> Result:
     async with jobs.waiting("ai.provider_busy"), ctx.state.session_factory() as db:
@@ -541,3 +546,67 @@ async def test_withdrawing_leaves_a_job_that_has_started(app: FastAPI, make_user
         await ctx.db.commit()
     assert (await get(app, started)).status == "running"
     assert (await get(app, queued)).status == "cancelled"
+
+
+async def claimed_names(app: FastAPI, clock: Clock, count: int, **kwargs: Any) -> list[str]:
+    names: list[str] = []
+    for _ in range(count):
+        job = await JobRunner(app.state)._claim(**kwargs)  # pyright: ignore[reportPrivateUsage]
+        assert job is not None
+        names.append(job.payload["name"])
+        clock.advance(seconds=1)
+    return names
+
+
+async def test_users_take_turns(app: FastAPI, make_user: MakeUser, clock: Clock):
+    first, second = await make_user(), await make_user(email="b@example.com")
+    for name in ("a1", "a2", "a3"):
+        await start(app, first.id, "test.ok", name=name)
+    clock.advance(seconds=1)
+    await start(app, second.id, "test.ok", name="b1")
+    # One user's many jobs do not hold back another's, queued after them.
+    assert await claimed_names(app, clock, 4) == ["a1", "b1", "a2", "a3"]
+
+
+async def test_every_user_with_due_jobs_takes_turns(
+    app: FastAPI, make_user: MakeUser, clock: Clock
+):
+    users = [await make_user(email=f"{name}@example.com") for name in "abc"]
+    for user, name in zip(users, "abc", strict=True):
+        for index in range(2):
+            await start(app, user.id, "test.ok", name=f"{name}{index}")
+    assert await claimed_names(app, clock, 6) == ["a0", "b0", "c0", "a1", "b1", "c1"]
+
+
+async def test_turns_count_only_in_the_lanes_claimed_and_never_before_priority(
+    app: FastAPI, make_user: MakeUser, clock: Clock
+):
+    first, second = await make_user(), await make_user(email="b@example.com")
+    await start(app, first.id, "test.bulk", name="bulk")
+    assert await claimed_names(app, clock, 1) == ["bulk"]
+    # A turn in the bulk lane is not one in the default lane.
+    await start(app, first.id, "test.ok", name="a1")
+    await start(app, first.id, "test.ok", name="a2")
+    clock.advance(seconds=1)
+    await start(app, second.id, "test.ok", name="b1")
+    assert await claimed_names(app, clock, 1, lanes=frozenset({"default"})) == ["a1"]
+    # A user never served still waits for a higher priority.
+    third = await make_user(email="c@example.com")
+    await start(app, third.id, "test.low", name="c-low")
+    assert await claimed_names(app, clock, 3) == ["b1", "a2", "c-low"]
+
+
+async def test_a_retry_is_a_turn(app: FastAPI, make_user: MakeUser, clock: Clock):
+    first, second = await make_user(), await make_user(email="b@example.com")
+    flaky_id = await start(app, first.id, "test.flaky", name="a-flaky")
+    clock.advance(seconds=1)
+    await start(app, second.id, "test.ok", name="b1")
+    await start(app, second.id, "test.ok", name="b2")
+    assert await app.state.jobs.run_one() is True  # a-flaky fails once and waits to retry
+    assert (await get(app, flaky_id)).status == "pending"
+    clock.advance(seconds=1)
+    assert await claimed_names(app, clock, 1) == ["b1"]
+    clock.advance(seconds=15)  # past its 10 s backoff, within b1's lease
+    await start(app, first.id, "test.ok", name="a2")
+    # Its retry is the first user's turn: the second user's job goes next.
+    assert await claimed_names(app, clock, 3) == ["a-flaky", "b2", "a2"]

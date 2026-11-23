@@ -337,9 +337,10 @@ def area_entry(
     reason: str | None = None,
 ) -> dict[str, str]:
     """How an area's list read this round (`LmsCourseLink.area_reads[area]`): the result and
-    when, why it was unavailable (an error code), when it last came back at all (`read_at`)
-    and when it last came back whole (`whole_at`: since then what is kept of it is as the
-    platform last showed it); a round that did not read them keeps both."""
+    when, why it was unavailable (an error code), when it last came back at all (`read_at`),
+    when it last came back whole (`whole_at`: since then what is kept of it is as the platform
+    last showed it) and when it was last closed to the user (`hidden_at`); a round that did
+    not tell them keeps each."""
     entry = {"result": result, "at": at.isoformat()}
     if result == "unavailable" and reason:
         entry["reason"] = reason
@@ -349,7 +350,26 @@ def area_entry(
     whole_at = at.isoformat() if result == "whole" else (previous or {}).get("whole_at")
     if whole_at:
         entry["whole_at"] = whole_at
+    hidden_at = at.isoformat() if result == "hidden" else (previous or {}).get("hidden_at")
+    if hidden_at:
+        entry["hidden_at"] = hidden_at
     return entry
+
+
+def area_closed(area_reads: Mapping[str, Any] | None, area: str) -> bool:
+    """Whether the last round that told the area open or closed found it closed to the user
+    (`hidden`, table 2 row 6; closed later than it last came back): what it hides stays under
+    "Not syncing for now" (table 3c, note) until it opens, also through a round that could not
+    tell (`unavailable`: the navigation or the list not read)."""
+    entry = (area_reads or {}).get(area) or {}
+    if entry.get("result") == "hidden":
+        return True
+    hidden_at, read_at = entry.get("hidden_at"), entry.get("read_at")
+    return bool(hidden_at) and (not read_at or _when(hidden_at) > _when(read_at))
+
+
+def _when(raw: str) -> datetime:
+    return datetime.fromisoformat(raw)
 
 
 CalendarRead = Literal["read", "waiting", "unreadable", "unsupported"]

@@ -177,11 +177,11 @@ async def test_a_backup_labelled_older_than_it_is_keeps_its_materials_as_they_we
 
 
 def test_the_feedback_of_a_backup_up_to_2_4_becomes_the_mirror():
-    """`older_backups._0071` reads a backup's kept assignments as migration 0071 moved them: one
+    """`older_backups._0072` reads a backup's kept assignments as migration 0072 moved them: one
     whose object is still imported from the same assignment is its mirror row, the others are
     held for their object; refs kept for new assignments go, ignored ones stay; the courses read
     their assignments from the platform until a sync fills the mirror."""
-    from semestra.modules.lms.older_backups import _0071  # pyright: ignore[reportPrivateUsage]
+    from semestra.modules.lms.older_backups import _0072  # pyright: ignore[reportPrivateUsage]
 
     kept = {
         "course_id": "c1", "provider": "canvas", "points": 10, "score": 9,
@@ -204,7 +204,7 @@ def test_the_feedback_of_a_backup_up_to_2_4_becomes_the_mirror():
             {**kept, "task_id": "t2", "assignment_id": "a2"},
         ],
     }  # fmt: skip
-    out = _0071(lms, None)  # pyright: ignore[reportArgumentType]
+    out = _0072(lms, None)  # pyright: ignore[reportArgumentType]
     assert "feedback" not in out
     assert [r["external_id"] for r in out["refs"]] == ["a1", "a6"]
     mirror, held = out["assignments"]

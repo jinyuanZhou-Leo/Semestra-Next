@@ -10,8 +10,8 @@ total is kept on the link. The second-level read cache (`lms_cache`) goes: what 
 of a course is in its own tables. Courses read their assignments from the platform again
 until the next sync fills the mirror.
 
-Revision ID: 0071
-Revises: 0070
+Revision ID: 0072
+Revises: 0071
 Create Date: 2026-11-23 06:00:00.000000
 
 """
@@ -26,8 +26,8 @@ import semestra.core.db
 from semestra.core.db import new_id
 
 # revision identifiers, used by Alembic.
-revision: str = "0071"
-down_revision: str | Sequence[str] | None = "0070"
+revision: str = "0072"
+down_revision: str | Sequence[str] | None = "0071"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

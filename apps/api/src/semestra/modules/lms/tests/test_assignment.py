@@ -151,7 +151,7 @@ async def test_an_assignment_opens_from_the_platform_then_from_the_mirror(
 async def test_unbound_after_an_upgrade_keeps_when_the_row_was_read(
     api: Api, app: FastAPI, clock: Clock
 ):
-    """After 0071 a course has no `read_at` of its assignments until a sync reads the list
+    """After 0072 a course has no `read_at` of its assignments until a sync reads the list
     whole; the rows moved in carry when they were read, and an unbind then keeps that time,
     not the time of the unbind (§3.2)."""
     program_id, course = await _course(api, "a1")
@@ -274,7 +274,7 @@ async def test_a_to_do_deleted_a_moment_ago_does_not_fail_the_sync(
 
 
 def test_migration_moves_what_was_kept_into_the_mirror(tmp_path: Path):
-    """0071 (M09 §3.2): a kept assignment whose object is still imported from it becomes its
+    """0072 (M09 §3.2): a kept assignment whose object is still imported from it becomes its
     mirror row, the others are held for their object; refs kept for new assignments go. The
     mirror holds only what was imported, so the course reads its assignments from the platform
     until a sync reads the whole list (no `read_at` of the area, §3.1)."""
@@ -282,7 +282,7 @@ def test_migration_moves_what_was_kept_into_the_mirror(tmp_path: Path):
     cfg = Config(str(API_DIR / "alembic.ini"))
     cfg.set_main_option("script_location", str(API_DIR / "migrations"))
     cfg.attributes["database_url"] = f"sqlite+aiosqlite:///{path}"
-    command.upgrade(cfg, "0070")
+    command.upgrade(cfg, "0071")
     db = sqlite3.connect(path)  # foreign keys are off: no other rows needed
     reads = {"assignments": {"result": "whole", "read_at": "2026-01-10T00:00:00+00:00"},
              "files": {"result": "whole", "read_at": "2026-01-10T00:00:00+00:00"}}  # fmt: skip
