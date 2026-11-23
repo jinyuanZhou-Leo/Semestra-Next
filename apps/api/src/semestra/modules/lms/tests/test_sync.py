@@ -14,7 +14,7 @@ from semestra.core.jobs import BACKGROUND
 from semestra.modules.lms import sync
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.schemas.dto import Submission
-from semestra.modules.lms.tests.conftest import Api, FakeProvider
+from semestra.modules.lms.tests.conftest import Api, FakeProvider, SyncFailures
 from semestra.modules.lms.tests.test_lms import setup_program
 from semestra.modules.notifications import service as notifications
 from semestra.testing import Clock, collect_events
@@ -368,7 +368,10 @@ async def test_a_bound_assessment_fills_in_what_it_lacks_and_asks_about_the_rest
 
 
 async def test_a_course_that_cannot_be_read_keeps_its_error(
-    api: Api, fake: FakeProvider, monkeypatch: pytest.MonkeyPatch
+    api: Api,
+    fake: FakeProvider,
+    monkeypatch: pytest.MonkeyPatch,
+    expect_sync_failures: SyncFailures,
 ):
     program_id, course = await _course(api, "a1")
     await api.sync(program_id)
@@ -395,6 +398,7 @@ async def test_a_course_that_cannot_be_read_keeps_its_error(
         fake.calls.clear()
         status = await api.sync(program_id)
     assert status["errors"] == []
+    assert expect_sync_failures.events() == ["lms.provider_payload"]
     assert any(kind == "announcements" for kind, _ in fake.calls)
     assert status["connection_error"] is None
     status = await api.sync(program_id, course)

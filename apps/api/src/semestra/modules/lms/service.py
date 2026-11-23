@@ -588,13 +588,18 @@ async def call[T](ctx: Ctx, b: Bound, fn: Callable[[Io], Awaitable[T]]) -> tuple
             except AppError:
                 raise
             except Exception:
-                # An answer the provider could not make sense of (M09 table 2, row 19): about this
-                # read, like one the platform did not give. Logged: the provider is to fix.
-                log.error("lms.provider_payload", exc_info=True, provider=b.row.provider)
-                raise lms_error("lms.unreachable", reason="payload") from None
+                raise not_understood(b) from None
             return result, i.truncated
 
     return await attempt(ctx, b, run)
+
+
+def not_understood(b: Bound) -> AppError:
+    """An answer the provider could not make sense of (M09 table 2, row 19), in the `except`
+    block that caught it: about this read, like one the platform did not give. Logged: the
+    provider is to fix."""
+    log.error("lms.provider_payload", exc_info=True, provider=b.row.provider)
+    return lms_error("lms.unreachable", reason="payload")
 
 
 class NotCached(Exception):

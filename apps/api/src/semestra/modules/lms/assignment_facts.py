@@ -97,8 +97,8 @@ async def read_list(
 
 
 async def _side_read(side: Side, run: Callable[[], Awaitable[Any]]) -> tuple[bool, Any]:
-    """`(read, value)`: one read that adds to the list; a failure not about the connection or
-    the platform as a whole is noted in `side.errors` and leaves it unread. An area the
+    """`(read, value)`: one read that adds to the list; a failure not about the account or the
+    connection (`STOPPING`) is noted in `side.errors` and leaves it unread. An area the
     instructor closed (the quizzes) is how the course is set up, not a failure: left unread,
     each item keeps what was last read of it."""
     try:
@@ -114,8 +114,8 @@ async def _side_read(side: Side, run: Callable[[], Awaitable[Any]]) -> tuple[boo
 async def read_side(
     ctx: Ctx, link: LmsCourseLink, b: Bound, listed: list[dict[str, Any]], *, refresh: bool
 ) -> Side:
-    """The reads that add to the assignments list. One about the connection or the platform as a
-    whole is raised; any other leaves its part unread."""
+    """The reads that add to the assignments list. One about the account or the connection is
+    raised; any other leaves its part unread."""
     side = Side()
     ext = link.external_course_id
     features = b.provider.features

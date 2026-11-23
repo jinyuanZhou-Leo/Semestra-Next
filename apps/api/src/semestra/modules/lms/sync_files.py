@@ -302,9 +302,9 @@ async def _write(ctx: Ctx, r: _Run) -> bool:
     # Files read again, local copies: each with its material.
     store = cfg.store == "local"
     room = await sources.room(ctx)
-    for row in rows.values():
-        key = keys[row.id]
-        if row.id in left or key in r.failed:
+    for item_id, row in rows.items():
+        key = keys[item_id]
+        if item_id in left or key in r.failed:  # a failed one's objects went back expired
             continue
         async with one_item(ctx, link, result, *key) as item:
             if _retry_due(row, w.now):

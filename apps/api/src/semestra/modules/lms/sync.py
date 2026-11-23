@@ -135,6 +135,7 @@ async def one_item(
     connection (`STOPPING`) still ends the stage. What the block learns for the stage (its notices,
     counts) it adds once `item.ok`. Called after `hold`, which begins the transaction."""
     item = Item()
+    course_id = link.course_id  # what the block changed goes back expired: not read after
     try:
         async with events.savepoint(ctx):
             yield item
@@ -150,7 +151,7 @@ async def one_item(
     log.error(
         "lms.sync_item_failed",
         exc_info=True,
-        course_id=link.course_id,
+        course_id=course_id,
         kind=kind,
         external_id=external_id,
         code=code,

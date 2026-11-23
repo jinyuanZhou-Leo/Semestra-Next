@@ -81,7 +81,7 @@ ReadItems = Callable[[str, list[str]], Awaitable[Sequence[Any]]]
 
 def one_by_one(read: Callable[[str, str], Awaitable[Any]]) -> ReadItems:
     """Reads items one at a time with `read(kind, external_id)`, for kinds without a batch read.
-    An item's error is its answer; one about the connection or the platform stops the stage."""
+    An item's error is its answer; one about the account or the connection stops the stage."""
 
     async def items(kind: str, external_ids: list[str]) -> list[Any]:
         out: list[Any] = []
@@ -148,8 +148,9 @@ class SyncRound:
         part: bool = False,
     ) -> T | None:
         """Reads one area's list and records its result (table 2): None when it gave nothing
-        (closed, refused, not offered). An answer about the connection or the platform as a whole
-        (throttled, down, the token) is raised: the stage stops and changes nothing. `part`: one
+        (closed, refused, not offered, not answered). An answer about the account or the
+        connection (`STOPPING`: throttled, the token) is raised: the stage stops and changes
+        nothing. `part`: one
         more read of the same area (a module's items): the area is whole only if every part is."""
         result: AreaResult
         got: T | None = None
