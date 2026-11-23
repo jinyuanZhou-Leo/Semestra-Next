@@ -9,9 +9,11 @@ from sqlalchemy import select
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError
 from semestra.modules.files import sources
+from semestra.modules.files.models import FilesItem
 from semestra.modules.files.parse import ParseError, detect, parse
+from semestra.modules.files.parse.detect import DOCX, PPTX, XLSX
 from semestra.modules.files.parse.isolated import Parsed, parse_isolated
-from semestra.modules.lms import cache, reads, service
+from semestra.modules.lms import cache, reads, refs, service
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.materials import enter, file_version, source_ref
 from semestra.modules.lms.models import LmsCourseLink, LmsMaterial
@@ -77,11 +79,63 @@ PREVIEW_TIME_LIMIT = 60.0
 PREVIEW_TTL = timedelta(days=7)
 
 
+async def course_item(ctx: Ctx, link: LmsCourseLink, ref: str) -> FilesItem | None:
+    """The course file the sync keeps for this platform file or page, if any: the way in to
+    it, read, previewed or looked at."""
+    kind, external_id = refs.parse(ref)
+    item_id = await ctx.db.scalar(
+        select(LmsMaterial.item_id).where(
+            LmsMaterial.link_id == link.id,
+            LmsMaterial.state == "synced",
+            LmsMaterial.kind == kind,
+            LmsMaterial.external_id == external_id,
+            LmsMaterial.item_id.is_not(None),
+        )
+    )
+    found = await sources.find_items(ctx, [item_id] if item_id else [])
+    return found[0] if found else None
+
+
+# The kinds of preview a file the course files have read can give, by its type.
+_KINDS = {
+    "application/pdf": "pdf",
+    DOCX: "docx",
+    PPTX: "pptx",
+    XLSX: "xlsx",
+    "text/csv": "csv",
+    "text/html": "html",
+    "text/plain": "text",
+    "text/markdown": "markdown",
+}
+
+
+async def _read_here(ctx: Ctx, link: LmsCourseLink, file_id: str) -> FilePreview | None:
+    """The preview of a file the course files keep and have read (the sync keeps them up to
+    date with the platform): its text as read there, without asking the platform."""
+    item = await course_item(ctx, link, refs.make("file", file_id))
+    kind = _KINDS.get(item.mime_type or "") if item is not None else None
+    if item is None or kind is None:
+        return None
+    pages = await sources.document_pages(ctx, item)
+    if pages is None:
+        return None
+    return FilePreview(
+        name=item.display_name,
+        mime_type=item.mime_type or "",
+        kind=kind,
+        pages=pages[:PREVIEW_MAX_PAGES],
+        truncated=len(pages) > PREVIEW_MAX_PAGES,
+    )
+
+
 async def preview(ctx: Ctx, course_id: str, file_id: str, refresh: bool) -> FilePreview:
     """The text of an LMS file, page by page, as M07's parser reads it: Word, PowerPoint and
     Excel files are previewed this way (the app has no Office renderer), and the assistant can
-    read a file without saving it into the course first. Cached per file version."""
+    read a file without saving it into the course first. A file the course files have read is
+    taken from there; any other is read from the platform, cached per file version."""
     link, b = linked = await service.require_link(ctx, course_id)
+    if not refresh and (here := await _read_here(ctx, link, file_id)) is not None:
+        return here
     meta = await reads.file(ctx, course_id, file_id, refresh, linked=linked)
     params = {
         "course": link.external_course_id,

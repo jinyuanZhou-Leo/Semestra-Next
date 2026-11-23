@@ -74,8 +74,9 @@ async def process(ctx: JobCtx, payload: ProcessPayload) -> ProcessResult:
 
 
 # The same work for files another module keeps in step with its source (M09's course materials):
-# behind what the user is waiting on and behind the source's own sync (one run can bring hundreds
-# of files; a course sync queued meanwhile goes first).
+# behind what the user is waiting on, behind the source's own sync (one run can bring hundreds
+# of files; a course sync queued meanwhile goes first), and behind the local copies the source's
+# setting asks for, so a file to be kept here is read from its copy, not downloaded twice.
 @job_handler(
     "files.process_synced",
     stages=PROCESS_STAGES,
@@ -84,7 +85,7 @@ async def process(ctx: JobCtx, payload: ProcessPayload) -> ProcessResult:
     lane="background",
     listed=False,
     labels="files.process",
-    priority=-1,
+    priority=-2,
 )
 async def process_synced(ctx: JobCtx, payload: ProcessPayload) -> ProcessResult:
     return ProcessResult(page_count=await pipeline.run(ctx, payload.item_id, payload.version))

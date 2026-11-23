@@ -95,8 +95,6 @@ class StageResult:
     # Items waiting for the user: new ones, conflicts, items gone from the platform.
     pending: int = 0
     notices: list[Notice] = field(default_factory=lambda: [])
-    # The stage stopped at its per-run limit; the next run goes on.
-    cap_reached: bool = False
 
 
 StageRun = Callable[[Ctx, LmsCourseLink, Bound, SyncRound], Awaitable[StageResult]]

@@ -49,7 +49,7 @@ from semestra.modules.files.items import (
     same_file,
     save_bytes_as_file,
 )
-from semestra.modules.files.models import FilesItem
+from semestra.modules.files.models import FilesDocument, FilesDocumentPage, FilesItem
 from semestra.modules.files.parse.detect import DOCX, PPTX, XLSX
 from semestra.modules.files.schemas import SourceKind
 from semestra.modules.files.service import find_items, get_folder, name_from_source, purge_items
@@ -59,7 +59,9 @@ __all__ = [
     "add_remote_file",
     "apply_copies",
     "create_link",
+    "current_copy",
     "detach_from_source",
+    "document_pages",
     "drop_copy",
     "find_items",
     "folder_names",
@@ -393,6 +395,30 @@ async def apply_copies(
         if row.copy_error_code != error:
             await _updated(ctx, row)
     await _drop_queued_copies(ctx, unwanted)
+
+
+def current_copy(ctx: Ctx, row: FilesItem) -> AsyncIterator[bytes] | None:
+    """The bytes of a followed file's local copy, when it is of the source's current version
+    (the source's own view opens it without asking the source); None otherwise."""
+    if not content.follows_source(row) or _outdated(row) or not row.storage_key:
+        return None
+    return get_storage(ctx).open(row.storage_key)
+
+
+async def document_pages(ctx: Ctx, row: FilesItem) -> list[str] | None:
+    """The text of a followed file page by page (Markdown), as the course files read it, when
+    it has been read for the version it opens as; None otherwise."""
+    if row.doc_status != "ready" or row.active_document_id is None:
+        return None
+    doc = await ctx.db.get(FilesDocument, row.active_document_id)
+    if doc is None or doc.status != "ready":
+        return None
+    pages = await ctx.db.scalars(
+        select(FilesDocumentPage.markdown)
+        .where(FilesDocumentPage.document_id == doc.id)
+        .order_by(FilesDocumentPage.page_no)
+    )
+    return list(pages)
 
 
 def _copy_key(item_id: str) -> str:

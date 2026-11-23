@@ -10,7 +10,6 @@ import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
-import { invalidateLms } from '../queries'
 
 /**
  * Under the materials settings (account, or one course): turning the sync off leaves what came
@@ -26,8 +25,8 @@ export function HeldMaterials({ courseId, provider }: { courseId?: string; provi
     ...lmsMaterialRemoveLeftMutation(),
     onSuccess: async (left) => {
       setConfirming(false)
+      // The files removed refetch the rest (`files.item.deleted`).
       queryClient.setQueryData(options.queryKey, left)
-      await invalidateLms(queryClient)
     },
     onError: toastError,
   })

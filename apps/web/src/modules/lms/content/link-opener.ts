@@ -4,7 +4,7 @@ import { useExtensions } from '@/app/registry'
 import type { InternalLink } from '@/components/SafeHtml'
 import { filePath } from '@/modules/files/location'
 import { announcementPath } from '../announcements'
-import { PRACTICE } from '../assignment/queries'
+import { quizRef } from '../assignment/queries'
 import { useAssignmentDetails } from '../assignment/target'
 import { LMS_LINK_OPENERS, type LmsLinkOpener } from '../types'
 import { fileContentUrl } from './file-url'
@@ -41,7 +41,7 @@ export function useLmsLinkOpener({
   const go = (href: string) => void navigate({ href })
   return (link) => {
     if (link.kind === 'assignment' || link.kind === 'quiz') {
-      details.open(courseId, link.kind === 'quiz' ? `${PRACTICE}${link.ref}` : link.ref)
+      details.open(courseId, link.kind === 'quiz' ? quizRef(link.ref) : link.ref)
       return true
     }
     if (link.kind === 'file') {

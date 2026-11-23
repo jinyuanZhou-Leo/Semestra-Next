@@ -16,6 +16,7 @@ import CourseInfoCard from '@/modules/academics/cards/CourseInfoCard'
 import { course as academicsCourse } from '@/modules/academics/test-data'
 import { groupByTerm } from './external'
 import { CoursePicker } from './import/CoursePicker'
+import { SyllabusPicker } from './import/SyllabusPicker'
 import { ConnectionsSection } from './settings/ConnectionsSection'
 import { CourseLmsSection, pickerGroups } from './settings/CourseLmsSection'
 import { ProgramLmsSection } from './settings/ProgramLmsSection'
@@ -510,12 +511,20 @@ test('course settings: guidance without a binding, then the switches, materials 
     ),
     http.patch(`${API}/courses/c1/lms-link`, async ({ request }) => {
       patched(await request.json())
-      return HttpResponse.json({ course_id: 'c1', link: link(), program_connection_id: 'k1' })
+      // The course's link state as it now is, like every change of the link answers.
+      return HttpResponse.json(state)
     }),
     http.delete(`${API}/courses/c1/lms-link`, () => {
       deleted()
       return HttpResponse.json({ course_id: 'c1', link: null, program_connection_id: 'k1' })
     }),
+    // Once unlinked, the section offers the platform's courses to link again.
+    http.get(`${API}/courses/c1`, () =>
+      HttpResponse.json(academicsCourse({ id: 'c1', term_ids: [] })),
+    ),
+    http.get(`${API}/programs/p1/lms/courses`, () =>
+      HttpResponse.json({ connection_id: 'k1', provider: 'canvas', truncated: false, items: [] }),
+    ),
   )
   renderWithRouter(<CourseLmsSection scope={scope} />)
   expect(await screen.findByText('APS105H1 · Computer Fundamentals')).toBeInTheDocument()
@@ -554,6 +563,53 @@ test('course settings: guidance without a binding, then the switches, materials 
   ).toBeInTheDocument()
   await userEvent.click(within(confirm).getByRole('button', { name: 'Unlink' }))
   await waitFor(() => expect(deleted).toHaveBeenCalled())
+  // The unlink's answer shows at once, without reading the link again.
+  await waitFor(() =>
+    expect(screen.queryByText('APS105H1 · Computer Fundamentals')).not.toBeInTheDocument(),
+  )
+})
+
+test("the gradebook's syllabus import reads the linked course's syllabus into a review", async () => {
+  const started = vi.fn<() => void>()
+  server.use(
+    http.get(`${API}/ai/status`, () =>
+      HttpResponse.json({
+        items: [
+          {
+            purpose: 'extraction',
+            available: true,
+            source: 'default',
+            provider_id: 'pv1',
+            provider_kind: 'anthropic',
+            provider_name: 'Anthropic',
+            model: 'claude-haiku-5-5',
+          },
+        ],
+      }),
+    ),
+    http.get(`${API}/courses/c1/lms-link`, () =>
+      HttpResponse.json({ course_id: 'c1', link: link(), program_connection_id: 'k1' }),
+    ),
+    http.post(`${API}/courses/c1/lms/imports\\:syllabus`, () => {
+      started()
+      return HttpResponse.json({ session_id: 's1', program_id: 'p1', count: 0 })
+    }),
+    http.get(`${API}/imports/s1`, () => HttpResponse.json({ id: 's1', items: [] })),
+    http.get(`${API}/courses/c1/lms/syllabus`, () => HttpResponse.json({ html: syllabusHtml })),
+  )
+  // Nothing on the platform: nothing to read, so no start (as in the Canvas tab).
+  let syllabusHtml: string | null = null
+  const onStarted = vi.fn<(session: ImportSessionDetail) => void>()
+  const empty = renderWithRouter(<SyllabusPicker courseId="c1" onStarted={onStarted} />)
+  expect(await screen.findByText('No syllabus on Canvas')).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Read syllabus' })).toBeNull()
+  empty.unmount()
+  syllabusHtml = '<p>Grading: labs 20%</p>'
+  renderWithRouter(<SyllabusPicker courseId="c1" onStarted={onStarted} />)
+  expect(await screen.findByText('Canvas syllabus')).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: 'Read syllabus' }))
+  await waitFor(() => expect(onStarted).toHaveBeenCalledWith(expect.objectContaining({ id: 's1' })))
+  expect(started).toHaveBeenCalledOnce()
 })
 
 test('the course picker suggests the course with the same code', () => {

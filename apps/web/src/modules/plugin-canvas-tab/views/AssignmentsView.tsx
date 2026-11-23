@@ -1,12 +1,11 @@
 import type { AssignmentOut, Quiz } from '@semestra/api-client'
-import { lmsAssignmentListOptions, lmsQuizListOptions } from '@semestra/api-client/react-query'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import {
   type CellContext,
   createColumnHelper,
   createSortedRowModel,
-  type RowSelectionState,
-  rowSelectionFeature,
+  FlexRender,
+  type Row as TableRowModel,
   rowSortingFeature,
   type SortingState,
   tableFeatures,
@@ -28,18 +27,25 @@ import {
   Search,
   SearchX,
 } from 'lucide-react'
-import { createContext, Fragment, use, useState } from 'react'
+import { createContext, Fragment, memo, use, useState } from 'react'
 import { RowMenu } from '@/app/settings'
 import { HistoryLink } from '@/components/HistoryLink'
+import {
+  RowSelectionContext,
+  SelectAllCheckbox,
+  SelectCheckbox,
+  useRowSelection,
+} from '@/components/row-selection'
+import { SelectionToolbar } from '@/components/SelectionToolbar'
 import { errorCode, toastError } from '@/lib/errors'
 import { formatDateTime, formatPercent } from '@/lib/format'
 import { coursePath } from '@/modules/academics/paths'
+import { quizRef } from '@/modules/lms/assignment/queries'
 import { useAssignmentDetails } from '@/modules/lms/assignment/target'
 import { addToGradebook, importAssignments } from '@/modules/lms/import/assignments'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
-import { Checkbox } from '@/ui/checkbox'
 import { DropdownMenuItem } from '@/ui/dropdown-menu'
 import { Empty, EmptyContent, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/ui/input-group'
@@ -53,6 +59,7 @@ import { CanvasBoundary } from '../CanvasBoundary'
 import { useCanvasPage } from '../context'
 import { ViewHeader } from '@/modules/lms/content/LmsContent'
 import { ScoreText, SubmissionStatus } from './common'
+import { viewQueries } from '../queries'
 
 /**
  * A row: a Canvas assignment (a graded quiz is one too, with its quiz alongside), or a practice
@@ -60,9 +67,6 @@ import { ScoreText, SubmissionStatus } from './common'
  * `quiz:<id>` for a practice quiz.
  */
 type Row = { id: string; assignment: AssignmentOut; quiz: Quiz | null; practice: boolean }
-
-/** The id of a quiz's practice row, which is also its `ref` in the location (M16 §3). */
-export const quizRef = (quizId: string) => `quiz:${quizId}`
 
 const PRACTICE_GROUP = 'quiz:practice'
 
@@ -109,26 +113,20 @@ function rowsOf(assignments: readonly AssignmentOut[], quizzes: readonly Quiz[])
 
 const features = tableFeatures({
   rowSortingFeature,
-  rowSelectionFeature,
   sortedRowModel: createSortedRowModel(),
 })
 const column = createColumnHelper<typeof features, Row>()
 type CellProps = CellContext<typeof features, Row>
 
 /**
- * What the module-level cells read. The selection lives here, not only in the table: the React
- * Compiler keeps a cell whose `row` is the same object, so a cell reading `row.getIsSelected()`
- * would not update when only the selection changes.
+ * What the module-level cells read. The selection is not here: the checkboxes read it from
+ * `RowSelectionContext`, so ticking a row renders the checkboxes and that row, not every cell.
  */
 type TableState = {
   programId: string
   courseId: string
   /** Read once, so "due in 3 days" doesn't change between renders. */
   now: number
-  selected: RowSelectionState
-  /** Rows that can still be imported, in the table's order. */
-  selectable: readonly string[]
-  setSelected: (ids: readonly string[], on: boolean) => void
   /** "Add to gradebook" for an assignment imported as a to-do. */
   toGradebook: (a: AssignmentOut) => void
 }
@@ -143,41 +141,27 @@ function useTableState() {
 /** An assignment is imported once: an assessment (with its to-do) or a to-do (M09 §4). */
 const imported = (a: AssignmentOut) => a.imported_as != null
 
-/** A box that ticks several rows: all of them, or an assignment group's. */
-function SelectMany({ ids, label }: { ids: readonly string[]; label: string }) {
-  const { selected, setSelected } = useTableState()
-  const ticked = ids.filter((id) => selected[id]).length
-  return (
-    <Checkbox
-      aria-label={label}
-      checked={ids.length > 0 && ticked === ids.length}
-      indeterminate={ticked > 0 && ticked < ids.length}
-      disabled={ids.length === 0}
-      // Base UI's checkbox is a span, which the generated `disabled:` styles never match.
-      className="data-disabled:cursor-not-allowed data-disabled:opacity-50"
-      onCheckedChange={(on) => setSelected(ids, on)}
-    />
-  )
-}
+/** What can be ticked for import: not a practice quiz, not imported already. */
+const selectable = ({ assignment: a, practice }: Row) => !practice && !imported(a)
 
-function SelectAllHeader() {
-  const { selectable } = useTableState()
-  return <SelectMany ids={selectable} label={m.canvas_tab_select_all()} />
-}
+// Base UI's checkbox is a span, which the generated `disabled:` styles never match.
+const DISABLED_BOX = 'data-disabled:cursor-not-allowed data-disabled:opacity-50'
+
+const SelectAllHeader = () => <SelectAllCheckbox label={m.canvas_tab_select_all()} />
 
 function SelectCell({ row }: CellProps) {
-  const { selected, setSelected } = useTableState()
   const { assignment: a, practice } = row.original
   if (practice) return null
   return (
-    <Checkbox
-      aria-label={m.canvas_tab_select_assignment({ name: a.name })}
-      disabled={imported(a)}
-      className="data-disabled:cursor-not-allowed data-disabled:opacity-50"
-      checked={!!selected[row.id]}
-      onCheckedChange={(on) => setSelected([row.id], on)}
-      onClick={(event) => event.stopPropagation()}
-    />
+    // A tick doesn't open the row.
+    // oxlint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- only stops the row's click
+    <span onClick={(event) => event.stopPropagation()}>
+      <SelectCheckbox
+        ids={selectable(row.original) ? [row.id] : []}
+        label={m.canvas_tab_select_assignment({ name: a.name })}
+        className={DISABLED_BOX}
+      />
+    </span>
   )
 }
 
@@ -390,13 +374,13 @@ const WIDTHS: Record<string, string> = {
 export function AssignmentsView() {
   const { courseId } = useCanvasPage()
   const list = useQuery({
-    ...lmsAssignmentListOptions({ path: { course_id: courseId } }),
+    ...viewQueries.assignments(courseId),
     placeholderData: keepPreviousData,
   })
   // Without it the table still shows; quizzes then look like plain assignments. A course whose
   // quizzes the instructor hid answers `lms.area_hidden` every time: not asked again.
   const quizzes = useQuery({
-    ...lmsQuizListOptions({ path: { course_id: courseId } }),
+    ...viewQueries.quizzes(courseId),
     placeholderData: keepPreviousData,
     retry: (failures, error) => errorCode(error) !== 'lms.area_hidden' && failures < 3,
   }).data?.items
@@ -477,11 +461,40 @@ function groupsOf(rows: readonly Row[]): Group[] {
   return [...groups.values()]
 }
 
+/**
+ * One row. Memoized: ticking a row renders that row again and the checkboxes (they read
+ * `RowSelectionContext`), not every cell of the table.
+ */
+const AssignmentRow = memo(function AssignmentRow({
+  row,
+  selected,
+  onOpen,
+}: {
+  row: TableRowModel<typeof features, Row>
+  selected: boolean
+  onOpen: (courseId: string, assignmentId: string) => void
+}) {
+  const { courseId } = useTableState()
+  return (
+    <TableRow
+      data-state={selected ? 'selected' : undefined}
+      // One height for every row, whatever badge its status shows.
+      className="group/row h-10 cursor-pointer"
+      onClick={() => onOpen(courseId, row.id)}
+    >
+      {row.getAllCells().map((cell) => (
+        <TableCell key={cell.id} className="py-2">
+          <FlexRender cell={cell} />
+        </TableCell>
+      ))}
+    </TableRow>
+  )
+})
+
 function AssignmentTable({ rows: data }: { rows: Row[] }) {
   const { programId, courseId, title } = useCanvasPage()
   const details = useAssignmentDetails()
   const [sorting, setSorting] = useState<SortingState>([])
-  const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set())
   const [starting, setStarting] = useState(false)
   const [filter, setFilter] = useState<Filter>('all')
@@ -492,12 +505,9 @@ function AssignmentTable({ rows: data }: { rows: Row[] }) {
     columns,
     data,
     getRowId: (r) => r.id,
-    enableRowSelection: (row) => !row.original.practice && !imported(row.original.assignment),
-    state: { sorting, rowSelection },
+    state: { sorting },
     onSortingChange: (updater) =>
       setSorting(typeof updater === 'function' ? updater(sorting) : updater),
-    onRowSelectionChange: (updater) =>
-      setRowSelection(typeof updater === 'function' ? updater(rowSelection) : updater),
   })
   // Rows in the table's order (sorted within each group); groups keep Canvas's order.
   const ordered = table.getRowModel().rows
@@ -513,29 +523,19 @@ function AssignmentTable({ rows: data }: { rows: Row[] }) {
       }
     })
     .filter((group) => group.rows.length > 0)
-  // Select all ticks what is listed; a filtered-out row keeps its tick.
-  const selectable = groups.flatMap((group) =>
-    group.rows.filter((row) => row.getCanSelect()).map((row) => row.id),
+  // Select all ticks what is listed; a filtered-out row keeps its tick. A row imported meanwhile
+  // (the list refetches after an import) stays ticked but is left out. Only what the filter and
+  // search list is imported (a folded group still shows its tick); the toolbar says how many.
+  const selection = useRowSelection(
+    groups.flatMap((group) =>
+      group.rows.filter((row) => selectable(row.original)).map((row) => row.id),
+    ),
   )
-  // A row imported meanwhile (the list refetches after an import) stays ticked but is left out.
-  // Only what the filter and search list is imported (a folded group still shows its tick); the
-  // button says how many.
-  const picked = selectable.filter((id) => rowSelection[id])
+  const picked = selection.ids
   const state: TableState = {
     programId,
     courseId,
     now,
-    selected: rowSelection,
-    selectable,
-    setSelected: (ids, on) =>
-      setRowSelection((current) => {
-        const next = { ...current }
-        for (const id of ids) {
-          if (on) next[id] = true
-          else delete next[id]
-        }
-        return next
-      }),
     toGradebook: (a) => {
       addToGradebook(courseId, [a.external_id], m.lms_canvas()).catch(toastError)
     },
@@ -543,8 +543,8 @@ function AssignmentTable({ rows: data }: { rows: Row[] }) {
 
   const start = () => {
     setStarting(true)
-    importAssignments(courseId, picked, m.lms_canvas())
-      .then(() => setRowSelection({}))
+    importAssignments(courseId, [...picked], m.lms_canvas())
+      .then(selection.clear)
       .catch(toastError)
       .finally(() => setStarting(false))
   }
@@ -559,184 +559,185 @@ function AssignmentTable({ rows: data }: { rows: Row[] }) {
 
   return (
     <TableContext value={state}>
-      <div className="space-y-4">
-        <ViewHeader title={title} />
-        {/* Always 2rem high: the selection and a running import never move the table. */}
-        <div className="flex h-8 items-center gap-2">
-          <ToggleGroup
-            aria-label={m.canvas_tab_filter()}
-            size="sm"
-            className={SEGMENTED}
-            value={[filter]}
-            onValueChange={([next]) => next && setFilter(next as Filter)}
+      <RowSelectionContext value={selection}>
+        <div className="space-y-4">
+          <ViewHeader title={title} />
+          <SelectionToolbar
+            count={picked.length}
+            countLabel={m.common_selected_count({ count: picked.length })}
+            label={m.canvas_tab_batch_actions()}
+            onClear={selection.clear}
+            actions={
+              <Button size="sm" disabled={starting} onClick={start}>
+                {starting ? <Spinner /> : <Import aria-hidden />}
+                {m.canvas_tab_import()}
+              </Button>
+            }
           >
-            {FILTERS.map((f) => (
-              <ToggleGroupItem key={f} value={f} className={SEGMENT}>
-                {FILTER_LABELS[f]()}
-              </ToggleGroupItem>
-            ))}
-          </ToggleGroup>
-          <InputGroup className="mr-auto h-8 w-56">
-            <InputGroupInput
-              aria-label={m.canvas_tab_search_assignments()}
-              placeholder={m.canvas_tab_search_assignments()}
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-            <InputGroupAddon>
-              <Search aria-hidden />
-            </InputGroupAddon>
-          </InputGroup>
-          <Button size="sm" disabled={picked.length === 0 || starting} onClick={start}>
-            {starting ? <Spinner /> : <Import aria-hidden />}
-            {picked.length > 0
-              ? m.canvas_tab_import_count({ count: picked.length })
-              : m.canvas_tab_import()}
-          </Button>
-        </div>
-        <div className="overflow-hidden rounded-2xl border border-border">
-          <Table className="min-w-3xl table-fixed">
-            <TableHeader className="bg-muted/50">
-              {table.getHeaderGroups().map((group) => (
-                <TableRow key={group.id} className="hover:bg-transparent">
-                  {group.headers.map((h) => {
-                    const sorted = h.column.getIsSorted()
-                    return (
-                      <TableHead
-                        key={h.id}
-                        scope="col"
-                        aria-sort={
-                          sorted === 'asc'
-                            ? 'ascending'
-                            : sorted === 'desc'
-                              ? 'descending'
-                              : undefined
-                        }
-                        className={cn('h-auto py-2 text-muted-foreground', WIDTHS[h.column.id])}
-                      >
-                        {h.column.getCanSort() ? (
+            <ToggleGroup
+              aria-label={m.canvas_tab_filter()}
+              size="sm"
+              className={SEGMENTED}
+              value={[filter]}
+              onValueChange={([next]) => next && setFilter(next as Filter)}
+            >
+              {FILTERS.map((f) => (
+                <ToggleGroupItem key={f} value={f} className={SEGMENT}>
+                  {FILTER_LABELS[f]()}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
+            <InputGroup className="h-8 w-56">
+              <InputGroupInput
+                aria-label={m.canvas_tab_search_assignments()}
+                placeholder={m.canvas_tab_search_assignments()}
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+              <InputGroupAddon>
+                <Search aria-hidden />
+              </InputGroupAddon>
+            </InputGroup>
+          </SelectionToolbar>
+          <div className="overflow-hidden rounded-2xl border border-border">
+            <Table className="min-w-3xl table-fixed">
+              <TableHeader className="bg-muted/50">
+                {table.getHeaderGroups().map((group) => (
+                  <TableRow key={group.id} className="hover:bg-transparent">
+                    {group.headers.map((h) => {
+                      const sorted = h.column.getIsSorted()
+                      return (
+                        <TableHead
+                          key={h.id}
+                          scope="col"
+                          aria-sort={
+                            sorted === 'asc'
+                              ? 'ascending'
+                              : sorted === 'desc'
+                                ? 'descending'
+                                : undefined
+                          }
+                          className={cn('h-auto py-2 text-muted-foreground', WIDTHS[h.column.id])}
+                        >
+                          {h.column.getCanSort() ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={h.column.getToggleSortingHandler()}
+                              className="-ml-2 h-auto px-2 text-muted-foreground hover:text-foreground"
+                            >
+                              <table.FlexRender header={h} />
+                              {sorted === 'asc' ? (
+                                <ArrowUp aria-hidden className="size-3" />
+                              ) : sorted === 'desc' ? (
+                                <ArrowDown aria-hidden className="size-3" />
+                              ) : null}
+                            </Button>
+                          ) : (
+                            <table.FlexRender header={h} />
+                          )}
+                        </TableHead>
+                      )
+                    })}
+                  </TableRow>
+                ))}
+              </TableHeader>
+              <TableBody>
+                {groups.length === 0 ? (
+                  <TableRow className="hover:bg-transparent">
+                    <TableCell colSpan={columns.length} className="whitespace-normal">
+                      <Empty className="border-0 p-0 py-6">
+                        <EmptyHeader>
+                          <EmptyMedia variant="icon">
+                            <SearchX aria-hidden />
+                          </EmptyMedia>
+                          <EmptyTitle>{m.canvas_tab_assignments_no_match()}</EmptyTitle>
+                        </EmptyHeader>
+                        <EmptyContent>
                           <Button
-                            type="button"
+                            variant="link"
+                            size="sm"
+                            onClick={() => {
+                              setFilter('all')
+                              setSearch('')
+                            }}
+                          >
+                            {m.common_clear_filters()}
+                          </Button>
+                        </EmptyContent>
+                      </Empty>
+                    </TableCell>
+                  </TableRow>
+                ) : null}
+                {groups.map((group) => {
+                  const open = !collapsed.has(group.key)
+                  const ids = group.rows
+                    .filter((row) => selectable(row.original))
+                    .map((row) => row.id)
+                  return (
+                    <Fragment key={group.key}>
+                      <TableRow className="h-11 bg-muted/40 hover:bg-muted/40">
+                        <TableCell className="py-1.5">
+                          {ids.length > 0 ? (
+                            <SelectCheckbox
+                              ids={ids}
+                              label={m.canvas_tab_select_group({ name: group.name })}
+                            />
+                          ) : null}
+                        </TableCell>
+                        <TableCell colSpan={2} className="py-1.5">
+                          <Button
                             variant="ghost"
                             size="sm"
-                            onClick={h.column.getToggleSortingHandler()}
-                            className="-ml-2 h-auto px-2 text-muted-foreground hover:text-foreground"
+                            aria-expanded={open}
+                            className="-ml-2 h-8 max-w-full items-center px-1 font-medium aria-expanded:bg-transparent hover:bg-muted"
+                            onClick={() => toggleGroup(group.key)}
                           >
-                            <table.FlexRender header={h} />
-                            {sorted === 'asc' ? (
-                              <ArrowUp aria-hidden className="size-3" />
-                            ) : sorted === 'desc' ? (
-                              <ArrowDown aria-hidden className="size-3" />
+                            {open ? (
+                              <ChevronDown aria-hidden className="size-4" />
+                            ) : (
+                              <ChevronRight aria-hidden className="size-4" />
+                            )}
+                            <span className="truncate">{group.name}</span>
+                            <Badge variant="secondary" className="tabular-nums">
+                              {group.rows.length}
+                            </Badge>
+                            {group.weight != null ? (
+                              <Badge variant="outline" className="font-normal tabular-nums">
+                                {m.canvas_tab_group_weight({ weight: group.weight })}
+                              </Badge>
                             ) : null}
                           </Button>
-                        ) : (
-                          <table.FlexRender header={h} />
-                        )}
-                      </TableHead>
-                    )
-                  })}
-                </TableRow>
-              ))}
-            </TableHeader>
-            <TableBody>
-              {groups.length === 0 ? (
-                <TableRow className="hover:bg-transparent">
-                  <TableCell colSpan={columns.length} className="whitespace-normal">
-                    <Empty className="border-0 p-0 py-6">
-                      <EmptyHeader>
-                        <EmptyMedia variant="icon">
-                          <SearchX aria-hidden />
-                        </EmptyMedia>
-                        <EmptyTitle>{m.canvas_tab_assignments_no_match()}</EmptyTitle>
-                      </EmptyHeader>
-                      <EmptyContent>
-                        <Button
-                          variant="link"
-                          size="sm"
-                          onClick={() => {
-                            setFilter('all')
-                            setSearch('')
-                          }}
-                        >
-                          {m.common_clear_filters()}
-                        </Button>
-                      </EmptyContent>
-                    </Empty>
-                  </TableCell>
-                </TableRow>
-              ) : null}
-              {groups.map((group) => {
-                const open = !collapsed.has(group.key)
-                const ids = group.rows.filter((row) => row.getCanSelect()).map((row) => row.id)
-                return (
-                  <Fragment key={group.key}>
-                    <TableRow className="h-11 bg-muted/40 hover:bg-muted/40">
-                      <TableCell className="py-1.5">
-                        {ids.length > 0 ? (
-                          <SelectMany
-                            ids={ids}
-                            label={m.canvas_tab_select_group({ name: group.name })}
-                          />
-                        ) : null}
-                      </TableCell>
-                      <TableCell colSpan={2} className="py-1.5">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          aria-expanded={open}
-                          className="-ml-2 h-8 max-w-full items-center px-1 font-medium aria-expanded:bg-transparent hover:bg-muted"
-                          onClick={() => toggleGroup(group.key)}
-                        >
-                          {open ? (
-                            <ChevronDown aria-hidden className="size-4" />
-                          ) : (
-                            <ChevronRight aria-hidden className="size-4" />
+                        </TableCell>
+                        <TableCell className="py-1.5">
+                          {group.average == null ? null : (
+                            <span className="font-medium tabular-nums">
+                              <span className="sr-only">{m.canvas_tab_group_average()}: </span>
+                              {formatPercent(group.average)}
+                            </span>
                           )}
-                          <span className="truncate">{group.name}</span>
-                          <Badge variant="secondary" className="tabular-nums">
-                            {group.rows.length}
-                          </Badge>
-                          {group.weight != null ? (
-                            <Badge variant="outline" className="font-normal tabular-nums">
-                              {m.canvas_tab_group_weight({ weight: group.weight })}
-                            </Badge>
-                          ) : null}
-                        </Button>
-                      </TableCell>
-                      <TableCell className="py-1.5">
-                        {group.average == null ? null : (
-                          <span className="font-medium tabular-nums">
-                            <span className="sr-only">{m.canvas_tab_group_average()}: </span>
-                            {formatPercent(group.average)}
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell colSpan={3} className="py-1.5" />
-                    </TableRow>
-                    {open
-                      ? group.rows.map((row) => (
-                          <TableRow
-                            key={row.id}
-                            data-state={rowSelection[row.id] ? 'selected' : undefined}
-                            // One height for every row, whatever badge its status shows.
-                            className="group/row h-10 cursor-pointer"
-                            onClick={() => details.open(courseId, row.id)}
-                          >
-                            {row.getAllCells().map((cell) => (
-                              <TableCell key={cell.id} className="py-2">
-                                <table.FlexRender cell={cell} />
-                              </TableCell>
-                            ))}
-                          </TableRow>
-                        ))
-                      : null}
-                  </Fragment>
-                )
-              })}
-            </TableBody>
-          </Table>
+                        </TableCell>
+                        <TableCell colSpan={3} className="py-1.5" />
+                      </TableRow>
+                      {open
+                        ? group.rows.map((row) => (
+                            <AssignmentRow
+                              key={row.id}
+                              row={row}
+                              selected={selection.has(row.id)}
+                              onOpen={details.open}
+                            />
+                          ))
+                        : null}
+                    </Fragment>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          </div>
         </div>
-      </div>
+      </RowSelectionContext>
     </TableContext>
   )
 }

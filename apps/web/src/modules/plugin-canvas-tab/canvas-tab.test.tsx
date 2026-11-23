@@ -18,6 +18,8 @@ import { API, apiError, newQueryClient, renderWithQuery, server } from '@/test-u
 import CanvasCoursePage from './CanvasCoursePage'
 import canvasTab from './manifest'
 import { homeView, navEntries, resolveLocation } from './navigation'
+import { prefetchUiPrefs } from '@/app/ui-pref'
+import { prefetchCanvasPage } from './prefetch'
 
 const openImport = vi.hoisted(() =>
   vi.fn<(request: unknown) => Promise<null>>(() => Promise.resolve(null)),
@@ -136,7 +138,16 @@ beforeEach(() => {
   display = 'simplified'
   puts.mockClear()
   server.use(
-    // No syllabus import waiting (the smart import button follows it).
+    // The Program's platform names the syllabus import.
+    http.get(`${API}/programs/p1/lms-binding`, () =>
+      HttpResponse.json({
+        program_id: 'p1',
+        connection_id: 'k1',
+        connection: { id: 'k1', provider: 'canvas' },
+        link_count: 1,
+      }),
+    ),
+    // No syllabus import waiting (the syllabus button follows it).
     http.get(`${API}/programs/:programId/imports`, () =>
       HttpResponse.json({ items: [], next_cursor: null }),
     ),
@@ -207,6 +218,30 @@ function renderPage(path = '/') {
 }
 
 // --- pure rules ------------------------------------------------------------------------------
+
+test('opened from a link, the prefetch reads what the link shows, not where the tab was left', async () => {
+  saved = { 'canvas-tab.location.c1': { tab: 'files' } }
+  const asked = vi.fn<(path: string) => void>()
+  server.use(
+    http.get(`${API}/courses/c1/lms/announcements`, () => {
+      asked('announcements')
+      return HttpResponse.json(ANNOUNCEMENTS)
+    }),
+    http.get(`${API}/courses/c1/lms/folder`, () => {
+      asked('folder')
+      return HttpResponse.json({})
+    }),
+  )
+  const queryClient = newQueryClient()
+  await prefetchUiPrefs(queryClient, ['canvas-tab.'])
+  const scope: Scope = { kind: 'course', programId: 'p1', courseId: 'c1' }
+  prefetchCanvasPage(scope, queryClient, {
+    preload: false,
+    search: { tab: 'announcements', ref: 'a1' },
+  })
+  await waitFor(() => expect(asked).toHaveBeenCalledWith('announcements'))
+  expect(asked).not.toHaveBeenCalledWith('folder')
+})
 
 test('the menu mirrors Canvas: native views, external tools, unknown tabs; discussions hidden', () => {
   const entries = navEntries(NAV)
@@ -502,10 +537,13 @@ test('ticked assignments open the import review', async () => {
     'aria-disabled',
     'true',
   )
-  const importButton = screen.getByRole('button', { name: 'Import' })
-  expect(importButton).toBeDisabled()
+  // The actions take the filters' place once something is ticked.
+  const toolbar = screen.getByRole('toolbar', { name: 'Actions on the selected assignments' })
+  expect(toolbar).toHaveAttribute('inert')
   await userEvent.click(screen.getByRole('checkbox', { name: 'Select Lab 1' }))
-  await userEvent.click(screen.getByRole('button', { name: 'Import 1' }))
+  expect(toolbar).not.toHaveAttribute('inert')
+  expect(within(toolbar).getByText('1 selected')).toBeInTheDocument()
+  await userEvent.click(within(toolbar).getByRole('button', { name: 'Import' }))
   await waitFor(() => expect(body).toHaveBeenCalledWith('assignments', { external_ids: ['x1'] }))
   expect(openImport).toHaveBeenCalledWith(
     expect.objectContaining({ programId: 'p1', source: 'session', sessionId: 's1' }),
@@ -565,7 +603,7 @@ test('a module file can be saved to the course files', async () => {
   )
 })
 
-test('smart import of the syllabus opens its review', async () => {
+test('reading the syllabus opens its review', async () => {
   const started = vi.fn<() => void>()
   server.use(
     http.get(`${API}/courses/c1/lms/syllabus`, () =>
@@ -577,7 +615,7 @@ test('smart import of the syllabus opens its review', async () => {
     }),
   )
   renderPage('/?tab=syllabus')
-  await userEvent.click(await screen.findByRole('button', { name: 'Smart import' }))
+  await userEvent.click(await screen.findByRole('button', { name: 'Read syllabus' }))
   await waitFor(() =>
     expect(openImport).toHaveBeenCalledWith(
       expect.objectContaining({ source: 'session', sessionId: 's2' }),
@@ -600,6 +638,37 @@ test('opening an unread announcement marks it read', async () => {
   await userEvent.click(screen.getByRole('button', { name: 'Back' }))
   expect(await screen.findByText('Midterm room change')).toBeInTheDocument()
   expect(screen.queryByText('Unread')).toBeNull()
+})
+
+test('an announcement lists its attachments: the course copy, or the file on Canvas', async () => {
+  const attached = {
+    ...ANNOUNCEMENTS.items[0],
+    unread: false,
+    attachments: [
+      {
+        external_id: 'f1',
+        name: 'Rooms.pdf',
+        mime_type: 'application/pdf',
+        size_bytes: 2048,
+        file: { kind: 'file', id: 'i1', course_id: 'c1', folder_id: null },
+      },
+      { external_id: 'f2', name: 'Seating.xlsx', mime_type: null, size_bytes: null, file: null },
+    ],
+  }
+  server.use(
+    http.get(`${API}/courses/c1/lms/announcements`, () =>
+      HttpResponse.json({ ...ANNOUNCEMENTS, items: [attached] }),
+    ),
+  )
+  renderPage('/?tab=announcements&ref=a1')
+  const copy = (await screen.findByText('Rooms.pdf')).closest('a')!
+  expect(copy).toHaveAttribute('href', expect.stringContaining('/p/p1/c/c1/files'))
+  const online = screen.getByText('Seating.xlsx').closest('a')!
+  expect(online).toHaveAttribute(
+    'href',
+    expect.stringContaining('/courses/c1/lms/files/f2/content'),
+  )
+  expect(online).toHaveAttribute('target', '_blank')
 })
 
 test('an assignment opens its details over the list', async () => {

@@ -28,7 +28,13 @@ from semestra.modules.files.tests.conftest import FakeAi, make_pdf
 from semestra.modules.lms import sync_files
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.models import LmsMaterial
-from semestra.modules.lms.schemas.dto import FileMeta, InternalRef, Module, ModuleItem, PageSummary
+from semestra.modules.lms.schemas.dto import (
+    FileMeta,
+    InternalRef,
+    Module,
+    ModuleItem,
+    PageSummary,
+)
 from semestra.modules.lms.tests.conftest import Api, FakeProvider
 from semestra.modules.lms.tests.test_lms import setup_program
 from semestra.testing import API_DIR, Clock
@@ -632,6 +638,153 @@ async def test_following_the_platform(api: Api, fake: FakeProvider, clock: Clock
     assert "data.zip" in (await _files(api, course))[1]
 
 
+async def test_a_hidden_area_still_tells_what_left(api: Api, fake: FakeProvider, clock: Clock):
+    """A course that hides its pages or its files (common on the platform) still notices what
+    left: each item missing from the run is read on its own, and only one the platform says it
+    no longer has is gone."""
+    _materials(fake)
+    program_id, course = await _course(api)
+    await api.sync(program_id)
+
+    # The pages hidden, the files area shown: the files list alone tells the midterm left.
+    fake.pages_hidden = True
+    del fake.course_file_list[2]
+    fake.deleted_files.add("203")
+    clock.advance(minutes=1)
+    await api.sync(program_id)
+    _, items = await _files(api, course)
+    assert "Midterm 2025.pdf" not in items
+    assert "Course syllabus" in items  # still there, only its list is hidden
+
+    # The files area hidden too: the archive left the platform; the data file is only hidden.
+    fake.files_hidden = True
+    fake.deleted_files.add("205")
+    clock.advance(minutes=1)
+    await api.sync(program_id)
+    _, items = await _files(api, course)
+    assert "data.zip" not in items
+    assert "Lecture 1.pdf" in items
+    status = await api.call("GET", f"/programs/{program_id}/lms/sync")
+    gone = {m["title"] for m in status["materials"] if m["change"] == "gone"}
+    assert gone == {"Midterm 2025.pdf", "data.zip"}
+
+    # Read on its own once, an item is not read again every run.
+    fake.calls.clear()
+    clock.advance(hours=1)
+    await api.sync(program_id)
+    assert ("file", "201") not in fake.calls
+
+
+async def test_an_item_deleted_where_its_area_is_hidden_is_handed_over(
+    api: Api, fake: FakeProvider, clock: Clock
+):
+    """Read on its own and not on the platform any more while its area is closed (table 3c,
+    row 10): gone like one missing from an area read whole, so a saved copy is handed over, not
+    dropped with the storage setting. (A refusal there can't be told apart from the area's, so
+    it judges nothing: table 2, row 6.)"""
+    _materials(fake)
+    program_id, course = await _course(api)
+    await _materials_setting(api, course, store="local")
+    await api.sync(program_id)
+    await api.run_jobs()
+
+    fake.files_hidden = True
+    fake.deleted_files.add("201")
+    await _materials_setting(api, course, store="online")
+    clock.advance(minutes=1)
+    await api.sync(program_id)
+    await api.run_jobs()
+    _, items = await _files(api, course)
+    assert items["Lecture 1.pdf"]["stored"]
+    status = await api.call("GET", f"/programs/{program_id}/lms/sync")
+    assert "Lecture 1.pdf" in {
+        m["title"] for m in status["materials"] if m["change"] == "handed_over"
+    }
+
+
+async def test_a_large_course_comes_in_whole_in_one_run(
+    api: Api, fake: FakeProvider, monkeypatch: pytest.MonkeyPatch, clock: Clock
+):
+    """More new items than one transaction writes come in together, a batch at a time, and
+    the course settles: what the platform adds later is news."""
+    monkeypatch.setattr(sync_files, "BATCH", 3)
+    fake.module_list = []
+    fake.page_list = []
+    fake.course_file_list = [_file(str(300 + n), f"Notes {n}.pdf") for n in range(8)]
+    program_id, course = await _course(api)
+    await api.sync(program_id)
+    _, items = await _files(api, course)
+    assert len([n for n in items if n.startswith("Notes ")]) == 8
+    assert all(not item["unseen"] for item in items.values())
+
+    fake.course_file_list.append(_file("399", "Notes 99.pdf"))
+    clock.advance(minutes=1)
+    await api.sync(program_id)
+    assert (await _files(api, course))[1]["Notes 99.pdf"]["unseen"] is True
+
+
+async def test_a_file_kept_here_is_downloaded_once(api: Api, fake: FakeProvider):
+    """A file the course keeps a local copy of is downloaded for the copy, and its text read
+    from that copy: not downloaded a second time to be read."""
+    _materials(fake)
+    program_id, course = await _course(api)
+    await _materials_setting(api, course, store="local")
+    await api.sync(program_id)
+    await api.run_jobs()
+    _, items = await _files(api, course)
+    assert items["Lecture 1.pdf"]["stored"] is True
+    assert fake.downloads_open.count("201") == 1
+
+
+async def test_a_copy_the_platform_refuses_is_not_asked_for_every_run(
+    api: Api, fake: FakeProvider, app: FastAPI, clock: Clock
+):
+    _materials(fake)
+    program_id, course = await _course(api)
+    original = fake.open_file
+
+    async def refused(io: Any, cfg: Any, creds: Any, course_id: str, file: FileMeta) -> Any:
+        if file.external_id == "201":
+            raise lms_error("lms.forbidden")
+        async for chunk in original(io, cfg, creds, course_id, file):
+            yield chunk
+
+    fake.open_file = refused  # type: ignore[method-assign]
+    await _materials_setting(api, course, store="local")
+    await api.sync(program_id)
+    _, items = await _files(api, course)
+    assert items["Lecture 1.pdf"]["local_copy"]["error_code"] == "lms.forbidden"
+    clock.advance(minutes=10)
+    await api.call("POST", f"/programs/{program_id}/lms/sync", json={"force": True})
+    assert await app.state.jobs.run_one(BACKGROUND) is True  # the sync
+    assert await _pending(app, "files.store_synced_copies") == 0
+
+
+async def test_the_canvas_tab_opens_a_file_from_the_course_files(api: Api, fake: FakeProvider):
+    """A file the course files keep a copy of and have read opens, previews and checks there,
+    without asking the platform again."""
+    _materials(fake)
+    fake.course_file_list[1] = fake.course_file_list[1].model_copy(
+        update={"name": "W1.txt", "mime_type": "text/plain", "size_bytes": 11}
+    )
+    fake.file_bytes["202"] = b"week 1 plan"
+    program_id, course = await _course(api)
+    await _materials_setting(api, course, store="local")
+    await api.sync(program_id)
+    await api.run_jobs()
+    assert (await _files(api, course))[1]["W1.txt"]["stored"] is True
+    fake.calls.clear()
+    downloads = len(fake.downloads_open)
+
+    base = f"/courses/{course}/lms/files/202"
+    preview = await api.call("GET", f"{base}/preview")
+    assert (preview["kind"], preview["pages"]) == ("text", ["week 1 plan"])
+    got = await api.client.get(f"{base}/content")
+    assert (got.status_code, got.content) == (200, b"week 1 plan")
+    assert (await api.client.get(f"{base}/content", params={"check": True})).status_code == 204
+    assert (fake.calls, len(fake.downloads_open)) == ([], downloads)
+
+
 async def test_a_file_the_user_had_put_there_is_pointed_out(api: Api, fake: FakeProvider):
     _materials(fake)
     program_id, term_id, _ = await setup_program(api)
@@ -697,16 +850,16 @@ async def test_copies_stay_while_the_course_cannot_be_read_whole(
     assert items["Lecture 1.pdf"]["stored"] is True
     assert items["Huge recording.pdf"]["local_copy"]["state"] == "failed"
 
-    # Read from the platform again while the course refuses its files (closed there): the
-    # copies may be the only ones left, so they stay until a run reads the course whole.
-    fake.files_hidden = True
+    # Read from the platform again while the course is closed there: the copies may be the only
+    # ones left, so they stay until a run finds the files on the platform again.
+    fake.closed = True
     await _materials_setting(api, course, store="online")
     await api.run_jobs()
     _, items = await _files(api, course)
     assert items["Lecture 1.pdf"]["stored"] is True
     # No copy is wanted any more, so none failed.
     assert items["Huge recording.pdf"]["local_copy"]["state"] == "online"
-    fake.files_hidden = False
+    fake.closed = False
     clock.advance(hours=2)
     await api.sync(program_id)
     await api.run_jobs()

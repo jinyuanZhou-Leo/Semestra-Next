@@ -17,7 +17,7 @@ its own, within the round's budget, oldest first, and not again within a day (ta
 list goes in a folder named after them.
 """
 
-from collections.abc import Awaitable, Callable
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
@@ -28,11 +28,11 @@ from semestra.core.errors import AppError
 from semestra.modules.files import sources
 from semestra.modules.files.source_folders import Segment
 from semestra.modules.lms import reads
-from semestra.modules.lms.answers import AREA_HIDDEN, Present
+from semestra.modules.lms.answers import AREA_HIDDEN, ItemAnswer, Present
 from semestra.modules.lms.materials import MaterialKind, file_version, page_shape
 from semestra.modules.lms.models import LmsCourseLink, LmsMaterial
 from semestra.modules.lms.rules import CHECK_EVERY, Presence, presence
-from semestra.modules.lms.schemas.dto import FileMeta, ModuleItem
+from semestra.modules.lms.schemas.dto import FileMeta, ModuleItem, PageDetail
 from semestra.modules.lms.service import Bound
 from semestra.modules.lms.sync_round import SyncRound
 
@@ -123,11 +123,20 @@ class _Reader:
         mat = self.found.known.get(key)
         return last.result == "present" and mat is not None and mat.state in FOLLOWED
 
-    def one(self, kind: str, external_id: str) -> Callable[[], Awaitable[Any]]:
-        course_id = self.link.course_id
-        if kind == "file":
-            return lambda: reads.file(self.ctx, course_id, external_id, refresh=True)
-        return lambda: reads.page(self.ctx, course_id, external_id, refresh=True)
+    async def read_many(
+        self, kind: str, external_ids: Sequence[str], *, budgeted: bool = True
+    ) -> dict[str, ItemAnswer]:
+        """Items of one kind read on their own, side by side, within the round's budget."""
+        linked = (self.link, self.b)
+
+        async def fetch(ids: list[str]) -> Sequence[Any]:
+            if kind == "file":
+                return await reads.files_many(self.ctx, linked, ids, refresh=True)
+            return await reads.pages_many(self.ctx, linked, [(i, None) for i in ids], refresh=True)
+
+        return await self.round.read_many(
+            self.ctx, self.b, kind, external_ids, fetch, budgeted=budgeted
+        )
 
 
 async def read(
@@ -177,18 +186,12 @@ async def judge(
                 check.append(key)
             verdict = "unknown"
         out[key] = verdict
-    for key in await sync_round.oldest_first(ctx, link, check):
-        answer = await sync_round.read(ctx, b, *key, r.one(*key))
-        if answer is not None:
-            out[key] = presence(listed=False, areas=areas, now=ctx.now, read=answer)
+    ordered = await sync_round.oldest_first(ctx, link, check)
+    for kind in READABLE:
+        got = await r.read_many(kind, [e for k, e in ordered if k == kind])
+        for external_id, answer in got.items():
+            out[(kind, external_id)] = presence(listed=False, areas=areas, now=ctx.now, read=answer)
     return out
-
-
-def all_read(sync_round: SyncRound) -> bool:
-    """This round read every area of the materials whole (table 3c, note): only then may local
-    copies be let go, as a course closed on the platform refuses its areas and its copies may be
-    the only ones left."""
-    return sync_round.all_whole(AREAS)
 
 
 # --- the areas ------------------------------------------------------------------------------
@@ -274,14 +277,17 @@ async def _files(r: _Reader) -> None:
         metas = {f.external_id: f for f in listed.items} if listed is not None else {}
         r.found.listed.update(("file", f) for f in metas)
     if "files" in features:
-        # Files only a module or a page shows (the files area hidden): one by one, now and then.
+        # Files only a module or a page shows (the files area hidden): on their own, side by
+        # side, now and then.
         wanted = [("file", f) for f in r.found.file_ids if f not in metas]
-        for key in await r.round.oldest_first(r.ctx, r.link, wanted):
-            if await r.resting(key):
-                continue
-            answer = await r.round.read(r.ctx, r.b, *key, r.one(*key))
+        todo = [
+            key[1]
+            for key in await r.round.oldest_first(r.ctx, r.link, wanted)
+            if not await r.resting(key)
+        ]
+        for file_id, answer in (await r.read_many("file", todo)).items():
             if isinstance(answer, Present):
-                metas[key[1]] = answer.data
+                metas[file_id] = answer.data
     for meta in metas.values():
         if meta.locked:
             r.found.locked.add(("file", meta.external_id))
@@ -314,34 +320,47 @@ async def _pages(r: _Reader) -> None:
         if page.front_page:
             r.found.front.add(page.ref)
     done: set[str] = set()
-    # Pages bring in what they link to, other pages among it: until no new page is found.
+    # Pages bring in what they link to, other pages among it: until no new page is found. The
+    # pages of one round that are to be read are read side by side; a page the pages list shows
+    # changed is read whatever the budget, one only linked to within it (table 3c, note).
     while todo := [("page", slug) for slug in r.found.pages if slug not in done]:
+        unread: list[str] = []
         for _, slug in await r.round.oldest_first(r.ctx, r.link, todo):
             done.add(slug)
-            await _page(r, slug)
+            if not await _page_as_known(r, slug):
+                unread.append(slug)
+        changed = [slug for slug in unread if r.found.pages[slug][1] is not None]
+        linked = [slug for slug in unread if r.found.pages[slug][1] is None]
+        answers = await r.read_many("page", changed, budgeted=False)
+        answers.update(await r.read_many("page", linked))
+        for slug in unread:
+            if isinstance(answer := answers.get(slug), Present):
+                _page(r, slug, answer.data)
 
 
-async def _page(r: _Reader, slug: str) -> None:
+async def _page_as_known(r: _Reader, slug: str) -> bool:
+    """A page unchanged since it was last read (its version the same, or read on its own within
+    a day): taken as it was, what it links to still holds. False when it is to be read."""
     found = r.found
-    title, version, web_url = found.pages[slug]
+    title, version, _ = found.pages[slug]
     key = ("page", slug)
     mat = found.known.get(key)
     unchanged = version is not None and mat is not None and mat.version == version
-    if unchanged or (version is None and await r.resting(key)):
-        if mat is None:
-            return  # its area closed: not read again today
-        # As it was when last read: what it links to still holds.
-        for kind, target in mat.links:
-            found.linked(kind, target, slug)
-        if mat.state == "list":
-            found.add(Material("page", slug, title, version or "", is_list=True, links=mat.links))
-        return
-    # A page the pages list shows changed is read whatever the budget; one only linked to is
-    # read within it (table 3c, note).
-    answer = await r.round.read(r.ctx, r.b, *key, r.one(*key), budgeted=version is None)
-    if not isinstance(answer, Present):
-        return
-    detail = answer.data
+    if not (unchanged or (version is None and await r.resting(key))):
+        return False
+    if mat is None:
+        return True  # its area closed: not read again today
+    for kind, target in mat.links:
+        found.linked(kind, target, slug)
+    if mat.state == "list":
+        found.add(Material("page", slug, title, version or "", is_list=True, links=mat.links))
+    return True
+
+
+def _page(r: _Reader, slug: str, detail: PageDetail) -> None:
+    found = r.found
+    title, version, web_url = found.pages[slug]
+    key = ("page", slug)
     if detail.locked:
         found.locked.add(key)
         return

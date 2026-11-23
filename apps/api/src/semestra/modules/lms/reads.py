@@ -503,6 +503,7 @@ async def read_many(
                 {"data": data, "truncated": False},
                 scope=cache.course_scope(ext),
                 ttl=ttl,
+                persist=service.persists(),
             )
     return out
 
@@ -573,6 +574,29 @@ async def file(
         ctx, course_id, "files", "file", {"file": file_id}, fetch, refresh=refresh, linked=linked
     )
     return FileMeta.model_validate(data)
+
+
+async def files_many(
+    ctx: Ctx, linked: tuple[LmsCourseLink, Bound], file_ids: Sequence[str], refresh: bool
+) -> list[FileMeta | AppError]:
+    """Several files' metadata at once, the missing ones asked side by side (`read_many`); a
+    file that fails is its error in the list."""
+
+    def fetch(file_id: str) -> Any:
+        async def run(b: Bound, i: Any, ext: str) -> Any:
+            return await b.provider.file(i, b.cfg, b.creds, ext, file_id)
+
+        return run
+
+    found = await read_many(
+        ctx,
+        linked,
+        "files",
+        "file",
+        [({"file": file_id}, fetch(file_id)) for file_id in file_ids],
+        refresh=refresh,
+    )
+    return [r if isinstance(r, AppError) else FileMeta.model_validate(r) for r in found]
 
 
 async def open_file(

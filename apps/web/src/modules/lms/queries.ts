@@ -9,15 +9,14 @@ import {
   settingsValueGetOptions,
   lmsMaterialCountLeftOptions,
 } from '@semestra/api-client/react-query'
-import type { Query, QueryClient } from '@tanstack/react-query'
-import type { Scope } from '@/app/extensions'
+import { partialMatchKey, type Query, type QueryClient } from '@tanstack/react-query'
+import type { QueryMatch, Scope } from '@/app/extensions'
 
 /**
  * Generated query ids of the LMS state: connections, bindings, links, the platform's course
- * list, a course's overview and the Program's sync status. Refetched after any
- * LMS change (and via SSE), so a relinked course or edited connection never shows the old state.
+ * list, a course's overview and the Program's sync status.
  */
-export const LMS_STATE_QUERIES = [
+const LMS_STATE_QUERIES = [
   'lmsConnectionList',
   'lmsProgramBindingGet',
   'lmsCourseList',
@@ -32,12 +31,11 @@ export const LMS_STATE_QUERIES = [
   'lmsMaterialCountLeft',
 ]
 
-/** What linked courses hold on the platform: refetched for one course, not on every change. */
-export const LMS_CONTENT_QUERIES = [
+/** What linked courses hold on the platform. */
+const LMS_CONTENT_QUERIES = [
   'lmsAssignmentList',
   'lmsAnnouncementList',
   'lmsTermAnnouncementList',
-  'lmsGradeList',
   'lmsModuleList',
   'lmsModuleItemList',
   'lmsPageList',
@@ -94,21 +92,66 @@ export function isCourseContent(courseId: string) {
 }
 
 /**
- * Refetches the LMS state after a change; with `courseId` also that course's content, with
- * `all` every course's (a connection's credentials or config changed).
+ * What a change of the Program's connection (bound, changed, cleared) makes stale: the Program's
+ * LMS state, and every course's link state, which names the Program's connection.
  */
-export function invalidateLms(
-  queryClient: QueryClient,
-  { courseId, all }: { courseId?: string; all?: boolean } = {},
-) {
-  const course = courseId ? isCourseContent(courseId) : null
+export function programStateTargets(programId: string): QueryMatch[] {
+  const path = { program_id: programId }
+  return [
+    { _id: 'lmsProgramBindingGet', path },
+    { _id: 'lmsCourseList', path },
+    { _id: 'lmsCourseLinkList', path },
+    { _id: 'lmsSyncStatus', path },
+    { _id: 'lmsAssignmentTargets', path },
+    { _id: 'lmsAnnouncementUnread', path },
+    { _id: 'lmsCourseLinkGet' },
+    { _id: 'lmsMaterialCountLeft' },
+  ]
+}
+
+/**
+ * What linking or unlinking a course makes stale: its link and platform reads, and the Program's
+ * lists that count its courses (links, the platform's courses offered for linking, the sync, the
+ * assignments followed, unread announcements and the term's announcements).
+ */
+export function courseLinkTargets(courseId: string, programId?: unknown): QueryMatch[] {
+  const program = typeof programId === 'string' ? { path: { program_id: programId } } : {}
+  return [
+    ...courseReadTargets(courseId),
+    { _id: 'lmsCourseLinkGet', path: { course_id: courseId } },
+    { _id: 'lmsMaterialCountLeft' },
+    { _id: 'lmsTermAnnouncementList' },
+    ...['lmsCourseLinkList', 'lmsCourseList', 'lmsSyncStatus', 'lmsAssignmentTargets'].map(
+      (id) => ({ _id: id, ...program }),
+    ),
+    { _id: 'lmsAnnouncementUnread', ...program },
+  ]
+}
+
+/** What a course's platform pages read: its overview and contents (the Canvas tab's "Refresh"). */
+export function courseReadTargets(courseId: string): QueryMatch[] {
+  return [...LMS_CONTENT_QUERIES, 'lmsCourseOverview'].map((id) => ({
+    _id: id,
+    path: { course_id: courseId },
+  }))
+}
+
+/** Refetches the queries `targets` names (the same matches an SSE event's targets give). */
+export function invalidateTargets(queryClient: QueryClient, targets: readonly QueryMatch[]) {
+  return queryClient.invalidateQueries({
+    predicate: (query) => targets.some((target) => partialMatchKey(query.queryKey, [target])),
+  })
+}
+
+/**
+ * Refetches every LMS read: a connection's credentials or config changed, which every course
+ * linked through it reads with.
+ */
+export function invalidateLms(queryClient: QueryClient) {
   return queryClient.invalidateQueries({
     predicate: (query) => {
       const id = idOf(query)
-      if (id === null) return false
-      if (LMS_STATE_QUERIES.includes(id)) return true
-      if (all) return LMS_CONTENT_QUERIES.includes(id)
-      return course?.(query) ?? false
+      return id !== null && LMS_QUERIES.includes(id)
     },
   })
 }

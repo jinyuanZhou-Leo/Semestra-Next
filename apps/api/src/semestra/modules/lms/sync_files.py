@@ -27,12 +27,13 @@ new ones are marked unseen in the files and told by notification. Not until the 
 settled (`materials_settled_at`, the first run that brought everything in): linking a course is
 quiet.
 
-A run reads the platform first, then, under the write lock, takes what happened to each material
-to `materials.enter` its next state (table 4a).
+A run reads the platform first, then, under the write lock (a batch of new items at a time,
+each in a transaction of its own: `_write`), takes what happened to each material to
+`materials.enter` its next state (table 4a).
 """
 
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Any
 
 from sqlalchemy import select
 
@@ -42,18 +43,22 @@ from semestra.modules.files.models import FilesItem
 from semestra.modules.files.source_folders import SourceFolders
 from semestra.modules.lms import material_reads
 from semestra.modules.lms.material_items import has_copy
-from semestra.modules.lms.material_reads import Material
+from semestra.modules.lms.material_reads import Found, Key, Material
 from semestra.modules.lms.materials import enter, note, source_ref
 from semestra.modules.lms.models import LmsCourseLink, LmsMaterial
+from semestra.modules.lms.rules import Presence
 from semestra.modules.lms.service import Bound
 from semestra.modules.lms.settings import materials as material_settings
 from semestra.modules.lms.sync import Notice, StageResult, hold, register_sync_stage
 from semestra.modules.lms.sync_round import SyncRound
 
-# New items one run adds; the next run goes on.
-PER_RUN = 100
-# A file the platform failed to give is read again after this.
+# New items written in one transaction: a run brings in all it found, a batch at a time, so the
+# write lock is let go between them.
+BATCH = 100
+# A file the platform failed to give is read again after this; a copy it refused to give (the
+# file unpublished, or not there) is asked for again after it too.
 RETRY_AFTER = timedelta(hours=1)
+REFUSED = frozenset(("lms.not_found", "lms.forbidden"))
 
 
 async def _create(
@@ -147,36 +152,67 @@ def _retry_due(row: FilesItem, now: datetime) -> bool:
     return code.startswith("lms.") and now - row.updated_at >= RETRY_AFTER
 
 
+def _copy_due(row: FilesItem, now: datetime) -> bool:
+    """A local copy the platform refused to give is asked for again after `RETRY_AFTER`, not on
+    every run."""
+    return row.copy_error_code not in REFUSED or now - row.updated_at >= RETRY_AFTER
+
+
 def _material(ctx: Ctx, link: LmsCourseLink, m: Material) -> LmsMaterial:
     mat = LmsMaterial(user_id=ctx.user_id, link_id=link.id, kind=m.kind, external_id=m.external_id)
     ctx.db.add(mat)
     return mat
 
 
-async def run(ctx: Ctx, link: LmsCourseLink, b: Bound, sync_round: SyncRound) -> StageResult:
-    def read_materials() -> Any:
-        return select(LmsMaterial).where(LmsMaterial.link_id == link.id)
+@dataclass
+class _Run:
+    link: LmsCourseLink
+    b: Bound
+    sync_round: SyncRound
+    found: Found
+    verdicts: dict[Key, Presence]
+    result: StageResult = field(default_factory=StageResult)
+    # Items written by an earlier batch of this run.
+    applied: set[Key] = field(default_factory=lambda: set[Key]())
 
-    mats = list(await ctx.db.scalars(read_materials()))
-    known = {(r.kind, r.external_id): r for r in mats}
+
+async def _known(ctx: Ctx, link: LmsCourseLink, *, again: bool = False) -> dict[Key, LmsMaterial]:
+    query = select(LmsMaterial).where(LmsMaterial.link_id == link.id)
+    if again:
+        query = query.execution_options(populate_existing=True)
+    return {(r.kind, r.external_id): r for r in await ctx.db.scalars(query)}
+
+
+async def run(ctx: Ctx, link: LmsCourseLink, b: Bound, sync_round: SyncRound) -> StageResult:
+    known = await _known(ctx, link)
     found = await material_reads.read(ctx, link, b, sync_round, known)
     verdicts = await material_reads.judge(ctx, link, b, sync_round, found)
-    release = material_reads.all_read(sync_round)
+    r = _Run(link, b, sync_round, found, verdicts)
+    # Written a batch at a time, each in a transaction of its own: a large course comes in whole
+    # in one run without holding the write lock all the while.
+    while await _write(ctx, r):
+        await ctx.db.commit()
+    return r.result
 
+
+async def _write(ctx: Ctx, r: _Run) -> bool:
+    """Applies what the run found, under the write lock: up to `BATCH` new items, then (once every
+    one is in) what left the platform and the local copies. True when items are left for another
+    batch."""
+    link, b, found, result = r.link, r.b, r.found, r.result
     await hold(ctx, link)
-    await sync_round.save(ctx, link, material_reads.READABLE)
+    await r.sync_round.save(ctx, link, material_reads.READABLE)
     # Under the lock: the user may have turned the sync off (and removed what it left) while the
     # platform was read; bringing it all back now would undo that.
     cfg = await material_settings(ctx, link.course_id)
     if not cfg.sync:
-        return StageResult()
+        return False
     # Read again under the write lock: the user may have answered (deleted, moved) meanwhile.
-    mats = list(await ctx.db.scalars(read_materials().execution_options(populate_existing=True)))
-    known = {(r.kind, r.external_id): r for r in mats}
+    known = await _known(ctx, link, again=True)
     rows = {
-        r.id: r
-        for r in await sources.find_items(
-            ctx, [r.item_id for r in known.values() if r.state == "synced" and r.item_id]
+        x.id: x
+        for x in await sources.find_items(
+            ctx, [x.item_id for x in known.values() if x.state == "synced" and x.item_id]
         )
     }
     now = ctx.now
@@ -187,18 +223,21 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound, sync_round: SyncRound) ->
     # What came in before the course settled is not news.
     settled = link.materials_settled_at is not None
     places = SourceFolders(ctx, link.course_id, "lms", b.provider.display_name)
-    # Read once for the run, not for each new item.
+    # Read once for the batch, not for each new item.
     own = await sources.own_files(ctx, link.course_id)
     auto_index = await sources.reads_text(ctx, link.course_id)
 
-    result = StageResult()
-    added: list[FilesItem] = []
+    added = 0
     gone: list[FilesItem] = []
     handed: list[FilesItem] = []
     for key, m in found.materials.items():
+        if key in r.applied:
+            continue
         mat = known.get(key)
         row = rows.get(mat.item_id or "") if mat is not None and mat.state == "synced" else None
         if mat is not None and mat.state == "dismissed":
+            _seen(mat, m)  # what it links to is known without reading it every run
+            r.applied.add(key)
             continue
         if m.is_list:
             if mat is None:
@@ -208,26 +247,31 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound, sync_round: SyncRound) ->
             if mat.state != "list":
                 enter(mat, "list", now)
             _seen(mat, m)
+            r.applied.add(key)
             continue
         if mat is not None and row is not None:
             if await _follow(ctx, m, mat, row) and settled:
                 note(mat, "updated", now)
             _seen(mat, m)
             await places.follow_names(m.path)
+            r.applied.add(key)
             continue
         # New, back on the platform, restored, or a list page that has become a page.
-        if len(added) >= PER_RUN:
-            result.cap_reached = True
-            continue
+        if added == BATCH:
+            await sources.purge_items(ctx, gone)
+            await ctx.db.flush()
+            return True
+        added += 1
         news = settled and not (mat is not None and mat.quiet)
         folder_id = await places.folder_at(m.path)
         row = await _create(ctx, link, b, m, folder_id, unseen=news, auto_index=auto_index)
-        added.append(row)
+        rows[row.id] = row
         if mat is None:
             mat = _material(ctx, link, m)
         enter(mat, "synced", now, item_id=row.id)
         _seen(mat, m)
         mat.name, mat.placed_folder_id = row.display_name, folder_id
+        r.applied.add(key)
         # Most likely one of the user's own files: listed, so they can keep just one.
         if m.kind == "file" and any(
             sources.same_file((row.display_name, m.size, None), f) for f in own
@@ -241,10 +285,10 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound, sync_round: SyncRound) ->
     # Gone from the platform (table 3c): one saved in Semestra stays as the user's own file, one
     # read online goes. Either comes in again if the platform shows it again.
     for key, mat in known.items():
-        if verdicts.get(key) != "gone":
+        if r.verdicts.get(key) != "gone":
             continue
         if mat.state == "absent" and mat.quiet:
-            if mat.state_at is not None and mat.state_at > (sync_round.started or now):
+            if mat.state_at is not None and mat.state_at > (r.sync_round.started or now):
                 continue  # restored after this run read: left to the run after it
             # Restored, but the platform no longer has it: told, not left waiting.
             enter(mat, "absent", now)
@@ -262,18 +306,31 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound, sync_round: SyncRound) ->
                 note(mat, "gone", now)
     await sources.purge_items(ctx, gone)
     await sources.detach_from_source(ctx, handed)
-    left = {r.id for r in (*gone, *handed)}
+    left = {x.id for x in (*gone, *handed)}
 
-    followed = [r for r in (*rows.values(), *added) if r.id not in left]
+    followed = [row for row in rows.values() if row.id not in left]
     for row in followed:
         if _retry_due(row, now):
             await sources.retry_synced(ctx, row)
-    # Copies are let go only on a run that read every area whole (table 3c, note).
-    await sources.apply_copies(ctx, followed, cfg.store == "local", release=release)
-    if not settled and not result.cap_reached and not sync_round.out_of_budget:
+    # A copy is let go only when this round found the item on the platform (table 3c, note): a
+    # course closed there refuses its areas, and its copies may be the only ones left.
+    there = {
+        mat.item_id
+        for key, mat in known.items()
+        if mat.state == "synced"
+        and key not in found.locked
+        and (key in found.materials or r.verdicts.get(key) == "present")
+    }
+    copies = [row for row in followed if _copy_due(row, now)]
+    store = cfg.store == "local"
+    await sources.apply_copies(ctx, [row for row in copies if row.id in there], store)
+    await sources.apply_copies(
+        ctx, [row for row in copies if row.id not in there], store, release=False
+    )
+    if not settled and not r.sync_round.out_of_budget:
         link.materials_settled_at = now
     await ctx.db.flush()
-    return result
+    return False
 
 
 async def _enabled(ctx: Ctx, link: LmsCourseLink, b: Bound) -> bool:

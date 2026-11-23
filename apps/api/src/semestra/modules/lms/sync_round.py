@@ -8,7 +8,7 @@ a transaction (and a database session) of its own, and writes what it read with 
 holds the write lock.
 """
 
-from collections.abc import Awaitable, Callable, Iterable
+from collections.abc import Awaitable, Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
@@ -141,10 +141,6 @@ class SyncRound:
         """This round's results of these areas (one not read this round is not known)."""
         return [self.areas.get(a, "unavailable") for a in areas]
 
-    def all_whole(self, areas: Iterable[str]) -> bool:
-        results = [r for r in self.results(areas) if r != "unsupported"]
-        return bool(results) and all(r == "whole" for r in results)
-
     # --- single reads ---------------------------------------------------------------------
 
     async def _load(self, ctx: Ctx, link: LmsCourseLink) -> dict[Key, Check]:
@@ -209,12 +205,43 @@ class SyncRound:
                 return None
             self.budget -= 1
         try:
-            answer: ItemAnswer = Present(await read())
+            got: T | AppError = await read()
         except AppError as exc:
             if exc.code in STOPPING:
                 raise
+            got = exc
+        return self._record(ctx, b, kind, external_id, got)
+
+    async def read_many[T](
+        self,
+        ctx: Ctx,
+        b: Bound,
+        kind: str,
+        external_ids: Sequence[str],
+        read: Callable[[list[str]], Awaitable[Sequence[T | AppError]]],
+        *,
+        budgeted: bool = True,
+    ) -> dict[str, ItemAnswer]:
+        """Like `read`, for several items of one kind read side by side (`reads.files_many`,
+        `reads.pages_many`): those the budget allows, in the order given (`oldest_first`); the
+        answer of each one read."""
+        wanted = list(external_ids)
+        if budgeted:
+            if len(wanted) > self.budget:
+                self.out_of_budget = True
+                wanted = wanted[: max(self.budget, 0)]
+            self.budget -= len(wanted)
+        if not wanted:
+            return {}
+        got = await read(wanted)
+        return {e: self._record(ctx, b, kind, e, one) for e, one in zip(wanted, got, strict=True)}
+
+    def _record(self, ctx: Ctx, b: Bound, kind: str, external_id: str, got: object) -> ItemAnswer:
+        if isinstance(got, AppError):
             hidden = self.areas.get(AREA_OF.get(kind, "")) == "hidden"
-            answer = b.provider.item_answer(exc, area_hidden=hidden)
+            answer: ItemAnswer = b.provider.item_answer(got, area_hidden=hidden)
+        else:
+            answer = Present(got)
         reason = answer.reason if isinstance(answer, Unavailable) else None
         self._new[(kind, external_id)] = _Read(result_of(answer), reason, ctx.now)
         return answer

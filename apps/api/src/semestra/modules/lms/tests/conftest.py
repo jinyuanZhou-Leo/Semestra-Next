@@ -120,6 +120,8 @@ class FakeProvider:
         # The pages list (`pages`); None: just "Intro".
         self.page_list: list[PageSummary] | None = None
         self.files_hidden = False
+        # The course closed on the platform: every read of it is refused.
+        self.closed = False
         self.fail_downloads = False
         # Files deleted from the course: reading one is refused as not found.
         self.deleted_files: set[str] = set()
@@ -260,6 +262,8 @@ class FakeProvider:
         self.calls.append(("modules", course_id))
         if self.materials_down:
             raise lms_error("lms.unreachable")
+        if self.closed:
+            raise lms_error("lms.forbidden")
         if self.module_list is not None:
             return [m.model_copy(deep=True) for m in self.module_list]
         intro = ModuleItem(external_id="i1", title="Intro", kind="page",
@@ -282,6 +286,8 @@ class FakeProvider:
         self.calls.append(("pages", course_id))
         if self.materials_down:
             raise lms_error("lms.unreachable")
+        if self.closed:
+            raise lms_error("lms.forbidden")
         if self.pages_hidden:
             raise lms_error("lms.not_found")
         if self.page_list is not None:
@@ -292,6 +298,8 @@ class FakeProvider:
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, page_ref: str
     ) -> PageDetail:
         self.calls.append(("page", page_ref))
+        if self.closed:
+            raise lms_error("lms.forbidden")
         if page_ref in self.page_texts:
             title, body = self.page_texts[page_ref]
             listed = next((p for p in self.page_list or [] if p.ref == page_ref), None)
@@ -319,6 +327,8 @@ class FakeProvider:
         self.calls.append(("file", file_id))
         if self.materials_down:
             raise lms_error("lms.unreachable")
+        if self.closed:
+            raise lms_error("lms.forbidden")
         if file_id in self.deleted_files:
             raise lms_error("lms.not_found")
         if file_id in self.refused_files:
@@ -411,6 +421,8 @@ class FakeProvider:
         self.calls.append(("course_files", course_id))
         if self.materials_down:
             raise lms_error("lms.unreachable")
+        if self.closed:
+            raise lms_error("lms.forbidden")
         if self.files_hidden:
             raise lms_error("lms.forbidden")
         return [f.model_copy() for f in self.course_file_list]
