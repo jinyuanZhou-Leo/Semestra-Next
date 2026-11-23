@@ -3,6 +3,12 @@
 Generated from `release-notes/*.json` by `scripts/release.mjs`; do not edit by hand.
 The same notes in Chinese are in the JSON files and on the docs site.
 
+## 2.7.1 (2026-11-23)
+
+### Fixed
+
+- **Canvas:** Syncing a course where you ignored an assignment no longer fails to update its assignments and grades.
+
 ## 2.7.0 (2026-11-23)
 
 ### New
