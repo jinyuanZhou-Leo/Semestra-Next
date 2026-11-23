@@ -3,10 +3,12 @@
 One job per course, `lms.course.sync`, runs the registered stages in order (course details,
 assignments, announcements; the file sync adds its own). Each stage reads the platform first and
 then writes in a transaction of its own, so a failing stage keeps its error code in
-`LmsCourseLink.sync_errors` and the next one still runs; only a failing first stage (the course
-itself cannot be read: the connection is broken) ends the run. When all have run the link's
-`synced_at` moves on and `lms.course.synced` says what the run did, for notifications (M18) and
-the app's status line.
+`LmsCourseLink.sync_errors` and the next one still runs. A part failing stops only that part (M09
+table 5b): each item a stage writes is written on its own (`one_item`), values its items share
+are worked out once and fail only the items that use them (`Shared`). Only the course itself not
+read, or an answer about the account or the connection (`STOPPING`), ends the run. When all have
+run the link's `synced_at` moves on and `lms.course.synced` says what the run did, for
+notifications (M18) and the app's status line.
 
 Jobs are queued by the scheduler (`lms.sync_due`, every few minutes: courses whose last sync is
 older than the account's interval, `lms.sync_every`), when the app opens a Program whose courses
@@ -18,7 +20,8 @@ courses of a running, upcoming or recent term are synced, and only for accounts 
 last weeks; a returning user's courses sync when the app opens.
 """
 
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
@@ -34,6 +37,7 @@ from semestra.core.jobs import CoreJob, JobCtx, enqueue, job_handler, periodic
 from semestra.modules.academics import service as academics
 from semestra.modules.auth import service as auth
 from semestra.modules.lms import rules, service
+from semestra.modules.lms.answers import STOPPING
 from semestra.modules.lms.models import LmsConnection, LmsCourseLink
 from semestra.modules.lms.service import Bound
 from semestra.modules.lms.settings import account, floor, interval
@@ -93,6 +97,16 @@ class Notice:
 
 
 @dataclass
+class Skipped:
+    """An item the stage could not write this round (M09 table 5b, rows 6-7): left as it was,
+    tried again next round."""
+
+    kind: str
+    external_id: str
+    code: str
+
+
+@dataclass
 class StageResult:
     applied: list[Applied] = field(default_factory=lambda: [])
     # Items waiting for the user: new ones, conflicts, items gone from the platform.
@@ -101,6 +115,75 @@ class StageResult:
     # A read that adds to the stage's area failed (the course's submissions, its total): the
     # stage wrote what it read and kept the rest; recorded as the stage's error.
     error: str | None = None
+    skipped: list[Skipped] = field(default_factory=lambda: [])
+
+
+@dataclass
+class Item:
+    """One item being written (`one_item`): `ok` once its writes are in."""
+
+    ok: bool = False
+
+
+@asynccontextmanager
+async def one_item(
+    ctx: Ctx, link: LmsCourseLink, result: StageResult, kind: str, external_id: str
+) -> AsyncGenerator[Item]:
+    """Writes one item of a stage on its own (M09 table 5b, row 7): in a savepoint that, when the
+    block raises, takes back its writes and the events it queued (`events.savepoint`), notes it
+    in `result.skipped` and goes on with the next item. An answer about the account or the
+    connection (`STOPPING`) still ends the stage. What the block learns for the stage (its notices,
+    counts) it adds once `item.ok`. Called after `hold`, which begins the transaction."""
+    item = Item()
+    try:
+        async with events.savepoint(ctx):
+            yield item
+    except AppError as exc:
+        if exc.code in STOPPING:
+            raise
+        code = exc.code
+    except Exception:
+        code = "common.internal"
+    else:
+        item.ok = True
+        return
+    log.error(
+        "lms.sync_item_failed",
+        exc_info=True,
+        course_id=link.course_id,
+        kind=kind,
+        external_id=external_id,
+        code=code,
+        request_id=ctx.request_id,
+    )
+    result.skipped.append(Skipped(kind, external_id, code))
+    # What the block changed of the link went back with it: read again as committed.
+    await ctx.db.refresh(link)
+
+
+class Shared[T]:
+    """A value the items of a stage share, worked out without reading the platform (the
+    Program's time zone, the assignment group weights, a setting): on first use, inside the item
+    that needs it, once a round. When working it out fails, each item that uses it fails with
+    the same error (M09 table 5b, row 6); the items that don't go on."""
+
+    def __init__(self, make: Callable[[], Awaitable[T]]) -> None:
+        self._make = make
+        self._value: T | None = None
+        self._done = False
+        self._error: BaseException | None = None
+
+    async def get(self) -> T:
+        if self._error is not None:
+            raise self._error
+        if not self._done:
+            try:
+                self._value = await self._make()
+            except Exception as exc:
+                self._error = exc
+                raise
+            self._done = True
+        return self._value  # type: ignore[return-value]
 
 
 StageRun = Callable[[Ctx, LmsCourseLink, Bound, SyncRound], Awaitable[StageResult]]
@@ -216,6 +299,8 @@ async def sync_course(
     # Stages that raised: their area was not read this round.
     failed: set[str] = set()
     ran: set[str] = set()
+    # What ended the round before its last stage (M09 table 5b, rows 1-2).
+    ended: str | None = None
     for n, stage in enumerate(todo):
         if progress is not None:
             await progress(n, len(todo))
@@ -231,8 +316,9 @@ async def sync_course(
             ran.add(stage.name)
             result = await stage.run(sys, link, b, this_round)
             results.append(result)
-            if result.error is not None:
-                errors[stage.name] = result.error
+            code = result.error or (result.skipped[0].code if result.skipped else None)
+            if code is not None:
+                errors[stage.name] = code
 
         try:
             await run_as_system(state, user_id, run)
@@ -241,12 +327,17 @@ async def sync_course(
         except AppError as exc:
             errors[stage.name] = exc.code
             failed.add(stage.name)
+            if stage.name == "course" or exc.code in STOPPING:
+                # The course itself could not be read (M09 table 5b, row 1), or the account or the
+                # connection answered (row 2): the stages left would only be refused.
+                ended = exc.code
         except Exception:
             log.exception("lms.sync_stage_failed", stage=stage.name, course_id=course_id)
             errors[stage.name] = "common.internal"
             failed.add(stage.name)
-        if n == 0 and stage.name in failed:
-            # The course itself could not be read (M09 table 2, row 2): nothing is judged.
+            if stage.name == "course":
+                ended = "common.internal"
+        if ended is not None:
             break
     outcome = SyncOutcome(
         course_id=course_id,
@@ -263,8 +354,7 @@ async def sync_course(
             link.synced_at = sys.now
         link.sync_errors = errors if only is None else {**link.sync_errors, **errors}
         # An area whose stage failed, or that the round never reached (the course could not be
-        # read), was not read this round.
-        ended = errors.get(todo[0].name) if todo else None
+        # read, the account or the connection answered), was not read this round.
         for stage in todo:
             if stage.area and (stage.name in failed or stage.name not in ran):
                 record_area(sys, link, stage.area, "unavailable", errors.get(stage.name, ended))

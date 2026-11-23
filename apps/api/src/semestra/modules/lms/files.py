@@ -15,7 +15,7 @@ from semestra.modules.files.parse.detect import DOCX, PPTX, XLSX
 from semestra.modules.files.parse.isolated import Parsed, parse_isolated
 from semestra.modules.lms import cache, reads, refs, service
 from semestra.modules.lms.errors import lms_error
-from semestra.modules.lms.materials import enter, file_version
+from semestra.modules.lms.materials import Impossible, enter, file_version
 from semestra.modules.lms.models import LmsCourseLink, LmsMaterial
 from semestra.modules.lms.schemas.dto import FileMeta
 from semestra.modules.lms.schemas.io import FilePreview, FileSaveInput, SavedFile
@@ -34,9 +34,11 @@ async def save_to_course(ctx: Ctx, inp: FileSaveInput) -> SavedFile:
             LmsMaterial.external_id == inp.file_id,
         )
     )
-    synced = mat is not None and mat.state == "synced" and mat.item_id
-    found = await sources.find_items(ctx, [mat.item_id]) if synced and mat and mat.item_id else []
-    if found:
+    if mat is not None and mat.state == "synced":
+        found = await sources.find_items(ctx, [mat.item_id or ""])
+        if not found:
+            raise Impossible(f"lms material {mat.id}: synced, its item not found")
+        enter(mat, "saved", ctx.now)  # kept: the item it follows keeps a copy now
         await sources.keep_copy(ctx, found[0])
         return SavedFile(
             file_item_id=found[0].id,
@@ -61,7 +63,7 @@ async def save_to_course(ctx: Ctx, inp: FileSaveInput) -> SavedFile:
         )
         ctx.db.add(mat)
     # The sync follows it from now on, and does not bring the file in again.
-    enter(mat, "synced", ctx.now, item_id=item.id)
+    enter(mat, "saved", ctx.now, item_id=item.id)
     mat.title, mat.name = meta.name, item.display_name
     await ctx.db.flush()
     return SavedFile(file_item_id=str(item.id), name=str(item.display_name))

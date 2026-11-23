@@ -49,6 +49,7 @@ from semestra.modules.lms.providers import (
 from semestra.modules.lms.schemas.dto import (
     INTERNAL,
     ConnectionSummary,
+    LmsCourse,
     LmsFeature,
 )
 from semestra.modules.lms.schemas.io import (
@@ -582,7 +583,15 @@ async def call[T](ctx: Ctx, b: Bound, fn: Callable[[Io], Awaitable[T]]) -> tuple
 
     async def run() -> tuple[T, bool]:
         async with io(ctx) as i:
-            result = await fn(i)
+            try:
+                result = await fn(i)
+            except AppError:
+                raise
+            except Exception:
+                # An answer the provider could not make sense of (M09 table 2, row 19): about this
+                # read, like one the platform did not give. Logged: the provider is to fix.
+                log.error("lms.provider_payload", exc_info=True, provider=b.row.provider)
+                raise lms_error("lms.unreachable", reason="payload") from None
             return result, i.truncated
 
     return await attempt(ctx, b, run)
@@ -996,12 +1005,18 @@ async def update_link(ctx: Ctx, course_id: str, sync_enabled: bool | None) -> Co
     return await link_state(ctx, course_id)
 
 
-async def refresh_link(ctx: Ctx, link: LmsCourseLink, b: Bound) -> None:
-    """The course stage of the sync: the external course's code, name, term and address (the
-    course itself is untouched). Reading it also tells whether the connection works."""
+async def read_course(ctx: Ctx, link: LmsCourseLink, b: Bound) -> LmsCourse:
+    """The course stage of the sync, its read: the external course. Reading it also tells
+    whether the connection works."""
     external, _ = await call(
         ctx, b, lambda i: b.provider.get_course(i, b.cfg, b.creds, link.external_course_id)
     )
+    return external
+
+
+async def refresh_link(ctx: Ctx, link: LmsCourseLink, b: Bound, external: LmsCourse) -> None:
+    """The course stage of the sync, its write: the external course's code, name, term and
+    address (the course itself is untouched), and the connection known to work."""
     _apply_meta(link, external.model_dump(mode="json"))
     link.updated_at = ctx.now
     # Only what shows the course's own details; its content is not affected.

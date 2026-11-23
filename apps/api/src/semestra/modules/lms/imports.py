@@ -628,7 +628,12 @@ async def on_commit(ctx: Ctx, row: ImportsSession, created: dict[str, str]) -> N
         ref = await _item_ref(ctx, link.id, info["external_id"])
         # New or ignored before ("import"), or added to the gradebook ("move": the assessment
         # took the to-do over, M05, and is now the one Semestra object of this assignment).
-        imported = assignment_refs.state_of(ref) == "imported"
+        state = assignment_refs.state_of(ref)
+        if state == "removed":
+            # Deleted on the platform, waiting for the user's answer in the status panel (keep
+            # or delete): table 4b refuses importing it again, and this commit rolls back.
+            raise lms_error("lms.assignment_removed", title=item.data.get("title", ""))
+        imported = state == "imported"
         moved = (
             imported and ref is not None and ref.target_kind == "task" and item.type == "assessment"
         )

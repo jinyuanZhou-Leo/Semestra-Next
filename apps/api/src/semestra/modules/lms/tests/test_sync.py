@@ -385,7 +385,8 @@ async def test_a_course_that_cannot_be_read_keeps_its_error(
     assert [(e["stage"], e["code"]) for e in status["errors"]] == [("course", "lms.invalid_config")]
     assert status["connection_error"] == "lms.invalid_config"
 
-    # A broken stage does not stop the others, and a sync that works clears the errors.
+    # An answer not understood is about that one read (M09 table 5b, row 3): the area is not
+    # read this round, the other stages run; a sync that works clears the errors.
     async def broken(*_: Any) -> Any:
         raise RuntimeError("provider bug")
 
@@ -393,9 +394,7 @@ async def test_a_course_that_cannot_be_read_keeps_its_error(
         mp.setattr(type(fake), "assignments", broken)
         fake.calls.clear()
         status = await api.sync(program_id)
-    assert [(e["stage"], e["code"]) for e in status["errors"]] == [
-        ("assignments", "common.internal")
-    ]
+    assert status["errors"] == []
     assert any(kind == "announcements" for kind, _ in fake.calls)
     assert status["connection_error"] is None
     status = await api.sync(program_id, course)

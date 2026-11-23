@@ -39,11 +39,7 @@ KEEP = "keep"
 NEXT: dict[tuple[RefState | None, RefEvent], RefState | Literal["keep"] | None] = {
     (None, "import"): "imported",
     (None, "ignore"): "ignored",
-    (None, "gone"): KEEP,
-    (None, "back"): KEEP,
-    (None, "unlink"): KEEP,
     ("ignored", "import"): "imported",
-    ("ignored", "ignore"): KEEP,
     ("ignored", "remind"): None,
     ("ignored", "gone"): None,
     ("ignored", "back"): KEEP,

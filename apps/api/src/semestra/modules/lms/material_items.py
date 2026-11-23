@@ -176,7 +176,7 @@ async def on_unlinking(ctx: Ctx, event: Event) -> None:
     # Moved on before the items go, so `on_item_deleting` does not take them as the user's
     # deletes; the rows go with the link right after.
     for mat in mats:
-        enter(mat, "absent", ctx.now)
+        enter(mat, "unlinked", ctx.now)
     await sources.purge_items(ctx, [r for r in rows if not has_copy(r)])
     await sources.detach_from_source(ctx, [r for r in rows if has_copy(r)])
 
@@ -204,7 +204,7 @@ async def on_item_deleting(ctx: Ctx, event: Event) -> None:
     if found is None:
         return
     mat, link = found
-    enter(mat, "dismissed", ctx.now)
+    enter(mat, "deleted", ctx.now)
     await events.publish(ctx, UPDATED, {"program_id": link.program_id})
 
 
@@ -225,7 +225,7 @@ async def restore(ctx: Ctx, material_id: str) -> str:
     await ctx.db.refresh(mat)
     if mat.state != "dismissed" or not await _restorable(ctx, link):
         raise lms_error("lms.sync_nothing_to_resolve")
-    enter(mat, "absent", ctx.now, quiet=True)
+    enter(mat, "restored", ctx.now)
     await sync_queue(ctx, [link], manual=True)
     return link.program_id
 
@@ -251,7 +251,7 @@ async def restore_all(ctx: Ctx, program_id: str) -> None:
         )
         .execution_options(populate_existing=True)
     ):
-        enter(mat, "absent", ctx.now, quiet=True)
+        enter(mat, "restored", ctx.now)
         restored[mat.link_id] = by_id[mat.link_id]
     if restored:
         await sync_queue(ctx, list(restored.values()), manual=True)
@@ -308,7 +308,7 @@ def removable(mat: LmsMaterial, row: FilesItem | None) -> bool:
 async def _remove(ctx: Ctx, mat: LmsMaterial, row: FilesItem) -> None:
     """Table 4a, "remove in Not syncing for now": dismissed first, so `on_item_deleting` finds
     nothing left to dismiss; then the course file goes."""
-    enter(mat, "dismissed", ctx.now)
+    enter(mat, "removed", ctx.now)
     await sources.purge_items(ctx, [row])
 
 
@@ -416,7 +416,7 @@ async def remove_held(ctx: Ctx, course_id: str | None) -> HeldMaterials:
             continue
         # Before the items go, so `on_item_deleting` does not take them as the user's deletes.
         for mat in mats:
-            enter(mat, "absent", ctx.now)
+            enter(mat, "released", ctx.now)
         await sources.purge_items(ctx, rows)
         await events.publish(ctx, UPDATED, {"program_id": link.program_id})
     return await held(ctx, course_id)
