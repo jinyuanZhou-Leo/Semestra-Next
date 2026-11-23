@@ -1,9 +1,9 @@
 """What one course sync read (M09 §4.1, §4.2 table 3c): each area's list result, and the items
 read on its own, within this round's budget (`rules.CHECKS_PER_RUN`).
 
-Every stage of a course's sync reads the platform through the round (`area`, `read`) and asks
-`rules.presence` whether an item it did not find is gone, so the materials, the assignments and
-the announcements are judged by the same rule. The round keeps only plain values: each stage has
+Every stage of a course's sync reads the platform through the round (`area`, `read`), and the
+materials, the assignments and the announcements it did not find are judged by `judge`: the one
+flow around `rules.presence` (M09 table 3c). The round keeps only plain values: each stage has
 a transaction (and a database session) of its own, and writes what it read with `save` once it
 holds the write lock.
 """
@@ -32,7 +32,7 @@ from semestra.modules.lms.answers import (
     result_of,
 )
 from semestra.modules.lms.models import LmsCourseLink, LmsItemCheck
-from semestra.modules.lms.rules import CHECKS_PER_RUN, Check, area_entry
+from semestra.modules.lms.rules import CHECKS_PER_RUN, Check, Presence, area_entry, presence
 from semestra.modules.lms.service import Bound
 
 Key = tuple[str, str]
@@ -52,6 +52,49 @@ class _Read:
     result: str
     reason: str | None
     at: datetime
+
+
+@dataclass(frozen=True)
+class Asked:
+    """An item `judge` is asked about: whether it was in one of this round's area lists, whether
+    it can be read on its own, and whether it is older than the window its list reads."""
+
+    kind: str
+    external_id: str
+    listed: bool = False
+    readable: bool = True
+    before_lookback: bool = False
+
+
+@dataclass
+class Judged:
+    """What `judge` made of each item (by `(kind, external id)`), and the answers of the items it
+    read on their own this time."""
+
+    verdicts: dict[Key, Presence]
+    answers: dict[Key, ItemAnswer]
+
+
+# Several items of one kind read on their own: each one's data or the error it got.
+ReadItems = Callable[[str, list[str]], Awaitable[Sequence[Any]]]
+
+
+def one_by_one(read: Callable[[str, str], Awaitable[Any]]) -> ReadItems:
+    """Reads items one at a time with `read(kind, external_id)`, for kinds without a batch read.
+    An item's error is its answer; one about the connection or the platform stops the stage."""
+
+    async def items(kind: str, external_ids: list[str]) -> list[Any]:
+        out: list[Any] = []
+        for external_id in external_ids:
+            try:
+                out.append(await read(kind, external_id))
+            except AppError as exc:
+                if exc.code in STOPPING:
+                    raise
+                out.append(exc)
+        return out
+
+    return items
 
 
 @dataclass
@@ -244,6 +287,57 @@ class SyncRound:
         reason = answer.reason if isinstance(answer, Unavailable) else None
         self._new[(kind, external_id)] = _Read(result_of(answer), reason, ctx.now)
         return answer
+
+    async def judge(
+        self,
+        ctx: Ctx,
+        link: LmsCourseLink,
+        b: Bound,
+        items: Iterable[Asked],
+        *,
+        areas: Iterable[str],
+        read: ReadItems,
+    ) -> Judged:
+        """Whether each item is still on the platform (M09 table 3c), the same steps for every
+        kind: judge each one by `rules.presence`; of those that need a read of their own (row 10)
+        and can have one, take the oldest first up to the round's budget (spent before reading);
+        read them, a kind at a time, with `read`; judge those again on what they answered. One
+        not read this round is not judged (`unknown`). `areas`: the areas these items may be
+        listed in."""
+        results = self.results(areas)
+        verdicts: dict[Key, Presence] = {}
+        wanted: list[Key] = []
+        for item in items:
+            key = (item.kind, item.external_id)
+            verdict = presence(
+                listed=item.listed,
+                areas=results,
+                now=ctx.now,
+                read=self.read_this_round(*key),
+                last=await self.last(ctx, link, *key),
+                before_lookback=item.before_lookback,
+            )
+            if verdict == "check":
+                if item.readable:
+                    wanted.append(key)
+                verdict = "unknown"
+            verdicts[key] = verdict
+        ordered = await self.oldest_first(ctx, link, wanted)
+        if len(ordered) > self.budget:
+            self.out_of_budget = True
+            ordered = ordered[: max(self.budget, 0)]
+        self.budget -= len(ordered)
+        answers: dict[Key, ItemAnswer] = {}
+        for kind in dict.fromkeys(k for k, _ in ordered):
+            ids = [e for k, e in ordered if k == kind]
+            got = await self.read_many(
+                ctx, b, kind, ids, lambda wanted, kind=kind: read(kind, wanted), budgeted=False
+            )
+            for external_id, answer in got.items():
+                key = (kind, external_id)
+                answers[key] = answer
+                verdicts[key] = presence(listed=False, areas=results, now=ctx.now, read=answer)
+        return Judged(verdicts, answers)
 
     # --- writing --------------------------------------------------------------------------
 

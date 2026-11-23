@@ -39,7 +39,6 @@ from semestra.modules.lms.models import (
     LmsImportedRef,
     LmsMaterial,
 )
-from semestra.modules.lms.rules import presence
 from semestra.modules.lms.schemas.dto import Announcement, FileMeta
 from semestra.modules.lms.schemas.io import (
     AnnouncementAttachment,
@@ -61,7 +60,7 @@ from semestra.modules.lms.sync import (
     hold,
     register_sync_stage,
 )
-from semestra.modules.lms.sync_round import SyncRound
+from semestra.modules.lms.sync_round import Asked, SyncRound, one_by_one
 
 log = structlog.get_logger()
 
@@ -174,36 +173,23 @@ async def _gone(
     ctx: Ctx, link: LmsCourseLink, b: Bound, sync_round: SyncRound, unlisted: dict[str, bool]
 ) -> set[str]:
     """Of the stored announcements not listed this round (each with whether it was posted
-    before the window read), the ones gone from the platform (M09 table 3c). A closed list is
-    asked about one announcement at a time, within the round's budget."""
-    areas = sync_round.results([AREA])
+    before the window read), the ones gone from the platform (M09 table 3c, `SyncRound.judge`).
+    One is read on its own when the provider reads discussions."""
     ext = link.external_course_id
-    out: set[str] = set()
-    pending: list[str] = []
-    for external_id, before in unlisted.items():
-        last = await sync_round.last(ctx, link, KIND, external_id)
-        verdict = presence(
-            listed=False, areas=areas, now=ctx.now, last=last, before_lookback=before
+    readable = "discussions" in b.provider.features
+
+    async def one(kind: str, topic: str) -> object:
+        del kind
+        got, _ = await service.call(
+            ctx, b, lambda i: b.provider.discussion(i, b.cfg, b.creds, ext, topic)
         )
-        if verdict == "gone":
-            out.add(external_id)
-        elif verdict == "check" and "discussions" in b.provider.features:
-            pending.append(external_id)
-    for _, external_id in await sync_round.oldest_first(ctx, link, [(KIND, e) for e in pending]):
+        return got
 
-        async def one(topic: str = external_id) -> object:
-            got, _ = await service.call(
-                ctx, b, lambda i: b.provider.discussion(i, b.cfg, b.creds, ext, topic)
-            )
-            return got
-
-        answer = await sync_round.read(ctx, b, KIND, external_id, one)
-        if (
-            answer is not None
-            and presence(listed=False, areas=areas, now=ctx.now, read=answer) == "gone"
-        ):
-            out.add(external_id)
-    return out
+    asked = [
+        Asked(KIND, e, readable=readable, before_lookback=before) for e, before in unlisted.items()
+    ]
+    judged = await sync_round.judge(ctx, link, b, asked, areas=[AREA], read=one_by_one(one))
+    return {e for (_, e), verdict in judged.verdicts.items() if verdict == "gone"}
 
 
 async def _updated(ctx: Ctx, link: LmsCourseLink) -> None:

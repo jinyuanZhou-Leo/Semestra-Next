@@ -8,6 +8,7 @@ import json
 import sqlite3
 import zipfile
 from datetime import UTC, datetime
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -25,7 +26,7 @@ from semestra.modules.agent import view
 from semestra.modules.files import content, pipeline, sources
 from semestra.modules.files.models import FilesDocument, FilesDocumentPage, FilesItem
 from semestra.modules.files.tests.conftest import FakeAi, make_pdf
-from semestra.modules.lms import older_backups, sync_files
+from semestra.modules.lms import older_backups, sync, sync_files
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.models import LmsMaterial
 from semestra.modules.lms.schemas.dto import (
@@ -35,6 +36,7 @@ from semestra.modules.lms.schemas.dto import (
     ModuleItem,
     PageSummary,
 )
+from semestra.modules.lms.sync_round import SyncRound
 from semestra.modules.lms.tests.conftest import Api, FakeProvider
 from semestra.modules.lms.tests.test_lms import setup_program
 from semestra.testing import API_DIR, Clock
@@ -2086,6 +2088,30 @@ async def test_what_a_closed_area_hides_is_listed_until_it_opens(
     clock.advance(minutes=1)
     status = await api.sync(program_id)
     assert status["unreadable"] == []
+
+
+async def test_one_budget_for_files_and_pages(
+    api: Api, fake: FakeProvider, clock: Clock, monkeypatch: pytest.MonkeyPatch
+):
+    """Files and pages both closed, more of them than a round may read: they share the round's
+    budget oldest first (M09 table 3c, the one judging flow), so the page gets its turn once
+    every file has been read, rather than files taking the budget every round."""
+    _materials(fake)
+    program_id, course = await _course(api)
+    await _materials_setting(api, course, store="local")
+    await api.sync(program_id)
+    await api.run_jobs()
+    # Four a round: the two the modules point at, and two of the hidden ones.
+    monkeypatch.setattr(sync, "SyncRound", partial(SyncRound, budget=4))
+    fake.files_hidden = True
+    fake.pages_hidden = True
+    rounds: list[list[tuple[str, str]]] = []
+    for _ in range(3):
+        fake.calls.clear()
+        clock.advance(days=2)
+        await api.sync(program_id)
+        rounds.append([c for c in fake.calls if c[0] in ("file", "page")])
+    assert rounds[2][2:] == [("page", "sets"), ("file", "201")]
 
 
 async def test_what_a_closed_area_hides_read_online_is_removed(
