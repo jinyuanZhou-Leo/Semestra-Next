@@ -280,7 +280,7 @@ Canvas 的映射（`providers/canvas/`）。同一个 HTTP 回应只对应一种
 
 **3c 已离开 `presence`**（`rules.presence`，资料、作业、公告共用，是判断“平台上已经没有了”的唯一地方；PR 3）
 
-输入：这一项、它这一轮的单项回应（如果读了）、它最近一次单独读取的结果与时间、它可能出现的区域（provider 支持的那些：资料是文件区、单元、页面与 syllabus；作业是作业列表；公告是公告列表）各自这一轮的结果。按顺序取第一行符合的：
+输入：这一项、它这一轮的单项回应（如果读了）、它最近一次单独读取的结果与时间、它可能出现的区域（provider 支持的那些：资料是文件区、单元、页面与 syllabus；作业是作业列表；公告是公告列表；日历事件是时间窗内的日历列表）各自这一轮的结果。按顺序取第一行符合的：
 
 | # | 条件 | 结果 |
 |---|---|---|
@@ -418,6 +418,16 @@ Canvas 的映射（`providers/canvas/`）。同一个 HTTP 回应只对应一种
 - **附件与链接**：附件已在课程文件里的打开文件预览，否则经文件内容代理在新标签页打开；provider 给的下载地址只在服务器上用。正文里的平台内链输出 `targets`（课程文件、已导入的作业），在读取时计算。课程文件里的图片经文件内容代理加载。
 - **显示方式**：账户设置 `lms.display`（`simplified`/`original`），页面上的菜单只改当前页面。
 
+### 4.8 日历事件（PR 5）
+- **保存**：`calendar` 阶段（50，provider 有 `calendar` 功能时）读这门课在**时间窗**内的平台日历事件（`type=event`，不含作业），写进 `lms_calendar_events`，平台上改了的跟着改。时间窗从课程所属学期中最早的开始日到最晚的结束日后 30 天（Program 时区的整天，`rules.calendar_window`）；时间窗按开始时间判断：开始时间在窗内的事件属于这门课的镜像。
+- **已离开**（表 3c，只有一个区域，没有单独读取）：窗内的日历列表读全了（`whole`）而事件不在里面 → 删除；列表被截断或读不到 → 不判断，保留。开始时间已不在时间窗内的行（学期日期改了）一并删除。
+- **变化**：这一轮有新增、修改或删除时发 `calendar.changed {program_id}`。
+- **读取**：日历源 `lms.events` 只读这张表，不请求平台，平台连不上时照常显示上次读到的。只取 `sync_enabled=true` 的已关联课程；按“与查询区间重叠”筛选（`start_at < 区间结束` 且 `end_at`（没有时用 `start_at`）在区间开始之后），跨周、跨天的事件在两边的视图里都出现。全天事件按平台给的日期放在 Program 时区的整天。
+- **没同步过**：镜像是空的，日历里没有这门课的事件，同步后出现。
+- **`sync_enabled=false`**：不出现在日历里；已存的行保留，重新打开同步后照常显示并继续跟随。
+- **提醒**：平台日历事件不发提醒（owner 2026-11-22）；提醒只来自课表与待办（M18）。
+- **导出**：`lms_calendar_events` 随 LMS 适配器导出与恢复；2.0 起的旧备份里没有这张表，恢复后为空，下一轮同步补上。
+
 ## 5. Capabilities
 | name | effect | http | 说明 |
 |---|---|---|---|
@@ -553,7 +563,7 @@ Agent 与 MCP 只看到 11 个按任务设计的工具，而不是每个平台�
 - Canvas：用 respx mock Canvas API，覆盖分页 `Link` 头、401、429、重定向到私网地址被拒、base_url 规范化用例（与旧版前端规则一致）。
 - 绑定规则：有关联时不能更换绑定；关联必须使用 Program 的绑定连接；关联唯一性。
 - 导入：同一作业只对应一个对象（考核或待办）；一律等审核；加入成绩簿保留待办；导入课程同时创建关联且在同一事务中；更新检测。
-- 日历：`sync_enabled=false` 的课程不出现；只显示平台日历事件；多课程合并为一次请求。
+- 日历：`sync_enabled=false` 的课程不出现；只显示平台日历事件；读同步保存的事件，不请求平台（§4.8）。
 - HTML 清洗：去掉 script/style/事件属性；内部链接改写。
 - 凭证：任何响应和日志中都不出现明文。
 
@@ -608,7 +618,7 @@ Agent 与 MCP 只看到 11 个按任务设计的工具，而不是每个平台�
   - **成绩进更新审核**：导入快照新增 `score`（平台上的 `points_earned/points_possible`）；`check_updates` 对考核比较平台成绩与快照，平台有成绩且成绩册里还没有相同成绩时给出 `score` 变更（旧值是成绩册当前值：有分数时是分数，只有百分比时是 `{score_percentage}`）；成绩册已经有相同成绩时直接把快照推进到这个平台成绩，之后在成绩册里手动改分不会让同一个平台成绩再次出现。导入时已出的成绩随考核一起带入（审核项 `points_earned`/`points_possible`，2026-11-07 起），快照记下这个成绩，不再作为更新提示；导入为待办的项快照 `score` 记为空，审核里改成考核后仍会提示成绩。应用时 M08 把 `score` 展开为 `points_earned`/`points_possible`。不做静默自动同步。
 - **模块评审修复（2026-10-23，评审文档 `2026-10-22-模块评审-LMS.md` 的 17 条）**：
   - 缓存（迁移 0021）：`lms_cache` 加 `scope` 列和 `(connection_id, scope)` 索引（升级时清空旧缓存）；`cache.put` 先写内存，库表在 `ctx.after_commit` 里用 `system_ctx` 单独写入（一个请求的所有条目合并成一次事务），失败只记日志。文件下载 / 预览的接口（`file_content`）提交而不是回滚，好让缓存落库。内存 LRU 改用 `cachetools.LRUCache`，按 JSON 大小计，单条超过上限只放第二层。
-  - 新 capability `lms.course.refresh`（`POST /courses/{id}/lms:refresh`，只开放 HTTP）：清掉这门课范围内的缓存和日历缓存，之后的读取照常走缓存。Canvas Tab 的"刷新"只调用它一次（见 M16）。（2026-11-18 起也排一次这门课的同步，保存的公告随之更新。）
+  - 新 capability `lms.course.refresh`（`POST /courses/{id}/lms:refresh`，只开放 HTTP）：清掉这门课范围内的缓存（2026-11-23 起日历不再缓存，§4.8），之后的读取照常走缓存。Canvas Tab 的"刷新"只调用它一次（见 M16）。（2026-11-18 起也排一次这门课的同步，保存的公告随之更新。）
   - `sync_link` 只清 `overview` 和 `course` 两个键，不再清整个连接的缓存。
   - 文件预览缓存 7 天（键里已有文件 `updated_at`，文件变了键也变，所以不挂课程范围，"刷新"不清它）；下载用缓存里的文件元数据（Canvas 下载地址带不过期的 verifier）；`file`、`save_to_course`、`preview` 各只取一次文件元数据，Provider 的 `open_file` 直接收 `FileMeta`。
   - Provider 协议：`announcements(course_ids, since)` 一次取多门课（Canvas 每次最多 10 个 `context_codes[]`），每条带 `external_course_id`；`grades` 改为 `grade_totals`，只返回总成绩（名称 "Course total"），作业行由 `lms.grade.list` 复用作业列表；`modules` 带 `include[]=items&include[]=content_details`，单元里直接有 `items`（太多时 Canvas 不带，前端再按单元取）；分页用 httpx 的 `response.links`。
@@ -695,7 +705,7 @@ lms_cache  key, user_id, connection_id, scope, payload, expires_at
 ### 4. 同步语义
 - 公告由后台同步保存（§4.3）；其余浏览类数据（单元、页面等）实时读取，有缓存。
 - 作业由后台同步（§4.1）跟随平台；课程本身（名称、学分等）不跟随，同步只刷新关联的外部元数据（代码、名称、学期、web_url）。
-- 日历叠加：`lms.events` 日历源实时读取 `sync_enabled=true` 的已关联课程（每个连接合并为一次 `calendar_events` 调用）。只有平台的日历事件，作业不在这里出现，所以不需要与考核或待办去重。
+- 日历叠加：`lms.events` 日历源读同步保存的事件（§4.8，PR 5；之前实时读取，每个连接合并为一次 `calendar_events` 调用）。只有平台的日历事件，作业不在这里出现，所以不需要与考核或待办去重。
 - 提交后完成待办（`lms/submissions.py`，账户设置 `lms.complete_submitted`，默认开）：每次读取课程作业（Canvas Tab、导入、后台同步）后，在单独的事务里把平台上第一次显示已提交（`submission.submitted_at`）的导入作业记入 `lms_imported_refs.submitted_at`，并完成对应待办：导入成待办的就是该待办，导入成考核的就是考核的待办（M05 `service.complete_open`）。每个作业只做一次，用户之后取消勾选不会再被勾上；设置关闭时什么也不记，重新打开后补上期间提交的。
 - `sync_enabled=false`（课程设置的“同步这门课”）：该课程不出现在日历叠加中，也不做后台同步和提交后完成待办；读取接口和 Canvas Tab 仍然可用。
 
