@@ -1,0 +1,17 @@
+{
+  "case": "file-in-hidden-area-download",
+  "request": {
+    "method": "GET",
+    "path": "[the file's url]",
+    "params": {}
+  },
+  "status": 302,
+  "headers": {
+    "x-rate-limit-remaining": "700.0",
+    "content-type": "text/html; charset=utf-8",
+    "location": "other-host/[path]"
+  },
+  "link_next": false,
+  "items_in_page": null,
+  "body": ""
+}

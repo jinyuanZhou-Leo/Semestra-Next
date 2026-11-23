@@ -3,7 +3,9 @@ can read: the provider contract passes against it, files download through its re
 injected faults map to the errors a real Canvas causes. Breaks here mean the fake drifted from the
 provider, so local debugging would no longer match production."""
 
+import json
 from collections.abc import AsyncIterator
+from pathlib import Path
 
 import httpx
 import pytest
@@ -83,3 +85,58 @@ async def test_faults(private: Settings, fault: dict[str, object], code: str):
         with pytest.raises(AppError) as exc:
             await p.validate(io, cfg, creds)
         assert exc.value.code == code
+
+
+RECORDED = Path(__file__).parents[1] / "src/semestra/modules/lms/tests/fixtures/canvas"
+# Areas a recording shows closed by leaving them out of the menu.
+GATED = ("files", "pages", "assignments", "quizzes")
+# Recorded requests the provider makes another way: the fake serves the provider's.
+READS = {"area-assignments": "/api/v1/courses/{course}/assignment_groups"}
+# Recorded requests the provider never makes, so the fake does not serve them.
+UNREAD = {"missing-module", "missing-quiz"}
+
+
+@pytest.mark.parametrize("recording", ["course-a", "course-b"])
+async def test_answers_like_the_recorded_canvas(recording: str):
+    """For a course with the same areas closed, the fake answers each recorded request with the
+    status the real Canvas did (M09 table 2), so the fake cannot drift from the recordings."""
+    cases = {
+        p.stem: json.loads(p.read_text()) for p in sorted((RECORDED / recording).glob("*.json"))
+    }
+    fake = FakeCanvas(BASE)
+    course = fake.world.course("ECE201H1")
+    tabs = {t["id"] for t in cases["area-navigation"]["body"]}
+    for area in GATED:
+        op = "show_area" if area in tabs else "hide_area"
+        fake.change({"op": op, "course": course.code, "area": area})
+    file = next(f for f in course.files if not f["locked_for_user"])
+    items = {
+        "file": str(file["id"]),
+        "page": course.pages[0]["url"],
+        "assignment": str(course.assignments[0]["id"]),
+    }
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=fake.app()), base_url=BASE
+    ) as client:
+        for name, case in cases.items():
+            if name in UNREAD:
+                continue
+            request = case["request"]
+            if request["path"] == "[the file's url]":
+                path = file["url"]
+            else:
+                kind = name.removeprefix("missing-").split("-")[0]
+                path = (READS.get(name) or request["path"]).replace("{course}", str(course.id))
+                path = path.replace("{item}", items.get(kind, ""))
+            params = {
+                k: [x.replace("{course}", str(course.id)) for x in v] if isinstance(v, list) else v
+                for k, v in request["params"].items()
+            }
+            token = "" if name == "bad-token" else TOKEN
+            answer = await client.get(
+                path, params=params, headers={"Authorization": f"Bearer {token}"}
+            )
+            assert answer.status_code == case["status"], name
+            assert ("www-authenticate" in answer.headers) == (
+                "www-authenticate" in case["headers"]
+            ), name

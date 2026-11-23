@@ -1,0 +1,91 @@
+{
+  "case": "area-folders",
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/courses/{course}/folders",
+    "params": {
+      "per_page": "10"
+    }
+  },
+  "status": 200,
+  "headers": {
+    "x-rate-limit-remaining": "700.0",
+    "content-type": "application/json; charset=utf-8"
+  },
+  "link_next": false,
+  "items_in_page": 6,
+  "body": [
+    {
+      "id": 1006,
+      "name": "[text]",
+      "full_name": "[text]",
+      "position": 8,
+      "parent_folder_id": 1007,
+      "context_type": "Course",
+      "context_id": 1001,
+      "unlock_at": null,
+      "lock_at": null,
+      "created_at": "2000-01-01T00:00:00Z",
+      "updated_at": "2000-01-01T00:00:00Z",
+      "locked": false,
+      "all_url": "[text]",
+      "folders_url": "[text]",
+      "files_url": "[text]",
+      "files_count": 1,
+      "folders_count": 0,
+      "hidden": null,
+      "locked_for_user": false,
+      "hidden_for_user": false,
+      "for_submissions": false,
+      "can_upload": false
+    },
+    {
+      "id": 1008,
+      "name": "[text]",
+      "full_name": "[text]",
+      "position": 10,
+      "parent_folder_id": 1007,
+      "context_type": "Course",
+      "context_id": 1001,
+      "unlock_at": null,
+      "lock_at": null,
+      "created_at": "2000-01-01T00:00:00Z",
+      "updated_at": "2000-01-01T00:00:00Z",
+      "locked": false,
+      "all_url": "[text]",
+      "folders_url": "[text]",
+      "files_url": "[text]",
+      "files_count": 0,
+      "folders_count": 0,
+      "hidden": null,
+      "locked_for_user": false,
+      "hidden_for_user": false,
+      "for_submissions": false,
+      "can_upload": false
+    },
+    {
+      "id": 1009,
+      "name": "[text]",
+      "full_name": "[text]",
+      "position": 11,
+      "parent_folder_id": 1007,
+      "context_type": "Course",
+      "context_id": 1001,
+      "unlock_at": null,
+      "lock_at": null,
+      "created_at": "2000-01-01T00:00:00Z",
+      "updated_at": "2000-01-01T00:00:00Z",
+      "locked": false,
+      "all_url": "[text]",
+      "folders_url": "[text]",
+      "files_url": "[text]",
+      "files_count": 1,
+      "folders_count": 0,
+      "hidden": null,
+      "locked_for_user": false,
+      "hidden_for_user": false,
+      "for_submissions": false,
+      "can_upload": false
+    }
+  ]
+}

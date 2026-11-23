@@ -1,0 +1,74 @@
+{
+  "case": "area-modules",
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/courses/{course}/modules",
+    "params": {
+      "per_page": "10",
+      "include[]": [
+        "items"
+      ]
+    }
+  },
+  "status": 200,
+  "headers": {
+    "x-rate-limit-remaining": "700.0",
+    "content-type": "application/json; charset=utf-8"
+  },
+  "link_next": false,
+  "items_in_page": 1,
+  "body": [
+    {
+      "id": 1010,
+      "position": 1,
+      "name": "[text]",
+      "unlock_at": null,
+      "require_sequential_progress": false,
+      "requirement_type": "[text]",
+      "publish_final_grade": false,
+      "prerequisite_module_ids": [],
+      "state": "completed",
+      "completed_at": "2000-01-01T00:00:00Z",
+      "items_count": 1,
+      "items_url": "[text]",
+      "items": [
+        {
+          "id": 1011,
+          "position": 1,
+          "title": "[text]",
+          "indent": 0,
+          "quiz_lti": false,
+          "type": "File",
+          "module_id": 1010,
+          "html_url": "[text]",
+          "content_id": 1012,
+          "url": "[text]"
+        },
+        {
+          "id": 1013,
+          "position": 2,
+          "title": "[text]",
+          "indent": 0,
+          "quiz_lti": false,
+          "type": "File",
+          "module_id": 1010,
+          "html_url": "[text]",
+          "content_id": 1014,
+          "url": "[text]"
+        },
+        {
+          "id": 1015,
+          "position": 3,
+          "title": "[text]",
+          "indent": 0,
+          "quiz_lti": false,
+          "type": "File",
+          "module_id": 1010,
+          "html_url": "[text]",
+          "content_id": 1016,
+          "url": "[text]"
+        }
+      ]
+    }
+  ]
+}

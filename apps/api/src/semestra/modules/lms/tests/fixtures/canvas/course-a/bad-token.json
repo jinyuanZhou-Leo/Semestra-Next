@@ -1,0 +1,23 @@
+{
+  "case": "bad-token",
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/courses/{course}",
+    "params": {}
+  },
+  "status": 401,
+  "headers": {
+    "www-authenticate": "Bearer realm=\"canvas-lms\"",
+    "x-rate-limit-remaining": "700.0",
+    "content-type": "application/json; charset=utf-8"
+  },
+  "link_next": false,
+  "items_in_page": null,
+  "body": {
+    "errors": [
+      {
+        "message": "[text]"
+      }
+    ]
+  }
+}

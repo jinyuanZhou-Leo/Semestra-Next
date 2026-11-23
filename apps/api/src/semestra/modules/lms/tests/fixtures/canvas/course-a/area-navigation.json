@@ -1,0 +1,83 @@
+{
+  "case": "area-navigation",
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/courses/{course}/tabs",
+    "params": {}
+  },
+  "status": 200,
+  "headers": {
+    "x-rate-limit-remaining": "700.0",
+    "content-type": "application/json; charset=utf-8"
+  },
+  "link_next": false,
+  "items_in_page": 7,
+  "body": [
+    {
+      "id": "home",
+      "html_url": "[text]",
+      "full_url": "[text]",
+      "position": 1,
+      "visibility": "public",
+      "label": "[text]",
+      "type": "internal"
+    },
+    {
+      "id": "announcements",
+      "html_url": "[text]",
+      "full_url": "[text]",
+      "position": 2,
+      "visibility": "public",
+      "label": "[text]",
+      "type": "internal"
+    },
+    {
+      "id": "grades",
+      "html_url": "[text]",
+      "full_url": "[text]",
+      "position": 3,
+      "visibility": "public",
+      "label": "[text]",
+      "type": "internal"
+    },
+    {
+      "id": "modules",
+      "html_url": "[text]",
+      "full_url": "[text]",
+      "position": 4,
+      "visibility": "public",
+      "label": "[text]",
+      "type": "internal"
+    },
+    {
+      "id": "[text]",
+      "html_url": "[text]",
+      "full_url": "[text]",
+      "position": 5,
+      "visibility": "public",
+      "label": "[text]",
+      "type": "external",
+      "url": "[text]"
+    },
+    {
+      "id": "[text]",
+      "html_url": "[text]",
+      "full_url": "[text]",
+      "position": 6,
+      "visibility": "public",
+      "label": "[text]",
+      "type": "external",
+      "url": "[text]"
+    },
+    {
+      "id": "[text]",
+      "html_url": "[text]",
+      "full_url": "[text]",
+      "position": 7,
+      "visibility": "public",
+      "label": "[text]",
+      "type": "external",
+      "url": "[text]"
+    }
+  ]
+}
