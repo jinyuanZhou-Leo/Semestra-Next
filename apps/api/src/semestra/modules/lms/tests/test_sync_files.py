@@ -2059,6 +2059,12 @@ async def test_what_a_closed_area_hides_is_listed_until_it_opens(
     clock.advance(hours=1)
     await api.sync(program_id)
     assert ("file", "201") not in fake.calls
+    # A round that can't tell the area closed (its navigation refused) tells nothing new.
+    fake.nav_refused = True
+    clock.advance(hours=1)
+    status = await api.sync(program_id)
+    assert {u["title"] for u in status["unreadable"]} == set(rows)
+    fake.nav_refused = False
 
     # The copy may be the user's only one: not removed from here.
     lecture_id = rows["Lecture 1.pdf"]["id"]

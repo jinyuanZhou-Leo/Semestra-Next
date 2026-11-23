@@ -453,8 +453,8 @@ async def _unreadable(
     closed = {
         (li.id, area)
         for li in links
-        for area, read in (li.area_reads or {}).items()
-        if (read or {}).get("result") == "hidden"
+        for area in (li.area_reads or {})
+        if rules.area_closed(li.area_reads, area)
     }
     announced: dict[str, int] = dict(
         (
