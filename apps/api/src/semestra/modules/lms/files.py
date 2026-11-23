@@ -19,14 +19,14 @@ from semestra.modules.lms.models import LmsCourseLink, LmsMaterial
 from semestra.modules.lms.schemas.dto import FileMeta
 from semestra.modules.lms.schemas.io import FilePreview, FileSaveInput, SavedFile
 from semestra.modules.lms.service import Bound
-from semestra.modules.lms.sync_files import enter, file_version, source_ref
+from semestra.modules.lms.sync_files import enter, file_version
 
 
 async def save_to_course(ctx: Ctx, inp: FileSaveInput) -> SavedFile:
     """The file in the course's files with a local copy, following the platform like the
     materials the sync brings in (`sync_files.py`). Once per file: one the course's files have
     already keeps a local copy (stored by a job: `stored` false until it has run)."""
-    link, b = linked = await service.require_link(ctx, inp.course_id)
+    link, _ = linked = await service.require_link(ctx, inp.course_id)
     mat = await ctx.db.scalar(
         select(LmsMaterial).where(
             LmsMaterial.link_id == link.id,
@@ -50,9 +50,7 @@ async def save_to_course(ctx: Ctx, inp: FileSaveInput) -> SavedFile:
         meta.name,
         stream,
         source_kind="lms",
-        source_ref=source_ref("file", inp.file_id),
         folder_id=inp.folder_id,
-        source_name=b.provider.display_name,
         keep_copy=True,
         modified_at=meta.content_at or meta.updated_at,
         version=file_version(meta),
@@ -64,7 +62,7 @@ async def save_to_course(ctx: Ctx, inp: FileSaveInput) -> SavedFile:
         ctx.db.add(mat)
     # The sync follows it from now on, and does not bring the file in again.
     enter(mat, "synced", ctx.now, item_id=item.id)
-    mat.title, mat.version, mat.name = meta.name, file_version(meta), item.display_name
+    mat.title, mat.name = meta.name, item.display_name
     await ctx.db.flush()
     return SavedFile(file_item_id=str(item.id), name=str(item.display_name))
 

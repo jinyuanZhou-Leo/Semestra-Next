@@ -286,7 +286,5 @@ async def move_to_course(
     items = _files("items")
     if items is None:
         return None
-    row = await items.store_file(
-        ctx, course_id=course_id, filename=filename, stream=chunks, source_kind="upload"
-    )
+    row = await items.store_file(ctx, course_id=course_id, filename=filename, stream=chunks)
     return str(row.id)

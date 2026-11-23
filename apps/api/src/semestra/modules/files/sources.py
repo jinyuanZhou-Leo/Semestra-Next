@@ -3,7 +3,7 @@ for source modules (M09 keeps a linked course's files, pages and links in the co
 
 A source registers where its bytes come from (`content.register_content_source`) and keeps its
 items here with these functions: an item for a file it keeps (`add_remote_file`, stored nowhere,
-taking no quota) or a link (`create_link` with a `source_ref`), updated when the source changes
+taking no quota) or a link (`create_link` with a `source_kind`), updated when the source changes
 (`update_remote_file`, `rename_synced`, `update_link`), read again after the source failed
 (`retry_synced`), let go of (`purge_items`) or handed to the user (`detach_from_source`).
 `find_items`, `get_folder` and `folder_names` read what it keeps. Its titles become names here
@@ -75,6 +75,7 @@ __all__ = [
     "reset_copy_choices",
     "retry_synced",
     "save_bytes_as_file",
+    "source_changed",
     "store_from_source",
     "update_link",
     "update_remote_file",
@@ -122,10 +123,8 @@ async def add_remote_file(
     name: str,
     mime: str | None,
     size: int,
-    source_ref: str,
     version: str,
     url: str | None,
-    source_name: str,
     modified_at: datetime | None,
     unseen: bool,
     source_kind: SourceKind = "lms",
@@ -150,8 +149,6 @@ async def add_remote_file(
         source_size=size,
         url=url,
         source_kind=source_kind,
-        source_ref=source_ref,
-        source_name=source_name,
         source_modified_at=modified_at,
         unseen=unseen,
         doc_status=status,
@@ -240,6 +237,12 @@ async def _release(ctx: Ctx, row: FilesItem) -> bool:
     return True
 
 
+def source_changed(row: FilesItem, version: str) -> bool:
+    """Whether `version` (the source's version string) is not the one the item follows now
+    (`source_version`): the source's only record of an item's version is here (M09 §4.6)."""
+    return row.source_version != content.version_hash(version)
+
+
 def _source_size(row: FilesItem) -> int:
     return row.source_size if row.source_size is not None else row.size_bytes
 
@@ -297,7 +300,8 @@ async def _check_source(ctx: Ctx, row: FilesItem) -> None:
     try:
         await run_as_system(ctx.state, ctx.user_id, open_)
     except AppError as exc:
-        raise AppError("files.source_unreachable", 409, source=row.source_name or "") from exc
+        names = await content.source_names(ctx, [row])
+        raise AppError("files.source_unreachable", 409, source=names.get(row.id, "")) from exc
     for stream in opened:
         await stream.aclose()  # pyright: ignore[reportAttributeAccessIssue]
 
@@ -555,14 +559,14 @@ async def rename_synced(ctx: Ctx, row: FilesItem, name: str) -> None:
 
 async def detach_from_source(ctx: Ctx, rows: Sequence[FilesItem]) -> None:
     """Files with a local copy become the user's own when the source no longer keeps them (an
-    LMS course unlinked, the file deleted there): plain files from now on (`source_ref`
-    cleared), never updated or removed by the source."""
+    LMS course unlinked, the file deleted there): plain files from now on (`source_kind`
+    cleared, and the source's address with it), never updated or removed by the source."""
     for row in rows:
         assert row.storage_key
         before = service.process_key(row)
         if row.sha256 is None:  # a copy stored before copies kept their hash (migration 0062)
             row.sha256 = await _hash_stored(ctx, row.storage_key)
-        row.source_ref = row.source_name = row.keep_copy = None
+        row.source_kind = row.url = row.keep_copy = None
         row.source_version = row.source_mime = row.source_size = None
         row.copy_version = row.copy_modified_at = row.copy_error_code = None
         row.updated_at = ctx.now
@@ -572,9 +576,12 @@ async def detach_from_source(ctx: Ctx, rows: Sequence[FilesItem]) -> None:
         await _updated(ctx, row)
 
 
-async def update_link(ctx: Ctx, row: FilesItem, *, url: str, name: str | None) -> None:
+async def update_link(
+    ctx: Ctx, row: FilesItem, *, url: str, name: str | None, version: str
+) -> None:
     """Another module's link moved (and, unless None, was renamed); its place stays."""
     row.url = clean = items.normalize_url(url)
+    row.source_version = content.version_hash(version)
     if name is not None:
         row.display_name = service.name_from_source(name, urlsplit(clean).hostname or clean)
     row.updated_at = ctx.now

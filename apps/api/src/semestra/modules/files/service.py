@@ -121,6 +121,7 @@ async def item_outs(ctx: Ctx, rows: Sequence[FilesItem]) -> list[ItemOut]:
             if key is not None:
                 jobs[keys[key]] = job_id
     saving = await _saving(ctx, [r.id for r in rows if content.follows_source(r)])
+    names = await content.source_names(ctx, rows)
     out: list[ItemOut] = []
     for r in rows:
         doc = docs.get(r.active_document_id or "")
@@ -141,8 +142,7 @@ async def item_outs(ctx: Ctx, rows: Sequence[FilesItem]) -> list[ItemOut]:
                 local_copy=_copy_out(r, r.id in saving),
                 pinned=r.pinned,
                 source_kind=r.source_kind,  # pyright: ignore[reportArgumentType]
-                source_ref=r.source_ref,
-                source_name=r.source_name if r.source_ref else None,
+                source_name=names.get(r.id),
                 unseen=r.unseen,
                 doc_status=r.doc_status,  # pyright: ignore[reportArgumentType]
                 doc_error_code=r.doc_error_code,
@@ -295,9 +295,18 @@ async def purge_items(ctx: Ctx, rows: Sequence[FilesItem]) -> None:
     """Deletes items with their documents, index entries and stored objects.
 
     The objects are removed after the transaction commits, so a rollback never loses a file.
+    The module keeping an item (its `source_kind`) is told in this transaction first
+    (`files.item.deleting`), so its own records never name an item that is gone.
     """
     if not rows:
         return
+    for row in rows:
+        if row.source_kind:
+            await events.publish_in_transaction(
+                ctx,
+                "files.item.deleting",
+                {"item_id": row.id, "course_id": row.course_id, "source_kind": row.source_kind},
+            )
     ids = [r.id for r in rows]
     doc_ids = list(
         (await ctx.db.scalars(select(FilesDocument.id).where(FilesDocument.item_id.in_(ids)))).all()

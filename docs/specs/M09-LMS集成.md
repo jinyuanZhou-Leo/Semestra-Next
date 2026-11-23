@@ -455,7 +455,7 @@ Canvas 的映射（`providers/canvas/`）。同一个 HTTP 回应只对应一种
 - 用户看得到的变化：
   - 平台上删除后交给用户的文件，以及取消关联时交给用户的文件，不再显示平台名与“在 {平台} 中打开”（原来 `source_kind` 留着 `lms`、`url` 留着平台地址；平台上删除时那个地址已打不开，取消关联时打得开但已不属于这门课的同步）。
   - Sem 存的文件现在算用户自己的文件：「整理」会把放在根目录的这类文件列进去（M07 §整理）；同步新带进来的文件与它同名且大小相同时，资料记为 `duplicate`（“可能与已有文件重复”）而不是 `added`（原来只比较上传的文件）。
-- 迁移 0069：`source_ref` 以 `lms:` 开头的项 `source_kind = "lms"`，其余为空；跟随中的链接按它资料上记的版本补上 `source_version`；`synced` 资料的 `version` 清空；修正不一致的旧数据（`synced` 而项已删除的资料 → `dismissed`，与原来的兜底相同；`synced` 而项已交出（`source_kind` 为空）的 → `absent` 并保留 `item_id`；同一个项被多份 `synced` 资料指向时保留最近进入的一份，其余 → `absent`，下一轮同步各自重新建项；`source_kind = "lms"` 却没有 `synced` 资料指向的项按交出处理：有副本的清空 `source_kind` 与 `url`，没有副本的删除）；交出文件的 `url` 清空；建唯一索引；删掉 `files_items.source_ref`、`source_name`。备份格式版本不变（files v1、lms v2），0069 之前的备份由同号的 reshape step 做同样的映射（files 与 lms 各一个，`lms/older_backups.py` 里读 `source_ref` 的旧 step 在它之前运行，照旧可用）。
+- 迁移 0070：`source_ref` 以 `lms:` 开头的项 `source_kind = "lms"`，其余为空；跟随中的链接按它资料上记的版本补上 `source_version`；`synced` 资料的 `version` 清空；修正不一致的旧数据（`synced` 而项已删除的资料 → `dismissed`，与原来的兜底相同；`synced` 而项已交出（`source_kind` 为空）的 → `absent` 并保留 `item_id`；同一个项被多份 `synced` 资料指向时保留最近进入的一份，其余 → `absent`，下一轮同步各自重新建项；`source_kind = "lms"` 却没有 `synced` 资料指向的项按交出处理：有副本的清空 `source_kind` 与 `url`，没有副本的删除）；交出文件的 `url` 清空；建唯一索引；删掉 `files_items.source_ref`、`source_name`。备份格式版本不变（files v1、lms v2），0070 之前的备份由同号的 reshape step 做同样的映射（files 与 lms 各一个，`lms/older_backups.py` 里读 `source_ref` 的旧 step 在它之前运行，照旧可用）。
 - 接口：`FileItemOut` 去掉 `source_ref`，`source_kind` 只有 `lms`/空，`source_name` 保留（由来源给出）；个人令牌与 MCP 用 `fields=["source_ref"]` 会得到 422。兼容级别见 PR 说明（owner 决定）。
 - **出站**：远程文件的预览与下载经后端代理读平台。
 

@@ -9,9 +9,10 @@ everything. At most three levels (M07's deepest), the folders made on first need
 by their place (`files.source_folders`), so the user may rename or move them.
 
 Every item keeps following the platform: a changed file is read again, a renamed one renamed.
-By default nothing is copied: an item names its platform file or page (`source_ref`) and M07
-reads the bytes from the platform when they are needed (`open_source`, registered as its content
-source), so the materials take none of the user's storage. With the course's `store` setting at
+By default nothing is copied: an item follows the platform (`source_kind` `lms`; which file or
+page it is, its `LmsMaterial.item_id` says) and M07 reads the bytes from the platform when they
+are needed (`open_source`, registered as its content source), so the materials take none of the
+user's storage. With the course's `store` setting at
 `local` (M11 namespace `lms.materials`, account and course) a local copy is kept too, so they
 open after the platform course closes (`sources.apply_copies`; the user may choose otherwise for
 one file). Their text is read and indexed like any file's (M07's `auto_index`), for search and
@@ -46,7 +47,7 @@ Pages that are only a list of links (a module's table of contents) are not kept;
 goes in a folder named after them.
 """
 
-from collections.abc import AsyncIterator, Awaitable, Mapping
+from collections.abc import AsyncIterator, Awaitable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from html import escape
@@ -65,7 +66,14 @@ from semestra.modules.files.source_folders import Segment, SourceFolders
 from semestra.modules.lms import reads, service
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.materials import page_shape
-from semestra.modules.lms.models import LmsCourseLink, LmsMaterial, MaterialChange, MaterialState
+from semestra.modules.lms.models import (
+    LmsConnection,
+    LmsCourseLink,
+    LmsMaterial,
+    MaterialChange,
+    MaterialState,
+)
+from semestra.modules.lms.providers.base import get_provider
 from semestra.modules.lms.reads import AREA_REFUSALS, ITEM_ERRORS
 from semestra.modules.lms.schemas.dto import FileMeta, ModuleItem, PageDetail
 from semestra.modules.lms.schemas.io import HeldMaterials
@@ -88,10 +96,6 @@ SKIPPED = AREA_REFUSALS | {"lms.area_hidden", "lms.feature_unsupported"}
 CHECK_EVERY = timedelta(days=1)
 # A file the platform failed to give is read again after this.
 RETRY_AFTER = timedelta(hours=1)
-
-
-def source_ref(kind: MaterialKind, external_id: str) -> str:
-    return f"lms:{kind}:{external_id}"
 
 
 @dataclass
@@ -131,6 +135,8 @@ def file_version(meta: FileMeta) -> str:
 class _Found:
     known: dict[Key, LmsMaterial]
     now: datetime
+    # The followed items of the known materials (`synced`), whose version is theirs (§4.6).
+    items: dict[str, FilesItem] = field(default_factory=lambda: {})
     materials: dict[Key, Material] = field(default_factory=lambda: {})
     # Pages to look at: slug → (title, version known from the list or None, web address).
     pages: dict[str, tuple[str, str | None, str | None]] = field(default_factory=lambda: {})
@@ -155,6 +161,17 @@ class _Found:
     unsure: set[Key] = field(default_factory=lambda: set[Key]())
     # Items written by an earlier batch of this run.
     applied: set[Key] = field(default_factory=lambda: set[Key]())
+
+    def unchanged(self, key: Key, version: str | None) -> bool:
+        """The platform's `version` of a known material is the one last applied: its followed
+        item's, else the one the material keeps (a list page, one the user deleted)."""
+        mat = self.known.get(key)
+        if version is None or mat is None:
+            return False
+        if mat.state == "synced":
+            row = self.items.get(mat.item_id or "")
+            return row is not None and not sources.source_changed(row, version)
+        return mat.version == version
 
     @property
     def complete(self) -> bool:
@@ -348,8 +365,7 @@ def _page_as_known(found: _Found, slug: str) -> bool:
     _, version, _ = found.pages[slug]
     key = ("page", slug)
     mat = found.known.get(key)
-    unchanged = version is not None and mat is not None and mat.version == version
-    if not (unchanged or (version is None and found.checked_lately(key))):
+    if not (found.unchanged(key, version) or (version is None and found.checked_lately(key))):
         return False
     assert mat is not None
     for kind, target in mat.links:
@@ -553,8 +569,7 @@ async def _create(
             m.title,
             folder_id,
             source_kind="lms",
-            source_ref=source_ref("link", m.external_id),
-            source_name=b.provider.display_name,
+            version=m.version,
         )
         [row] = await sources.find_items(ctx, [out.id])
         return row
@@ -565,10 +580,8 @@ async def _create(
         name=m.title,
         mime=m.mime,
         size=m.size,
-        source_ref=source_ref(m.kind, m.external_id),
         version=m.version,
         url=m.web_url,
-        source_name=b.provider.display_name,
         modified_at=m.modified_at,
         unseen=unseen,
     )
@@ -583,10 +596,12 @@ async def _follow(ctx: Ctx, m: Material, mat: LmsMaterial, row: FilesItem) -> bo
     # Named anew when its name here would change (not on every new spelling of the title): also
     # mends a name an older sync cut at a slash.
     retitled = title is not None and sources.name_from_source(title) not in ("", mat.name)
-    changed = mat.version != m.version
+    changed = sources.source_changed(row, m.version)
     if m.kind == "link":
         if changed or retitled:
-            await sources.update_link(ctx, row, url=m.url or row.url or "", name=title)
+            await sources.update_link(
+                ctx, row, url=m.url or row.url or "", name=title, version=m.version
+            )
     elif changed:
         await sources.update_remote_file(
             ctx,
@@ -640,7 +655,8 @@ def enter(
 
     - `synced`: its item `item_id`, nothing applied yet (the caller applies what it read);
     - `list`: no item, nothing applied yet;
-    - `dismissed`: no item; what was read stays (what the page links to still comes in);
+    - `dismissed`: no item; what was read stays (what the page links to still comes in), but
+      its version (it was the item's);
     - `absent`: nothing applied; `item_id` the user's own file it left, if any (never
       followed); `quiet` when the user restored it."""
     if state not in NEXT[mat.state]:
@@ -654,6 +670,8 @@ def enter(
         mat.change = mat.changed_at = None
     if state != "dismissed":
         _forget_applied(mat)
+    else:
+        mat.version = None  # its item's version went with it (§4.6): read again once
 
 
 def _note(mat: LmsMaterial, change: MaterialChange, now: datetime) -> None:
@@ -661,8 +679,10 @@ def _note(mat: LmsMaterial, change: MaterialChange, now: datetime) -> None:
 
 
 def _seen(mat: LmsMaterial, m: Material) -> None:
-    """What this run saw of the platform's item; what it did not read again stays."""
-    mat.title, mat.version, mat.path = m.title, m.version, [list(level) for level in m.path]
+    """What this run saw of the platform's item; what it did not read again stays. Its version
+    only while it has no followed item, whose own version it is then (§4.6)."""
+    mat.title, mat.path = m.title, [list(level) for level in m.path]
+    mat.version = m.version if mat.state != "synced" else None
     if m.links is not None:
         mat.links = m.links
     if m.checked_at is not None:
@@ -693,8 +713,13 @@ def _copy_due(row: FilesItem, now: datetime) -> bool:
 
 
 async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
-    mats = await ctx.db.scalars(select(LmsMaterial).where(LmsMaterial.link_id == link.id))
-    found = _Found({(r.kind, r.external_id): r for r in mats}, ctx.now)
+    mats = list(await ctx.db.scalars(select(LmsMaterial).where(LmsMaterial.link_id == link.id)))
+    followed = [r.item_id for r in mats if r.state == "synced" and r.item_id]
+    found = _Found(
+        {(r.kind, r.external_id): r for r in mats},
+        ctx.now,
+        {r.id: r for r in await sources.find_items(ctx, followed)},
+    )
     features = b.provider.features
     if "modules" in features:
         await _modules(ctx, link, found)
@@ -738,10 +763,6 @@ async def _write(
         )
     }
     now = ctx.now
-    for mat in known.values():
-        if mat.state == "synced" and mat.item_id not in rows:
-            # The user deleted it (told at once by `files.item.deleted`, unless that was missed).
-            enter(mat, "dismissed", now)
     # What came in before the course settled is not news.
     settled = link.materials_settled_at is not None
     places = SourceFolders(ctx, link.course_id, "lms", b.provider.display_name)
@@ -898,13 +919,13 @@ async def homes(ctx: Ctx, course_id: str) -> list[sources.Home]:
         )
     ]
     rows = {r.id: r for r in await sources.find_items(ctx, [m.item_id for m in mats if m.item_id])}
+    name = (await source_names(ctx, [course_id])).get(course_id, "LMS")
     places: SourceFolders | None = None
     found: list[sources.Home] = []
     for mat in mats:
         row = rows.get(mat.item_id or "")
-        if row is None or row.source_ref is None or row.folder_id != mat.placed_folder_id:
+        if row is None or row.source_kind is None or row.folder_id != mat.placed_folder_id:
             continue  # the user moved it, or it is theirs now
-        name = row.source_name or "LMS"
         if places is None:
             places = SourceFolders(ctx, course_id, "lms", name)
         folder_id, complete = await places.existing(mat.path or [])
@@ -946,7 +967,7 @@ async def _material_of(ctx: Ctx, item: FilesItem) -> tuple[LmsMaterial, LmsCours
                 LmsCourseLink.course_id == item.course_id,
             )
         )
-    ).first()
+    ).one_or_none()  # one at most (`uq_lms_materials_followed`)
     if found is None:
         raise lms_error("lms.not_found")
     mat, link = found
@@ -975,7 +996,18 @@ async def open_source(ctx: Ctx, item: FilesItem) -> AsyncIterator[bytes]:
     raise lms_error("lms.not_found")
 
 
-register_content_source("lms:", open_source)
+async def source_names(ctx: Ctx, course_ids: Sequence[str]) -> dict[str, str]:
+    """The platform each course is linked to, by name: what its synced items are shown as
+    coming from (`ItemOut.source_name`)."""
+    found = await ctx.db.execute(
+        select(LmsCourseLink.course_id, LmsConnection.provider)
+        .join(LmsConnection, LmsConnection.id == LmsCourseLink.connection_id)
+        .where(LmsCourseLink.user_id == ctx.user_id, LmsCourseLink.course_id.in_(course_ids))
+    )
+    return {course_id: get_provider(kind).display_name for course_id, kind in found.all()}
+
+
+register_content_source("lms", open_source, source_names)
 
 
 @events.subscribe("lms.course.unlinking", in_transaction=True)
@@ -991,12 +1023,14 @@ async def on_unlinking(ctx: Ctx, event: Event) -> None:
     await sources.detach_from_source(ctx, [r for r in rows if has_copy(r)])
 
 
-@events.subscribe("files.item.deleted")
-async def on_item_deleted(ctx: Ctx, event: Event) -> None:
-    """The user deleted a material's item: it is not brought back (`dismissed`), and the status
-    panel lists it under the removed materials at once, where it can be restored."""
+@events.subscribe("files.item.deleting", in_transaction=True)
+async def on_item_deleting(ctx: Ctx, event: Event) -> None:
+    """A followed item is being deleted, in this transaction. The sync's own deletes move the
+    material on first, so one still `synced` is the user's: it is not brought back
+    (`dismissed`), and the status panel lists it under the removed materials at once, where it
+    can be restored."""
     item_id = event.data.get("item_id")
-    if not isinstance(item_id, str):
+    if event.data.get("source_kind") != "lms" or not isinstance(item_id, str):
         return
     found = (
         await ctx.db.execute(
@@ -1008,10 +1042,12 @@ async def on_item_deleted(ctx: Ctx, event: Event) -> None:
                 LmsMaterial.state == "synced",
             )
         )
-    ).all()
-    for mat, link in found:
-        enter(mat, "dismissed", ctx.now)
-        await events.publish(ctx, UPDATED, {"program_id": link.program_id})
+    ).one_or_none()
+    if found is None:
+        return
+    mat, link = found
+    enter(mat, "dismissed", ctx.now)
+    await events.publish(ctx, UPDATED, {"program_id": link.program_id})
 
 
 async def _restorable(ctx: Ctx, link: LmsCourseLink) -> bool:

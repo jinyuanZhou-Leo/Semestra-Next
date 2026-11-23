@@ -11310,28 +11310,14 @@ export const ItemOutSchema = {
             anyOf: [
                 {
                     type: 'string',
-                    enum: [
-                        'upload',
-                        'lms',
-                        'agent'
-                    ]
+                    const: 'lms'
                 },
                 {
                     type: 'null'
                 }
             ],
-            title: 'Source Kind'
-        },
-        source_ref: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Source Ref'
+            title: 'Source Kind',
+            description: 'The module that keeps it in step with its source; null for the user\'s own'
         },
         source_name: {
             anyOf: [
@@ -11433,7 +11419,6 @@ export const ItemOutSchema = {
         'local_copy',
         'pinned',
         'source_kind',
-        'source_ref',
         'source_name',
         'unseen',
         'doc_status',

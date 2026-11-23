@@ -25,7 +25,7 @@ from semestra.modules.agent import view
 from semestra.modules.files import content, pipeline, sources
 from semestra.modules.files.models import FilesDocument, FilesDocumentPage, FilesItem
 from semestra.modules.files.tests.conftest import FakeAi, make_pdf
-from semestra.modules.lms import sync_files
+from semestra.modules.lms import older_backups, sync_files
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.models import LmsMaterial
 from semestra.modules.lms.schemas.dto import FileMeta, InternalRef, Module, ModuleItem, PageSummary
@@ -479,7 +479,9 @@ async def test_turning_materials_off_and_unlinking(api: Api, fake: FakeProvider,
     # The copy is now a plain file of the user's: nothing left to read it from (a backup
     # without files leaves it out, as any file of theirs).
     kept = items["Lecture 1.pdf"]
-    assert (kept["stored"], kept["follows_source"], kept["source_ref"]) == (True, False, None)
+    assert (kept["stored"], kept["follows_source"]) == (True, False)
+    # Nothing ties it to the platform any more: no source, no platform name or address.
+    assert (kept["source_kind"], kept["source_name"], kept["url"]) == (None, None, None)
     # So saving it in Semestra (or not) means nothing for it any more, and is refused before
     # Sem's card would offer it.
     for action in ("keep-copy", "drop-copy"):
@@ -936,7 +938,7 @@ def test_migration_dismisses_materials_whose_file_was_made_the_users_own(tmp_pat
         )
     db.commit()
     db.close()
-    command.upgrade(cfg, "head")
+    command.upgrade(cfg, "0063")
     db = sqlite3.connect(path)
     got = db.execute(
         "SELECT id, state, item_id, state_at FROM lms_materials ORDER BY id"
@@ -986,7 +988,7 @@ def test_migration_makes_files_saved_in_2_0_materials_or_the_users_own(tmp_path:
         )
     db.commit()
     db.close()
-    command.upgrade(cfg, "head")
+    command.upgrade(cfg, "0066")
     db = sqlite3.connect(path)
     items = db.execute(
         "SELECT id, source_ref, source_name, keep_copy, sha256, source_version, copy_version"
@@ -1357,9 +1359,18 @@ def made_by(manifest: bytes, version: str, revision: str | None = None) -> bytes
     return json.dumps(out).encode()
 
 
+def _files_before_0070(payload: dict[str, Any]) -> None:
+    """The files as backups made before migration 0070 had them: a followed item named by its
+    `source_ref`, with the platform's name."""
+    for row in payload["items"]:
+        if row["source_kind"] == "lms":
+            row |= {"source_ref": f"lms:{row['kind']}:{row['id']}", "source_name": "Canvas"}
+
+
 def _files_before_0062(payload: dict[str, Any]) -> None:
     """The files as backups made before migration 0062 had them: a followed file's platform
     version in `sha256`, no source version or copy columns."""
+    _files_before_0070(payload)
     for row in payload["items"]:
         version = row.pop("source_version")
         del row["copy_modified_at"], row["copy_error_code"]
@@ -1955,7 +1966,7 @@ def test_migration_to_four_states_and_names_the_sync_gave(tmp_path: Path):
         )
     db.commit()
     db.close()
-    command.upgrade(cfg, "head")
+    command.upgrade(cfg, "0061")
     db = sqlite3.connect(path)
     got = db.execute(
         "SELECT state, quiet, item_id, name, version FROM lms_materials ORDER BY id"
@@ -2002,7 +2013,7 @@ def test_migration_to_a_source_side_and_a_copy_side(tmp_path: Path):
         )
     db.commit()
     db.close()
-    command.upgrade(cfg, "head")
+    command.upgrade(cfg, "0062")
     db = sqlite3.connect(path)
     got = db.execute(
         "SELECT sha256, source_version, copy_version, source_mime, source_size,"
@@ -2017,4 +2028,125 @@ def test_migration_to_a_source_side_and_a_copy_side(tmp_path: Path):
         (None, "h4", "h4", pdf, 5, 1),  # current until the platform changes it
         ("h5", None, None, None, None, 0),
         ("h6", None, None, None, None, 0),
+    ]
+
+
+# Items and materials before 0070 (id, source_kind, source_ref, stored, kind, url) and (id,
+# item_id, kind, state_at, version); what each case is is said where it is checked.
+_ITEMS_0069 = [
+    ("followed", "lms", "lms:file:1", False, "file", "https://lms/1"),
+    ("link", "lms", "lms:link:2", False, "link", "https://lms/2"),
+    ("handed", "lms", None, True, "file", "https://lms/3"),
+    ("upload", "upload", None, True, "file", None),
+    ("agent", "agent", "att-1", True, "file", None),
+    ("shared", "lms", "lms:file:4", False, "file", None),
+    ("orphan", "lms", "lms:file:5", False, "file", None),
+    ("orphan-kept", "lms", "lms:file:6", True, "file", "https://lms/6"),
+]
+_MATERIALS_0069 = [
+    ("m-followed", "followed", "file", "2026-01-10 00:00:00", "v1"),
+    ("m-link", "link", "link", "2026-01-10 00:00:00", "https://lms/2"),
+    ("m-handed", "handed", "file", "2026-01-10 00:00:00", "v3"),
+    ("m-gone", "deleted", "file", "2026-01-10 00:00:00", "v7"),
+    ("m-shared-new", "shared", "file", "2026-01-12 00:00:00", "v4"),
+    ("m-shared-old", "shared", "file", "2026-01-11 00:00:00", "v4"),
+]
+_LINK_VERSION = hashlib.sha256(b"https://lms/2").hexdigest()
+
+
+def test_migration_keeps_following_once(tmp_path: Path):
+    """0070: `source_kind` alone says the LMS keeps an item, a followed link's version moves to
+    it, each followed item is one `synced` material's (what broke that is mended), and a file
+    handed over loses the platform's address."""
+    path = tmp_path / "m.db"
+    cfg = Config(str(API_DIR / "alembic.ini"))
+    cfg.set_main_option("script_location", str(API_DIR / "migrations"))
+    cfg.attributes["database_url"] = f"sqlite+aiosqlite:///{path}"
+    command.upgrade(cfg, "0068")
+    db = sqlite3.connect(path)  # foreign keys are off: no user, course or link rows needed
+    for iid, kind, ref, stored, item_kind, url in _ITEMS_0069:
+        db.execute(
+            "INSERT INTO files_items (id, user_id, course_id, kind, display_name, size_bytes,"
+            " storage_key, url, source_kind, source_ref, source_name, keep_copy, pinned, unseen,"
+            " doc_status, created_at, updated_at) VALUES (?, 'u1', 'c1', ?, ?, 5, ?, ?, ?, ?,"
+            " 'Canvas', ?, 0, 0, 'none', '2026-01-10 00:00:00', '2026-01-10 00:00:00')",
+            (iid, item_kind, iid, "k" if stored else None, url, kind, ref, 1 if stored else None),
+        )
+    for mid, item, kind, at, version in _MATERIALS_0069:
+        db.execute(
+            "INSERT INTO lms_materials (id, user_id, link_id, kind, external_id, state, state_at,"
+            " quiet, item_id, version, name, links) VALUES (?, 'u1', 'l1', ?, ?, 'synced', ?, 0,"
+            " ?, ?, ?, '[]')",
+            (mid, kind, mid, at, item, version, item),
+        )
+    db.commit()
+    db.close()
+    command.upgrade(cfg, "0070")
+    db = sqlite3.connect(path)
+    items = db.execute(
+        "SELECT id, source_kind, source_version, url, keep_copy FROM files_items ORDER BY id"
+    ).fetchall()
+    materials = db.execute(
+        "SELECT id, state, item_id, version, name FROM lms_materials ORDER BY id"
+    ).fetchall()
+    with pytest.raises(sqlite3.IntegrityError):  # one synced material per item from now on
+        db.execute(
+            "INSERT INTO lms_materials (id, user_id, link_id, kind, external_id, state, quiet,"
+            " item_id, links) VALUES ('m-again', 'u1', 'l1', 'file', 'x', 'synced', 0,"
+            " 'followed', '[]')"
+        )
+    db.close()
+    assert items == [
+        ("agent", None, None, None, 1),  # the user's (Sem saved it)
+        ("followed", "lms", None, "https://lms/1", None),
+        ("handed", None, None, None, 1),  # handed over: no platform address
+        ("link", "lms", _LINK_VERSION, "https://lms/2", None),
+        ("orphan-kept", None, None, None, None),  # no material follows it: handed over
+        ("shared", "lms", None, None, None),
+        ("upload", None, None, None, 1),
+    ]  # the orphan read online is gone
+    assert materials == [
+        ("m-followed", "synced", "followed", None, "followed"),  # its version is its item's
+        ("m-gone", "dismissed", None, None, "deleted"),  # its item deleted: the user's delete
+        ("m-handed", "absent", "handed", None, None),  # its item handed over
+        ("m-link", "synced", "link", None, "link"),
+        ("m-shared-new", "synced", "shared", None, "shared"),  # the latest keeps the item
+        ("m-shared-old", "absent", None, None, None),  # brought in again by the next sync
+    ]
+
+
+def test_a_backup_before_0070_keeps_following_once():
+    """The backup step does what migration 0070 does."""
+    items = [
+        {"id": iid, "source_kind": kind, "source_ref": ref, "source_name": "Canvas",
+         "storage_key": "k" if stored else None, "kind": item_kind, "url": url,
+         "keep_copy": True if stored else None, "source_version": None}
+        for iid, kind, ref, stored, item_kind, url in _ITEMS_0069
+    ]  # fmt: skip
+    materials = [
+        {"item_id": item, "kind": kind, "state": "synced", "state_at": at, "version": version,
+         "name": item, "quiet": False, "links": []}
+        for _, item, kind, at, version in _MATERIALS_0069
+    ]  # fmt: skip
+    got_items, got_materials = older_backups.follow_once_0070(items, materials)
+    assert [
+        (i["id"], i["source_kind"], i["source_version"], i["url"], i["keep_copy"])
+        for i in sorted(got_items, key=lambda i: i["id"])
+    ] == [
+        ("agent", None, None, None, True),
+        ("followed", "lms", None, "https://lms/1", None),
+        ("handed", None, None, None, True),
+        ("link", "lms", _LINK_VERSION, "https://lms/2", None),
+        ("orphan-kept", None, None, None, None),
+        ("shared", "lms", None, None, None),
+        ("upload", None, None, None, True),
+    ]
+    assert all("source_ref" not in i and "source_name" not in i for i in got_items)
+    assert [(m["state"], m["item_id"], m["version"], m["name"]) for m in got_materials] == [
+        ("synced", "followed", None, "followed"),
+        ("synced", "link", None, "link"),
+        ("absent", "handed", None, None),
+        ("dismissed", None, None, "deleted"),
+        ("synced", "shared", None, "shared"),
+        ("absent", None, None, None),
     ]

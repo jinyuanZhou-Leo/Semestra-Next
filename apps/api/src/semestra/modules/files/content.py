@@ -1,15 +1,18 @@
 """Where a file's bytes come from (M07 §2.3).
 
 A file is usually stored here (`storage_key`). A file another module keeps track of elsewhere
-(M09's LMS files and pages) may be stored nowhere: its `source_ref` names the module's content
+(M09's LMS files and pages) may be stored nowhere: its `source_kind` names the module's content
 source, which reads the bytes when they are needed (download, preview, processing). Such a file
 takes no storage quota; its text, page images and search index are kept here like any other's.
 
-A source registers once per `source_ref` prefix (`register_content_source("lms:", open)`).
+A source registers once under its `source_kind` (`register_content_source("lms", open, names)`);
+which of its items a file is, the source keeps (M09 `lms_materials.item_id`), and so does the
+name it goes by (`names`, shown as `ItemOut.source_name`).
 """
 
 import hashlib
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
+from dataclasses import dataclass
 
 from sqlalchemy import select
 from starlette.datastructures import State
@@ -23,28 +26,46 @@ from semestra.modules.files.models import FilesItem
 # say renewed credentials) before it returns; the stream itself needs no session.
 ContentOpener = Callable[[Ctx, FilesItem], Awaitable[AsyncIterator[bytes]]]
 
-_sources: dict[str, ContentOpener] = {}
+# The name the source goes by in each of these courses (an LMS platform's), for the courses it
+# keeps items in.
+SourceNames = Callable[[Ctx, Sequence[str]], Awaitable[dict[str, str]]]
 
 
-def register_content_source(prefix: str, opener: ContentOpener) -> None:
-    if prefix in _sources:
-        raise ValueError(f"duplicate content source {prefix!r}")
-    _sources[prefix] = opener
+@dataclass(frozen=True)
+class _Source:
+    open: ContentOpener
+    names: SourceNames
 
 
-def _source_for(ref: str | None) -> ContentOpener | None:
-    ref = ref or ""
-    return next((open_ for prefix, open_ in _sources.items() if ref.startswith(prefix)), None)
+_sources: dict[str, _Source] = {}
+
+
+def register_content_source(kind: str, opener: ContentOpener, names: SourceNames) -> None:
+    if kind in _sources:
+        raise ValueError(f"duplicate content source {kind!r}")
+    _sources[kind] = _Source(opener, names)
 
 
 def _source(row: FilesItem) -> ContentOpener | None:
-    return _source_for(row.source_ref)
+    found = _sources.get(row.source_kind or "")
+    return found.open if found else None
 
 
-def is_source_ref(ref: str | None) -> bool:
-    """A `source_ref` that a source keeps in step (not, say, the attachment a file was saved
-    from)."""
-    return _source_for(ref) is not None
+async def source_names(ctx: Ctx, rows: Sequence[FilesItem]) -> dict[str, str]:
+    """By item id, the name of the source keeping each of `rows` (none for the user's own)."""
+    out: dict[str, str] = {}
+    for kind, source in _sources.items():
+        mine = [r for r in rows if r.source_kind == kind]
+        if not mine:
+            continue
+        names = await source.names(ctx, sorted({r.course_id for r in mine}))
+        out |= {r.id: names[r.course_id] for r in mine if r.course_id in names}
+    return out
+
+
+def is_source(kind: str | None) -> bool:
+    """A `source_kind` whose module keeps its items in step."""
+    return (kind or "") in _sources
 
 
 def remote(row: FilesItem) -> bool:
