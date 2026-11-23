@@ -679,8 +679,7 @@ class AssignmentTarget(BaseModel):
     )
     held: bool = Field(
         default=False,
-        description="No longer follows the assignment: kept as last read (open it with "
-        "`held_for`)",
+        description="No longer follows the assignment: kept as last read (open it with `held_for`)",
     )
 
     @computed_field(description="Where the user is with it (`rules.assignment_state`); None "

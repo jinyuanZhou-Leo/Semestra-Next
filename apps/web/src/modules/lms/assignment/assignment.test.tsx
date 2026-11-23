@@ -161,7 +161,12 @@ test('what was kept for an assessment says so, offers no import and closes into 
 test('kept by the sync, refresh syncs the course; read now, refresh reads it again', async () => {
   const synced: unknown[] = []
   const refreshed: string[] = []
-  const kept = { ...LAB, source: 'mirror', as_of: '2026-02-06T12:00:00Z', sync_failed: true } as const
+  const kept = {
+    ...LAB,
+    source: 'mirror',
+    as_of: '2026-02-06T12:00:00Z',
+    sync_failed: true,
+  } as const
   mount(kept, undefined, Host, [
     http.post(`${API}/programs/p1/lms/sync`, async ({ request }) => {
       synced.push(await request.json())
@@ -174,7 +179,9 @@ test('kept by the sync, refresh syncs the course; read now, refresh reads it aga
     }),
   ])
   const dialog = await screen.findByRole('dialog', { name: 'Lab 1' })
-  expect(await within(dialog).findByText(/last sync of assignments from Canvas/)).toBeInTheDocument()
+  expect(
+    await within(dialog).findByText(/last sync of assignments from Canvas/),
+  ).toBeInTheDocument()
   await userEvent.click(within(dialog).getByRole('button', { name: 'Refresh' }))
   await waitFor(() => expect(synced).toEqual([{ course_id: 'c1', stages: ['assignments'] }]))
 

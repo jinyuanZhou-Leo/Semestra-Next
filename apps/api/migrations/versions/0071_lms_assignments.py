@@ -251,7 +251,12 @@ def downgrade() -> None:
         ),
         sa.ForeignKeyConstraint(["assessment_id"], ["grading_assessments.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["course_id"], ["academics_courses.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["task_id"], ["tasks_items.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["task_id"],
+            ["tasks_items.id"],
+            name="fk_lms_kept_assignments_task_id",  # as 0067 made it: its downgrade drops it
+            ondelete="CASCADE",
+        ),
         sa.ForeignKeyConstraint(["user_id"], ["auth_users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("assessment_id"),

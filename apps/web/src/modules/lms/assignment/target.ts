@@ -79,8 +79,12 @@ export function useAssignmentDetails() {
   // Read when called, not subscribed: rows of a table each open details, and a hook that
   // followed the URL would re-render every one of them on any change of address.
   return {
-    open: (courseId: string, assignmentId: string, view: AssignmentView = 'details', held?: string) =>
-      openAssignmentDetails(router, courseId, assignmentId, view, held),
+    open: (
+      courseId: string,
+      assignmentId: string,
+      view: AssignmentView = 'details',
+      held?: string,
+    ) => openAssignmentDetails(router, courseId, assignmentId, view, held),
     close: () => router.history.replace(assignmentHref(router.state.location)),
   }
 }

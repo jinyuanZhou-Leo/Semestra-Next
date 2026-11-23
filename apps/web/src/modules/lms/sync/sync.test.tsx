@@ -118,7 +118,9 @@ test('opening a Program syncs it; new assignments wait in the panel and can be i
   expect(screen.getByText('Lab 9')).toBeInTheDocument()
   await waitFor(() => expect(requested).toHaveBeenCalledWith({}))
   await userEvent.click(screen.getAllByRole('button', { name: 'Ignore' })[0]!)
-  await waitFor(() => expect(dismissed).toHaveBeenCalledWith({ assignment_ids: ['r1'], dismissed: true }))
+  await waitFor(() =>
+    expect(dismissed).toHaveBeenCalledWith({ assignment_ids: ['r1'], dismissed: true }),
+  )
 })
 
 test('a value changed on both sides is settled from the panel', async () => {

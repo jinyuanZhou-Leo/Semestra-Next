@@ -1,6 +1,14 @@
 import type { AssignmentDetail, SubmissionDetail } from '@semestra/api-client'
 import { client } from '@semestra/api-client'
-import { ArrowUpRight, Download, ExternalLink, FileText, FileX, GraduationCap, Link2 } from 'lucide-react'
+import {
+  ArrowUpRight,
+  Download,
+  ExternalLink,
+  FileText,
+  FileX,
+  GraduationCap,
+  Link2,
+} from 'lucide-react'
 import { CircleAlert, ListChecks, Plus } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { SafeHtml } from '@/components/SafeHtml'
