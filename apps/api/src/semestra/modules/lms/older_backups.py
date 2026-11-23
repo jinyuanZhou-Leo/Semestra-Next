@@ -10,6 +10,7 @@ assignments), so the materials steps only read backups of unreleased builds in b
 those of 2.1.0 (0057 on) and 2.2.0 (0061 on).
 """
 
+import hashlib
 import json
 import re
 from collections.abc import Mapping, Sequence
@@ -217,12 +218,12 @@ def _0066(lms: Row, archive: OlderArchive) -> Row:
     return {**lms, "materials": materials}
 
 
-# What a kept row's fields were of the submission (the rest was in `work`), as in 0070.
+# What a kept row's fields were of the submission (the rest was in `work`), as in 0071.
 _SUBMISSION_FIELDS = ("score", "grade", "attempt", "graded_at", "comments", "rubric_scores")
 
 
 def _kept_to_mirror(row: Row, title: object) -> Row:
-    """The mirror columns of a kept assignment (`feedback` up to 2.4), as migration 0070 moves
+    """The mirror columns of a kept assignment (`feedback` up to 2.4), as migration 0071 moves
     them."""
     details = dict(row.get("details") or {})
     quiz = details.pop("quiz", None)
@@ -252,7 +253,7 @@ def _kept_to_mirror(row: Row, title: object) -> Row:
     }
 
 
-def _0070(lms: Row, archive: OlderArchive) -> Row:
+def _0071(lms: Row, archive: OlderArchive) -> Row:
     """The kept assignments become the mirror: one whose object is still imported from the same
     assignment is its mirror row, the others are held for their object. The refs kept for new
     assignments go (new is worked out from the mirror now); the ignored ones stay."""
@@ -312,6 +313,98 @@ def _files_0066(files: Row, archive: OlderArchive) -> Row:
                     "sha256": item.get("sha256") or item.get("source_version"),
                 }
         items.append(item)
+    return {**files, "items": items}
+
+
+def follow_once_0070(items: Sequence[Row], materials: Sequence[Row]) -> tuple[list[Row], list[Row]]:
+    """Items and materials as migration 0070 leaves them (M09 §4.6), from what they were before
+    it: which source keeps an item is only its `source_kind` (`lms` where `source_ref` named the
+    LMS, none for uploads, files Sem saved and files handed over; `source_ref` and `source_name`
+    are gone); a followed link's version is its item's; only materials with no followed item
+    keep a version; and each followed item is exactly one `synced` material's. What broke that
+    is mended as the migration does: of materials sharing an item the latest stays; one whose
+    item is gone is the user's delete (`dismissed`); one whose item was handed over is
+    `absent`; a followed item no material names is handed over (a link, a stored file) or goes (a
+    file read online: nothing is left to open)."""
+    by_id = {str(i.get("id")): i for i in items}
+
+    def followed(item: Row | None) -> bool:
+        return item is not None and str(item.get("source_ref") or "").startswith("lms:")
+
+    synced = sorted(
+        (m for m in materials if m.get("state") == "synced"),
+        key=lambda m: str(m.get("state_at") or ""),
+        reverse=True,
+    )
+    owner: dict[str, int] = {}  # item id -> the material following it (rows have no id)
+    fixed: dict[int, Row] = {}
+    for m in synced:
+        item_id = str(m.get("item_id") or "")
+        item = by_id.get(item_id)
+        if item_id in owner:
+            fixed[id(m)] = _forgotten(m, item_id=None)
+        elif item is None:
+            fixed[id(m)] = {**m, "state": "dismissed", "item_id": None, "version": None}
+        elif not followed(item):
+            fixed[id(m)] = _forgotten(m, item_id=item_id)
+        else:
+            owner[item_id] = id(m)
+            if m.get("kind") == "link" and m.get("version"):
+                version = hashlib.sha256(str(m.get("version")).encode()).hexdigest()
+                by_id[item_id] = {**item, "source_version": version}
+            fixed[id(m)] = {**m, "version": None}
+    out_materials = [fixed.get(id(m), m) for m in materials]
+    out_items: list[Row] = []
+    for item in items:
+        item_id = str(item.get("id"))
+        item = by_id[item_id]
+        kept = followed(item) and item_id in owner
+        if (
+            followed(item)
+            and not kept
+            and item.get("kind") == "file"
+            and not item.get("storage_key")
+        ):
+            continue  # followed by nothing, and nothing kept of it to open
+        item = {k: v for k, v in item.items() if k not in ("source_ref", "source_name")}
+        if kept:
+            item["source_kind"] = "lms"
+        else:
+            if followed(by_id[item_id]) and item.get("kind") == "link":  # the user's link now
+                item = {**item, "source_version": None}
+            elif followed(by_id[item_id]):  # handed over now
+                item = {**item, **dict.fromkeys(_SOURCE_SIDE), "url": None}
+                item = {k: v for k, v in item.items() if k not in ("source_ref", "source_name")}
+            elif item.get("source_kind") == "lms" and item.get("kind") == "file":
+                item["url"] = None  # handed over before 0070: the platform's address stayed
+            item["source_kind"] = None
+        out_items.append(item)
+    return out_items, out_materials
+
+
+def _forgotten(m: Row, *, item_id: str | None) -> Row:
+    """`absent`, nothing applied (`materials.enter`)."""
+    return {
+        **m,
+        "state": "absent",
+        "item_id": item_id,
+        "quiet": False,
+        "version": None,
+        "name": None,
+        "placed_folder_id": None,
+        "links": [],
+    }
+
+
+def _0070(lms: Row, archive: OlderArchive) -> Row:
+    _, materials = follow_once_0070(
+        _rows(archive.payload("files"), "items"), _rows(lms, "materials")
+    )
+    return {**lms, "materials": materials}
+
+
+def _files_0070(files: Row, archive: OlderArchive) -> Row:
+    items, _ = follow_once_0070(_rows(files, "items"), _rows(archive.payload("lms"), "materials"))
     return {**files, "items": items}
 
 
@@ -432,7 +525,9 @@ register_reshape("0060", "lms", _0060)
 register_reshape("0061", "lms", _0061)
 register_reshape("0063", "lms", _0063)
 register_reshape("0066", "lms", _0066)
-register_reshape("0070", "lms", _0070)
 register_reshape("0066", "files", _files_0066)
+register_reshape("0070", "lms", _0070)
+register_reshape("0070", "files", _files_0070)
+register_reshape("0071", "lms", _0071)
 register_reshape("0060", "settings", _settings_0060)
 register_reshape("0064", "settings", _settings_0064)

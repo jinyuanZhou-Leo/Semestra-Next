@@ -3,9 +3,10 @@ platform become items of the course's files (M07), in the folders they are in on
 (`material_reads` reads them and tells what left).
 
 Every item keeps following the platform: a changed file is read again, a renamed one renamed.
-By default nothing is copied: an item names its platform file or page (`source_ref`) and M07
-reads the bytes from the platform when they are needed (`material_items.open_source`, its
-content source), so the materials take none of the user's storage. With the course's `store`
+By default nothing is copied: an item follows the platform (`source_kind` `lms`; which file or
+page it is, its `LmsMaterial.item_id` says, M09 §4.6) and M07 reads the bytes from the platform
+when they are needed (`material_items.open_source`, its content source), so the materials take
+none of the user's storage. With the course's `store`
 setting at `local` (M11 namespace `lms.materials`, account and course) a local copy is kept too,
 so they open after the platform course closes (`sources.apply_copies`; the user may choose
 otherwise for one file). Their text is read and indexed like any file's (M07's `auto_index`),
@@ -44,7 +45,7 @@ from semestra.modules.files.source_folders import SourceFolders
 from semestra.modules.lms import material_reads
 from semestra.modules.lms.material_items import has_copy
 from semestra.modules.lms.material_reads import Found, Key, Material
-from semestra.modules.lms.materials import enter, note, source_ref
+from semestra.modules.lms.materials import enter, note
 from semestra.modules.lms.models import LmsCourseLink, LmsMaterial
 from semestra.modules.lms.rules import Presence
 from semestra.modules.lms.service import Bound
@@ -79,8 +80,7 @@ async def _create(
             m.title,
             folder_id,
             source_kind="lms",
-            source_ref=source_ref("link", m.external_id),
-            source_name=b.provider.display_name,
+            version=m.version,
         )
         [row] = await sources.find_items(ctx, [out.id])
         return row
@@ -91,10 +91,8 @@ async def _create(
         name=m.title,
         mime=m.mime,
         size=m.size,
-        source_ref=source_ref(m.kind, m.external_id),
         version=m.version,
         url=m.web_url,
-        source_name=b.provider.display_name,
         modified_at=m.modified_at,
         unseen=unseen,
         auto_index=auto_index,
@@ -110,10 +108,12 @@ async def _follow(ctx: Ctx, m: Material, mat: LmsMaterial, row: FilesItem) -> bo
     # Named anew when its name here would change (not on every new spelling of the title): also
     # mends a name an older sync cut at a slash.
     retitled = title is not None and sources.name_from_source(title) not in ("", mat.name)
-    changed = mat.version != m.version
+    changed = sources.source_changed(row, m.version)
     if m.kind == "link":
         if changed or retitled:
-            await sources.update_link(ctx, row, url=m.url or row.url or "", name=title)
+            await sources.update_link(
+                ctx, row, url=m.url or row.url or "", name=title, version=m.version
+            )
     elif changed:
         await sources.update_remote_file(
             ctx,
@@ -135,8 +135,10 @@ async def _follow(ctx: Ctx, m: Material, mat: LmsMaterial, row: FilesItem) -> bo
 
 
 def _seen(mat: LmsMaterial, m: Material) -> None:
-    """What this run saw of the platform's item; what it did not read again stays."""
-    mat.title, mat.version, mat.path = m.title, m.version, [list(level) for level in m.path]
+    """What this run saw of the platform's item; what it did not read again stays. Its version
+    only while it has no followed item, whose own version it is then (M09 §4.6)."""
+    mat.title, mat.path = m.title, [list(level) for level in m.path]
+    mat.version = m.version if mat.state != "synced" else None
     if m.links is not None:
         mat.links = m.links
 
@@ -216,10 +218,6 @@ async def _write(ctx: Ctx, r: _Run) -> bool:
         )
     }
     now = ctx.now
-    for mat in known.values():
-        if mat.state == "synced" and mat.item_id not in rows:
-            # The user deleted it (told at once by `files.item.deleted`, unless that was missed).
-            enter(mat, "dismissed", now)
     # What came in before the course settled is not news.
     settled = link.materials_settled_at is not None
     places = SourceFolders(ctx, link.course_id, "lms", b.provider.display_name)

@@ -6,7 +6,7 @@ what turning the sync off left behind.
 States change only through `materials.enter` (table 4a).
 """
 
-from collections.abc import AsyncIterator, Mapping
+from collections.abc import AsyncIterator, Mapping, Sequence
 from html import escape
 
 from sqlalchemy import select
@@ -22,7 +22,8 @@ from semestra.modules.lms import reads, service
 from semestra.modules.lms.answers import AREA_HIDDEN
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.materials import enter
-from semestra.modules.lms.models import LmsCourseLink, LmsItemCheck, LmsMaterial
+from semestra.modules.lms.models import LmsConnection, LmsCourseLink, LmsItemCheck, LmsMaterial
+from semestra.modules.lms.providers.base import get_provider
 from semestra.modules.lms.schemas.io import HeldMaterials
 from semestra.modules.lms.settings import materials as material_settings
 from semestra.modules.lms.sync import UPDATED, hold
@@ -67,13 +68,13 @@ async def homes(ctx: Ctx, course_id: str) -> list[sources.Home]:
         )
     ]
     rows = {r.id: r for r in await sources.find_items(ctx, [m.item_id for m in mats if m.item_id])}
+    name = (await source_names(ctx, [course_id])).get(course_id, "LMS")
     places: SourceFolders | None = None
     found: list[sources.Home] = []
     for mat in mats:
         row = rows.get(mat.item_id or "")
-        if row is None or row.source_ref is None or row.folder_id != mat.placed_folder_id:
+        if row is None or row.source_kind is None or row.folder_id != mat.placed_folder_id:
             continue  # the user moved it, or it is theirs now
-        name = row.source_name or "LMS"
         if places is None:
             places = SourceFolders(ctx, course_id, "lms", name)
         folder_id, complete = await places.existing(mat.path or [])
@@ -115,7 +116,7 @@ async def _material_of(ctx: Ctx, item: FilesItem) -> tuple[LmsMaterial, LmsCours
                 LmsCourseLink.course_id == item.course_id,
             )
         )
-    ).first()
+    ).one_or_none()  # one at most (`uq_lms_materials_followed`)
     if found is None:
         raise lms_error("lms.not_found")
     mat, link = found
@@ -144,7 +145,18 @@ async def open_source(ctx: Ctx, item: FilesItem) -> AsyncIterator[bytes]:
     raise lms_error("lms.not_found")
 
 
-register_content_source("lms:", open_source)
+async def source_names(ctx: Ctx, course_ids: Sequence[str]) -> dict[str, str]:
+    """The platform each course is linked to, by name: what its synced items are shown as
+    coming from (`ItemOut.source_name`)."""
+    found = await ctx.db.execute(
+        select(LmsCourseLink.course_id, LmsConnection.provider)
+        .join(LmsConnection, LmsConnection.id == LmsCourseLink.connection_id)
+        .where(LmsCourseLink.user_id == ctx.user_id, LmsCourseLink.course_id.in_(course_ids))
+    )
+    return {course_id: get_provider(kind).display_name for course_id, kind in found.all()}
+
+
+register_content_source("lms", open_source, source_names)
 
 
 @events.subscribe("lms.course.unlinking", in_transaction=True)
@@ -155,17 +167,28 @@ async def on_unlinking(ctx: Ctx, event: Event) -> None:
     link_id = event.data.get("link_id")
     if not isinstance(link_id, str):
         return
-    rows = await synced_items(ctx, link_id)
+    mats = list(
+        await ctx.db.scalars(
+            select(LmsMaterial).where(LmsMaterial.link_id == link_id, LmsMaterial.state == "synced")
+        )
+    )
+    rows = await sources.find_items(ctx, [m.item_id for m in mats if m.item_id])
+    # Moved on before the items go, so `on_item_deleting` does not take them as the user's
+    # deletes; the rows go with the link right after.
+    for mat in mats:
+        enter(mat, "absent", ctx.now)
     await sources.purge_items(ctx, [r for r in rows if not has_copy(r)])
     await sources.detach_from_source(ctx, [r for r in rows if has_copy(r)])
 
 
-@events.subscribe("files.item.deleted")
-async def on_item_deleted(ctx: Ctx, event: Event) -> None:
-    """The user deleted a material's item: it is not brought back (`dismissed`), and the status
-    panel lists it under the removed materials at once, where it can be restored."""
+@events.subscribe("files.item.deleting", in_transaction=True)
+async def on_item_deleting(ctx: Ctx, event: Event) -> None:
+    """A followed item is being deleted, in this transaction. The sync's own deletes move the
+    material on first, so one still `synced` is the user's: it is not brought back
+    (`dismissed`), and the status panel lists it under the removed materials at once, where it
+    can be restored."""
     item_id = event.data.get("item_id")
-    if not isinstance(item_id, str):
+    if event.data.get("source_kind") != "lms" or not isinstance(item_id, str):
         return
     found = (
         await ctx.db.execute(
@@ -177,10 +200,12 @@ async def on_item_deleted(ctx: Ctx, event: Event) -> None:
                 LmsMaterial.state == "synced",
             )
         )
-    ).all()
-    for mat, link in found:
-        enter(mat, "dismissed", ctx.now)
-        await events.publish(ctx, UPDATED, {"program_id": link.program_id})
+    ).one_or_none()
+    if found is None:
+        return
+    mat, link = found
+    enter(mat, "dismissed", ctx.now)
+    await events.publish(ctx, UPDATED, {"program_id": link.program_id})
 
 
 async def _restorable(ctx: Ctx, link: LmsCourseLink) -> bool:
@@ -278,7 +303,7 @@ def removable(mat: LmsMaterial, row: FilesItem | None) -> bool:
 
 
 async def _remove(ctx: Ctx, mat: LmsMaterial, row: FilesItem) -> None:
-    """Table 4a, "remove in Not syncing for now": dismissed first, so `on_item_deleted` finds
+    """Table 4a, "remove in Not syncing for now": dismissed first, so `on_item_deleting` finds
     nothing left to dismiss; then the course file goes."""
     enter(mat, "dismissed", ctx.now)
     await sources.purge_items(ctx, [row])
@@ -386,7 +411,7 @@ async def remove_held(ctx: Ctx, course_id: str | None) -> HeldMaterials:
         mats, rows = await _left(ctx, link)
         if not mats:
             continue
-        # Before the items go, so `on_item_deleted` does not take them as the user's deletes.
+        # Before the items go, so `on_item_deleting` does not take them as the user's deletes.
         for mat in mats:
             enter(mat, "absent", ctx.now)
         await sources.purge_items(ctx, rows)

@@ -79,7 +79,7 @@ class _Work:
     course_id: str
     # Where the bytes are: stored here, or read from the item's source (`content.py`).
     storage_key: str | None
-    source_ref: str | None
+    source_kind: str | None
     original_name: str | None
     # The item's version this run reads (`content.version`); None for a job queued before
     # versions were kept.
@@ -123,7 +123,7 @@ async def _begin(ctx: JobCtx, item_id: str, version: str | None) -> _Work | None
             ctx.user_id,
             item.course_id,
             item.storage_key,
-            item.source_ref,
+            item.source_kind,
             item.original_name,
             version,
         )
@@ -221,7 +221,7 @@ async def _run(ctx: JobCtx, work: _Work) -> int:
         course_id=work.course_id,
         kind="file",
         storage_key=work.storage_key,
-        source_ref=work.source_ref,
+        source_kind=work.source_kind,
     )
     data = await content.read_all(
         ctx.state, work.user_id, source, ctx.settings.files_max_upload_bytes

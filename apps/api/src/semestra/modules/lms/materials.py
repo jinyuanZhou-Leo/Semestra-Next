@@ -19,10 +19,6 @@ from semestra.modules.lms.schemas.dto import FileMeta
 MaterialKind = Literal["file", "page", "link"]
 
 
-def source_ref(kind: MaterialKind, external_id: str) -> str:
-    return f"lms:{kind}:{external_id}"
-
-
 def file_version(meta: FileMeta) -> str:
     changed = meta.content_at or meta.updated_at
     return f"{changed.isoformat() if changed else ''}|{meta.size_bytes or 0}"
@@ -63,7 +59,8 @@ def enter(
 
     - `synced`: its item `item_id`, nothing applied yet (the caller applies what it read);
     - `list`: no item, nothing applied yet;
-    - `dismissed`: no item; what was read stays (what the page links to still comes in);
+    - `dismissed`: no item; what was read stays (what the page links to still comes in), but
+      its version (it was the item's, M09 §4.6: read again once);
     - `absent`: nothing applied; `item_id` the user's own file it left, if any (never
       followed); `quiet` when the user restored it."""
     if state not in NEXT[mat.state]:
@@ -77,6 +74,8 @@ def enter(
         mat.change = mat.changed_at = None
     if state != "dismissed":
         _forget_applied(mat)
+    else:
+        mat.version = None
 
 
 def note(mat: LmsMaterial, change: MaterialChange, now: datetime) -> None:

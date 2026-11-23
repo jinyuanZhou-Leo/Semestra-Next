@@ -246,13 +246,13 @@ async def test_a_to_do_deleted_a_moment_ago_does_not_fail_the_sync(
 
 
 def test_migration_moves_what_was_kept_into_the_mirror(tmp_path: Path):
-    """0070 (M09 §3.2): a kept assignment whose object is still imported from it becomes its
+    """0071 (M09 §3.2): a kept assignment whose object is still imported from it becomes its
     mirror row, the others are held for their object; refs kept for new assignments go."""
     path = tmp_path / "m.db"
     cfg = Config(str(API_DIR / "alembic.ini"))
     cfg.set_main_option("script_location", str(API_DIR / "migrations"))
     cfg.attributes["database_url"] = f"sqlite+aiosqlite:///{path}"
-    command.upgrade(cfg, "0069")
+    command.upgrade(cfg, "0070")
     db = sqlite3.connect(path)  # foreign keys are off: no other rows needed
     for ref_id, ext, kind, target, dismissed in (
         ("r1", "a1", "assessment", "x1", None),

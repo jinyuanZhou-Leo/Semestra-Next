@@ -9,8 +9,8 @@ from the mirror now (table 3e), so the refs kept for them go; ignored ones stay.
 total is kept on the link. The second-level read cache (`lms_cache`) goes: what the app keeps
 of a course is in its own tables.
 
-Revision ID: 0070
-Revises: 0069
+Revision ID: 0071
+Revises: 0070
 Create Date: 2026-11-23 06:00:00.000000
 
 """
@@ -25,8 +25,8 @@ import semestra.core.db
 from semestra.core.db import new_id
 
 # revision identifiers, used by Alembic.
-revision: str = "0070"
-down_revision: str | Sequence[str] | None = "0069"
+revision: str = "0071"
+down_revision: str | Sequence[str] | None = "0070"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

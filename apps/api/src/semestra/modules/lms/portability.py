@@ -94,7 +94,7 @@ class LinkRow(BaseModel):
 class AssignmentRow(BaseModel):
     """A row of `lms_assignments`: a mirror row of a link, or held for an assessment or to-do.
     Backups made before the mirror (up to 2.4) had the imported ones' feedback only (`feedback`,
-    read in by `older_backups._0070` as migration 0070 moved it)."""
+    read in by `older_backups._0071` as migration 0071 moved it)."""
 
     link_id: str | None = None
     held_for_kind: str | None = None

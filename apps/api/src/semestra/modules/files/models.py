@@ -69,8 +69,9 @@ class FilesItem(Base, OwnedMixin, TimestampMixin):
     storage_key: Mapped[str | None] = mapped_column(String, default=None)
     url: Mapped[str | None] = mapped_column(String, default=None)
     pinned: Mapped[bool] = mapped_column(Boolean, default=False)
-    source_kind: Mapped[str | None] = mapped_column(String, default=None)  # upload|lms|agent
-    source_ref: Mapped[str | None] = mapped_column(String, default=None)
+    # The module that keeps this item in step with its source (`content.register_content_source`;
+    # 'lms'); None: the user's own. Which item of the source it is, the source module keeps.
+    source_kind: Mapped[str | None] = mapped_column(String, default=None)
     # A file kept in step with its source (`sources.py`) has two sides, each written only by the
     # functions there. The source's: its current version (a hash of the source's version
     # string), type and size. The local copy's (`storage_key`, `sha256`): the source version it
@@ -85,8 +86,6 @@ class FilesItem(Base, OwnedMixin, TimestampMixin):
     # The user's choice of a local copy for this file (True keep one, False read it from the
     # source); None: the source's setting for its course decides.
     keep_copy: Mapped[bool | None] = mapped_column(Boolean, default=None)
-    # The source's name for itself ("Canvas"), shown with the file while it follows the source.
-    source_name: Mapped[str | None] = mapped_column(String, default=None)
     # When the source last changed the contents (its time, not when the sync saw it).
     source_modified_at: Mapped[datetime | None] = mapped_column(UTCDateTime, default=None)
     # Brought in by its source and not opened yet.

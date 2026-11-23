@@ -95,7 +95,8 @@ def _items(files: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def _followed(raw: dict[str, Any]) -> bool:
-    return raw.get("kind") == "file" and content.is_source_ref(raw.get("source_ref"))
+    """A followed file as backups before 0070 tell it: its `source_ref` names the LMS source."""
+    return raw.get("kind") == "file" and str(raw.get("source_ref") or "").startswith("lms:")
 
 
 register_reshape("0057", "files", _0057)

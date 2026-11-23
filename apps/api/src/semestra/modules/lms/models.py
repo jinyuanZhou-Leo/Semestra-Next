@@ -218,6 +218,13 @@ class LmsMaterial(Base, OwnedMixin):
     __tablename__ = "lms_materials"
     __table_args__ = (
         UniqueConstraint("link_id", "kind", "external_id", name="uq_lms_materials_item"),
+        # A followed item is one material's (M09 §4.6).
+        Index(
+            "uq_lms_materials_followed",
+            "item_id",
+            unique=True,
+            sqlite_where=text("state = 'synced'"),
+        ),
     )
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
@@ -231,8 +238,8 @@ class LmsMaterial(Base, OwnedMixin):
     state_at: Mapped[datetime | None] = mapped_column(default=None)
     # `absent` because the user restored it: it comes in without being told as new.
     quiet: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
-    # The item of the course's files (M07's `files_items.id`). Not a foreign key: the sync tells
-    # an item the user deleted from one never made.
+    # The item of the course's files (M07's `files_items.id`): while `synced`, the one item
+    # following it (`source_kind = "lms"`), kept one to one in the same transactions (M09 §4.6).
     item_id: Mapped[str | None] = mapped_column(String, default=None, index=True)
     # What the sync last applied from the platform: the platform's title, and its version of the
     # contents (it changes when the bytes do, not on a rename).

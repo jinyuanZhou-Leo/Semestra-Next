@@ -8,7 +8,7 @@ from semestra.core.jobs import JobOut
 Id = Annotated[str, Field(min_length=1, max_length=64)]
 ItemKind = Literal["file", "link"]
 DocStatus = Literal["none", "pending", "processing", "ready", "failed", "unsupported"]
-SourceKind = Literal["upload", "lms", "agent"]
+SourceKind = Literal["lms"]
 SortKey = Literal["name", "size", "updated", "created", "type"]
 SearchMode = Literal["hybrid", "keyword", "semantic"]
 
@@ -69,8 +69,9 @@ class ItemOut(BaseModel):
         description="For a file that follows its source: where it is kept; null otherwise",
     )
     pinned: bool
-    source_kind: SourceKind | None
-    source_ref: str | None
+    source_kind: SourceKind | None = Field(
+        description="The module that keeps it in step with its source; null for the user's own"
+    )
     source_name: str | None = Field(
         description="The name of the source it came from and follows (an LMS platform), for files"
         " and links alike; null for the user's own"
@@ -108,7 +109,6 @@ ItemField = Literal[
     "follows_source",
     "pinned",
     "source_kind",
-    "source_ref",
     "source_name",
     "unseen",
     "doc_status",
