@@ -183,14 +183,22 @@ def state_of(assignment: Mapping[str, Any]) -> AssignmentState:
 AreaResult = Literal["whole", "partial", "unavailable", "unsupported"]
 # A list that came back: what the sync keeps of it is the platform's as of then.
 READ_BACK: frozenset[str] = frozenset(("whole", "partial"))
+# Not read only this once (表 2 第 11、13 行): the next round reads it as usual.
+PASSING: frozenset[str] = frozenset(("lms.rate_limited", "lms.unreachable"))
 
 
 def area_entry(
-    previous: Mapping[str, Any] | None, result: AreaResult, at: datetime
+    previous: Mapping[str, Any] | None,
+    result: AreaResult,
+    at: datetime,
+    reason: str | None = None,
 ) -> dict[str, str]:
     """How an area's list read this round (`LmsCourseLink.area_reads[area]`): the result and
-    when, and when it last came back at all (`read_at`), which an unreadable round keeps."""
+    when, why it was unavailable (an error code), and when it last came back at all
+    (`read_at`), which an unreadable round keeps."""
     entry = {"result": result, "at": at.isoformat()}
+    if result == "unavailable" and reason:
+        entry["reason"] = reason
     read_at = at.isoformat() if result in READ_BACK else (previous or {}).get("read_at")
     if read_at:
         entry["read_at"] = read_at
@@ -205,7 +213,8 @@ def calendar_read(entry: Mapping[str, Any] | None) -> CalendarRead:
     tried, tried and never read back; a platform without calendars counts as none of these."""
     if entry and entry.get("read_at"):
         return "read"
-    if not entry:
+    # Never tried, or kept from it only by a rate limit or an outage.
+    if not entry or entry.get("reason") in PASSING:
         return "waiting"
     if entry.get("result") == "unsupported":
         return "unsupported"

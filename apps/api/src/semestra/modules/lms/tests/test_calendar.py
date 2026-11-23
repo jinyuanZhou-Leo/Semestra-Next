@@ -7,6 +7,7 @@ from typing import Any
 import pytest
 from fastapi import FastAPI
 
+from semestra.modules.lms import sync
 from semestra.modules.lms.schemas.dto import LmsCalendarEvent
 from semestra.modules.lms.tests.conftest import Api, FakeProvider
 from semestra.modules.lms.tests.test_lms import setup_program
@@ -66,7 +67,7 @@ async def test_the_calendar_shows_what_the_sync_kept_without_asking_the_platform
     assert not [c for c in fake.calls if c[0] == "calendar_events"]
 
     # Unreachable now, the calendar still shows what was kept.
-    fake.calendar_down = True
+    fake.calendar_error = "lms.unreachable"
     assert len(await overlay(api, program_id)) == 2
 
     # Sync off: the course leaves the calendar.
@@ -110,20 +111,25 @@ async def test_courses_whose_calendar_was_never_read_or_never_could_be(
     api: Api, fake: FakeProvider, clock: Clock
 ):
     program_id, _, _ = await _two_courses(api)
+
+    async def counts() -> tuple[int, int]:
+        clock.advance(minutes=2)
+        status = await api.sync(program_id)
+        return status["calendar_waiting"], status["calendar_unreadable"]
+
     status = await api.call("GET", f"/programs/{program_id}/lms/sync")
     assert (status["calendar_waiting"], status["calendar_unreadable"]) == (2, 0)
-    # Tried and not read back: unreadable, not read.
-    fake.calendar_down = True
-    status = await api.sync(program_id)
-    assert (status["calendar_waiting"], status["calendar_unreadable"]) == (0, 2)
+    # A rate limit or an outage only kept it from this round: still to read.
+    fake.calendar_error = "lms.rate_limited"
+    assert await counts() == (2, 0)
+    # Refused: tried and not read back.
+    fake.calendar_error = "lms.forbidden"
+    assert await counts() == (0, 2)
     # Read once, it stays read when a later round cannot read it.
-    fake.calendar_down = False
-    clock.advance(minutes=2)
-    await api.sync(program_id)
-    fake.calendar_down = True
-    clock.advance(minutes=2)
-    status = await api.sync(program_id)
-    assert (status["calendar_waiting"], status["calendar_unreadable"]) == (0, 0)
+    fake.calendar_error = None
+    assert await counts() == (0, 0)
+    fake.calendar_error = "lms.forbidden"
+    assert await counts() == (0, 0)
 
 
 async def test_a_course_that_cannot_be_read_tried_its_calendar(api: Api, fake: FakeProvider):
@@ -133,24 +139,63 @@ async def test_a_course_that_cannot_be_read_tried_its_calendar(api: Api, fake: F
     assert (status["calendar_waiting"], status["calendar_unreadable"]) == (0, 1)
 
 
-async def test_an_ended_course_reads_only_its_calendar_the_first_time(api: Api, fake: FakeProvider):
+async def test_an_ended_course_reads_only_its_calendar_the_first_time(
+    api: Api, fake: FakeProvider
+):
+    program_id, _ = await _ended_course(api)
+    fake.events = [event("e1", "101", "Final exam", datetime(2025, 12, 10, 14, tzinfo=UTC))]
+    fake.calls.clear()
+    # Opening the Program reads it, though its term ended long ago: its calendar only.
+    await _open(api, program_id)
+    read = {c[0] for c in fake.calls}
+    assert "calendar_events" in read
+    assert not read & {"assignments", "my_submissions", "announcements", "course_files"}
+    assert await overlay(api, program_id, "2025-12-09", "2025-12-11") == ["APS105H1 · Final exam"]
+    # Read, it is left to the usual rules: not read again on opening.
+    fake.calls.clear()
+    await _open(api, program_id)
+    assert not [c for c in fake.calls if c[0] == "calendar_events"]
+
+
+async def _ended_course(api: Api) -> tuple[str, str]:
     program_id, _, _ = await setup_program(api)
     term = {"name": "Fall 2025", "start_date": "2025-09-02", "end_date": "2025-12-05"}
     term_id = (await api.call("POST", f"/programs/{program_id}/terms", json=term))["term"]["id"]
     course = await api.course(program_id, term_id)
     await api.link(course, "101")
     await api.run_jobs()
+    return program_id, course
+
+
+async def _open(api: Api, program_id: str) -> None:
+    await api.call("POST", f"/programs/{program_id}/lms/sync", json={"force": False})
+    await api.run_jobs()
+
+
+async def test_an_ended_course_kept_from_its_calendar_by_an_outage_reads_it_next_time(
+    api: Api, fake: FakeProvider
+):
+    program_id, _ = await _ended_course(api)
     fake.events = [event("e1", "101", "Final exam", datetime(2025, 12, 10, 14, tzinfo=UTC))]
-    fake.calls.clear()
-    # Opening the Program reads it, though its term ended long ago: its calendar only.
-    await api.call("POST", f"/programs/{program_id}/lms/sync", json={"force": False})
-    await api.run_jobs()
-    read = {c[0] for c in fake.calls}
-    assert "calendar_events" in read
-    assert not read & {"assignments", "my_submissions", "announcements", "course_files"}
+    fake.calendar_error = "lms.unreachable"
+    await _open(api, program_id)
+    fake.calendar_error = None
+    await _open(api, program_id)
     assert await overlay(api, program_id, "2025-12-09", "2025-12-11") == ["APS105H1 · Final exam"]
-    # Tried once, it is left to the usual rules: not read again on opening.
-    fake.calls.clear()
-    await api.call("POST", f"/programs/{program_id}/lms/sync", json={"force": False})
+
+
+async def test_opening_a_program_reads_at_most_a_round_of_calendars(
+    api: Api, fake: FakeProvider, monkeypatch: pytest.MonkeyPatch
+):
+    program_id, _ = await _ended_course(api)
+    term = {"name": "Summer 2025", "start_date": "2025-05-05", "end_date": "2025-08-01"}
+    term_id = (await api.call("POST", f"/programs/{program_id}/terms", json=term))["term"]["id"]
+    other = await api.course(program_id, term_id, code="MAT186H1", title="Calculus")
+    await api.link(other, "102")
     await api.run_jobs()
-    assert not [c for c in fake.calls if c[0] == "calendar_events"]
+    monkeypatch.setattr(sync, "PER_TICK", 1)
+    fake.calls.clear()
+    await _open(api, program_id)
+    assert len([c for c in fake.calls if c[0] == "calendar_events"]) == 1
+    status = await api.call("GET", f"/programs/{program_id}/lms/sync")
+    assert status["calendar_waiting"] == 1

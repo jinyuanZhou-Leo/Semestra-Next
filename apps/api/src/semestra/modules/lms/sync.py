@@ -25,7 +25,7 @@ from datetime import timedelta
 
 import structlog
 from pydantic import BaseModel
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import ColumnElement, func, or_, select, update
 from starlette.datastructures import State
 
 from semestra.core.context import Ctx, run_as_system
@@ -135,9 +135,15 @@ def register_sync_stage(
     _stages[name] = SyncStage(name, order, run, enabled, area)
 
 
-def record_area(ctx: Ctx, link: LmsCourseLink, area: str, result: rules.AreaResult) -> None:
+def record_area(
+    ctx: Ctx,
+    link: LmsCourseLink,
+    area: str,
+    result: rules.AreaResult,
+    reason: str | None = None,
+) -> None:
     """Notes how an area's list read this round (M09 表 3c, §4.8)."""
-    entry = rules.area_entry(link.area_reads.get(area), result, ctx.now)
+    entry = rules.area_entry(link.area_reads.get(area), result, ctx.now, reason)
     link.area_reads = {**link.area_reads, area: entry}
 
 
@@ -243,9 +249,10 @@ async def sync_course(
         link.sync_errors = errors if only is None else {**link.sync_errors, **errors}
         # An area whose stage failed, or that the round never reached (the course could not be
         # read), was not read this round.
+        ended = errors.get(todo[0].name) if todo else None
         for stage in todo:
             if stage.area and (stage.name in errors or stage.name not in ran):
-                record_area(sys, link, stage.area, "unavailable")
+                record_area(sys, link, stage.area, "unavailable", errors.get(stage.name, ended))
         await events.publish(
             sys,
             SYNCED,
@@ -334,7 +341,7 @@ async def first_calendar_reads(
             LmsCourseLink.sync_enabled,
             LmsConnection.credentials_encrypted.is_not(None),
             LmsConnection.status == "connected",
-            func.json_extract(LmsCourseLink.area_reads, "$.calendar").is_(None),
+            _calendar_unread(),
         )
     )
     if program_id is not None:
@@ -347,6 +354,15 @@ async def first_calendar_reads(
         [li for li in links if li.course_id in active],
         [li for li in links if li.course_id not in active],
     )
+
+
+def _calendar_unread() -> ColumnElement[bool]:
+    """A course's calendar not read yet (`rules.calendar_read` "waiting"): never tried, or kept
+    from it only by a rate limit or an outage."""
+    calendar = func.json_extract(LmsCourseLink.area_reads, "$.calendar")
+    reason = func.json_extract(LmsCourseLink.area_reads, "$.calendar.reason")
+    read_at = func.json_extract(LmsCourseLink.area_reads, "$.calendar.read_at")
+    return or_(calendar.is_(None), read_at.is_(None) & reason.in_(sorted(rules.PASSING)))
 
 
 async def _queue_first_calendar_reads(
@@ -415,12 +431,11 @@ async def request_sync(
     queued = await queue(ctx, links, manual=force) if links else 0
     if course_id is None and not force:
         # A course whose calendar was never read is read now, whenever it last synced (§4.8).
+        # At most a round's worth; the scheduler reads the rest (§4.8).
         current, ended = await first_calendar_reads(ctx, program_id)
         picked = {li.course_id for li in links}
         current = [li for li in current if li.course_id not in picked]
-        queued += await _queue_first_calendar_reads(
-            ctx, (current, ended), len(current) + len(ended)
-        )
+        queued += await _queue_first_calendar_reads(ctx, (current, ended), PER_TICK)
     return queued
 
 
@@ -493,7 +508,7 @@ async def sync_due(ctx: Ctx) -> None:
                 or_(
                     LmsCourseLink.synced_at.is_(None),
                     LmsCourseLink.synced_at <= since,
-                    func.json_extract(LmsCourseLink.area_reads, "$.calendar").is_(None),
+                    _calendar_unread(),
                 ),
             )
             .distinct()
