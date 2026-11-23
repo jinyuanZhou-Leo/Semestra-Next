@@ -73,6 +73,16 @@ pnpm check --only api,web
 
 脚本只认识 `ci.yml` 现在用到的写法。改 `ci.yml` 时用了新的 `if:` 条件、步骤字段或 `${{ }}` 表达式，`pnpm check` 会报错并指出位置，需要同步更新 `scripts/check.py`。
 
+### LMS 同步的穷举测试
+
+LMS 同步有一组穷举测试：一门小课程上所有不超过两步的平台与用户动作序列（一千多条），以及 Hypothesis 挑出的更长序列。它们跑一次要几分钟，所以 CI 和 `pnpm check` 都不跑，改到 LMS 同步、导入或课程资料时在本地跑：
+
+```bash
+pnpm test:exhaustive
+```
+
+它们在 pytest 里带 `exhaustive` 标记，默认被排除；`pnpm test:exhaustive` 只跑这一组。
+
 ## 云端会话
 
 仓库的 `.claude/hooks/session-start.sh` 会在 Claude Code 的云端会话开始时准备环境：安装 CI 用的 Node 26 和 `packageManager` 指定的 pnpm，再安装前后端依赖，并把 `CHROME` 指向镜像里自带的 Chromium。依赖文件没变时会跳过安装。本机运行时它什么都不做。

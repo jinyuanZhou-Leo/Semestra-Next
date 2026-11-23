@@ -18,11 +18,16 @@ once per distinct data, so subscribers do their work once.
 
 Work that waits on the outside world after a commit (a push service) runs with `spawn`, so it
 holds up neither the response nor the dispatch of other events, and `drain` still waits for it.
+
+Part of a transaction that may fail on its own (one item of a batch) runs in `savepoint`: rolled
+back, it takes the events and after-commit work it queued with it, so nothing is told of what was
+not written.
 """
 
 import asyncio
 from collections import defaultdict
-from collections.abc import Awaitable, Callable, Coroutine
+from collections.abc import AsyncGenerator, Awaitable, Callable, Coroutine
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Any
 
@@ -92,6 +97,24 @@ class EventBus:
                 callback.events.append(event)
                 return
         ctx.after_commit.append(_Dispatcher(self, ctx.state, [event]))
+
+    @asynccontextmanager
+    async def savepoint(self, ctx: Ctx) -> AsyncGenerator[None]:
+        """A savepoint of `ctx`'s transaction (`begin_nested`) that also undoes, when its block
+        raises, the events and after-commit callbacks queued inside it; the exception goes on.
+        `in_transaction` subscribers run inside it and are rolled back with it. The caller's
+        transaction must have begun with a write (pysqlite starts it only then, and a first
+        savepoint would be the transaction itself)."""
+        pending = len(ctx.after_commit)
+        queued = [(cb, len(cb.events)) for cb in ctx.after_commit if isinstance(cb, _Dispatcher)]
+        try:
+            async with ctx.db.begin_nested():
+                yield
+        except BaseException:
+            del ctx.after_commit[pending:]
+            for dispatcher, count in queued:
+                del dispatcher.events[count:]
+            raise
 
     async def dispatch(self, state: State, event: Event) -> None:
         """Deliver an already committed event. Never raises."""

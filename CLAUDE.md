@@ -21,6 +21,7 @@ docs/                设计稿与模块规格
 | `pnpm lint` / `pnpm format` | oxlint + oxfmt；ruff |
 | `pnpm typecheck` | `tsc`（TS 7）；pyright |
 | `pnpm test` | vitest；pytest |
+| `pnpm test:exhaustive` | LMS 同步的穷举测试（`exhaustive` 标记：不超过两步的全部动作序列与 Hypothesis 长序列，几分钟）。CI 与 `pnpm check` 都不跑（owner 2026-11-23），改到 LMS 同步、导入或课程资料时在本地跑 |
 | `pnpm dev:demo` | 演示环境（`apps/api/devtools/`，不进镜像）：用独立数据目录 `apps/api/data/demo` 起 API、Web、假 Canvas（:8090）和兼容 OpenAI 的假模型接口（:8091），建好演示账户（`demo@example.com` / `semestra-demo-1`，三个学期、课程、成绩册、课表、待办，日期相对今天），连上假 Canvas 并开始首次同步（在后台进行，侧边栏状态行显示进度），AI 各用途指向假模型。`--scenario large` 加一门几百个文件和作业的课；运行中在 `apps/api` 下用 `uv run python -m devtools fake faults/changes/requests …` 注入故障（429、Canvas 403 限流、401、402、5xx、慢、断开）、模拟老师改动、看每个接口的请求次数。详见文档站“开发工具” |
 | `pnpm check` | 本地跑这次改动在 CI 上会跑的检查（`scripts/check.py` 直接读 `ci.yml` 的路径规则和各 job 的步骤，测试只跑受影响的；跳过安装步骤；`--list` 只看计划，`--only api,web` 限定 job）。草稿 PR 推送前用它 |
 | `pnpm gen:api` | 导出 OpenAPI → 重新生成 `packages/api-client`，提交生成结果 |

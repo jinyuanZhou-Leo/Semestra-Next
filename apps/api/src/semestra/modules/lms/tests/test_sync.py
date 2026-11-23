@@ -13,8 +13,8 @@ from semestra.core.context import system_ctx
 from semestra.core.jobs import BACKGROUND
 from semestra.modules.lms import sync
 from semestra.modules.lms.errors import lms_error
-from semestra.modules.lms.schemas.dto import Submission
-from semestra.modules.lms.tests.conftest import Api, FakeProvider
+from semestra.modules.lms.schemas.dto import CourseTotal, Submission
+from semestra.modules.lms.tests.conftest import Api, FakeProvider, SyncFailures
 from semestra.modules.lms.tests.test_lms import setup_program
 from semestra.modules.notifications import service as notifications
 from semestra.testing import Clock, collect_events
@@ -219,6 +219,29 @@ async def test_a_new_grade_is_applied_and_announced(api: Api, app: FastAPI, fake
     assert synced["applied"] == []
 
 
+async def test_a_new_course_total_refreshes_the_assignments(
+    api: Api, app: FastAPI, fake: FakeProvider, clock: Clock
+):
+    """Only the course total changed on the platform: what shows it is told to refresh."""
+    program_id, course = await _course(api, "a1")
+    user_id = (await api.call("GET", "/account/me"))["id"]
+
+    async def told() -> bool:
+        clock.advance(minutes=1)
+        with collect_events(app, user_id) as messages:
+            await api.sync(program_id)
+        return sync.ASSIGNMENTS_UPDATED in {m["type"] for m in messages}
+
+    await told()
+    assert not await told()  # nothing changed
+    fake.total = CourseTotal(score=78.0, grade="C+")
+    assert await told()
+    got = await api.call(
+        "GET", f"/courses/{course}/lms/assignments", params={"include_total": True}
+    )
+    assert (got["total"]["score"], got["total"]["grade"]) == (78.0, "C+")
+
+
 async def test_new_assignments_wait_for_the_user(api: Api, fake: FakeProvider):
     program_id, course = await _course(api, "a1")
     labs = fake.course_assignments["101"]
@@ -368,7 +391,10 @@ async def test_a_bound_assessment_fills_in_what_it_lacks_and_asks_about_the_rest
 
 
 async def test_a_course_that_cannot_be_read_keeps_its_error(
-    api: Api, fake: FakeProvider, monkeypatch: pytest.MonkeyPatch
+    api: Api,
+    fake: FakeProvider,
+    monkeypatch: pytest.MonkeyPatch,
+    expect_sync_failures: SyncFailures,
 ):
     program_id, course = await _course(api, "a1")
     await api.sync(program_id)
@@ -385,7 +411,9 @@ async def test_a_course_that_cannot_be_read_keeps_its_error(
     assert [(e["stage"], e["code"]) for e in status["errors"]] == [("course", "lms.invalid_config")]
     assert status["connection_error"] == "lms.invalid_config"
 
-    # A broken stage does not stop the others, and a sync that works clears the errors.
+    # A bug in the provider is about that one read too (M09 table 2, row 20; table 5b, row 3):
+    # the area is not read this round, the other stages run, and its stage reports it (it will
+    # happen every round); a sync that works clears the errors.
     async def broken(*_: Any) -> Any:
         raise RuntimeError("provider bug")
 
@@ -396,6 +424,7 @@ async def test_a_course_that_cannot_be_read_keeps_its_error(
     assert [(e["stage"], e["code"]) for e in status["errors"]] == [
         ("assignments", "common.internal")
     ]
+    assert expect_sync_failures.events() == ["lms.provider_failed"]
     assert any(kind == "announcements" for kind, _ in fake.calls)
     assert status["connection_error"] is None
     status = await api.sync(program_id, course)

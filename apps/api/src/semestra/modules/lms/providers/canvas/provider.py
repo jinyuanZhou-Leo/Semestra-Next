@@ -168,6 +168,11 @@ def _opt_int(value: Any) -> int | None:
     return int(number) if number is not None else None
 
 
+def _has(value: Any, key: str) -> bool:
+    """An object of the API, by the key every one of its kind has."""
+    return isinstance(value, dict) and cast(dict[str, Any], value).get(key) is not None
+
+
 def _dict(value: Any) -> dict[str, Any]:
     return cast(dict[str, Any], value) if isinstance(value, dict) else {}
 
@@ -504,21 +509,42 @@ class CanvasProvider:
             raise lms_error("lms.unreachable") from None
 
     async def _get(
-        self, io: Io, cfg: BaseModel, creds: BaseModel, path: str, params: Any = None
+        self,
+        io: Io,
+        cfg: BaseModel,
+        creds: BaseModel,
+        path: str,
+        params: Any = None,
+        *,
+        key: str | None = "id",
     ) -> Any:
+        """One object, which has `key` (None: any JSON). Anything else is an answer not
+        understood (M09 table 2, row 19), never an empty one."""
         url = f"{_cfg(cfg).base_url}{API_PREFIX}{path}"
         response = await self._send(io, url, _token(creds), params)
         if error := _map_status(response):
             raise error
         try:
-            return response.json()
+            payload = response.json()
         except ValueError:
             raise lms_error("lms.unreachable", reason="payload") from None
+        if key is not None and not _has(payload, key):
+            raise lms_error("lms.unreachable", reason="payload")
+        return payload
 
     async def _list(
-        self, io: Io, cfg: BaseModel, creds: BaseModel, path: str, params: Any = None
+        self,
+        io: Io,
+        cfg: BaseModel,
+        creds: BaseModel,
+        path: str,
+        params: Any = None,
+        *,
+        key: str = "id",
     ) -> list[dict[str, Any]]:
-        """Follows `Link: rel=next` (same origin only) up to MAX_PAGES pages."""
+        """Follows `Link: rel=next` (same origin only) up to MAX_PAGES pages. Each page is a
+        list of objects that have `key`: anything else is an answer not understood (M09 table 2,
+        row 19), never a shorter list (which would tell what is missing is gone)."""
         base = _cfg(cfg).base_url
         url: str | None = f"{base}{API_PREFIX}{path}"
         query: Any = [*(params or []), ("per_page", PER_PAGE)]
@@ -535,8 +561,9 @@ class CanvasProvider:
                 payload = response.json()
             except ValueError:
                 raise lms_error("lms.unreachable", reason="payload") from None
-            if isinstance(payload, list):
-                items += [p for p in cast(list[Any], payload) if isinstance(p, dict)]
+            if not isinstance(payload, list) or not all(_has(p, key) for p in payload):
+                raise lms_error("lms.unreachable", reason="payload")
+            items += cast(list[dict[str, Any]], payload)
             pages += 1
             url = _next_link(response)
             if url is not None and _origin(url) != _origin(base):
@@ -839,7 +866,7 @@ class CanvasProvider:
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> list[PageSummary]:
         rows = await self._list(
-            io, cfg, creds, f"/courses/{quote(course_id)}/pages", [("sort", "title")]
+            io, cfg, creds, f"/courses/{quote(course_id)}/pages", [("sort", "title")], key="url"
         )
         return [self._page_summary(r) for r in rows]
 
@@ -851,7 +878,7 @@ class CanvasProvider:
             if page_ref == FRONT_PAGE_REF
             else f"/courses/{quote(course_id)}/pages/{quote(page_ref, safe='')}"
         )
-        r = cast(dict[str, Any], await self._get(io, cfg, creds, path))
+        r = cast(dict[str, Any], await self._get(io, cfg, creds, path, key="url"))
         summary = self._page_summary(r)
         return PageDetail(
             **summary.model_dump(),
@@ -893,7 +920,7 @@ class CanvasProvider:
         truncated = False
         if topic.reply_count and not topic.locked:
             # The full thread (`/view`) names authors only in `participants`.
-            view = cast(dict[str, Any], await self._get(io, cfg, creds, f"{base}/view"))
+            view = _dict(await self._get(io, cfg, creds, f"{base}/view", key=None))
             names = {
                 str(p.get("id")): _text(p.get("display_name"))
                 for p in cast(list[dict[str, Any]], view.get("participants") or [])
@@ -1018,7 +1045,9 @@ class CanvasProvider:
         if current.path:
             # Every folder from the root down, in one request.
             by_path = "/".join(quote(p, safe="") for p in current.path.split("/") if p)
-            rows = await self._get(io, cfg, creds, f"/courses/{course}/folders/by_path/{by_path}")
+            rows = await self._get(
+                io, cfg, creds, f"/courses/{course}/folders/by_path/{by_path}", key=None
+            )
             trail = [
                 self._folder(cfg, course_id, _dict(r))
                 for r in cast(list[Any], rows if isinstance(rows, list) else [])

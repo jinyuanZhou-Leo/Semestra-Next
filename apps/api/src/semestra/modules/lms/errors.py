@@ -31,6 +31,8 @@ STATUS = {
     "lms.course_already_linked": 409,
     "lms.course_link_exists": 409,
     "lms.assignment_already_imported": 409,
+    # Deleted on the platform and waiting for the user's answer (keep or delete, M09 table 4b).
+    "lms.assignment_removed": 409,
     "lms.assessment_already_bound": 409,
     "lms.assessment_not_bound": 409,
     "lms.credentials_missing": 409,
@@ -98,6 +100,8 @@ agent_hints(
         "lms.rate_limited": "The LMS is limiting requests; wait before trying again.",
         "lms.assignment_already_imported": "This assignment is already in the gradebook; update "
         "that assessment.",
+        "lms.assignment_removed": "This assignment was deleted on the LMS; the user answers "
+        "whether to keep or delete its Semestra item in the sync panel first.",
         "lms.assessment_already_bound": "This assessment already follows an LMS assignment; "
         "unbind it first (lms.assignment.unbind) to bind another one.",
     }

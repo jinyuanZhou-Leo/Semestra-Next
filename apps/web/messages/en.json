@@ -2860,6 +2860,7 @@
   "files_kind_audio": "Audio",
   "files_kind_other": "{ext} file",
   "error_lms_assignment_already_imported": "“{title}” was already imported from the platform",
+  "error_lms_assignment_removed": "“{title}” was deleted on the platform. Choose to keep or delete it in the sync panel first",
   "error_lms_assessment_already_bound": "This assessment already follows an assignment on the platform",
   "error_lms_assessment_not_bound": "This assessment doesn’t follow an assignment on the platform",
   "error_lms_sync_nothing_to_resolve": "Nothing left to resolve here; the sync already updated it",

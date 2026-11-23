@@ -15,7 +15,7 @@ from urllib.parse import urljoin
 
 import structlog
 from cryptography.fernet import InvalidToken
-from pydantic import BaseModel, SecretStr
+from pydantic import BaseModel, SecretStr, ValidationError
 from sqlalchemy import delete, func, select, update
 from starlette.datastructures import State
 
@@ -27,6 +27,7 @@ from semestra.core.http import safe_client
 from semestra.core.security import decrypt, encrypt
 from semestra.modules.academics import service as academics
 from semestra.modules.lms import assignment_refs, cache, html
+from semestra.modules.lms.answers import BUG
 from semestra.modules.lms.errors import BROKEN_ON_READ, CONNECTION_ERRORS, lms_error
 from semestra.modules.lms.models import (
     LmsAnnouncement,
@@ -49,6 +50,7 @@ from semestra.modules.lms.providers import (
 from semestra.modules.lms.schemas.dto import (
     INTERNAL,
     ConnectionSummary,
+    LmsCourse,
     LmsFeature,
 )
 from semestra.modules.lms.schemas.io import (
@@ -582,10 +584,28 @@ async def call[T](ctx: Ctx, b: Bound, fn: Callable[[Io], Awaitable[T]]) -> tuple
 
     async def run() -> tuple[T, bool]:
         async with io(ctx) as i:
-            result = await fn(i)
+            try:
+                result = await fn(i)
+            except AppError:
+                raise
+            except Exception as exc:
+                raise provider_failure(b, exc) from None
             return result, i.truncated
 
     return await attempt(ctx, b, run)
+
+
+def provider_failure(b: Bound, exc: Exception) -> AppError:
+    """What a provider call raised other than an answer (`AppError`), in the `except` block that
+    caught it; about this read only, and logged. A value of the platform's answer that its DTO
+    cannot take (`ValidationError`) is an answer not understood, `lms.unreachable` (M09 table 2,
+    row 19); anything else is Semestra's own bug, `common.internal` (row 21), never told as the
+    platform's."""
+    if isinstance(exc, ValidationError):
+        log.error("lms.provider_payload", exc_info=True, provider=b.row.provider)
+        return lms_error("lms.unreachable", reason="payload")
+    log.error("lms.provider_failed", exc_info=True, provider=b.row.provider)
+    return AppError(BUG, 500)
 
 
 class NotCached(Exception):
@@ -996,12 +1016,18 @@ async def update_link(ctx: Ctx, course_id: str, sync_enabled: bool | None) -> Co
     return await link_state(ctx, course_id)
 
 
-async def refresh_link(ctx: Ctx, link: LmsCourseLink, b: Bound) -> None:
-    """The course stage of the sync: the external course's code, name, term and address (the
-    course itself is untouched). Reading it also tells whether the connection works."""
+async def read_course(ctx: Ctx, link: LmsCourseLink, b: Bound) -> LmsCourse:
+    """The course stage of the sync, its read: the external course. Reading it also tells
+    whether the connection works."""
     external, _ = await call(
         ctx, b, lambda i: b.provider.get_course(i, b.cfg, b.creds, link.external_course_id)
     )
+    return external
+
+
+async def refresh_link(ctx: Ctx, link: LmsCourseLink, b: Bound, external: LmsCourse) -> None:
+    """The course stage of the sync, its write: the external course's code, name, term and
+    address (the course itself is untouched), and the connection known to work."""
     _apply_meta(link, external.model_dump(mode="json"))
     link.updated_at = ctx.now
     # Only what shows the course's own details; its content is not affected.

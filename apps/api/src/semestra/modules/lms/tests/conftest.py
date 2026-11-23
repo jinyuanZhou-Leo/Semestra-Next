@@ -7,6 +7,7 @@ from typing import Any, ClassVar, Literal, cast
 
 import pytest
 import respx
+import structlog
 from httpx import AsyncClient, Response
 from pydantic import BaseModel, Field, SecretStr
 
@@ -131,6 +132,7 @@ class FakeProvider:
         self.deleted_files: set[str] = set()
         # Files `file` serves that no list shows (only a module or a page links to them).
         self.unlisted_files: list[FileMeta] = []
+        self.total: CourseTotal | None = CourseTotal(score=91.5, grade="A")
         # Files hidden from the user: reading one is refused (403).
         self.refused_files: set[str] = set()
         # The platform does not answer reads of the materials (files, modules, pages).
@@ -145,6 +147,17 @@ class FakeProvider:
         # Downloads started and those whose connection was closed (ended, or closed early).
         self.downloads_open: list[str] = []
         self.downloads_closed: list[str] = []
+        # A read (the method's name) answers with this error, whatever else is set; any other
+        # exception stands for an answer the provider cannot make sense of.
+        self.faults: dict[str, Exception] = {}
+        self.reads: list[str] = []  # every read, by method name
+        # The announcements list (`announcements`); None: one "Welcome" per course.
+        self.announcement_list: list[Announcement] | None = None
+
+    def _fault(self, read: str) -> None:
+        self.reads.append(read)
+        if read in self.faults:
+            raise self.faults[read]
 
     def normalize_config(self, raw: dict[str, Any], settings: Settings) -> BaseModel:
         url = str(raw.get("base_url") or "").rstrip("/")
@@ -194,6 +207,7 @@ class FakeProvider:
     async def get_course(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> LmsCourse:
+        self._fault("get_course")
         self.calls.append(("get_course", course_id))
         self._auth(creds)
         for c in self.courses:
@@ -209,6 +223,7 @@ class FakeProvider:
     async def navigation(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> list[NavTab]:
+        self._fault("navigation")
         self._throttle("navigation")
         if self.nav_refused:
             raise lms_error("lms.forbidden")
@@ -223,7 +238,10 @@ class FakeProvider:
         *,
         since: datetime,
     ) -> list[Announcement]:
+        self._fault("announcements")
         self.calls.append(("announcements", list(course_ids)))
+        if self.announcement_list is not None:
+            return [a.model_copy() for a in self.announcement_list]
         return [
             Announcement(
                 external_id=f"n{course_id}", external_course_id=course_id, title="Welcome",
@@ -237,6 +255,7 @@ class FakeProvider:
     async def assignments(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> list[Assignment]:
+        self._fault("assignments")
         self.calls.append(("assignments", course_id))
         if self.down:
             raise lms_error("lms.unreachable")
@@ -248,6 +267,7 @@ class FakeProvider:
     async def assignment(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, assignment_id: str
     ) -> Assignment:
+        self._fault("assignment")
         self.calls.append(("assignment", assignment_id))
         if self.down:
             raise lms_error("lms.unreachable")
@@ -270,12 +290,14 @@ class FakeProvider:
     async def course_total(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> CourseTotal | None:
+        self._fault("course_total")
         self.calls.append(("course_total", course_id))
-        return CourseTotal(score=91.5, grade="A")
+        return self.total
 
     async def modules(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> list[Module]:
+        self._fault("modules")
         self.calls.append(("modules", course_id))
         self._throttle("modules")
         if self.materials_down:
@@ -294,6 +316,7 @@ class FakeProvider:
     async def module_items(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, module_id: str
     ) -> list[ModuleItem]:
+        self._fault("module_items")
         self.calls.append(("module_items", module_id))
         return [ModuleItem(external_id="i1", title="Intro", kind="page",
                            target=InternalRef(kind="page", ref="intro"))]  # fmt: skip
@@ -301,6 +324,7 @@ class FakeProvider:
     async def pages(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> list[PageSummary]:
+        self._fault("pages")
         self.calls.append(("pages", course_id))
         self._throttle("pages")
         if self.materials_down:
@@ -316,6 +340,7 @@ class FakeProvider:
     async def page(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, page_ref: str
     ) -> PageDetail:
+        self._fault("page")
         self.calls.append(("page", page_ref))
         self._throttle("page")
         if self.closed:
@@ -336,6 +361,7 @@ class FakeProvider:
                                "</table>")  # fmt: skip
 
     async def quizzes(self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str) -> list[Quiz]:
+        self._fault("quizzes")
         if self.quizzes_hidden:
             raise lms_error("lms.not_found")
         return [q.model_copy() for q in self.quiz_list]
@@ -346,6 +372,7 @@ class FakeProvider:
     async def file(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, file_id: str
     ) -> FileMeta:
+        self._fault("file")
         self.calls.append(("file", file_id))
         self._throttle("file")
         if self.materials_down:
@@ -402,6 +429,7 @@ class FakeProvider:
     async def submissions(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> list[SubmissionDetail]:
+        self._fault("submissions")
         self.calls.append(("submissions", course_id))
         io.truncated |= self.truncated
         return [s.model_copy(deep=True) for s in self.course_submissions.get(course_id, [])]
@@ -428,6 +456,7 @@ class FakeProvider:
     async def discussion(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, topic_id: str
     ) -> DiscussionDetail:
+        self._fault("discussion")
         self.calls.append(("discussion", topic_id))
         if topic_id.startswith("n"):  # an announcement
             return DiscussionDetail(external_id=topic_id, title="Welcome", html="<p>Hi</p>")
@@ -441,6 +470,7 @@ class FakeProvider:
     async def course_files(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> list[FileMeta]:
+        self._fault("course_files")
         self.calls.append(("course_files", course_id))
         self._throttle("course_files")
         if self.materials_down:
@@ -468,11 +498,68 @@ class FakeProvider:
         creds: BaseModel,
         course_ids: Sequence[str],
     ) -> list[LmsCalendarEvent]:
+        self._fault("calendar_events")
         self.calls.append(("calendar_events", sorted(course_ids)))
         if self.calendar_error:
             raise lms_error(self.calendar_error)
         io.truncated |= self.calendar_truncated
         return [e for e in self.events if e.external_course_id in course_ids]
+
+
+# What the sync logs when it skipped a part (M09 table 5b): a test that meets one without
+# asking for it (`expect_sync_failures`) fails, so a part can never fail unnoticed (M09 §11).
+SYNC_FAILURES = frozenset(
+    {"lms.sync_stage_failed", "lms.sync_item_failed", "lms.provider_payload", "lms.provider_failed"}
+)
+
+
+class SyncFailures:
+    """The sync failures logged during a test, in order (`expect_sync_failures`)."""
+
+    def __init__(self) -> None:
+        self.seen: list[dict[str, Any]] = []
+        self.expected = False
+
+    def __call__(self, _logger: Any, _method: str, event: Any) -> Any:
+        if event.get("event") in SYNC_FAILURES:
+            self.seen.append(dict(event))
+        return event
+
+    def events(self) -> list[str]:
+        return [e["event"] for e in self.seen]
+
+    def items(self) -> list[tuple[str, str, str]]:
+        """The items skipped: (kind, platform id, error code)."""
+        return [
+            (e["kind"], e["external_id"], e["code"])
+            for e in self.seen
+            if e["event"] == "lms.sync_item_failed"
+        ]
+
+
+@pytest.fixture(autouse=True)
+def _no_silent_failures(monkeypatch: pytest.MonkeyPatch) -> Iterator[SyncFailures]:
+    seen = SyncFailures()
+    configure = structlog.configure
+
+    def watched(**kw: Any) -> None:  # the app configures logging when it starts
+        if "processors" in kw:
+            kw["processors"] = [seen, *(p for p in kw["processors"] if p is not seen)]
+        configure(**kw)
+
+    monkeypatch.setattr(structlog, "configure", watched)
+    watched(processors=structlog.get_config()["processors"])
+    yield seen
+    configure(processors=[p for p in structlog.get_config()["processors"] if p is not seen])
+    if seen.seen and not seen.expected:
+        pytest.fail(f"the sync skipped a part without the test expecting it: {seen.seen}")
+
+
+@pytest.fixture
+def expect_sync_failures(_no_silent_failures: SyncFailures) -> SyncFailures:
+    """The test means a part of the sync to fail: check what `seen` logged."""
+    _no_silent_failures.expected = True
+    return _no_silent_failures
 
 
 @pytest.fixture(autouse=True)

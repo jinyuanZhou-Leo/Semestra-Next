@@ -21,6 +21,7 @@ from semestra.modules.lms import service
 from semestra.modules.lms.answers import (
     AREA_HIDDEN,
     AREA_OF,
+    BUG,
     OFF_NAV,
     STOPPING,
     AreaResult,
@@ -81,7 +82,7 @@ ReadItems = Callable[[str, list[str]], Awaitable[Sequence[Any]]]
 
 def one_by_one(read: Callable[[str, str], Awaitable[Any]]) -> ReadItems:
     """Reads items one at a time with `read(kind, external_id)`, for kinds without a batch read.
-    An item's error is its answer; one about the connection or the platform stops the stage."""
+    An item's error is its answer; one about the account or the connection stops the stage."""
 
     async def items(kind: str, external_ids: list[str]) -> list[Any]:
         out: list[Any] = []
@@ -112,6 +113,10 @@ class SyncRound:
     _new: dict[Key, _Read] = field(default_factory=lambda: {})
     # Why an area was unavailable this round (an error code).
     _reasons: dict[str, str] = field(default_factory=lambda: {})
+    # Reads that failed on a bug of Semestra's in the provider (M09 table 2, row 20): about that
+    # read only, and the stage they were read in reports it (`sync.sync_course`), as every
+    # round will hit it again.
+    bugs: int = 0
 
     def begin(self, now: datetime) -> None:
         if self.started is None:
@@ -133,6 +138,7 @@ class SyncRound:
                 except AppError as exc:
                     if exc.code in STOPPING:
                         raise  # about the connection: the stage stops and changes nothing
+                    self._note(exc)
                     self._nav = None
         return nav_closed(self._nav, area)
 
@@ -148,8 +154,9 @@ class SyncRound:
         part: bool = False,
     ) -> T | None:
         """Reads one area's list and records its result (table 2): None when it gave nothing
-        (closed, refused, not offered). An answer about the connection or the platform as a whole
-        (throttled, down, the token) is raised: the stage stops and changes nothing. `part`: one
+        (closed, refused, not offered, not answered). An answer about the account or the
+        connection (`STOPPING`: throttled, the token) is raised: the stage stops and changes
+        nothing. `part`: one
         more read of the same area (a module's items): the area is whole only if every part is."""
         result: AreaResult
         got: T | None = None
@@ -158,6 +165,7 @@ class SyncRound:
         except AppError as exc:
             if exc.code in STOPPING:
                 raise
+            self._note(exc)
             if exc.code == "lms.feature_unsupported":
                 result = "unsupported"
             elif exc.code == AREA_HIDDEN:  # told apart by the read itself (`reads._read`)
@@ -259,8 +267,13 @@ class SyncRound:
         self.budget -= len(wanted)
         return wanted
 
+    def _note(self, exc: AppError) -> None:
+        if exc.code == BUG:
+            self.bugs += 1
+
     def _record(self, ctx: Ctx, b: Bound, kind: str, external_id: str, got: object) -> ItemAnswer:
         if isinstance(got, AppError):
+            self._note(got)
             area = self.areas.get(AREA_OF.get(kind, ""))
             answer: ItemAnswer = b.provider.item_answer(got, area=area)
         else:

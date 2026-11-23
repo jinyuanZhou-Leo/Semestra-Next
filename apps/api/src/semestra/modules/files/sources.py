@@ -56,6 +56,7 @@ from semestra.modules.files.service import find_items, get_folder, name_from_sou
 
 __all__ = [
     "SOURCE_UNREAD",
+    "Room",
     "add_remote_file",
     "apply_copies",
     "create_link",
@@ -75,6 +76,7 @@ __all__ = [
     "rename_synced",
     "reset_copy_choices",
     "retry_synced",
+    "room",
     "same_file",
     "save_bytes_as_file",
     "source_changed",
@@ -352,19 +354,40 @@ async def reset_copy_choices(ctx: Ctx, rows: Sequence[FilesItem]) -> None:
             await _updated(ctx, row)
 
 
+@dataclass
+class Room:
+    """What is left of the user's quota for the copies one run queues, when it brings its files
+    in line one at a time (`apply_copies(room=...)`): read once (`room`), taken from as copies
+    are queued. `left` None: no quota."""
+
+    left: int | None
+
+
+async def room(ctx: Ctx) -> Room:
+    return Room(await remaining_quota(ctx))
+
+
 async def apply_copies(
-    ctx: Ctx, rows: Sequence[FilesItem], local: bool, *, release: bool = True
+    ctx: Ctx,
+    rows: Sequence[FilesItem],
+    local: bool,
+    *,
+    release: bool = True,
+    room: Room | None = None,
 ) -> None:
     """Brings the files that follow their source in line with the source's setting for their
     course (`local`: keep local copies), except where the user chose for a file (`keep_copy`).
     Copies no longer wanted are let go at once, unless `release` is False (the source could not
     show it still has them: the copy may be the only one left); wanted ones are stored quietly
     in the background as far as the quota goes (by the source's sizes, so a full quota
-    downloads nothing): the rest stay read from the source."""
+    downloads nothing): the rest stay read from the source. `room`: what is left of the quota
+    when the caller brings its files in line a few at a time."""
     from semestra.modules.files.jobs import KeepPayload
 
     cap = ctx.settings.files_max_upload_bytes
-    left = await remaining_quota(ctx)
+    if room is None:
+        room = Room(await remaining_quota(ctx))
+    left = room.left
     unwanted: list[str] = []
     for row in rows:
         if not content.follows_source(row):
@@ -398,6 +421,7 @@ async def apply_copies(
             )
         if row.copy_error_code != error:
             await _updated(ctx, row)
+    room.left = left
     await _drop_queued_copies(ctx, unwanted)
 
 

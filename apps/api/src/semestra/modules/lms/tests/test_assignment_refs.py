@@ -25,12 +25,12 @@ KEPT = "kept"
 # Table 4b as the spec writes it: state -> event -> state after (None: no row).
 TABLE: dict[RefState | None, dict[RefEvent, Any]] = {
     None: {
-        "import": "imported", "ignore": "ignored", "remind": IMPOSSIBLE, "gone": None,
-        "back": None, "keep": IMPOSSIBLE, "delete": IMPOSSIBLE, "detach": IMPOSSIBLE,
-        "unlink": None, "move": IMPOSSIBLE,
+        "import": "imported", "ignore": "ignored", "remind": IMPOSSIBLE, "gone": IMPOSSIBLE,
+        "back": IMPOSSIBLE, "keep": IMPOSSIBLE, "delete": IMPOSSIBLE, "detach": IMPOSSIBLE,
+        "unlink": IMPOSSIBLE, "move": IMPOSSIBLE,
     },
     "ignored": {
-        "import": "imported", "ignore": "ignored", "remind": None, "gone": None,
+        "import": "imported", "ignore": IMPOSSIBLE, "remind": None, "gone": None,
         "back": "ignored", "keep": IMPOSSIBLE, "delete": IMPOSSIBLE, "detach": IMPOSSIBLE,
         "unlink": None, "move": IMPOSSIBLE,
     },

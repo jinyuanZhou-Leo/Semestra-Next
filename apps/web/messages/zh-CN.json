@@ -2860,6 +2860,7 @@
   "files_kind_audio": "音频",
   "files_kind_other": "{ext} 文件",
   "error_lms_assignment_already_imported": "“{title}”已经从平台导入过了",
+  "error_lms_assignment_removed": "“{title}”已在平台上删除，请先在同步面板里选择保留或删除",
   "error_lms_assessment_already_bound": "这个考核已经绑定了平台上的作业",
   "error_lms_assessment_not_bound": "这个考核没有绑定平台上的作业",
   "error_lms_sync_nothing_to_resolve": "这一项已经处理过了",

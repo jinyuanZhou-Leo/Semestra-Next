@@ -207,22 +207,35 @@ async def test_t2_row10_area_cut_short(
         (Response(403, text="403 Forbidden (Rate Limit Exceeded)"), "lms.rate_limited"),
         (Response(429, headers={"retry-after": "30"}), "lms.rate_limited"),
         (Response(401, headers=BEARER), "lms.invalid_credentials"),
-        (Response(500), "lms.unreachable"),
         (Response(302, headers={"location": "/login"}), "lms.invalid_config"),
     ],
-    ids=["row11-throttled-403", "row11-throttled-429", "row12", "row13", "row14"],
+    ids=["row11-throttled-403", "row11-throttled-429", "row12", "row14"],
 )
-async def test_t2_rows11_14_stop_the_stage(
+async def test_t2_rows11_12_14_stop_the_stage(
     settings: Settings, io: Io, mock: respx.MockRouter, response: Response, code: str
 ):
-    """Throttled, the token, the platform down, not the API: neither an item nor an area is
-    judged; the stage stops and the next round reads again."""
+    """Throttled, the token, not the API (`STOPPING`): neither an item nor an area is judged;
+    the stage stops and the next round reads again."""
     with pytest.raises(AppError) as exc:
         await _item(settings, io, mock, response)
     assert exc.value.code == code
     with pytest.raises(AppError) as exc:
         await _area(settings, io, mock, response, _open("home"))
     assert exc.value.code == code
+
+
+@pytest.mark.parametrize(
+    "response", [Response(500), Response(200, text="<html>")], ids=["row13", "row19"]
+)
+async def test_t2_rows13_19_one_read(
+    settings: Settings, io: Io, mock: respx.MockRouter, response: Response
+):
+    """The platform down or an answer not understood: about that one read (table 5b, rows 3-4).
+    The item or the area is not judged, the stage goes on."""
+    answer = await _item(settings, io, mock, response)
+    assert isinstance(answer, Unavailable)
+    assert answer.reason == "lms.unreachable"
+    assert await _area(settings, io, mock, response, _open("home", "pages")) == "unavailable"
 
 
 def test_t2_row15_area_not_offered(settings: Settings):
