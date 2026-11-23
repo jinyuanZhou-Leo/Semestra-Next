@@ -454,7 +454,8 @@ function matches({ assignment: a }: Row, filter: Filter, query: string): boolean
     case 'missing':
       return state === 'missing'
     case 'todo':
-      return state === 'unsubmitted'
+      // Work handed in off the platform stays until its due date: nothing tells us when it is done.
+      return state === 'unsubmitted' || (state === 'offline' && a.due_state === 'upcoming')
   }
 }
 

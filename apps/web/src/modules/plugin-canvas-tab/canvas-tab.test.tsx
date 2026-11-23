@@ -598,7 +598,7 @@ test('each assignment shows the state and due state the server gives it', async 
   await userEvent.click(screen.getByRole('button', { name: 'Missing' }))
   expect(shown()).toEqual(['Missed lab'])
   await userEvent.click(screen.getByRole('button', { name: 'To do' }))
-  expect(shown()).toEqual(['Overdue lab', 'Open lab'])
+  expect(shown()).toEqual(['Paper lab', 'Overdue lab', 'Open lab'])
 })
 
 test('a to-do can join the gradebook through the review', async () => {
