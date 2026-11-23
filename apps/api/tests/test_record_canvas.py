@@ -53,7 +53,11 @@ def _canvas(request: httpx.Request) -> httpx.Response:
     if path.endswith("/courses/12/files/678"):
         return httpx.Response(
             200,
-            json={"id": 678, "url": "https://school.instructure.com/files/678/download?verifier=v"},
+            json={
+                "id": 678,
+                "size": 734521,
+                "url": "https://school.instructure.com/files/678/download?verifier=v",
+            },
         )
     if path == "/files/678/download":
         return httpx.Response(
@@ -91,6 +95,7 @@ def test_recording_reads_only_and_hides_people_school_and_token(tmp_path: Path):
     for secret in (
         TOKEN, "Ada Lovelace", "Grace Hopper", "4242", "31337", "31338", "Prof X", "87.5",
         "school.instructure.com", "verifier", "token-in-path", "notes0.pdf", "week-1", "678",
+        "734521",
     ):  # fmt: skip
         assert secret not in saved
 

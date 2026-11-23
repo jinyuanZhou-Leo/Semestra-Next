@@ -9,12 +9,12 @@ command line, and is not written anywhere. Each response is saved as one JSON fi
 headers table 2 depends on, and the body cut to its first items. What is kept from a body: its
 shape, numbers and flags (ids of items, `locked_for_user`, `hidden_for_user`, `published`, …), and,
 in the keys of `KEEP_STRINGS`, the platform's kinds, states and dates. Every other string
-(names, titles, HTML, comments, slugs, addresses) becomes "[text]", ids of people and my scores and
-grades and file sizes become 1 (only whether they are there is kept), every other id is renumbered (the same id
-gets the same number in every file of one recording, so references between them still match), the
-recorded request names the course and item as `{course}` and `{item}`, and a redirect keeps only
-whether it goes to the school's Canvas or to another host. Look the files over before committing
-them: the repository is public.
+(names, titles, HTML, comments, slugs, addresses) becomes "[text]", ids of people, my scores and
+grades and file sizes become 1 (only whether they are there is kept), every other id is renumbered
+(the same id gets the same number in every file of one recording, so references between them still
+match), the recorded request names the course and item as `{course}` and `{item}`, and a redirect
+keeps only whether it goes to the school's Canvas or to another host. Look the files over before
+committing them: the repository is public.
 
 What it records:
 - the course itself, its navigation (which areas are hidden), and the first page of every area list
