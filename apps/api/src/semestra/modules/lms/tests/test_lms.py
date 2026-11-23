@@ -569,14 +569,14 @@ async def test_assignment_import_rolls_back_when_the_course_was_relinked(api: Ap
     assert (await api.call("GET", f"/courses/{course}/assessments"))["items"] == []
 
 
-async def test_an_assignment_imported_as_the_other_kind_meanwhile_rolls_back(
-    api: Api, app: FastAPI
-):
+@pytest.mark.parametrize("as_task", [True, False])
+async def test_an_assignment_imported_meanwhile_rolls_back(api: Api, app: FastAPI, as_task: bool):
+    """Table 4b: an imported assignment is not imported again, as either kind."""
     program_id, term_id, _ = await setup_program(api)
     course = await api.course(program_id, term_id)
     link = (await api.link(course, "101"))["link"]
     started = await held_for_review(
-        api, f"/courses/{course}/lms/imports:assignments", ["a1"], switch_to_task=True
+        api, f"/courses/{course}/lms/imports:assignments", ["a1"], switch_to_task=as_task
     )
     # Another session put it into the gradebook after this one was opened.
     async with system_ctx(app.state) as ctx:

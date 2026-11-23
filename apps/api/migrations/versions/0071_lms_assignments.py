@@ -7,7 +7,8 @@ imported assignments moves in: a row whose object is still imported from the sam
 becomes its mirror row, the others are held for their object. New assignments are worked out
 from the mirror now (table 3e), so the refs kept for them go; ignored ones stay. The course
 total is kept on the link. The second-level read cache (`lms_cache`) goes: what the app keeps
-of a course is in its own tables.
+of a course is in its own tables. Courses read their assignments from the platform again
+until the next sync fills the mirror.
 
 Revision ID: 0071
 Revises: 0070
@@ -88,16 +89,18 @@ def _iso(value: Any) -> Any:
     return value.isoformat() if hasattr(value, "isoformat") else value
 
 
-def _moved(row: Any, title: Any) -> dict[str, Any]:
-    """The mirror columns of a kept row."""
+def _moved(row: Any, snapshot: Any) -> dict[str, Any]:
+    """The mirror columns of a kept row: its `details`, else what its ref's snapshot has."""
     details = dict(row.details or {})
     quiz = details.pop("quiz", None)
+    snap = dict(snapshot or {})
     assignment = {
         **details,
         "external_id": row.assignment_id,
-        "name": details.get("name") or title or "",
+        "name": details.get("name") or snap.get("title") or "",
+        "due_at": details.get("due_at", snap.get("due_at")),
         "web_url": row.web_url,
-        "points": row.points,
+        "points": row.points if row.points is not None else snap.get("points"),
         "rubric": row.rubric or [],
     }
     feedback = {name: _iso(getattr(row, name)) for name in SUBMISSION_COLUMNS}
@@ -185,7 +188,7 @@ def upgrade() -> None:
                 "course_id": row.course_id,
                 "provider": row.provider,
                 "external_id": row.assignment_id,
-                **_moved(row, (ref.snapshot or {}).get("title") if ref is not None else None),
+                **_moved(row, ref.snapshot if ref is not None else None),
                 # A held row's age is its own; a mirror row's is the course's last list read.
                 "seen_at": None if tied else row.read_at,
             }
@@ -193,6 +196,12 @@ def upgrade() -> None:
     if rows:
         op.bulk_insert(mirror, rows)
     op.execute(refs.delete().where(refs.c.target_id.is_(None), refs.c.dismissed_at.is_(None)))
+    # The mirror holds only what was imported until a sync reads the whole list: till then the
+    # course's assignments are read from the platform (§3.1, no `read_at` of the area).
+    op.execute(
+        "UPDATE lms_course_links SET area_reads = json_remove(area_reads, '$.assignments') "
+        "WHERE json_extract(area_reads, '$.assignments') IS NOT NULL"
+    )
 
     with op.batch_alter_table("lms_kept_assignments", schema=None) as batch_op:
         batch_op.drop_index("ix_lms_kept_assignments_user_id")

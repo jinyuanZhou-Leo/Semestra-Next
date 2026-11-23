@@ -222,10 +222,11 @@ def _0066(lms: Row, archive: OlderArchive) -> Row:
 _SUBMISSION_FIELDS = ("score", "grade", "attempt", "graded_at", "comments", "rubric_scores")
 
 
-def _kept_to_mirror(row: Row, title: object) -> Row:
+def _kept_to_mirror(row: Row, snapshot: object) -> Row:
     """The mirror columns of a kept assignment (`feedback` up to 2.4), as migration 0071 moves
-    them."""
+    them: its `details`, else what its ref's snapshot has."""
     details = dict(row.get("details") or {})
+    snap: Row = dict(snapshot) if isinstance(snapshot, dict) else {}
     quiz = details.pop("quiz", None)
     assignment_id = row.get("assignment_id")
     feedback = {name: row.get(name) for name in _SUBMISSION_FIELDS}
@@ -243,9 +244,10 @@ def _kept_to_mirror(row: Row, title: object) -> Row:
         "assignment": {
             **details,
             "external_id": assignment_id,
-            "name": details.get("name") or title or "",
+            "name": details.get("name") or snap.get("title") or "",
+            "due_at": details.get("due_at", snap.get("due_at")),
             "web_url": row.get("web_url"),
-            "points": row.get("points"),
+            "points": row.get("points") if row.get("points") is not None else snap.get("points"),
             "rubric": row.get("rubric") or [],
         },
         "submission": submission,
@@ -256,7 +258,9 @@ def _kept_to_mirror(row: Row, title: object) -> Row:
 def _0071(lms: Row, archive: OlderArchive) -> Row:
     """The kept assignments become the mirror: one whose object is still imported from the same
     assignment is its mirror row, the others are held for their object. The refs kept for new
-    assignments go (new is worked out from the mirror now); the ignored ones stay."""
+    assignments go (new is worked out from the mirror now); the ignored ones stay. The mirror
+    holds only what was imported until a sync reads the whole list, so the courses read their
+    assignments from the platform till then (no `read_at` of the area, §3.1)."""
     del archive
     refs = _rows(lms, "refs")
     imported = {(r.get("target_kind"), r.get("target_id")): r for r in refs if r.get("target_id")}
@@ -269,7 +273,6 @@ def _0071(lms: Row, archive: OlderArchive) -> Row:
         )
         ref = imported.get((kind, target))
         tied = ref is not None and ref.get("external_id") == row.get("assignment_id")
-        title = (ref.get("snapshot") or {}).get("title") if ref is not None else None
         assignments.append(
             {
                 "link_id": ref.get("link_id") if tied and ref is not None else None,
@@ -278,12 +281,21 @@ def _0071(lms: Row, archive: OlderArchive) -> Row:
                 "course_id": row.get("course_id"),
                 "provider": row.get("provider"),
                 "external_id": row.get("assignment_id"),
-                **_kept_to_mirror(row, title),
+                **_kept_to_mirror(row, ref.get("snapshot") if ref is not None else None),
                 "seen_at": None if tied else row.get("read_at"),
             }
         )
     return {
         **{k: v for k, v in lms.items() if k != "feedback"},
+        "links": [
+            {
+                **li,
+                "area_reads": {
+                    k: v for k, v in (li.get("area_reads") or {}).items() if k != "assignments"
+                },
+            }
+            for li in _rows(lms, "links")
+        ],
         "refs": [r for r in refs if r.get("target_id") or r.get("dismissed_at")],
         "assignments": assignments,
     }

@@ -53,6 +53,7 @@ import {
   refLocation,
   resolveLocation,
 } from './navigation'
+import { viewQueries } from './queries'
 import { AnnouncementsView } from './views/AnnouncementsView'
 import { AssignmentsView } from './views/AssignmentsView'
 import { FilePreviewDialog } from './views/FilePreview'
@@ -171,7 +172,12 @@ function PageSkeleton() {
   )
 }
 
-type Sync = { fetching: boolean; onRefresh: () => void }
+type Sync = {
+  fetching: boolean
+  onRefresh: () => void
+  /** When what the open view shows was read: the course's read, or the assignments as kept. */
+  at?: string | null
+}
 
 function Body({
   overview,
@@ -182,6 +188,14 @@ function Body({
   const entries = navEntries(overview.navigation)
   const resolved = resolveLocation(location, entries)
   const activeKey = resolved.kind === 'native' ? resolved.view : resolved.entry.key
+  // The assignments view shows what the sync kept (M09 §3.1): its age is the list's, not the
+  // course read's. The same query as the view's, so nothing more is asked.
+  const { courseId } = useCanvasPage()
+  const assignments = useQuery({
+    ...viewQueries.assignments(courseId),
+    enabled: activeKey === 'assignments',
+  }).data
+  const at = activeKey === 'assignments' ? (assignments?.as_of ?? null) : overview.fetched_at
   return (
     <div className="flex flex-1 flex-col gap-4 @page-xl/main:grid @page-xl/main:grid-cols-[12rem_minmax(0,1fr)] @page-xl/main:gap-6">
       <CourseNav
@@ -190,6 +204,7 @@ function Body({
         activeKey={activeKey}
         fetching={fetching}
         onRefresh={onRefresh}
+        at={at}
       />
       <section
         aria-label={resolved.entry?.label ?? m.canvas_tab_page_title()}
@@ -240,10 +255,9 @@ function fetchedLabel(at: string, now: number): string {
 
 /** "Updated 3 minutes ago" (kept current while the page stays open), refresh and "Open in
  * Canvas" (M16 §3). */
-function SyncControls({ overview, fetching, onRefresh }: { overview: CourseOverview } & Sync) {
+function SyncControls({ overview, fetching, onRefresh, at }: { overview: CourseOverview } & Sync) {
   const url = overview.link.web_url ?? overview.course.web_url
   const now = useNow(30_000)
-  const at = overview.fetched_at
   return (
     <div className="flex min-w-0 items-center gap-0.5">
       <span className="line-clamp-2 min-w-0 flex-1 text-xs text-muted-foreground">
@@ -271,6 +285,7 @@ function CourseNav({
   activeKey,
   fetching,
   onRefresh,
+  at,
 }: {
   overview: CourseOverview
   entries: NavEntry[]
@@ -326,7 +341,7 @@ function CourseNav({
           </SelectContent>
         </Select>
         <div className="ml-auto shrink-0 @page-sm/main:min-w-48">
-          <SyncControls overview={overview} fetching={fetching} onRefresh={onRefresh} />
+          <SyncControls overview={overview} fetching={fetching} onRefresh={onRefresh} at={at} />
         </div>
       </div>
       <nav
@@ -388,7 +403,7 @@ function CourseNav({
           </div>
         ) : null}
         <div className="border-t px-2 pt-2">
-          <SyncControls overview={overview} fetching={fetching} onRefresh={onRefresh} />
+          <SyncControls overview={overview} fetching={fetching} onRefresh={onRefresh} at={at} />
         </div>
       </nav>
     </>

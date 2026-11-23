@@ -392,8 +392,8 @@ async def course_overview(ctx: Ctx, inp: CourseReadInput) -> CourseOverview:
     name="lms.course.refresh",
     summary="Forget what the app cached about a linked course and sync it now.",
     description="""The Canvas tab's "Refresh": its next reads ask the {lms}, and the sync updates
-what the app keeps (announcements, files). Reads with `refresh` do the first for one read.
-Not for agents.""",
+what the app keeps (assignments, announcements, files). Reads with `refresh` do the first for
+one read. Not for agents.""",
     effect="write",
     http=Http("POST", "/courses/{course_id}/lms:refresh"),
     expose=HTTP_ONLY,

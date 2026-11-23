@@ -247,13 +247,23 @@ async def test_a_to_do_deleted_a_moment_ago_does_not_fail_the_sync(
 
 def test_migration_moves_what_was_kept_into_the_mirror(tmp_path: Path):
     """0071 (M09 §3.2): a kept assignment whose object is still imported from it becomes its
-    mirror row, the others are held for their object; refs kept for new assignments go."""
+    mirror row, the others are held for their object; refs kept for new assignments go. The
+    mirror holds only what was imported, so the course reads its assignments from the platform
+    until a sync reads the whole list (no `read_at` of the area, §3.1)."""
     path = tmp_path / "m.db"
     cfg = Config(str(API_DIR / "alembic.ini"))
     cfg.set_main_option("script_location", str(API_DIR / "migrations"))
     cfg.attributes["database_url"] = f"sqlite+aiosqlite:///{path}"
     command.upgrade(cfg, "0070")
     db = sqlite3.connect(path)  # foreign keys are off: no other rows needed
+    reads = {"assignments": {"result": "whole", "read_at": "2026-01-10T00:00:00+00:00"},
+             "files": {"result": "whole", "read_at": "2026-01-10T00:00:00+00:00"}}  # fmt: skip
+    db.execute(
+        "INSERT INTO lms_course_links (id, user_id, course_id, program_id, connection_id,"
+        " external_course_id, sync_enabled, area_reads, sync_errors, created_at, updated_at)"
+        " VALUES ('l1', 'u1', 'c1', 'p1', 'n1', '101', 1, ?, '{}', '2026-01-01', '2026-01-01')",
+        (json.dumps(reads),),
+    )
     for ref_id, ext, kind, target, dismissed in (
         ("r1", "a1", "assessment", "x1", None),
         ("r2", "a5", None, None, None),  # offered as new
@@ -263,7 +273,14 @@ def test_migration_moves_what_was_kept_into_the_mirror(tmp_path: Path):
             "INSERT INTO lms_imported_refs (id, user_id, link_id, external_id, target_kind,"
             " target_id, snapshot, conflicts, dismissed_at) VALUES (?, 'u1', 'l1', ?, ?, ?,"
             " ?, '{}', ?)",
-            (ref_id, ext, kind, target, json.dumps({"title": "Lab 1"}), dismissed),
+            (
+                ref_id,
+                ext,
+                kind,
+                target,
+                json.dumps({"title": "Lab 1", "due_at": "2026-02-01"}),
+                dismissed,
+            ),
         )
     for kept_id, assessment, task, ext in (("k1", "x1", None, "a1"), ("k2", None, "t2", "a2")):
         db.execute(
@@ -291,10 +308,13 @@ def test_migration_moves_what_was_kept_into_the_mirror(tmp_path: Path):
             " submission, quiz FROM lms_assignments"
         )
     }
+    (area_reads,) = db.execute("SELECT area_reads FROM lms_course_links").fetchone()
     db.close()
+    assert set(json.loads(area_reads)) == {"files"}
     link_id, kind, held_for, seen_at, assignment, submission, quiz = rows["a1"]
     assert (link_id, kind, held_for, seen_at) == ("l1", None, None, None)
     assert json.loads(assignment)["name"] == "Lab 1"
+    assert json.loads(assignment)["due_at"] == "2026-02-01"  # from the snapshot
     assert json.loads(submission)["body"] == "<p>Mine</p>"
     assert json.loads(submission)["comments"][0]["comment"] == "Good"
     assert json.loads(quiz) == {"question_count": 3}

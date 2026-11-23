@@ -27,8 +27,12 @@ async def test_refresh_drops_one_course_and_syncs_it(api: Api, fake: FakeProvide
     for course in (first, second):
         await api.call("GET", f"/courses/{course}/lms/modules")
     assert fake.calls == [("modules", "101")]  # the other course stays cached
-    # What the app keeps of the course (announcements) is read again too.
+    # What the app keeps of the course (assignments, announcements) is read again too: the
+    # Canvas tab's assignments view shows the mirror (M09 §3.1).
+    fake.calls.clear()
     await api.run_jobs()
+    assert ("assignments", "101") in fake.calls
+    assert ("assignments", "102") not in fake.calls
     links = {
         li["course_id"]: li
         for li in (await api.call("GET", f"/programs/{program_id}/lms-links"))["items"]

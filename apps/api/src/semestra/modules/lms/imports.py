@@ -626,18 +626,20 @@ async def on_commit(ctx: Ctx, row: ImportsSession, created: dict[str, str]) -> N
         if str(item.data.get("existing_assessment_id")) in bound:
             snap = bound_snapshot(info["snapshot"])
         ref = await _item_ref(ctx, link.id, info["external_id"])
-        if ref is not None and ref.target_kind == "assessment" and item.type == "task":
-            # Another session put it into the gradebook meanwhile: roll this commit back.
-            raise lms_error("lms.assignment_already_imported", title=item.data.get("title", ""))
-        if ref is not None and ref.target_kind == item.type:
-            ref.target_id = target_id  # imported again meanwhile: the same object
-            continue
         # New or ignored before ("import"), or added to the gradebook ("move": the assessment
         # took the to-do over, M05, and is now the one Semestra object of this assignment).
+        imported = assignment_refs.state_of(ref) == "imported"
+        moved = (
+            imported and ref is not None and ref.target_kind == "task" and item.type == "assessment"
+        )
+        if imported and not moved:
+            # Imported by another session meanwhile: table 4b refuses importing it again, and
+            # this commit rolls back.
+            raise lms_error("lms.assignment_already_imported", title=item.data.get("title", ""))
         await assignment_refs.enter(
             ctx,
             ref,
-            "move" if assignment_refs.state_of(ref) == "imported" else "import",
+            "move" if moved else "import",
             link=link,
             external_id=info["external_id"],
             target=(item.type, target_id),

@@ -991,3 +991,25 @@ test('a PowerPoint opens as text, slide by slide', async () => {
   expect(within(dialog).getByText('Slide 2')).toBeInTheDocument()
   expect(within(dialog).getByText('Pointers')).toBeInTheDocument()
 })
+
+test('the assignments view tells the age of what the sync kept, not of the course read', async () => {
+  const kept = new Date(Date.now() - 3 * 3600_000).toISOString()
+  server.use(
+    http.get(`${API}/courses/c1/lms`, () =>
+      HttpResponse.json({ ...overview(), fetched_at: new Date().toISOString() }),
+    ),
+    http.get(`${API}/courses/c1/lms/assignments`, () =>
+      HttpResponse.json({
+        items: [],
+        new_ids: [],
+        truncated: false,
+        source: 'mirror',
+        as_of: kept,
+      }),
+    ),
+  )
+  renderPage('/?tab=assignments')
+  const nav = await screen.findByRole('navigation', { name: 'Course menu' })
+  expect(await within(nav).findByText(/^Updated .*3 hours/)).toBeInTheDocument()
+  expect(within(nav).queryByText('Updated just now')).toBeNull()
+})

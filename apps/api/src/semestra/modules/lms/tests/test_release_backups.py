@@ -179,7 +179,8 @@ async def test_a_backup_labelled_older_than_it_is_keeps_its_materials_as_they_we
 def test_the_feedback_of_a_backup_up_to_2_4_becomes_the_mirror():
     """`older_backups._0071` reads a backup's kept assignments as migration 0071 moved them: one
     whose object is still imported from the same assignment is its mirror row, the others are
-    held for their object; refs kept for new assignments go, ignored ones stay."""
+    held for their object; refs kept for new assignments go, ignored ones stay; the courses read
+    their assignments from the platform until a sync fills the mirror."""
     from semestra.modules.lms.older_backups import _0071  # pyright: ignore[reportPrivateUsage]
 
     kept = {
@@ -189,9 +190,11 @@ def test_the_feedback_of_a_backup_up_to_2_4_becomes_the_mirror():
         "work": {"body": "<p>Mine</p>"}, "read_at": "2026-01-10T00:00:00Z",
     }  # fmt: skip
     lms = {
+        "links": [{"id": "l1", "area_reads": {"assignments": {"read_at": "2026-01-10"},
+                                              "files": {"read_at": "2026-01-10"}}}],
         "refs": [
             {"link_id": "l1", "external_id": "a1", "target_kind": "assessment",
-             "target_id": "x1", "snapshot": {"title": "Lab 1"}},
+             "target_id": "x1", "snapshot": {"title": "Lab 1", "due_at": "2026-02-01"}},
             {"link_id": "l1", "external_id": "a5", "snapshot": {}},
             {"link_id": "l1", "external_id": "a6", "snapshot": {},
              "dismissed_at": "2026-01-02T00:00:00Z"},
@@ -207,6 +210,9 @@ def test_the_feedback_of_a_backup_up_to_2_4_becomes_the_mirror():
     mirror, held = out["assignments"]
     assert (mirror["link_id"], mirror["held_for_id"], mirror["seen_at"]) == ("l1", None, None)
     assert mirror["assignment"]["name"] == "Lab 1"
+    assert mirror["assignment"]["due_at"] == "2026-02-01"
+    # Read from the platform until a sync fills the mirror.
+    assert list(out["links"][0]["area_reads"]) == ["files"]
     assert mirror["quiz"] == {"question_count": 3}
     assert mirror["submission"]["body"] == "<p>Mine</p>"
     assert mirror["submission"]["comments"][0]["comment"] == "Good"
