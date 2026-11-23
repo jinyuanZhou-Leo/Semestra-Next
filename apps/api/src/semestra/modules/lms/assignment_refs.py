@@ -46,6 +46,7 @@ NEXT: dict[tuple[RefState | None, RefEvent], RefState | Literal["keep"] | None] 
     ("ignored", "ignore"): KEEP,
     ("ignored", "remind"): None,
     ("ignored", "gone"): None,
+    ("ignored", "back"): KEEP,
     ("ignored", "unlink"): None,
     ("imported", "move"): "imported",
     ("imported", "gone"): "removed",
