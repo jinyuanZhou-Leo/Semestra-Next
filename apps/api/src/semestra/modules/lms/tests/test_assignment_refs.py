@@ -31,7 +31,7 @@ TABLE: dict[RefState | None, dict[RefEvent, Any]] = {
     },
     "ignored": {
         "import": "imported", "ignore": "ignored", "remind": None, "gone": None,
-        "back": IMPOSSIBLE, "keep": IMPOSSIBLE, "delete": IMPOSSIBLE, "detach": IMPOSSIBLE,
+        "back": "ignored", "keep": IMPOSSIBLE, "delete": IMPOSSIBLE, "detach": IMPOSSIBLE,
         "unlink": None, "move": IMPOSSIBLE,
     },
     "imported": {

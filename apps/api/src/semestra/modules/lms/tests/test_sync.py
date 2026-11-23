@@ -239,7 +239,10 @@ async def test_new_assignments_wait_for_the_user(api: Api, fake: FakeProvider):
     status = await api.call("POST", path, json={"assignment_ids": [lab2["id"]]})
     assert [i["title"] for i in status["pending"]] == ["Midterm"]
     assert [i["title"] for i in status["ignored"]] == ["Lab 2"]
-    assert [i["title"] for i in (await api.sync(program_id))["ignored"]] == ["Lab 2"]
+    # Still on the platform, it stays ignored and the round reads the course without error.
+    status = await api.sync(program_id)
+    assert [i["title"] for i in status["ignored"]] == ["Lab 2"]
+    assert status["errors"] == []
     status = await api.call("POST", path, json={"assignment_ids": [lab2["id"]], "dismissed": False})
     assert [i["title"] for i in status["pending"]] == ["Lab 2", "Midterm"]
 
