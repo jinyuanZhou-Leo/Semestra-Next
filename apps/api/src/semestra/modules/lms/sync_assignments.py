@@ -53,7 +53,6 @@ from semestra.modules.lms.rules import (
     is_new,
     merge,
     platform_value,
-    presence,
     same,
 )
 from semestra.modules.lms.schemas.sync import SyncField
@@ -66,7 +65,7 @@ from semestra.modules.lms.sync import (
     hold,
     register_sync_stage,
 )
-from semestra.modules.lms.sync_round import SyncRound
+from semestra.modules.lms.sync_round import Asked, SyncRound, one_by_one
 from semestra.modules.tasks.models import TasksItem
 
 FIELDS: dict[str, tuple[SyncField, ...]] = {
@@ -438,32 +437,19 @@ async def _presences(
     listed: Mapping[str, Any],
 ) -> dict[str, Presence]:
     """Whether each assignment (with whether it may be read on its own) is still on the
-    platform (M09 table 3c): listed this round, read alone when its list is closed (within the
-    round's budget), or told by the list read whole."""
-    areas = sync_round.results([AREA])
+    platform (M09 table 3c, `SyncRound.judge`)."""
     ext = link.external_course_id
-    out: dict[str, Presence] = {}
-    pending: list[str] = []
-    for external_id, readable in refs:
-        last = await sync_round.last(ctx, link, KIND, external_id)
-        verdict = presence(listed=external_id in listed, areas=areas, now=ctx.now, last=last)
-        if verdict == "check":
-            if readable:
-                pending.append(external_id)
-            verdict = "unknown"  # not read on its own: not judged
-        out[external_id] = verdict
-    for _, external_id in await sync_round.oldest_first(ctx, link, [(KIND, e) for e in pending]):
 
-        async def one(aid: str = external_id) -> object:
-            got, _ = await service.call(
-                ctx, b, lambda i: b.provider.assignment(i, b.cfg, b.creds, ext, aid)
-            )
-            return got
+    async def one(kind: str, aid: str) -> object:
+        del kind
+        got, _ = await service.call(
+            ctx, b, lambda i: b.provider.assignment(i, b.cfg, b.creds, ext, aid)
+        )
+        return got
 
-        answer = await sync_round.read(ctx, b, KIND, external_id, one)
-        if answer is not None:
-            out[external_id] = presence(listed=False, areas=areas, now=ctx.now, read=answer)
-    return out
+    asked = [Asked(KIND, e, listed=e in listed, readable=readable) for e, readable in refs]
+    judged = await sync_round.judge(ctx, link, b, asked, areas=[AREA], read=one_by_one(one))
+    return {e: verdict for (_, e), verdict in judged.verdicts.items()}
 
 
 async def _enabled(ctx: Ctx, link: LmsCourseLink, b: Bound) -> bool:

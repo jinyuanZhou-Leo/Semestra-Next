@@ -32,10 +32,10 @@ from semestra.modules.lms import reads
 from semestra.modules.lms.answers import AREA_HIDDEN, ItemAnswer, Present
 from semestra.modules.lms.materials import MaterialKind, file_version, page_shape
 from semestra.modules.lms.models import LmsCourseLink, LmsMaterial
-from semestra.modules.lms.rules import CHECK_EVERY, Presence, presence
+from semestra.modules.lms.rules import CHECK_EVERY, Presence
 from semestra.modules.lms.schemas.dto import FileMeta, ModuleItem, PageDetail
 from semestra.modules.lms.service import Bound
-from semestra.modules.lms.sync_round import SyncRound
+from semestra.modules.lms.sync_round import Asked, SyncRound
 
 Key = tuple[str, str]
 # The areas a material may be listed in, by the provider feature that offers each (table 3c:
@@ -141,19 +141,24 @@ class _Reader:
         mat = self.found.known.get(key)
         return last.result == "present" and mat is not None and mat.state in FOLLOWED
 
+    async def fetch(self, kind: str, ids: list[str]) -> Sequence[Any]:
+        """Files or pages read side by side: each one's data or the error it got."""
+        linked = (self.link, self.b)
+        if kind == "file":
+            return await reads.files_many(self.ctx, linked, ids, refresh=True)
+        return await reads.pages_many(self.ctx, linked, [(i, None) for i in ids], refresh=True)
+
     async def read_many(
         self, kind: str, external_ids: Sequence[str], *, budgeted: bool = True
     ) -> dict[str, ItemAnswer]:
         """Items of one kind read on their own, side by side, within the round's budget."""
-        linked = (self.link, self.b)
-
-        async def fetch(ids: list[str]) -> Sequence[Any]:
-            if kind == "file":
-                return await reads.files_many(self.ctx, linked, ids, refresh=True)
-            return await reads.pages_many(self.ctx, linked, [(i, None) for i in ids], refresh=True)
-
         return await self.round.read_many(
-            self.ctx, self.b, kind, external_ids, fetch, budgeted=budgeted
+            self.ctx,
+            self.b,
+            kind,
+            external_ids,
+            lambda ids: self.fetch(kind, ids),
+            budgeted=budgeted,
         )
 
 
@@ -181,37 +186,19 @@ async def judge(
     ctx: Ctx, link: LmsCourseLink, b: Bound, sync_round: SyncRound, found: Found
 ) -> dict[Key, Presence]:
     """Whether each known material this round did not bring is still on the platform (table
-    3c): one followed, or restored by the user (`absent` and quiet). One that needs a read of its
-    own to tell is read now, within the round's budget."""
+    3c, `SyncRound.judge`): one followed, or restored by the user (`absent` and quiet). Files and
+    pages can be read on their own; one given that way is the platform's (`Found.given`)."""
     r = _Reader(ctx, link, b, sync_round, found)
-    areas = sync_round.results(AREAS)
-    out: dict[Key, Presence] = {}
-    check: list[Key] = []
-    for key, mat in found.known.items():
-        if key in found.materials or not (
-            mat.state in FOLLOWED or (mat.state == "absent" and mat.quiet)
-        ):
-            continue
-        verdict = presence(
-            listed=key in found.listed or key in found.locked,
-            areas=areas,
-            now=ctx.now,
-            read=sync_round.read_this_round(*key),
-            last=await sync_round.last(ctx, link, *key),
-        )
-        if verdict == "check":
-            if key[0] in READABLE:
-                check.append(key)
-            verdict = "unknown"
-        out[key] = verdict
-    ordered = await sync_round.oldest_first(ctx, link, check)
-    for kind in READABLE:
-        got = await r.read_many(kind, [e for k, e in ordered if k == kind])
-        for external_id, answer in got.items():
-            if isinstance(answer, Present):
-                found.given.add((kind, external_id))
-            out[(kind, external_id)] = presence(listed=False, areas=areas, now=ctx.now, read=answer)
-    return out
+    asked = [
+        Asked(key[0], key[1], listed=key in found.listed or key in found.locked,
+              readable=key[0] in READABLE)
+        for key, mat in found.known.items()
+        if key not in found.materials
+        and (mat.state in FOLLOWED or (mat.state == "absent" and mat.quiet))
+    ]  # fmt: skip
+    judged = await sync_round.judge(ctx, link, b, asked, areas=AREAS, read=r.fetch)
+    found.given |= {key for key, answer in judged.answers.items() if isinstance(answer, Present)}
+    return judged.verdicts
 
 
 # --- the areas ------------------------------------------------------------------------------
