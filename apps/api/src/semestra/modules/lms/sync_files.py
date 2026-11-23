@@ -391,10 +391,11 @@ async def _gone(ctx: Ctx, w: _Batch, mat: LmsMaterial, row: FilesItem | None) ->
             note(mat, "gone", now)
             await sources.purge_items(ctx, [row])
         return
-    before = mat.state
-    # Restored, but the platform no longer has it: told, not left waiting.
-    if enter(mat, "gone", now) and before == "absent":
+    if mat.state == "absent":  # restored, but the platform no longer has it: told, not left waiting
+        enter(mat, "gone", now)
         note(mat, "gone", now)
+        return
+    enter(mat, "gone", now)  # a list page
 
 
 async def _enabled(ctx: Ctx, link: LmsCourseLink, b: Bound) -> bool:

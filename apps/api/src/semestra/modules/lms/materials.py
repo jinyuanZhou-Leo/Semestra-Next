@@ -58,10 +58,10 @@ NEXT: dict[tuple[MaterialState | None, MaterialEvent], MaterialState | Literal["
     ("list", "gone"): "absent",
     ("dismissed", "appeared"): KEEP,
     ("dismissed", "list"): KEEP,
-    ("dismissed", "gone"): KEEP,
     ("dismissed", "saved"): "synced",
     ("dismissed", "restored"): "absent",
-    # Restored, then gone from the platform before it came in: told, no longer quiet. Else kept.
+    # Restored, then gone from the platform before it came in: told, no longer quiet. Only a
+    # restored one (`quiet`) is judged, as a dismissed one is not (`material_reads.judge`).
     ("absent", "gone"): "absent",
     ("absent", "appeared"): "synced",
     ("absent", "list"): "list",
@@ -104,7 +104,7 @@ def enter(
         return False
     if before == "absent" and event == "gone":  # what it left (`item_id`) stays the user's
         if not mat.quiet:
-            return False
+            raise Impossible(f"lms material {mat.id}: absent on gone, not restored")
         mat.quiet, mat.state_at = False, now
         return True
     if state == "synced" and item_id is None:

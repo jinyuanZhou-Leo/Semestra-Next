@@ -436,8 +436,8 @@ Canvas 的映射（`providers/canvas/`）。同一个 HTTP 回应只对应一种
 | （无记录） | → `synced`（建项） | → `list` | 不会发生 | 不会发生 | → `synced`（下载建副本） | 不会发生 | 不会发生 | 不会发生 | 不会发生 |
 | `synced` | 保持（版本变了重新处理，改了名跟着改名） | → `list`（删掉项） | → `absent`（有本地副本：交给用户，记 `handed_over`；在线读取：删掉项，记 `gone`） | → `dismissed` | 保持（这一项要副本） | 不会发生 | → `absent`（删掉项） | → `dismissed`（先转换再删掉项，所以 `deleted` 那一列不再触发；发 `lms.sync.updated`，M07 照常发文件删除事件） | → `absent`（有本地副本：交给用户；在线读取：删掉项） |
 | `list` | → `synced`（列表页又有了正文，建项） | 保持 | → `absent` | 不会发生 | 不会发生 | 不会发生 | 不会发生 | 不会发生 | 不会发生 |
-| `dismissed` | 保持（不带回；它链接的东西照常带进来） | 保持 | 保持（面板“已移除”里留着，直到恢复） | 不会发生 | → `synced`（下载建副本） | → `absent`（`quiet`，排一次同步） | 不会发生 | 不会发生 | 不会发生 |
-| `absent` | → `synced`（建项；`quiet` 时不算新资料、不通知） | → `list` | 保持；带 `quiet` 的：去掉 `quiet`，记 `gone` | 不会发生 | → `synced`（下载建副本） | 不会发生 | 不会发生 | 不会发生 | 不会发生 |
+| `dismissed` | 保持（不带回；它链接的东西照常带进来） | 保持 | 不会发生 | 不会发生 | → `synced`（下载建副本） | → `absent`（`quiet`，排一次同步） | 不会发生 | 不会发生 | 不会发生 |
+| `absent` | → `synced`（建项；`quiet` 时不算新资料、不通知） | → `list` | 去掉 `quiet`，记 `gone`（只会是带 `quiet` 的） | 不会发生 | → `synced`（下载建副本） | 不会发生 | 不会发生 | 不会发生 | 不会发生 |
 
 进入 `synced` 时记下新的 `item_id` 并清空已应用的平台信息（版本、名称、位置、链接）；进入 `list`/`absent` 时也清空；`dismissed` 保留读到的内容，版本除外（#426：版本只记一处，§4.6）。`synced` 一定有项：项的删除都经 `files.item.deleting`（`deleted` 列，或发它之前先转换的那几列），恢复备份时项不在的资料不恢复（`portability.py`）。
 
@@ -446,7 +446,7 @@ Canvas 的映射（`providers/canvas/`）。同一个 HTTP 回应只对应一种
 | 事件 | 入口 | 可能遇到的状态 | 其余状态为什么遇不到 |
 |---|---|---|---|
 | `appeared`、`list` | 同步 `files` 阶段，对这一轮读到的每一份资料（按是不是列表页发其中一个） | 全部（无记录、`synced`、`list`、`dismissed`、`absent`） | — |
-| `gone` | 同步 `files` 阶段，对已知资料中表 3c 判为已离开的 | 有记录的四种 | 无记录的不在已知资料里 |
+| `gone` | 同步 `files` 阶段，对已知资料中表 3c 判为已离开的 | `synced`、`list`、带 `quiet` 的 `absent` | 表 3c 只判断跟随中的与用户恢复的（`material_reads.judge`）：`dismissed` 和不带 `quiet` 的 `absent` 已不跟随，留在面板“已移除”或交给了用户，不再判断；无记录的不在已知资料里 |
 | `deleted` | M07 删除课程文件里的项（`files.item.deleting`，`on_item_deleting`） | `synced` | 只有 `synced` 指向跟随中的项（唯一索引）；同步、移除、取消关联先转换再删项 |
 | `saved` | “保存到课程文件”（`lms.file.save`） | 无记录、`synced`、`dismissed`、`absent` | 只对文件发，`list` 只会是页面 |
 | `restored` | `lms.sync.material.restore` / `.restore_all` | `dismissed` | 入口先检查，其余状态回 `lms.sync_nothing_to_resolve` |
@@ -750,8 +750,8 @@ Agent 与 MCP 只看到 11 个按任务设计的工具，而不是每个平台�
 - 表 2、表 3 的每一行各一条参数化测试，表 4 的每个格子各一条（`tests/test_rules_tables.py` 与 provider 契约测试），表 5b 的每一行各一条（`tests/test_sync_failures.py`）；改表就改测试。
 - **同步不许悄悄出错**（`lms/tests/conftest.py`，对每个 LMS 测试自动生效）：测试里同步记下的阶段异常（`lms.sync_stage_failed`）、被跳过的项（`lms.sync_item_failed`）或读不懂的回应（`lms.provider_payload`）让测试失败；故意制造它们的测试用 `expect_sync_failures` fixture 声明会有哪些。
 - **穷举**（owner 2026-11-23：“要补穷举所有可能的测试”），都经真实入口（同步任务与 HTTP 接口），不直接调 `enter`：
-  - **表 4 的格子**（`tests/test_state_cells.py`）：测试里给 `materials.enter`、`assignment_refs.enter` 记下每次的（状态, 事件）；跑完下面的有界穷举后断言表 4a、4b 每个允许的格子都走到过，“不会发生”的格子一次也没有。每个允许的格子另有一条按真实流程走到它并检查结果的例子。
-  - **有界穷举序列**（`tests/test_sync_sequences.py`）：一门课一个作业、一份资料、一条公告，平台动作（新增、修改、删除、恢复、关闭与打开栏目、列表被拒、单项被拒、补充读取被拒、页面变成列表页）与用户动作（打开导入与提交导入分成两步，中间可以插入任何动作；导入成待办或考核、加入成绩册、忽略、重新提醒、删掉对象、解绑、绑定、回答删除项、撤销与还原变更、删掉与另存与恢复资料、在“暂时无法同步”里移除、关闭资料同步后移除、取消关联与重新关联）构成有限的动作集，枚举长度 ≤ N 的所有序列（N 与用时写在 PR 里，取 CI 能跑完的最大值），每步后同步一次并检查不变量：没有 5xx，没有阶段异常和被跳过的项，状态都在表 4 里，没动的那份内容照常更新。更长的序列交给 hypothesis 状态机（`tests/test_sync_walk.py`）。
+  - **表 4 的格子**（`tests/test_state_cells.py`）：测试里给 `materials.enter`、`assignment_refs.enter` 记下每次的（状态, 事件）；每个允许的格子各有一条按真实流程（下面的动作）走到它并检查结果状态的例子，另断言例子覆盖全部允许的格子。“不会发生”的格子 `enter` 拒绝（`Impossible`），在任何测试里走到都会让那一项被跳过或请求 5xx，从而让测试失败，所以下面的穷举与随机序列同时证明它们一次也没走到。
+  - **有界穷举序列**（`tests/test_sync_sequences.py`）：一门课一个作业、一份资料、一条公告，平台动作（新增、修改、删除、恢复、关闭与打开栏目、列表被拒、单项被拒、补充读取被拒、页面变成列表页）与用户动作（打开导入与提交导入分成两步，中间可以插入任何动作；导入成待办或考核、加入成绩册、忽略、重新提醒、删掉对象、解绑、绑定、回答删除项、撤销与还原变更、删掉与另存与恢复资料、在“暂时无法同步”里移除、关闭资料同步后移除、取消关联与重新关联）与时间过去一天（单独读到的内容按表 3c 第 7、8 行要隔一天才再读）构成有限的动作集，枚举长度 ≤ N 的所有序列（N 与用时写在 PR 里，取 CI 能跑完的最大值），每步后同步一次并检查不变量：没有 5xx，没有阶段异常和被跳过的项，状态都在表 4 里，没动的那份内容照常更新。更长的序列交给 hypothesis 状态机（`tests/test_sync_walk.py`）。
   - **出错矩阵**（`tests/test_sync_failures.py`）：表 5a 每个阶段的每一次读取 × 每种回答（正常；栏目关闭且导航里没有；被拒且导航开着；被拒且导航读不到；单项 404；限流；连不上；凭证失效；地址错误；读不懂），断言表 5b：只有那一项或那一块受影响，其余照常写入，`sync_errors` 与面板给出的原因对。Canvas 一侧另有一张：每个读取的接口 × 每种 HTTP 回答（200、401 带与不带 `WWW-Authenticate`、403、403 限流、429、404、5xx、超时与断开、3xx、不是 JSON、结构不对）→ 表 2 的归一结果（provider 契约测试）。
   - 表 5b 每一行另有一条例子（同一文件）。
 - Canvas：用 respx mock Canvas API，覆盖分页 `Link` 头、401、429、重定向到私网地址被拒、base_url 规范化用例（与旧版前端规则一致）。

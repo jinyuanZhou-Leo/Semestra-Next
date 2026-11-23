@@ -21,8 +21,8 @@ from semestra.modules.lms.models import (
     LmsCourseLink,
     LmsMaterial,
 )
-from semestra.modules.lms.schemas.dto import Announcement, FileMeta, LmsCalendarEvent as Event
-from semestra.modules.lms.schemas.dto import NavTab, PageSummary
+from semestra.modules.lms.schemas.dto import Announcement, FileMeta, NavTab, PageSummary
+from semestra.modules.lms.schemas.dto import LmsCalendarEvent as Event
 from semestra.modules.lms.sync_round import SyncRound
 from semestra.modules.lms.tests.conftest import Api, FakeProvider, SyncFailures
 from semestra.modules.lms.tests.test_sync import _assessments, _course
@@ -43,9 +43,11 @@ def _file(file_id: str, name: str) -> FileMeta:
 
 def _event(event_id: str, title: str) -> Event:
     return Event(
-        external_id=event_id, external_course_id="101", title=title,
+        external_id=event_id,
+        external_course_id="101",
+        title=title,
         start_at=datetime(2026, 2, 2, 15, tzinfo=UTC),
-    )  # fmt: skip
+    )
 
 
 def _news(news_id: str, title: str) -> Announcement:
@@ -116,7 +118,10 @@ async def _seen(app: FastAPI, api: Api) -> Seen:
             },
             {r.external_id: r.title for r in await ctx.db.scalars(select(LmsAnnouncement))},
             {r.external_id: r.title for r in await ctx.db.scalars(select(LmsCalendarEvent))},
-            {f"{r.kind}:{r.external_id}": r.state for r in await ctx.db.scalars(select(LmsMaterial))},
+            {
+                f"{r.kind}:{r.external_id}": r.state
+                for r in await ctx.db.scalars(select(LmsMaterial))
+            },
             link,
         )
 
@@ -145,9 +150,7 @@ def poison() -> Iterator[None]:
 # --- table 5b, one example per row -----------------------------------------------------------
 
 
-async def test_row1_course_not_read_ends_the_round(
-    api: Api, app: FastAPI, fake: FakeProvider
-):
+async def test_row1_course_not_read_ends_the_round(api: Api, app: FastAPI, fake: FakeProvider):
     program_id, _ = await _world(api, fake)
     _canaries(fake)
     fake.faults["get_course"] = lms_error("lms.forbidden")
@@ -174,14 +177,13 @@ async def test_row2_an_answer_about_the_connection_ends_the_round(
     seen = await _seen(app, api)
     assert seen.wrote("assignments")  # committed before
     assert not seen.wrote("announcements")
-    assert "calendar_events" not in fake.reads and "course_files" not in fake.reads
+    assert "calendar_events" not in fake.reads
+    assert "course_files" not in fake.reads
     assert seen.link.area_reads["calendar"]["reason"] == "lms.rate_limited"
     assert status["synced_at"] is not None
 
 
-async def test_row3_a_list_not_given_is_about_that_list(
-    api: Api, app: FastAPI, fake: FakeProvider
-):
+async def test_row3_a_list_not_given_is_about_that_list(api: Api, app: FastAPI, fake: FakeProvider):
     program_id, _ = await _world(api, fake)
     _canaries(fake)
     fake.faults["pages"] = lms_error("lms.unreachable", upstream_status=502)
@@ -254,7 +256,8 @@ async def test_row6_shared_work_fails_only_what_uses_it(
         ("file", "f3", "common.internal"),
     ]
     seen = await _seen(app, api)
-    assert "file:f2" not in seen.materials and "file:f3" not in seen.materials
+    assert "file:f2" not in seen.materials
+    assert "file:f3" not in seen.materials
     assert seen.materials["file:f1"] == "synced"
     _, items = await _files(api, seen.link.course_id)
     assert "one (v2).txt" in items  # followed
@@ -296,8 +299,11 @@ async def test_row7_an_item_that_fails_is_left_as_it_was(
             fake.events = [_event("e1", POISON), _event("e2", "Tutorial")]
             expected = ("calendar_event", "e1")
         case _:
-            fake.course_file_list = [_file("f1", "one.txt"), _file("f2", "two.txt"),
-                                     _file("f3", POISON)]  # fmt: skip
+            fake.course_file_list = [
+                _file("f1", "one.txt"),
+                _file("f2", "two.txt"),
+                _file("f3", POISON),
+            ]
             expected = ("file", "f3")
     user_id = (await api.call("GET", "/account/me"))["id"]
     with collect_events(app, user_id) as pushed:
@@ -360,7 +366,7 @@ async def test_row8_the_stage_s_own_record_failing_fails_the_stage(
     assert not seen.wrote("files")
 
 
-# --- the matrix: each read of table 5a × each answer ----------------------------------------
+# --- the matrix: each read of table 5a by each answer ----------------------------------------
 
 ReadKind = Literal["course", "area", "item", "side", "nav"]
 
