@@ -8,6 +8,17 @@ import { m } from '@/paraglide/messages'
  */
 export type AssignmentState = NonNullable<AssignmentOut['state']>
 
+/**
+ * What the platform marks an assignment with beside its state, as the server gives it (M09 3b
+ * marks, `rules.marks`): shown as they come, never worked out from the platform's flags here.
+ */
+export type Mark = NonNullable<AssignmentOut['marks']>[number]
+
+export const MARK_LABELS: Record<Mark, () => string> = {
+  missing: m.lms_assignment_missing,
+  late: m.lms_assignment_late,
+}
+
 /** Whether the due date still matters, as the server works it out (M09 table 3d). */
 export type DueState = AssignmentOut['due_state']
 

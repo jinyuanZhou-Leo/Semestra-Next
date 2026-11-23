@@ -142,6 +142,7 @@ async def test_an_assignment_opens_from_the_platform_then_from_the_mirror(
             "online": True,
             "held": True,
             "state": "graded",
+            "marks": [],
         }
     ]
     # The rest of the mirror went with the link.

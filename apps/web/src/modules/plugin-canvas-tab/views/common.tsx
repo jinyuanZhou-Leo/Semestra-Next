@@ -2,6 +2,8 @@ import { ExternalLink, Lock } from 'lucide-react'
 import {
   type AssignmentState,
   type DueState,
+  MARK_LABELS,
+  type Mark,
   STATE_LABELS,
   dueHint,
 } from '@/modules/lms/assignment/status'
@@ -65,37 +67,34 @@ export function ScoreText({
 
 /**
  * Where the user is with an assignment, as M09 tables 3b and 3d give it: the state's badge, the
- * missing and late markers beside it, and the due hint; the same in the assignments, quizzes and
- * grades (M16). A missing assignment's badge already says so, so it has no due hint.
+ * server's marks beside it (missing, late), and the due hint; the same in the assignments, quizzes
+ * and grades (M16). A missing assignment's badge already says so, so it has no due hint.
  */
 export function SubmissionStatus({
   state,
-  missing,
-  late,
+  marks,
   dueState,
   dueAt,
   now,
 }: {
   state: AssignmentState | null
-  missing: boolean
-  late: boolean
+  marks: Mark[]
   dueState: DueState
   dueAt: string | null | undefined
   now: number
 }) {
   const hint = state === 'missing' ? null : dueHint(dueState, dueAt, now)
-  const markers = [
-    missing && state === 'graded' ? (
+  const markers = marks.map((mark) =>
+    mark === 'missing' ? (
       <Badge key="missing" variant="outline" className="border-destructive/40 text-destructive">
-        {STATE_LABELS.missing()}
+        {MARK_LABELS.missing()}
       </Badge>
-    ) : null,
-    late && (state === 'graded' || state === 'submitted') ? (
+    ) : (
       <Badge key="late" variant="outline">
-        {m.lms_assignment_late()}
+        {MARK_LABELS.late()}
       </Badge>
-    ) : null,
-  ]
+    ),
+  )
   const badge =
     state === null ? null : state === 'missing' ? (
       <Badge variant="destructive">{STATE_LABELS.missing()}</Badge>

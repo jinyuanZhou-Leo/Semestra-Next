@@ -2157,6 +2157,19 @@ export const AssignmentDetailSchema = {
             ],
             title: 'State',
             description: 'Where the user is with it (`rules.assignment_state`, M09 table 3b); null for a practice quiz, or while the submission was never read'
+        },
+        marks: {
+            items: {
+                type: 'string',
+                enum: [
+                    'missing',
+                    'late'
+                ]
+            },
+            type: 'array',
+            title: 'Marks',
+            description: 'What the platform marks it with beside `state`, as shown (`rules.marks`, M09 3b marks): missing, late; the raw `submission.missing`/`late` are the platform\'s flags',
+            default: []
         }
     },
     type: 'object',
@@ -2716,6 +2729,19 @@ export const AssignmentOutSchema = {
             title: 'State',
             description: 'Where the user is with it (`rules.assignment_state`, M09 table 3b); null while the submission was never read'
         },
+        marks: {
+            items: {
+                type: 'string',
+                enum: [
+                    'missing',
+                    'late'
+                ]
+            },
+            type: 'array',
+            title: 'Marks',
+            description: 'What the platform marks it with beside `state`, as shown (`rules.marks`, M09 3b marks): missing, late; the raw `submission.missing`/`late` are the platform\'s flags',
+            default: []
+        },
         due_state: {
             type: 'string',
             enum: [
@@ -2893,13 +2919,27 @@ export const AssignmentTargetSchema = {
             title: 'State',
             description: 'Where the user is with it (`rules.assignment_state`); None until the sync has read it',
             readOnly: true
+        },
+        marks: {
+            items: {
+                type: 'string',
+                enum: [
+                    'missing',
+                    'late'
+                ]
+            },
+            type: 'array',
+            title: 'Marks',
+            description: 'What the platform marks it with beside `state`, as shown (`rules.marks`, M09 3b marks): missing, late',
+            readOnly: true
         }
     },
     type: 'object',
     required: [
         'course_id',
         'assignment_id',
-        'state'
+        'state',
+        'marks'
     ],
     title: 'AssignmentTarget'
 } as const;
@@ -24871,6 +24911,19 @@ export const AssignmentDetailWritableSchema = {
             ],
             title: 'State',
             description: 'Where the user is with it (`rules.assignment_state`, M09 table 3b); null for a practice quiz, or while the submission was never read'
+        },
+        marks: {
+            items: {
+                type: 'string',
+                enum: [
+                    'missing',
+                    'late'
+                ]
+            },
+            type: 'array',
+            title: 'Marks',
+            description: 'What the platform marks it with beside `state`, as shown (`rules.marks`, M09 3b marks): missing, late; the raw `submission.missing`/`late` are the platform\'s flags',
+            default: []
         }
     },
     type: 'object',
@@ -25383,6 +25436,19 @@ export const AssignmentOutWritableSchema = {
             ],
             title: 'State',
             description: 'Where the user is with it (`rules.assignment_state`, M09 table 3b); null while the submission was never read'
+        },
+        marks: {
+            items: {
+                type: 'string',
+                enum: [
+                    'missing',
+                    'late'
+                ]
+            },
+            type: 'array',
+            title: 'Marks',
+            description: 'What the platform marks it with beside `state`, as shown (`rules.marks`, M09 3b marks): missing, late; the raw `submission.missing`/`late` are the platform\'s flags',
+            default: []
         },
         due_state: {
             type: 'string',

@@ -313,6 +313,8 @@ Canvas 的映射（`providers/canvas/`）。同一个 HTTP 回应只对应一种
   | Canvas 标签页的作业表 | `lms.assignment.list` 每项的 `marks` | 前端按 `submission.missing`、`late` 与状态自己判断 |
   | Sem 与 MCP 查作业列表（`lms.assignment.list`） | 每项的 `marks`，与 `state` 并列；工具说明写明看 `state` 与 `marks` | 每项只有 `state` 和平台原始的 `submission.missing`、`late`，模型自己解读 |
   | Sem 与 MCP 的作业文本（`lms.content.read(assignment:…)`） | 后端同一个组装：写状态（表 3b）与标记 | 写提交状态（`status_of`），列出平台所有的 `late`、`missing` 标志，不按本表 |
+
+  Sem 与 MCP 作业列表的默认字段（`agent_default_fields`）加上 `marks`，`submission` 留着：分数与成绩只在它里面，“我得了多少分”要用；其中平台原始的 `missing`、`late` 随之出现，工具说明写明以 `state` 与 `marks` 为准，免交的作业也可能带着这两个标志。
 - 只有平台的缺交标志算缺交：过了截止但平台没标的仍可迟交，是 `unsubmitted`，再由 3d 给出 `overdue`。
 - 状态只有一个，用于筛选与计数（一个作业只落在一个筛选里）；缺交与迟交另外作为标记并列显示：缺交按 0 分计入的作业状态是 `graded`，同时显示“缺交”标记，与平台一致。
 - 作业状态在作业对象上（作业列表的每项、作业详情、`lms.assignment.targets`、Sem 与 MCP 的作业文本），作业本身的 DTO 不带它。落地：#417（后端）、PR 1（前端只显示）。

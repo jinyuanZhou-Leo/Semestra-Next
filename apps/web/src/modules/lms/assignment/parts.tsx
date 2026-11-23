@@ -27,6 +27,8 @@ import type { Assignment } from './queries'
 import {
   type AssignmentState,
   type DueState,
+  MARK_LABELS,
+  type Mark,
   STATE_LABELS,
   dueHint,
   latenessLabel,
@@ -57,16 +59,18 @@ export function AssignmentStatus({
   assignment: a,
   submission: s,
   state,
+  marks,
   dueState,
   practice,
   now,
-}: Shown & { dueState: DueState; practice: boolean; now: number }) {
+}: Shown & { marks: Mark[]; dueState: DueState; practice: boolean; now: number }) {
   if (state === null && !practice) return <div className="min-w-0" />
-  const late = s?.late
-    ? s.points_deducted
+  // The marks as the server gives them (M09 3b marks); the points taken off go with late.
+  const marked = marks.map((mark) =>
+    mark === 'late' && s?.points_deducted
       ? m.lms_assignment_late_deducted({ points: points(s.points_deducted) })
-      : m.lms_assignment_late()
-    : null
+      : MARK_LABELS[mark](),
+  )
   const line = practice
     ? m.lms_assignment_practice_note()
     : state === 'graded'
@@ -74,19 +78,18 @@ export function AssignmentStatus({
           m.lms_assignment_graded(),
           s?.score != null && a.points ? formatPercent(s.score / a.points) : null,
           s?.grade && s.grade !== String(s.score) ? s.grade : null,
-          s?.missing ? m.lms_assignment_missing() : null,
-          late,
+          ...marked,
         ]
       : state === 'submitted'
         ? [
             s?.submitted_at
               ? m.lms_assignment_submitted_at({ time: formatDateTime(s.submitted_at) })
               : null,
-            late,
+            ...marked,
           ]
         : state === 'excused' || state === 'missing'
-          ? null
-          : (dueHint(dueState, a.due_at, now) ?? m.lms_assignment_no_due())
+          ? marked
+          : [dueHint(dueState, a.due_at, now) ?? m.lms_assignment_no_due(), ...marked]
   const text = Array.isArray(line) ? line.filter(Boolean).join(' · ') : line
   return (
     <div className="min-w-0">
@@ -268,11 +271,14 @@ function submittedFileUrl(
 export function MySubmission({
   courseId,
   submission: s,
+  marks,
   held,
   online,
 }: {
   courseId: string
   submission: SubmissionDetail | null
+  /** The server's marks (M09 3b marks): how late it was is shown only when marked late. */
+  marks: Mark[]
   held: boolean
   /** Whether the assignment is handed in online at all. */
   online: boolean
@@ -292,7 +298,11 @@ export function MySubmission({
   }
   const when = [
     s.submitted_at ? formatDateTime(s.submitted_at) : null,
-    s.late ? (s.seconds_late ? latenessLabel(s.seconds_late) : m.lms_assignment_late()) : null,
+    marks.includes('late')
+      ? s.seconds_late
+        ? latenessLabel(s.seconds_late)
+        : m.lms_assignment_late()
+      : null,
   ]
     .filter(Boolean)
     .join(' · ')

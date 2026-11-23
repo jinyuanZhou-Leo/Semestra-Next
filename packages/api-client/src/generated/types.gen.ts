@@ -1174,6 +1174,12 @@ export type AssignmentDetail = {
      * Where the user is with it (`rules.assignment_state`, M09 table 3b); null for a practice quiz, or while the submission was never read
      */
     state: 'graded' | 'excused' | 'submitted' | 'missing' | 'offline' | 'unsubmitted' | null;
+    /**
+     * Marks
+     *
+     * What the platform marks it with beside `state`, as shown (`rules.marks`, M09 3b marks): missing, late; the raw `submission.missing`/`late` are the platform's flags
+     */
+    marks?: Array<'missing' | 'late'>;
 };
 
 /**
@@ -1428,6 +1434,12 @@ export type AssignmentOut = {
      */
     state: 'graded' | 'excused' | 'submitted' | 'missing' | 'offline' | 'unsubmitted' | null;
     /**
+     * Marks
+     *
+     * What the platform marks it with beside `state`, as shown (`rules.marks`, M09 3b marks): missing, late; the raw `submission.missing`/`late` are the platform's flags
+     */
+    marks?: Array<'missing' | 'late'>;
+    /**
      * Due State
      *
      * Whether the due date still matters (`rules.due_state`, M09 table 3d): none, upcoming, past (not handed in online) or overdue
@@ -1529,6 +1541,12 @@ export type AssignmentTarget = {
      * Where the user is with it (`rules.assignment_state`); None until the sync has read it
      */
     readonly state: 'graded' | 'excused' | 'submitted' | 'missing' | 'offline' | 'unsubmitted' | null;
+    /**
+     * Marks
+     *
+     * What the platform marks it with beside `state`, as shown (`rules.marks`, M09 3b marks): missing, late
+     */
+    readonly marks: Array<'missing' | 'late'>;
 };
 
 /**
@@ -14248,6 +14266,12 @@ export type AssignmentDetailWritable = {
      * Where the user is with it (`rules.assignment_state`, M09 table 3b); null for a practice quiz, or while the submission was never read
      */
     state: 'graded' | 'excused' | 'submitted' | 'missing' | 'offline' | 'unsubmitted' | null;
+    /**
+     * Marks
+     *
+     * What the platform marks it with beside `state`, as shown (`rules.marks`, M09 3b marks): missing, late; the raw `submission.missing`/`late` are the platform's flags
+     */
+    marks?: Array<'missing' | 'late'>;
 };
 
 /**
@@ -14471,6 +14495,12 @@ export type AssignmentOutWritable = {
      * Where the user is with it (`rules.assignment_state`, M09 table 3b); null while the submission was never read
      */
     state: 'graded' | 'excused' | 'submitted' | 'missing' | 'offline' | 'unsubmitted' | null;
+    /**
+     * Marks
+     *
+     * What the platform marks it with beside `state`, as shown (`rules.marks`, M09 3b marks): missing, late; the raw `submission.missing`/`late` are the platform's flags
+     */
+    marks?: Array<'missing' | 'late'>;
     /**
      * Due State
      *
@@ -21465,9 +21495,9 @@ export type LmsAssignmentListData = {
         /**
          * Fields
          *
-         * Agent/MCP only: return just these fields of each item (and its external_id); default name, due_at, points, group_name, submission, imported_as, state. `markdown` (or `html`) is the body, as Markdown
+         * Agent/MCP only: return just these fields of each item (and its external_id); default name, due_at, points, group_name, submission, imported_as, state, marks. `markdown` (or `html`) is the body, as Markdown
          */
-        fields?: Array<'web_url' | 'name' | 'html' | 'markdown' | 'due_at' | 'unlock_at' | 'lock_at' | 'points' | 'group_id' | 'group_name' | 'group_weight' | 'submission_types' | 'submission' | 'published' | 'updated_at' | 'locked' | 'lock_explanation' | 'allowed_attempts' | 'rubric' | 'imported_as' | 'state'> | null;
+        fields?: Array<'web_url' | 'name' | 'html' | 'markdown' | 'due_at' | 'unlock_at' | 'lock_at' | 'points' | 'group_id' | 'group_name' | 'group_weight' | 'submission_types' | 'submission' | 'published' | 'updated_at' | 'locked' | 'lock_explanation' | 'allowed_attempts' | 'rubric' | 'imported_as' | 'state' | 'marks'> | null;
     };
     url: '/courses/{course_id}/lms/assignments';
 };

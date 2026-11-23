@@ -14,6 +14,7 @@ from semestra.modules.lms.rules import (
     facts_due_state,
     facts_state,
     is_new,
+    marks,
     item_due_state,
     merge,
     platform_value,
@@ -252,3 +253,23 @@ def test_a_submission_never_read_has_no_state_and_no_due_hint():
     assert facts_state(assignment, None) is None
     assert facts_due_state(assignment, None, datetime.fromisoformat(NOW)) == "none"
     assert facts_state(assignment, {}) == "unsubmitted"
+
+
+@pytest.mark.parametrize(
+    ("state", "missing", "late", "shown"),
+    [
+        # M09 3b marks, each state with each flag, in the table's order.
+        ("excused", True, True, []),
+        ("missing", True, False, []),
+        ("missing", True, True, ["late"]),
+        ("graded", True, False, ["missing"]),
+        ("graded", False, True, ["late"]),
+        ("graded", True, True, ["missing", "late"]),
+        ("submitted", True, True, ["missing", "late"]),
+        ("unsubmitted", False, True, ["late"]),
+        ("offline", False, True, ["late"]),
+        (None, True, True, []),
+    ],
+)
+def test_marks(state: Any, missing: bool, late: bool, shown: list[str]):
+    assert marks(state, missing=missing, late=late) == shown

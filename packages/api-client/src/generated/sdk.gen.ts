@@ -4878,11 +4878,14 @@ export const lmsAssignmentImport = <ThrowOnError extends boolean = false>(option
  * Assignments and graded quizzes of a linked course on its LMS (Canvas), with the user's scores and the course total, marked when imported.
  *
  * For "what is due", "what is missing" and "what did I get": filter by `state`
- * and due dates; `include_total` adds the course total. The answer is what the last sync kept, as of
- * `as_of` (`source: mirror`), or the LMS (Canvas) just now (`source: live`); pass `refresh` only when the
- * user wants what is on the LMS (Canvas) this minute. Each has a `ref`: lms.content.read gives
- * its text, rubric and the teacher's feedback. To add them to the gradebook or tasks use
- * lms.assignment.import, never the gradebook or task capabilities directly.
+ * and due dates; `include_total` adds the course total. Where the user is with each is `state` and,
+ * beside it, `marks` (missing, late), as the app shows them; read those, not the raw
+ * `submission.missing`/`late` flags (an excused assignment can still carry them).
+ * The answer is what the last sync kept, as of `as_of` (`source: mirror`), or the LMS (Canvas) just now
+ * (`source: live`); pass `refresh` only when the user wants what is on the LMS (Canvas) this minute.
+ * Each has a `ref`: lms.content.read gives its text, rubric and the teacher's feedback.
+ * To add them to the gradebook or tasks use lms.assignment.import, never the gradebook or task
+ * capabilities directly.
  */
 export const lmsAssignmentList = <ThrowOnError extends boolean = false>(options: Options<LmsAssignmentListData, ThrowOnError>): RequestResult<LmsAssignmentListResponses, LmsAssignmentListErrors, ThrowOnError> => (options.client ?? client).get<LmsAssignmentListResponses, LmsAssignmentListErrors, ThrowOnError>({
     security: [

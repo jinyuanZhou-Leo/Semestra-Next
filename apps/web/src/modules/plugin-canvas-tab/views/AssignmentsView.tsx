@@ -297,8 +297,7 @@ function StatusCell({ row }: CellProps) {
   return (
     <SubmissionStatus
       state={a.state}
-      missing={a.submission?.missing ?? false}
-      late={a.submission?.late ?? false}
+      marks={a.marks ?? []}
       dueState={a.due_state}
       dueAt={a.due_at}
       now={now}
