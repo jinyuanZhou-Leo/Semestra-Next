@@ -1,24 +1,49 @@
-import { filesDocumentReadOptions } from '@semestra/api-client/react-query'
-import { useQuery } from '@tanstack/react-query'
-import { useEffect, useRef, useState } from 'react'
+import { filesDocumentRead } from '@semestra/api-client'
+import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { m } from '@/paraglide/messages'
-import { Button } from '@/ui/button'
+import { Skeleton } from '@/ui/skeleton'
 import type { PageTarget } from '../page-target'
 import { Markdown } from './Markdown'
 import { PageControls } from './PageControls'
 
 const READ_WINDOW = 30
 const HIGHLIGHT = 'files-preview-search'
+// How far from the edge of the scroll (in viewport heights) the next pages start loading.
+const LOAD_AHEAD = '100% 0px'
 
 function pageId(itemId: string, page: number) {
   return `files-page-${itemId}-${page}`
 }
 
+/** The pages to read: `from` to `to` (a window long, unless it ends where the loaded pages start). */
+type Window = { from: number; to: number }
+
+const windowFrom = (from: number): Window => ({ from, to: from + READ_WINDOW - 1 })
+
+/** A page-sized placeholder at the edge of the loaded pages while more are to come. */
+function PagePlaceholder({ edge }: { edge: 'earlier' | 'later' }) {
+  return (
+    <div
+      data-edge={edge}
+      aria-hidden
+      className="space-y-3 rounded-xl bg-background p-8 shadow-sm ring-1 ring-border"
+    >
+      <Skeleton className="h-3 w-16" />
+      <Skeleton className="h-4 w-full" />
+      <Skeleton className="h-4 w-5/6" />
+      <Skeleton className="h-4 w-2/3" />
+    </div>
+  )
+}
+
 /**
  * The text the pipeline read from a file, page by page (M07 §6.1): Word, PowerPoint, Excel and
- * HTML files, and the "Recognized text" view of a PDF. Thirty pages at a time, starting near the
- * requested page; search terms are highlighted and the page bar floats at the bottom.
+ * HTML files, and the "Recognized text" view of a PDF. It reads thirty pages at a time, starting
+ * near the requested page, and goes on in either direction as the reader nears the edge of what is
+ * loaded; a page outside the loaded ones starts a new run there. Search terms are highlighted and
+ * the page bar floats at the bottom.
  */
 export function DocumentText({
   itemId,
@@ -35,24 +60,52 @@ export function DocumentText({
   onPageChange?: (page: number) => void
 }) {
   const startOf = (page: number) => Math.max(1, page - 2)
-  const [from, setFrom] = useState(startOf(target?.page ?? 1))
+  const [start, setStart] = useState(startOf(target?.page ?? 1))
   const [current, setCurrent] = useState(target?.page ?? 1)
-  // A page outside the loaded window moves the window there.
+  const query = useInfiniteQuery({
+    queryKey: ['files', 'document-text', itemId, start],
+    initialPageParam: windowFrom(start),
+    queryFn: async ({ pageParam, signal }) => {
+      const { data } = await filesDocumentRead({
+        path: { item_id: itemId },
+        query: { page_from: pageParam.from, page_to: pageParam.to },
+        signal,
+        throwOnError: true,
+      })
+      return data
+    },
+    getNextPageParam: (last) => (last.next_page ? windowFrom(last.next_page) : undefined),
+    getPreviousPageParam: (first) => {
+      const from = first.pages[0]?.page_no ?? 1
+      return from > 1 ? { from: Math.max(1, from - READ_WINDOW), to: from - 1 } : undefined
+    },
+    // A new run (a jump) keeps showing the old pages until the new ones are there.
+    placeholderData: keepPreviousData,
+    staleTime: Infinity,
+    select: (data) => ({
+      pageCount: data.pages[0]?.page_count ?? 0,
+      pages: data.pages.flatMap((p) => p.pages),
+    }),
+  })
+  const { fetchNextPage, fetchPreviousPage, hasNextPage, hasPreviousPage } = query
+  const fetching = query.isFetchingNextPage || query.isFetchingPreviousPage
+  const scroller = useRef<HTMLDivElement>(null)
+  const firstLoaded = query.data?.pages[0]?.page_no
+  const lastLoaded = query.data?.pages.at(-1)?.page_no
+
+  // A page outside the loaded ones starts a new run there.
   const [shownTarget, setShownTarget] = useState(target)
   if (target !== shownTarget) {
     setShownTarget(target)
-    if (target && (target.page < from || target.page >= from + READ_WINDOW)) {
-      setFrom(startOf(target.page))
+    if (
+      target &&
+      firstLoaded !== undefined &&
+      lastLoaded !== undefined &&
+      (target.page < firstLoaded || target.page > lastLoaded)
+    ) {
+      setStart(startOf(target.page))
     }
   }
-  const query = useQuery({
-    ...filesDocumentReadOptions({
-      path: { item_id: itemId },
-      query: { page_from: from, page_to: from + READ_WINDOW - 1 },
-    }),
-    staleTime: Infinity,
-  })
-  const scroller = useRef<HTMLDivElement>(null)
 
   // Search terms are marked with the CSS Custom Highlight API (styled by
   // `::highlight(files-preview-search)` in theme.css), so the rendered Markdown is left as it is.
@@ -94,11 +147,51 @@ export function DocumentText({
     scrolledTo.current = target
   }, [query.data, itemId, target])
 
-  // Earlier or later pages: load them from `page` and show that page.
-  const turnTo = (page: number) => {
-    setFrom(page)
-    onNavigate(page)
-  }
+  // Pages arrive above the ones being read: keep those where they were. (The browser's own scroll
+  // anchoring is off for this scroller, so every browser does the same.)
+  const before = useRef<{ top: number; height: number } | null>(null)
+  useLayoutEffect(() => {
+    const element = scroller.current
+    const was = before.current
+    if (!element || !was) return
+    before.current = null
+    element.scrollTop = was.top + (element.scrollHeight - was.height)
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- runs when pages arrive above
+  }, [firstLoaded])
+
+  // The pages around the loaded ones start loading when their placeholder comes near.
+  const earlierEdge = useRef<HTMLDivElement>(null)
+  const laterEdge = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const root = scroller.current
+    if (!root || fetching || typeof IntersectionObserver === 'undefined') return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue
+          if (entry.target === earlierEdge.current) {
+            before.current = { top: root.scrollTop, height: root.scrollHeight }
+            void fetchPreviousPage()
+          } else {
+            void fetchNextPage()
+          }
+        }
+      },
+      { root, rootMargin: LOAD_AHEAD },
+    )
+    for (const edge of [earlierEdge.current, laterEdge.current]) if (edge) observer.observe(edge)
+    return () => observer.disconnect()
+    // Observed again after each load, so an edge still in range loads the next run.
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- `firstLoaded`/`lastLoaded` re-observe
+  }, [
+    fetchNextPage,
+    fetchPreviousPage,
+    hasNextPage,
+    hasPreviousPage,
+    fetching,
+    firstLoaded,
+    lastLoaded,
+  ])
 
   // The page being read is the topmost one in view.
   useEffect(() => {
@@ -123,21 +216,18 @@ export function DocumentText({
     onPageChange?.(current)
   }, [onPageChange, current])
 
-  const total = query.data?.page_count ?? 0
+  const total = query.data?.pageCount ?? 0
   return (
     <>
-      <div ref={scroller} className="min-h-0 flex-1 overflow-auto">
+      {/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions */}
+      <div ref={scroller} className="min-h-0 flex-1 overflow-auto [overflow-anchor:none]">
         <AsyncBoundary query={query}>
           {(doc) => (
             <div className="mx-auto max-w-3xl space-y-6 px-6 pt-6 pb-24">
-              {from > 1 ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => turnTo(Math.max(1, from - READ_WINDOW))}
-                >
-                  {m.files_preview_earlier_pages()}
-                </Button>
+              {hasPreviousPage ? (
+                <div ref={earlierEdge}>
+                  <PagePlaceholder edge="earlier" />
+                </div>
               ) : null}
               {doc.pages.map((p) => (
                 <section
@@ -152,10 +242,10 @@ export function DocumentText({
                   <Markdown>{p.markdown}</Markdown>
                 </section>
               ))}
-              {doc.next_page ? (
-                <Button variant="outline" size="sm" onClick={() => turnTo(doc.next_page ?? from)}>
-                  {m.files_preview_later_pages()}
-                </Button>
+              {hasNextPage ? (
+                <div ref={laterEdge}>
+                  <PagePlaceholder edge="later" />
+                </div>
               ) : null}
             </div>
           )}

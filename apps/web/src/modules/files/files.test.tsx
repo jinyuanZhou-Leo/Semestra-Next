@@ -3,7 +3,7 @@ import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Blob as NodeBlob, File as NodeFile } from 'node:buffer'
 import { http, HttpResponse } from 'msw'
-import { type ReactNode, useEffect, useState } from 'react'
+import { type ReactNode, useEffect } from 'react'
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest'
 import type { Scope } from '@/app/extensions'
 import { API, renderWithRouter, server } from '@/test-utils'
@@ -612,53 +612,56 @@ test('a PDF can be read as the text Semestra recognized in it', async () => {
   expect(await within(dialog).findByText('Read from page one')).toBeInTheDocument()
 })
 
-test('earlier pages of the recognized text stay in view once loaded', async () => {
+test('the recognized text goes on above the pages being read as their placeholder nears', async () => {
   server.use(
     http.get(`${API}/files/:id/document`, ({ request }) => {
       const url = new URL(request.url)
       const from = Number(url.searchParams.get('page_from'))
-      const to = Math.min(Number(url.searchParams.get('page_to')), 40)
+      const to = Math.min(Number(url.searchParams.get('page_to')), 100)
       return HttpResponse.json({
         item_id: 'i1',
         display_name: 'syllabus.pdf',
-        page_count: 40,
+        page_count: 100,
         pages: Array.from({ length: to - from + 1 }, (_, n) => ({
           page_no: from + n,
           markdown: `Text of page ${from + n}`,
           ocr_used: false,
           citation_id: 'x',
         })),
-        next_page: to < 40 ? to + 1 : null,
+        next_page: to < 100 ? to + 1 : null,
         citations: [],
       })
     }),
   )
-  const scrolled: string[] = []
-  const spy = vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(function (
-    this: Element,
-  ) {
-    scrolled.push(this.getAttribute('data-page') ?? '')
-  })
-  function Reader() {
-    const [target, setTarget] = useState(pageTarget(10))
-    return (
-      <DocumentText
-        itemId="i1"
-        target={target}
-        terms={[]}
-        onNavigate={(page) => setTarget(pageTarget(page))}
-      />
-    )
-  }
-  renderWithRouter(<Reader />)
-  expect(await screen.findByText('Text of page 10')).toBeInTheDocument()
-  await waitFor(() => expect(scrolled).toEqual(['10']))
-
-  await userEvent.click(screen.getByRole('button', { name: 'Show earlier pages' }))
+  // Only the placeholder above the pages is in range, as when the reader sits at the top.
+  vi.stubGlobal(
+    'IntersectionObserver',
+    class {
+      constructor(private readonly callback: IntersectionObserverCallback) {}
+      observe(target: Element) {
+        const earlier = target.firstElementChild?.getAttribute('data-edge') === 'earlier'
+        if (earlier) {
+          this.callback(
+            [{ isIntersecting: true, target } as IntersectionObserverEntry],
+            this as unknown as IntersectionObserver,
+          )
+        }
+      }
+      disconnect() {}
+      unobserve() {}
+    },
+  )
+  const spy = vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {})
+  renderWithRouter(
+    <DocumentText itemId="i1" target={pageTarget(40)} terms={[]} onNavigate={() => {}} />,
+  )
+  expect(await screen.findByText('Text of page 40')).toBeInTheDocument()
+  // The pages above it follow without a click, and the pages below wait.
   expect(await screen.findByText('Text of page 1')).toBeInTheDocument()
-  await waitFor(() => expect(scrolled.at(-1)).toBe('1'))
-  expect(scrolled).toEqual(['10', '1'])
+  expect(screen.queryByText('Text of page 70')).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /earlier|later/i })).not.toBeInTheDocument()
   spy.mockRestore()
+  vi.unstubAllGlobals()
 })
 
 test('the grid shows page images only for PDFs and images, and falls back to the icon', async () => {

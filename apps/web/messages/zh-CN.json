@@ -2108,8 +2108,6 @@
   "files_preview_page": "页码",
   "files_preview_page_of": "/ {total}",
   "files_preview_page_label": "第 {page} 页",
-  "files_preview_earlier_pages": "显示前面的页",
-  "files_preview_later_pages": "显示后面的页",
   "files_preview_unavailable": "这个文件无法预览",
   "files_preview_unavailable_description": "下载后在设备上打开。",
   "files_preview_contents": "目录",
