@@ -7,10 +7,13 @@ from sqlalchemy import exists, func, or_, select
 
 from semestra.core.context import Ctx, run_as_system
 from semestra.core.errors import AppError
+from semestra.core.events import events
 from semestra.core.jobs import CoreJob, JobCtx, enqueue, job_handler, periodic
 from semestra.modules import ai
-from semestra.modules.files import pipeline, sources
-from semestra.modules.files.models import FilesChunk, FilesIndexState, FilesItem
+from semestra.modules.files import pipeline, service, sources
+from semestra.modules.files.models import FilesChunk, FilesDocument, FilesIndexState, FilesItem
+from semestra.modules.files.parse.detect import KIND_OF_MIME
+from semestra.modules.files.parse.readers import REREAD_KINDS, reader_version
 
 # Weights follow M07 §3.1; stages that do not apply are skipped and their weight is shared out.
 PROCESS_STAGES = [
@@ -158,6 +161,48 @@ async def retry_vectors(ctx: Ctx) -> None:
                     "files.reindex_vectors",
                     ReindexPayload(retry=True),
                     dedupe_key="reindex",
+                )
+
+        await run_as_system(ctx.state, user_id, again)
+
+
+def _read_with(fingerprint: str) -> int:
+    """The reader version a document was read with (`pipeline`); 1 before versions were kept."""
+    parts = fingerprint.split(":")
+    return int(parts[1]) if len(parts) == 3 and parts[1].isdigit() else 1
+
+
+@periodic("files.reread_outdated", every=timedelta(hours=6), first_after=timedelta(minutes=10))
+async def reread_outdated(ctx: Ctx) -> None:
+    """Files read by an older version of a reader that needs no model (`REREAD_KINDS`) are read
+    again, behind the users' own files, so a reader's change (M09's formulas on LMS pages) reaches
+    the files already read and not only those read from now on."""
+    mimes = [
+        mime
+        for mime, kind in KIND_OF_MIME.items()
+        if kind in REREAD_KINDS and reader_version(kind) > 1
+    ]
+    if not mimes:
+        return
+    found = await ctx.db.execute(
+        select(
+            FilesItem.user_id, FilesItem.id, FilesItem.mime_type, FilesDocument.parser_fingerprint
+        )
+        .join(FilesDocument, FilesDocument.id == FilesItem.active_document_id)
+        .where(FilesItem.doc_status == "ready", FilesItem.mime_type.in_(mimes))
+    )
+    outdated: dict[str, list[str]] = {}
+    for user_id, item_id, mime, fingerprint in found.all():
+        if _read_with(fingerprint) < reader_version(KIND_OF_MIME.get(mime or "", "")):
+            outdated.setdefault(user_id, []).append(item_id)
+    for user_id, item_ids in outdated.items():
+
+        async def again(user_ctx: Ctx, item_ids: list[str] = item_ids) -> None:
+            rows = await user_ctx.db.scalars(select(FilesItem).where(FilesItem.id.in_(item_ids)))
+            for row in rows:
+                await service.request_read(user_ctx, row, "upgrade")
+                await events.publish(
+                    user_ctx, "files.item.updated", {"item_id": row.id, "course_id": row.course_id}
                 )
 
         await run_as_system(ctx.state, user_id, again)

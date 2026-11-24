@@ -311,6 +311,10 @@ class DocumentPage(BaseModel):
     page_no: int
     markdown: str
     ocr_used: bool
+    latex: bool = Field(
+        description="Math in `markdown` is LaTeX between `$` or `$$`, and `\\$` is a dollar sign; "
+        "in other pages a `$` is just a dollar sign"
+    )
     citation_id: str = Field(description="`<item_id>:p<page_no>-<page_no>`")
 
 

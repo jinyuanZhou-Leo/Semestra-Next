@@ -238,7 +238,7 @@ def process_key(row: FilesItem) -> str:
 # Who asks for a file to be read: the user (reprocess, retry), its upload, the source that keeps
 # it in step (new, changed, new bytes stored, retried after the source failed), or a backup
 # restore.
-Reader = Literal["user", "upload", "source", "restore"]
+Reader = Literal["user", "upload", "source", "restore", "upgrade"]
 
 
 async def request_read(
@@ -250,7 +250,9 @@ async def request_read(
     - an upload or its source: as the course's `auto_index` says (else `none`, read when asked);
       a source's in the queue behind it (`files.process_synced`);
     - a backup restore: what was read when the backup was made is read again, the rest as
-      `auto_index` says.
+      `auto_index` says;
+    - a reader that changed (`upgrade`, `jobs.reread_outdated`): what was read is read again,
+      behind the user's own files.
 
     A job queued for an older version of the item (or, for the user, behind the synced files)
     is withdrawn; one running reads again once it ends (`again`), and a result for a version the
@@ -263,7 +265,7 @@ async def request_read(
     was_read = row.doc_status == "ready"
     wanted = (
         by == "user"
-        or (by == "restore" and was_read)
+        or (by in ("restore", "upgrade") and was_read)
         or (auto_index if auto_index is not None else await settings.auto_index(ctx, row.course_id))
     )
     row.doc_error_code, row.updated_at = None, ctx.now
@@ -272,7 +274,7 @@ async def request_read(
         await ctx.db.flush()
         return
     row.doc_status = "pending"
-    synced = by == "source" or (by == "restore" and content.follows_source(row))
+    synced = by in ("source", "upgrade") or (by == "restore" and content.follows_source(row))
     kind = PROCESS_KINDS[1] if synced else PROCESS_KINDS[0]
     key = process_key(row)
     stale = [

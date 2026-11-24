@@ -20,6 +20,7 @@ from semestra.modules.files.models import FilesItem
 from semestra.modules.files.source_folders import SourceFolders
 from semestra.modules.lms import announcements, reads, service, sync_state
 from semestra.modules.lms.errors import lms_error
+from semestra.modules.lms.html import with_math
 from semestra.modules.lms.materials import enter
 from semestra.modules.lms.models import LmsConnection, LmsCourseLink, LmsMaterial
 from semestra.modules.lms.providers.base import get_provider
@@ -128,7 +129,8 @@ async def _once(data: bytes) -> AsyncIterator[bytes]:
 
 def page_document(title: str, html: str | None) -> bytes:
     head = f'<!doctype html><html><head><meta charset="utf-8"><title>{escape(title)}</title>'
-    return f"{head}</head><body><h1>{escape(title)}</h1>{html or ''}</body></html>".encode()
+    body = with_math(html) if html else ""
+    return f"{head}</head><body><h1>{escape(title)}</h1>{body}</body></html>".encode()
 
 
 async def open_source(ctx: Ctx, item: FilesItem) -> AsyncIterator[bytes]:

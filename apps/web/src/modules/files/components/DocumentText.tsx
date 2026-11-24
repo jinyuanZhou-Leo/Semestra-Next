@@ -228,7 +228,7 @@ function TextPage({
         {m.files_preview_page_label({ page: number })}
       </p>
       {page ? (
-        <Markdown>{page.markdown}</Markdown>
+        <Markdown math={page.latex}>{page.markdown}</Markdown>
       ) : state === 'read' ? null : state === 'failed' ? (
         <div className="flex items-center gap-3 text-sm text-muted-foreground">
           <CircleAlert aria-hidden className="size-4" />

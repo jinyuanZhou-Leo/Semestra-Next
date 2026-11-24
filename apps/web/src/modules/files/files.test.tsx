@@ -197,7 +197,15 @@ beforeEach(() => {
         item_id: params.id,
         display_name: 'syllabus.pdf',
         page_count: 9,
-        pages: [{ page_no: 1, markdown: 'Read from page one', ocr_used: false, citation_id: 'x' }],
+        pages: [
+          {
+            page_no: 1,
+            markdown: 'Read from page one',
+            ocr_used: false,
+            latex: false,
+            citation_id: 'x',
+          },
+        ],
         next_page: null,
         citations: [],
       }),
@@ -626,13 +634,22 @@ test('a PDF can be read as the text Semestra recognized in it, formulas typeset'
       HttpResponse.json({
         item_id: params.id,
         display_name: 'syllabus.pdf',
-        page_count: 1,
+        page_count: 2,
         pages: [
           {
             page_no: 1,
-            markdown: 'Read from page one, where $V = IR$:\n\n$$P = I^2 R$$',
+            markdown: 'Read from page one, where $V = IR$:\n\n$$P = I^2 R$$\n\n```\n$$a$$\n```',
             ocr_used: true,
+            latex: true,
             citation_id: 'x',
+          },
+          // Not written to the LaTeX rule: a dollar is a dollar.
+          {
+            page_no: 2,
+            markdown: 'Late fee is $5 and the kit costs $10.',
+            ocr_used: false,
+            latex: false,
+            citation_id: 'y',
           },
         ],
         next_page: null,
@@ -643,12 +660,16 @@ test('a PDF can be read as the text Semestra recognized in it, formulas typeset'
   const dialog = await openPreview()
   await userEvent.click(await within(dialog).findByRole('button', { name: 'Recognized text' }))
   expect(await within(dialog).findByText(/Read from page one/)).toBeInTheDocument()
-  // A formula on a line of its own is shown on its own, one in a sentence inline.
+  // A formula on a line of its own is shown on its own, one in a sentence inline; code stays code.
   const formulas = within(dialog).getAllByRole('math')
   expect(formulas.map((f) => [f.textContent, f.closest('.katex-display') !== null])).toEqual([
     [expect.stringContaining('V=IR'), false],
     [expect.stringContaining('P=I2R'), true],
   ])
+  expect(within(dialog).getByText('$$a$$')).toBeInTheDocument()
+  expect(
+    await within(dialog).findByText('Late fee is $5 and the kit costs $10.'),
+  ).toBeInTheDocument()
 })
 
 /** jsdom has no scrolling or layout; the virtualizer scrolls with `scrollTo` and measures. */
@@ -701,6 +722,7 @@ function serveDocumentText(pageCount: number, fail?: (from: number) => boolean) 
           page_no: from + n,
           markdown: `Text of page ${from + n}`,
           ocr_used: false,
+          latex: false,
           citation_id: 'x',
         })),
         next_page: to < pageCount ? to + 1 : null,

@@ -2571,3 +2571,18 @@ async def test_ways_in_turned_off_bring_nothing_new(api: Api, fake: FakeProvider
     notes = (await _files(api, course))[1]["Notes 1.pdf"]
     assert not notes["unseen"]
     assert status["materials"] == []
+
+
+async def test_formulas_on_a_page_are_read_as_latex(api: Api, fake: FakeProvider):
+    fake.page_list = [PageSummary(external_id="p1", ref="notes", title="Notes", updated_at=JAN)]
+    fake.page_texts = {
+        "notes": ("Notes", '<p>Energy <img src="/equation/E%3Dmc%5E2" alt="E=mc^2"> costs $5.</p>')
+    }
+    program_id, course = await _course(api)
+    await api.sync(program_id)
+    page = await api.call("GET", f"/courses/{course}/lms/pages/notes")
+    assert 'data-formula="E=mc^2"' in page["html"]  # the Canvas tab shows the image
+    item = (await _files(api, course))[1]["Notes"]
+    read = await api.call("GET", f"/files/{item['id']}/document")
+    assert read["pages"][0]["latex"]
+    assert r"Energy $E=mc^2$ costs \$5." in read["pages"][0]["markdown"]

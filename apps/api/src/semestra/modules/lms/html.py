@@ -10,8 +10,8 @@ would otherwise resolve a relative one against itself. A platform link the provi
 also carries `data-lms-kind` / `data-lms-ref` so the Canvas tab (M16) can open it in the app. An
 image of a course file is marked the same way: its own address needs a platform session, so the
 Canvas tab loads it through the file proxy instead. An image the provider knows to be a formula
-(`LmsProvider.image_formula`) carries its LaTeX in `data-formula`; Markdown made from the HTML
-(here for agents, and M07's HTML reader) writes it as `$…$`.
+(`LmsProvider.image_formula`) carries its LaTeX in `data-formula`: the Canvas tab shows the
+image, and the page handed to M07 (`with_math`) has it as MathML with its TeX source.
 """
 
 import html as htmllib
@@ -111,6 +111,25 @@ def clean(
         strip_comments=True,
     ).strip()
     return _resolve_links(cleaned, base, rewrite, formula) if cleaned else None
+
+
+def with_math(cleaned: str) -> str:
+    """Cleaned HTML with each formula image (`data-formula`) as the standard MathML that carries
+    its TeX source, which M07's HTML reader writes as LaTeX."""
+    if "data-formula" not in cleaned:
+        return cleaned
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(cleaned, "html.parser")
+    for img in soup.find_all("img", attrs={"data-formula": True}):
+        annotation = soup.new_tag("annotation", attrs={"encoding": "application/x-tex"})
+        annotation.string = str(img["data-formula"])
+        semantics = soup.new_tag("semantics")
+        semantics.append(annotation)
+        math = soup.new_tag("math")
+        math.append(semantics)
+        img.replace_with(math)
+    return str(soup)
 
 
 def to_text(raw: str | None) -> str | None:

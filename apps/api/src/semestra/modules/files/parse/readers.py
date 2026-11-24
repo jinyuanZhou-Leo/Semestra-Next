@@ -19,7 +19,17 @@ MAX_TABLE_COLUMNS = 100
 # Office files are zip archives; the readers inflate whole XML parts, so a small file that
 # unpacks to hundreds of megabytes is refused before it is opened.
 MAX_OFFICE_UNPACKED_BYTES = 100_000_000
-PARSER_VERSION = "2"
+# Each reader's version: raised when the text a reader writes changes. A document read by an
+# older version of a reader that needs no model is read again (`jobs.reread_outdated`); a document
+# read before versions were recorded counts as version 1.
+READER_VERSIONS: dict[str, int] = {"html": 2}
+# Readers whose documents are read again when their version goes up: they never run OCR, so
+# reading again costs no model use beyond embedding.
+REREAD_KINDS = frozenset({"docx", "pptx", "xlsx", "csv", "text", "markdown", "html"})
+
+
+def reader_version(kind: str) -> int:
+    return READER_VERSIONS.get(kind, 1)
 
 
 class ParseError(Exception):
@@ -35,6 +45,9 @@ class ParseError(Exception):
 class ParsedPage:
     markdown: str
     needs_ocr: bool = False
+    # The page writes math as LaTeX between `$` / `$$` and a literal dollar as `\$`; only text
+    # written to that rule is, so the app typesets math on these pages only (M07 §6.1).
+    latex: bool = False
 
 
 @dataclass
@@ -297,25 +310,46 @@ def _csv(data: bytes) -> ParsedDocument:
 _HTML_SKIP = ("script", "style", "noscript", "template", "head", "svg", "iframe", "form")
 
 
+_TEX = "application/x-tex"
+
+
 def _html(data: bytes) -> ParsedDocument:
     """HTML as markdown (headings, lists, links, tables) with markdownify, minus what a reader
-    never sees. An image marked as a formula (`data-formula`, which M09 puts on an LMS page's
-    formula images) is written as its LaTeX between `$`."""
+    never sees. MathML carrying its TeX source (`<annotation encoding="application/x-tex">`, as
+    KaTeX and MathJax output and M09's LMS pages have) is written as LaTeX; the pages of such a
+    document are `latex` and escape every other dollar sign."""
     from bs4 import BeautifulSoup
     from markdownify import MarkdownConverter
-
-    class Converter(MarkdownConverter):
-        def convert_img(self, el: Any, text: str, parent_tags: set[str]) -> str:
-            formula = el.get("data-formula")
-            if isinstance(formula, str) and formula.strip():
-                return f"${formula.strip()}$"
-            return super().convert_img(el, text, parent_tags)  # pyright: ignore[reportAttributeAccessIssue]
 
     soup = BeautifulSoup(decode_text(data) or "", "html.parser")
     for tag in soup(_HTML_SKIP):
         tag.decompose()
+    latex = any(_tex(m) for m in soup.find_all("math"))
+
+    class Converter(MarkdownConverter):
+        def convert_math(self, el: Any, text: str, parent_tags: set[str]) -> str:
+            tex = _tex(el)
+            if tex is None:
+                return text
+            if el.get("display") == "block":
+                return f"\n\n$$\n{tex}\n$$\n\n"
+            return f"${tex}$"
+
+        def escape(self, text: str, parent_tags: set[str]) -> str:
+            escaped = super().escape(text, parent_tags)  # pyright: ignore[reportAttributeAccessIssue]
+            return escaped.replace("$", r"\$") if latex else escaped
+
     text = Converter(heading_style="ATX", bullets="-").convert_soup(soup)
-    return ParsedDocument(_text_pages(re.sub(r"\n[ \t]*\n(?:[ \t]*\n)+", "\n\n", text)))
+    pages = _text_pages(re.sub(r"\n[ \t]*\n(?:[ \t]*\n)+", "\n\n", text))
+    for page in pages:
+        page.latex = latex
+    return ParsedDocument(pages)
+
+
+def _tex(math: Any) -> str | None:
+    annotation = math.find("annotation", attrs={"encoding": _TEX})
+    tex = annotation.get_text().strip() if annotation is not None else ""
+    return tex or None
 
 
 def parse(data: bytes, detected: Detected, *, max_pages: int = MAX_PAGES) -> ParsedDocument:

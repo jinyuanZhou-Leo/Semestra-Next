@@ -12,6 +12,11 @@ Kind = Literal[
 DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 PPTX = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+# The kinds that have one MIME type, by it (the item's `mime_type` once it is read).
+KIND_OF_MIME = {
+    DOCX: "docx", PPTX: "pptx", XLSX: "xlsx", "text/html": "html", "text/csv": "csv",
+    "text/markdown": "markdown", "text/plain": "text",
+}  # fmt: skip
 # Served inline by the content route; everything else is offered as a download.
 INLINE_SAFE = frozenset(
     {

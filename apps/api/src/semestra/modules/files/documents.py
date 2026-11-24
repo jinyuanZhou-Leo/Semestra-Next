@@ -64,6 +64,7 @@ async def read_document(
             page_no=r.page_no,
             markdown=r.markdown,
             ocr_used=r.ocr_used,
+            latex=r.latex,
             citation_id=f"{item.id}:p{r.page_no}-{r.page_no}",
         )
         for r in rows

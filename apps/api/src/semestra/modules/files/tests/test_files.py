@@ -137,6 +137,9 @@ async def test_scanned_pages_use_the_ocr_model_when_available(fx: Fx, fake_ai: F
     hits = (await fx.search("photosynthesis"))["results"]
     assert hits[0]["item_id"] == item["id"]
     assert hits[0]["heading_path"] == ["Scanned heading"]
+    # The model wrote the page to the OCR prompt: its math is LaTeX.
+    read = await fx.call("GET", f"/files/{item['id']}/document")
+    assert [page["latex"] for page in read["pages"]] == [True]
 
 
 async def test_a_page_the_ocr_model_fails_on_is_skipped(fx: Fx, fake_ai: FakeAi):
@@ -199,6 +202,8 @@ async def test_local_ocr_reads_scanned_pages_without_a_model(
     assert [model for model, _ in pages] == ["PP-OCRv6_medium"]
     assert fake_ai.ocr_calls == 0
     assert (await fx.search("photosynthesis"))["results"][0]["item_id"] == item["id"]
+    read = await fx.call("GET", f"/files/{item['id']}/document")
+    assert [page["latex"] for page in read["pages"]] == [False]
 
     # Picking a smaller model does not download it; the settings row can, as a job of its own.
     body = {"purpose": "ocr", "provider_id": None, "model": "PP-OCRv5_mobile"}
@@ -1193,3 +1198,29 @@ async def test_an_upload_asks_which_files_look_already_there(fx: Fx):
         json={"files": files, "pending": [f("sent.txt", 5, "ab", folder["id"])]},
     )
     assert got["duplicates"] == [0, 1, 2, 4]
+
+
+async def test_files_read_by_an_older_reader_are_read_again(fx: Fx):
+    from semestra.core.jobs import run_periodic
+    from semestra.modules.files.models import FilesDocument, FilesItem
+
+    page = await fx.upload_ready("page.html", b"<html><body><p>Week 1</p></body></html>")
+    notes = await fx.upload_ready("notes.md", b"# Week 1")
+    async with fx.app.state.session_factory() as db:
+        # Read before reader versions were recorded: version 1, older than the HTML reader's.
+        for item_id in (page["id"], notes["id"]):
+            item = await db.get(FilesItem, item_id)
+            assert item is not None
+            assert item.active_document_id is not None
+            document = await db.get(FilesDocument, item.active_document_id)
+            assert document is not None
+            document.parser_fingerprint = "0123456789abcdef"
+        await db.commit()
+
+    await run_periodic(fx.app.state, "files.reread_outdated")
+    assert (await fx.call("GET", f"/files/{page['id']}"))["doc_status"] == "pending"
+    assert (await fx.call("GET", f"/files/{notes['id']}"))["doc_status"] == "ready"
+    await fx.run_jobs()
+    assert (await fx.call("GET", f"/files/{page['id']}"))["doc_status"] == "ready"
+    await run_periodic(fx.app.state, "files.reread_outdated")
+    assert (await fx.call("GET", f"/files/{page['id']}"))["doc_status"] == "ready"  # up to date
