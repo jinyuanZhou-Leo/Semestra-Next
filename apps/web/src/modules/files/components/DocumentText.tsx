@@ -25,6 +25,8 @@ const PADDING_END = 96
 const OVERSCAN = 2
 
 const chunkOf = (page: number) => Math.floor((page - 1) / CHUNK)
+/** Where a page starts while no page has been measured. */
+const offsetOf = (page: number) => PADDING_START + (page - 1) * (ESTIMATE + GAP)
 
 function chunkOptions(itemId: string, chunk: number) {
   return {
@@ -104,6 +106,8 @@ function TextPages({
   // oxlint-disable-next-line react/incompatible-library -- see above
   const virtualizer = useVirtualizer({
     count: pageCount,
+    // Opens at the requested page's place, not at page 1 first (which would read it and report it).
+    initialOffset: () => offsetOf(target?.page ?? 1),
     getScrollElement: () => scroller.current,
     estimateSize: () => ESTIMATE,
     gap: GAP,
@@ -119,6 +123,8 @@ function TextPages({
       ),
     useFlushSync: false,
   })
+  // A page above the viewport that grows to its real height (its text arrived) pushes the view down
+  // by as much (the virtualizer's default), so the pages in view stay where they are.
   const items = virtualizer.getVirtualItems()
 
   // The runs the rendered pages belong to; a page's own read failing shows on that page only.

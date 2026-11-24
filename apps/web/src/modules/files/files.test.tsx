@@ -620,10 +620,37 @@ test('a PDF can be read as the text Semestra recognized in it', async () => {
   expect(await within(dialog).findByText('Read from page one')).toBeInTheDocument()
 })
 
-/** jsdom cannot scroll; the virtualizer asks the scroller to. */
-function noScrollTo() {
-  Object.defineProperty(Element.prototype, 'scrollTo', { value: () => {}, configurable: true })
-  return () => Reflect.deleteProperty(Element.prototype, 'scrollTo')
+/** jsdom has no scrolling or layout; the virtualizer scrolls with `scrollTo` and measures. */
+function scrollable() {
+  const tops = new WeakMap<Element, number>()
+  const original = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop')
+  Object.defineProperty(Element.prototype, 'scrollTop', {
+    get(this: Element) {
+      return tops.get(this) ?? 0
+    },
+    set(this: Element, top: number) {
+      tops.set(this, top)
+    },
+    configurable: true,
+  })
+  Object.defineProperty(Element.prototype, 'scrollTo', {
+    value(this: Element, options: ScrollToOptions) {
+      this.scrollTop = options.top ?? 0
+      this.dispatchEvent(new Event('scroll'))
+    },
+    configurable: true,
+  })
+  // Pages are measured, and every one is as tall as a page is estimated to be.
+  const rect = Element.prototype.getBoundingClientRect
+  Element.prototype.getBoundingClientRect = function (this: Element) {
+    const tall = this.hasAttribute('data-index')
+    return { ...rect.call(this), height: tall ? 360 : 0, width: 700 }
+  }
+  return () => {
+    Element.prototype.getBoundingClientRect = rect
+    Reflect.deleteProperty(Element.prototype, 'scrollTo')
+    if (original) Object.defineProperty(Element.prototype, 'scrollTop', original)
+  }
 }
 
 function serveDocumentText(pageCount: number, fail?: (from: number) => boolean) {
@@ -655,7 +682,7 @@ function serveDocumentText(pageCount: number, fail?: (from: number) => boolean) 
 
 test('the recognized text lays out every page and reads only the run being reached', async () => {
   const reads = serveDocumentText(100)
-  const restore = noScrollTo()
+  const restore = scrollable()
   function Reader() {
     const [target, setTarget] = useState(pageTarget(40))
     return (
@@ -670,7 +697,7 @@ test('the recognized text lays out every page and reads only the run being reach
   renderWithRouter(<Reader />)
   // The run page 40 is in is read, the runs far from the pages shown are not; the page bar knows
   // all 100 pages, and no button asks for more.
-  expect(await screen.findByText('Text of page 31')).toBeInTheDocument()
+  expect(await screen.findByText('of 100')).toBeInTheDocument()
   expect(reads).toContain(31)
   expect(reads).not.toContain(61)
   expect(reads).not.toContain(91)
@@ -681,16 +708,17 @@ test('the recognized text lays out every page and reads only the run being reach
 
 test('a run that fails to read shows on its own pages and can be read again', async () => {
   let broken = true
-  serveDocumentText(100, (from) => broken && from === 1)
-  const restore = noScrollTo()
-  // Opened on page 40, with nothing scrolled (no layout here), the pages at the top are shown.
+  serveDocumentText(100, (from) => broken && from === 31)
+  const restore = scrollable()
+  // Page 30 ends the first run, so the pages shown reach into the next one, which fails.
   renderWithRouter(
-    <DocumentText itemId="i1" target={pageTarget(40)} terms={[]} onNavigate={() => {}} />,
+    <DocumentText itemId="i1" target={pageTarget(30)} terms={[]} onNavigate={() => {}} />,
   )
+  expect(await screen.findByText('Text of page 30')).toBeInTheDocument()
   const retry = (await screen.findAllByRole('button', { name: 'Retry' }))[0] as HTMLElement
   broken = false
   await userEvent.click(retry)
-  expect(await screen.findByText('Text of page 1')).toBeInTheDocument()
+  expect(await screen.findByText('Text of page 31')).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
   restore()
 })
