@@ -3,6 +3,15 @@
 Generated from `release-notes/*.json` by `scripts/release.mjs`; do not edit by hand.
 The same notes in Chinese are in the JSON files and on the docs site.
 
+## 2.7.3 (2026-11-24)
+
+### Fixed
+
+- **Files:** Search matches in file names and in the PDF preview are now highlighted cleanly, without extra gaps or shifted letters.
+- **Files:** Long files now scroll continuously in the recognized-text view, loading earlier and later pages as you go instead of asking you to show more.
+- **Canvas:** Course materials linked only from a course's front page now sync, even when the instructor hides Files and Pages.
+- **Canvas:** The course syllabus and announcement attachments now sync into course files, along with course files linked from assignments, announcements and calendar events. You can choose which of these come in under Course materials settings.
+
 ## 2.7.2 (2026-11-23)
 
 ### Improved

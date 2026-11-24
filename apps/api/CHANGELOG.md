@@ -1,5 +1,20 @@
 # @semestra/api
 
+## 2.7.3
+
+### Patch Changes
+
+- 8a9ac7b: <!-- area: canvas -->
+  <!-- en -->
+  Course materials linked only from a course's front page now sync, even when the instructor hides Files and Pages.
+  <!-- zh -->
+  老师隐藏了文件和页面栏目时，只从课程首页链接的资料现在也会同步。
+- 18fb36a: <!-- area: canvas -->
+  <!-- en -->
+  The course syllabus and announcement attachments now sync into course files, along with course files linked from assignments, announcements and calendar events. You can choose which of these come in under Course materials settings.
+  <!-- zh -->
+  课程大纲和公告附件现在会同步到课程文件，作业、公告和日历事件中链接的课程文件也会一并带入。可在课程资料设置中选择要带入哪些。
+
 ## 2.7.2
 
 ### Patch Changes
