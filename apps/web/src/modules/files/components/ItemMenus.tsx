@@ -11,6 +11,7 @@ import {
   FileSearch,
   FolderInput,
   HardDrive,
+  Info,
   MoreHorizontal,
   Pencil,
   Pin,
@@ -147,6 +148,11 @@ export function ItemMenu({ item }: { item: ItemOut }) {
           </>
         ) : null}
         <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => act({ kind: 'info', target: { type: 'item', item } })}>
+          <Info aria-hidden />
+          {m.files_info_title()}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
         <DropdownMenuItem
           variant="destructive"
           onClick={() => act({ kind: 'delete', targets: [{ type: 'item', item }] })}
@@ -248,6 +254,11 @@ export function FolderMenu({ folder }: { folder: FolderOut }) {
         >
           <FolderInput aria-hidden />
           {m.files_move_to()}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => act({ kind: 'info', target: { type: 'folder', folder } })}>
+          <Info aria-hidden />
+          {m.files_info_title()}
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
