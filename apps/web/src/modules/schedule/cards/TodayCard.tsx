@@ -1,19 +1,15 @@
-import type { Occurrence } from '@semestra/api-client'
 import { CalendarCheck } from 'lucide-react'
-import { Fragment } from 'react'
 import { CardSkeleton } from '@/app/board/CardSkeleton'
 import type { CardProps } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
+import { ScrollArea } from '@/ui/scroll-area'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { OccurrenceRow } from '../components/OccurrenceRow'
 import { countdown } from '../countdown'
+import { endOf, nowLine } from '../now-line'
 import { useNow } from '@/hooks/use-now'
 import { useOpenOccurrence } from '../open'
 import { useToday } from '../queries'
-
-function endOf(o: Occurrence): number {
-  return new Date(o.end_at ?? o.start_at).getTime()
-}
 
 /**
  * Today's classes and events (M04 §5.5): a timeline with a "now" line and a countdown to the next
@@ -41,9 +37,7 @@ export default function TodayCard({ scope, size }: CardProps) {
   const next = items.find(
     (o) => o.kind === 'class' && o.status !== 'cancelled' && new Date(o.start_at).getTime() > now,
   )
-  // The now line goes before the first timed item still to finish, or after the last one.
-  const upcoming = items.findIndex((o) => !o.all_day && endOf(o) > now)
-  const nowIndex = upcoming !== -1 ? upcoming : items.some((o) => !o.all_day) ? items.length : -1
+  const lines = nowLine(items, now)
   const compact = size !== 'xl'
   return (
     <div className="flex h-full flex-col gap-2">
@@ -54,11 +48,10 @@ export default function TodayCard({ scope, size }: CardProps) {
           <span className="shrink-0 text-muted-foreground">{countdown(next.start_at, now)}</span>
         </p>
       ) : null}
-      <ol className="min-h-0 flex-1 scroll-fade overflow-y-auto">
-        {items.map((o, i) => (
-          <Fragment key={o.id}>
-            {i === nowIndex ? <NowLine /> : null}
-            <li>
+      <ScrollArea className="scroll-area-fade min-h-0 flex-1">
+        <ol className="py-2">
+          {items.map((o, i) => (
+            <li key={o.id} className="relative">
               <OccurrenceRow
                 occurrence={o}
                 timezone={today.timezone}
@@ -66,20 +59,25 @@ export default function TodayCard({ scope, size }: CardProps) {
                 past={!o.all_day && endOf(o) <= now}
                 onClick={openOccurrence(o)}
               />
+              {lines.map((line) =>
+                line.index === i ? <NowLine key={line.at} at={line.at} /> : null,
+              )}
             </li>
-          </Fragment>
-        ))}
-        {nowIndex === items.length ? <NowLine /> : null}
-      </ol>
+          ))}
+        </ol>
+      </ScrollArea>
     </div>
   )
 }
 
-function NowLine() {
+function NowLine({ at }: { at: number }) {
   return (
-    <li aria-label={m.schedule_now()} className="flex items-center gap-2 py-0.5">
-      <span className="size-2 rounded-full bg-destructive" />
-      <span className="h-px flex-1 bg-destructive" />
-    </li>
+    <div
+      className="pointer-events-none absolute inset-x-1 flex -translate-y-1/2 items-center transition-[top] duration-500"
+      style={{ top: `${at * 100}%` }}
+    >
+      <span aria-hidden className="size-2 rounded-full bg-destructive" />
+      <hr aria-label={m.schedule_now()} className="h-px flex-1 border-0 bg-destructive" />
+    </div>
   )
 }

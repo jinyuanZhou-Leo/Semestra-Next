@@ -647,7 +647,8 @@
 }
 
 /* Follows the scroll position, not time: reduced motion leaves it alone. */
-[data-reduce-motion='on'] .scroll-fade {
+[data-reduce-motion='on'] .scroll-fade,
+[data-reduce-motion='on'] .scroll-area-fade > [data-slot='scroll-area-viewport'] {
   animation-duration: auto !important;
 }
 
@@ -666,4 +667,19 @@
 
 ::highlight(files-preview-search) {
   color: var(--foreground);
+}
+
+/* The same edge fade as `scroll-fade`, on the viewport of a shadcn ScrollArea, so the scroll bar itself stays solid. */
+@utility scroll-area-fade {
+  & > [data-slot='scroll-area-viewport'] {
+    mask-image: linear-gradient(
+      to bottom,
+      transparent,
+      #000 var(--scroll-fade-top),
+      #000 calc(100% - var(--scroll-fade-bottom)),
+      transparent
+    );
+    animation: scroll-fade linear both;
+    animation-timeline: scroll(self);
+  }
 }
