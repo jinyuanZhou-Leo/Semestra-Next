@@ -88,6 +88,7 @@ PARTS = (*AREAS, SYLLABUS_AREA)
 # The texts kept by the stages before this one that are ways in (table 4d, rows 6-8), in the
 # order they place what only they link to, with the table holding each.
 ENTRIES = ("assignments", "announcements", "calendar")
+ANNOUNCEMENTS: tuple[str, str] = ("entry", "announcements")
 # Kinds that can be read on their own (a link only exists in its module).
 READABLE = ("file", "page")
 # What a material holds that the platform may still have: judged when not found this round.
@@ -175,6 +176,24 @@ class Found:
             row = self.items.get(mat.item_id or "")
             return row is not None and not sources.source_changed(row, version)
         return mat.version == version
+
+    def linked_elsewhere(self) -> set[str]:
+        """The files something other than an announcement links to (a page, the syllabus, an
+        assignment, a calendar event): an announcement's own link goes with it, so it tells of
+        no other place the file is in (M09 §4.6, "只作为附件出现的")."""
+        return {
+            target
+            for source, (kind, target) in self.linked_from
+            if kind == "file" and source != ANNOUNCEMENTS
+        }
+
+    def by_announcements(self) -> set[str]:
+        """The files the kept announcements carry or link to."""
+        return set(self.attachments) | {
+            target
+            for source, (kind, target) in self.linked_from
+            if kind == "file" and source == ANNOUNCEMENTS
+        }
 
     def add(self, m: Material) -> None:
         self.materials.setdefault((m.kind, m.external_id), m)
@@ -286,6 +305,8 @@ async def judge(
     ]  # fmt: skip
     verdicts: dict[Key, Presence] = {}
 
+    carried = found.by_announcements()
+
     def attached(a: Asked) -> bool:
         mat = found.known[(a.kind, a.external_id)]
         return mat.attached and a.kind == "file"
@@ -300,7 +321,11 @@ async def judge(
         ),
         ([a for a in asked if (a.kind, a.external_id) == SYLLABUS], (SYLLABUS_AREA,)),
         (
-            [replace(a, readable=False) for a in asked if attached(a)],
+            [
+                replace(a, readable=False, listed=a.external_id in carried)
+                for a in asked
+                if attached(a)
+            ],
             (announcements.AREA,),
         ),
     ):
@@ -397,8 +422,15 @@ async def _files(r: _Reader) -> None:
     if "files" in features:
         # Files only a module or a page shows (the files area hidden): on their own, side by
         # side, now and then.
+        # Not one an announcement carries, nor one last seen only as an attachment that only an
+        # announcement links: the announcements tell of it (M09 §4.6, "公告附件").
+        elsewhere = r.found.linked_elsewhere()
         wanted = [
-            ("file", f) for f in r.found.file_ids if f not in metas and f not in r.found.attachments
+            ("file", f)
+            for f in r.found.file_ids
+            if f not in metas
+            and f not in r.found.attachments
+            and not (_attached_only(r.found, f) and f not in elsewhere)
         ]
         todo = [
             key[1]
@@ -648,7 +680,7 @@ async def _entries(r: _Reader) -> None:
             key = ("file", meta.external_id)
             if r.found.cfg.announcement_attachments or key in r.found.known:
                 r.found.attachments.setdefault(meta.external_id, meta)
-                r.found.linked_from.append((("entry", "announcements"), key))
+                r.found.linked_from.append((ANNOUNCEMENTS, key))
 
 
 def _attachments(r: _Reader) -> None:
@@ -680,13 +712,19 @@ def _attachments(r: _Reader) -> None:
             found.given.add(key)
     if not _saw_everything(r):
         return
+    elsewhere = found.linked_elsewhere()
     for (kind, external_id), m in found.materials.items():
         m.attached = (
             kind == "file"
             and external_id in found.attachments
             and (kind, external_id) not in found.listed
-            and external_id not in found.file_ids
+            and external_id not in elsewhere
         )
+
+
+def _attached_only(found: Found, file_id: str) -> bool:
+    mat = found.known.get(("file", file_id))
+    return mat is not None and mat.attached
 
 
 def _known_version(found: Found, key: Key) -> str | None:

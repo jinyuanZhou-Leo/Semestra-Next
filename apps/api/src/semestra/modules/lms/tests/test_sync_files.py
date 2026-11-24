@@ -2492,14 +2492,19 @@ def _attached(fake: FakeProvider, file_id: str = "305", name: str = "Notes 1.pdf
     ]
 
 
+@pytest.mark.parametrize("linked", [False, True])
 async def test_an_attachment_comes_in_and_leaves_with_its_announcement(
-    api: Api, fake: FakeProvider
+    api: Api, fake: FakeProvider, linked: bool
 ):
     """An announcement's attachment comes into the course's files from what the announcement
     gave, opened by its address (no read of the file, which the hidden files area refuses).
-    Deleted with its announcement, it leaves (M09 §4.6, "公告附件")."""
+    Deleted with its announcement, it leaves (M09 §4.6, "公告附件"), also when the
+    announcement's own text links it ("see the attached notes"): that link goes with it."""
     _ways_in(fake)
     _attached(fake)
+    if linked:
+        [post] = fake.announcement_list or []
+        post.html = '<p>See <a href="https://fake/courses/101/files/305">the notes</a></p>'
     fake.refused_files.add("305")
     program_id, course = await _course(api)
     await api.sync(program_id)
@@ -2558,3 +2563,11 @@ async def test_ways_in_turned_off_bring_nothing_new(api: Api, fake: FakeProvider
         "Lab 1 handout.pdf": None,
         "Slides 1.pdf": None,
     }
+
+    # Turned on again: what it brings was on the platform all along, so it is not news.
+    body["values"] = {"announcement_attachments": True}
+    await api.call("PATCH", "/me/settings/lms.materials", json=body)
+    status = await api.sync(program_id)
+    notes = (await _files(api, course))[1]["Notes 1.pdf"]
+    assert not notes["unseen"]
+    assert status["materials"] == []

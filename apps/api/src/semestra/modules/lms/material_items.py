@@ -423,6 +423,8 @@ async def on_store_changing(ctx: Ctx, event: Event) -> None:
 
 # The settings that change what the course's materials bring in (M09 §4.6, "设置").
 WAYS_IN = frozenset({"announcement_attachments", "entry_folders", "calendar_links"})
+# Those of them that bring materials in when turned on.
+BRINGING = frozenset({"announcement_attachments", "calendar_links"})
 
 
 @events.subscribe("settings.values.updated")
@@ -455,7 +457,10 @@ async def on_settings_changed(ctx: Ctx, event: Event) -> None:
             turned_on.append(link)
         if changed & WAYS_IN and cfg.sync and link not in turned_on:
             # What the course's materials bring in changed: the course syncs now, so what it
-            # turns on is there this round (M09 §4.6, "设置").
+            # turns on is there this round (M09 §4.6, "设置"). What a way in turned on brings is
+            # what the platform had all along, not news: that run is quiet, as at first.
+            if any(getattr(cfg, name) for name in changed & BRINGING):
+                link.materials_settled_at = None
             again.append(link)
         if "store" in changed and cfg.store == "local":
             await sources.apply_copies(
