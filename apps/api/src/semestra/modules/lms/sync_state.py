@@ -348,7 +348,10 @@ async def course_syncs(
         c.parts = parts_of(li, li.id in visited)
         if c.parts and c.parts[0].parts == ["course"] and c.parts[0].reason == "refused":
             continue  # the course itself can't be read: its one row (row 5)
-        whole.append(li)
+        if li.id in visited:
+            # Areas and items (rows 8, 9) only of a course the sync still reads them of: what
+            # its last visit left would otherwise stay listed, never to read back.
+            whole.append(li)
     closed = [(li, a) for li in whole for a in areas_of(li)]
     counts = await _counts(ctx, closed)
     for li, a in closed:

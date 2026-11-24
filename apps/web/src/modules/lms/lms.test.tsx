@@ -593,6 +593,36 @@ test.each([
   expect(await screen.findByText(badge)).toBeInTheDocument()
 })
 
+test('course settings tell when the connection needs reconnecting, before how the sync went', async () => {
+  const scope = { kind: 'course', programId: 'p1', courseId: 'c1' } as const
+  const broken = connection({ status: 'error', last_error_code: 'lms.invalid_credentials' })
+  server.use(
+    http.get(`${API}/courses/c1/lms-link`, () =>
+      HttpResponse.json({
+        course_id: 'c1',
+        link: link({ sync_state: 'ok', synced_at: '2026-09-01T10:00:00Z', sync_enabled: false }),
+        program_connection_id: 'k1',
+        materials: { local: 0, online: 0 },
+      }),
+    ),
+    http.get(`${API}/lms/connections`, () => HttpResponse.json({ items: [broken] })),
+    http.get(`${API}/programs/p1/lms-binding`, () =>
+      HttpResponse.json({
+        program_id: 'p1',
+        connection_id: 'k1',
+        connection: broken,
+        link_count: 1,
+      }),
+    ),
+  )
+  renderWithRouter(<CourseLmsSection scope={scope} />)
+  expect(await screen.findByText('Credentials invalid')).toBeInTheDocument()
+  expect(screen.queryByText('Working')).toBeNull()
+  const alert = screen.getByRole('alert')
+  expect(within(alert).getByText('Canvas needs to be reconnected.')).toBeInTheDocument()
+  expect(within(alert).getByRole('button', { name: 'Reconnect' })).toBeInTheDocument()
+})
+
 test("the gradebook's syllabus import reads the linked course's syllabus into a review", async () => {
   const started = vi.fn<() => void>()
   server.use(

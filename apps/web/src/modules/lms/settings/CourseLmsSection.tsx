@@ -1,4 +1,5 @@
 import type {
+  Connection,
   CourseLink,
   CourseLinkState,
   ExternalCourse,
@@ -17,7 +18,15 @@ import {
   lmsSyncRequestMutation,
 } from '@semestra/api-client/react-query'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Cloud, ExternalLink, HardDrive, Link2, Link2Off, RefreshCw } from 'lucide-react'
+import {
+  Cloud,
+  ExternalLink,
+  HardDrive,
+  Link2,
+  Link2Off,
+  RefreshCw,
+  TriangleAlert,
+} from 'lucide-react'
 import { useId, useState } from 'react'
 import { toast } from 'sonner'
 import type { SettingsSectionProps } from '@/app/extensions'
@@ -32,10 +41,11 @@ import { NamespaceForm } from '@/app/settings/NamespaceForm'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { useDialogTarget } from '@/lib/dialog-target'
-import { toastError } from '@/lib/errors'
+import { errorMessage, toastError } from '@/lib/errors'
 import { formatTimeAgo } from '@/lib/format'
 import { useNow } from '@/hooks/use-now'
 import { m } from '@/paraglide/messages'
+import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/ui/alert'
 import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
 import {
@@ -67,7 +77,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { externalLabel, groupByTerm } from '../external'
 import { useProviderName, useProviderUis } from '../providers'
 import { MATERIALS } from '../queries'
-import { LogoTile } from './ConnectionsSection'
+import { ConnectionStatus, LogoTile } from './ConnectionsSection'
 import { HeldMaterials } from './HeldMaterials'
 import { MATERIAL_FIELDS } from './MaterialsSection'
 import { useOpenConnections } from './ProgramLmsSection'
@@ -98,7 +108,7 @@ export function CourseLmsSection({ scope }: SettingsSectionProps) {
               materials={data.materials ?? null}
               scope={scope}
               courseId={courseId}
-              connection={connection}
+              connection={binding.data?.connection ?? null}
               onChange={() => setChanging(true)}
             />
           )
@@ -186,12 +196,17 @@ function LinkedCourse({
   materials: MaterialCounts | null
   scope: SettingsSectionProps['scope']
   courseId: string
-  connection: string | null
+  connection: Connection | null
   onChange: () => void
 }) {
   const queryClient = useQueryClient()
   const syncId = useId()
   const now = useNow()
+  const openConnections = useOpenConnections()
+  // A connection that needs reconnecting stops every course's sync (M09 表 5c, row 1): told
+  // before how the course's last sync went, which says nothing of it.
+  const broken =
+    connection && (connection.status === 'error' || !connection.has_credentials) ? connection : null
   const Logo = useProviderUis().get(link.provider)?.logo ?? Link2
   const provider = useProviderName(link.provider) ?? link.provider
   const [unlinking, setUnlinking] = useState(false)
@@ -236,13 +251,17 @@ function LinkedCourse({
               <span className="truncate">{title}</span>
             </ItemTitle>
             <ItemDescription className="truncate">
-              {[link.external_term, connection ?? provider].filter(Boolean).join(' · ')}
+              {[link.external_term, connection?.display_name ?? provider]
+                .filter(Boolean)
+                .join(' · ')}
             </ItemDescription>
           </ItemContent>
           <ItemActions className="shrink-0 gap-3">
             <span className="flex items-center gap-2 text-xs text-muted-foreground">
               {/* The last sync (M09 表 5c): what the sync panel tells of this course. */}
-              {link.sync_state === 'failed' ? (
+              {broken ? (
+                <ConnectionStatus connection={broken} />
+              ) : link.sync_state === 'failed' ? (
                 <Badge variant="destructive">{m.lms_link_failed()}</Badge>
               ) : link.sync_state === 'stale' ? (
                 <Badge variant="secondary">{m.lms_link_stale()}</Badge>
@@ -250,7 +269,7 @@ function LinkedCourse({
                 <Badge variant="secondary">{m.lms_connection_ok()}</Badge>
               )}
               {/* When it last synced: next to a problem it would read as when it broke. */}
-              {link.synced_at && link.sync_state === 'ok'
+              {link.synced_at && link.sync_state === 'ok' && !broken
                 ? formatTimeAgo(link.synced_at, now)
                 : null}
             </span>
@@ -308,6 +327,22 @@ function LinkedCourse({
           />
         </SettingRow>
       </SettingsGroup>
+      {broken ? (
+        <Alert variant="destructive">
+          <TriangleAlert aria-hidden />
+          <AlertTitle>{m.lms_sync_hint_reconnect({ provider })}</AlertTitle>
+          <AlertDescription>
+            {errorMessage({
+              error: { code: broken.last_error_code ?? 'lms.credentials_missing', params: {} },
+            })}
+          </AlertDescription>
+          <AlertAction>
+            <Button size="sm" variant="outline" onClick={openConnections}>
+              {m.lms_sync_reconnect()}
+            </Button>
+          </AlertAction>
+        </Alert>
+      ) : null}
       {link.sync_enabled ? (
         <SettingsBlock title={m.lms_materials_group()}>
           <NamespaceForm

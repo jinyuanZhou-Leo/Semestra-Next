@@ -90,3 +90,29 @@ async def test_an_area_never_open_is_not_listed(api: Api, fake: FakeProvider, cl
     status = await api.sync(program_id)
     assert report(status) == {(8, "files")}
     assert await _state(api, course) == "ok"
+
+
+async def test_a_course_the_sync_no_longer_visits_keeps_only_its_calendar_listed(
+    api: Api, fake: FakeProvider, clock: Clock
+):
+    """表 5c: of a course whose term ended more than 30 days ago only the calendar is read, so
+    what its last visit left (rows 8, 9) is not listed for ever: it would never read back."""
+    program_id, course = await _course(api, "a1")
+    await api.sync(program_id)
+    fake.assignments_hidden = True  # closed: a1 is read on its own
+    fake.faults["assignment"] = lms_error("lms.unreachable")
+    clock.advance(minutes=1)
+    status = await api.sync(program_id)
+    assert report(status) == {
+        (8, "assignments"),
+        (9, "assignment", "Lab 1", "lms.unreachable"),
+    }
+    assert await _state(api, course) == "stale"
+
+    # Its term moved to last fall: ended more than 30 days ago.
+    [term] = (await api.call("GET", f"/programs/{program_id}/terms"))["items"]
+    ended = {"start_date": "2025-09-02", "end_date": "2025-12-05"}
+    await api.call("PATCH", f"/terms/{term['id']}", json=ended)
+    status = await api.call("GET", f"/programs/{program_id}/lms/sync")
+    assert report(status) == set()
+    assert await _state(api, course) == "ok"
