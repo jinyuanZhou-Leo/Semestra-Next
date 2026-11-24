@@ -37,7 +37,7 @@ export default function TodayCard({ scope, size }: CardProps) {
   const next = items.find(
     (o) => o.kind === 'class' && o.status !== 'cancelled' && new Date(o.start_at).getTime() > now,
   )
-  const line = nowLine(items, now)
+  const lines = nowLine(items, now)
   const compact = size !== 'xl'
   return (
     <div className="flex h-full flex-col gap-2">
@@ -49,7 +49,7 @@ export default function TodayCard({ scope, size }: CardProps) {
         </p>
       ) : null}
       <ScrollArea className="scroll-area-fade min-h-0 flex-1">
-        <ol>
+        <ol className="py-2">
           {items.map((o, i) => (
             <li key={o.id} className="relative">
               <OccurrenceRow
@@ -59,7 +59,9 @@ export default function TodayCard({ scope, size }: CardProps) {
                 past={!o.all_day && endOf(o) <= now}
                 onClick={openOccurrence(o)}
               />
-              {line?.index === i ? <NowLine at={line.at} /> : null}
+              {lines.map((line) =>
+                line.index === i ? <NowLine key={line.at} at={line.at} /> : null,
+              )}
             </li>
           ))}
         </ol>

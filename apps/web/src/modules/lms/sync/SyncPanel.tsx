@@ -154,7 +154,7 @@ function Panel({
         ) : null}
       </div>
 
-      <ScrollArea className="scroll-area-fade min-h-0 flex-1">
+      <ScrollArea className="scroll-area-fade flex min-h-0 flex-1 flex-col [&>[data-slot=scroll-area-viewport]]:h-auto [&>[data-slot=scroll-area-viewport]]:min-h-0 [&>[data-slot=scroll-area-viewport]]:flex-1">
         <div className="flex flex-col gap-4 p-2 pb-3">
           {broken ? null : (
             <div className="flex flex-col px-2 empty:hidden">
