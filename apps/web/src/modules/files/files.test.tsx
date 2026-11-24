@@ -558,7 +558,15 @@ test('uploads that cannot fit are refused before sending', () => {
 test('search terms are found across the elements a layout cut a word into', () => {
   const root = document.createElement('div')
   root.innerHTML = '<span>The Mid</span><span>term</span> and <span>midterm</span>'
-  expect(textRanges(root, ['midterm']).map(String)).toEqual(['Midterm', 'midterm'])
+  expect(textRanges(root, ['midterm'], { joined: true }).map(String)).toEqual([
+    'Midterm',
+    'midterm',
+  ])
+  // Cells and paragraphs are separate words, and so are lines of a layout.
+  root.innerHTML = '<p>data</p><p>base</p>'
+  expect(textRanges(root, ['database'])).toEqual([])
+  root.innerHTML = '<span>data</span><br /><span>base</span>'
+  expect(textRanges(root, ['database'], { joined: true })).toEqual([])
   expect(searchTerms('midterm, 期中考试 a')).toEqual(['midterm', '期中考试'])
   expect(snippetParts('a <mark>b</mark> c')).toEqual([
     { text: 'a ', marked: false },

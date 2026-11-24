@@ -336,7 +336,7 @@ function PdfPage({
   useEffect(() => {
     const layer = page.current?.querySelector('.textLayer')
     if (!layer || drawn === 0) return
-    return showRanges(HIGHLIGHT, textRanges(layer, terms))
+    return showRanges(HIGHLIGHT, textRanges(layer, terms, { joined: true }))
   }, [terms, drawn])
   return (
     <Page

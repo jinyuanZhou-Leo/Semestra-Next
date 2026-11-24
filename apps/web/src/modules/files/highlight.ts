@@ -7,18 +7,30 @@ export function searchTerms(query: string): string[] {
 
 /**
  * The places in `root`'s text where a search term occurs (case-insensitive), as ranges to hand to
- * `showRanges`. The text of all its text nodes is searched as one string, so a word the file's
- * layout cut into several elements (the PDF text layer does that) is still found.
+ * `showRanges`. With `joined`, the text nodes are searched as one string (a line break, `<br>`,
+ * still ends a word), so a word the layout cut into several elements is found: the PDF text layer
+ * does that. Otherwise every text node is searched on its own, so the end of one paragraph or
+ * cell never joins the start of the next.
  */
-export function textRanges(root: Node, terms: readonly string[]): Range[] {
+export function textRanges(
+  root: Node,
+  terms: readonly string[],
+  { joined = false }: { joined?: boolean } = {},
+): Range[] {
   const needles = terms.map((t) => t.toLowerCase()).filter(Boolean)
   if (needles.length === 0) return []
   const pieces: { node: Text; start: number }[] = []
   let text = ''
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT)
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (node.nodeType !== Node.TEXT_NODE) {
+      if (node.nodeName === 'BR') text += '\n'
+      continue
+    }
     pieces.push({ node: node as Text, start: text.length })
     text += node.textContent ?? ''
+    // A newline no search term contains, so a match never runs over it.
+    if (!joined) text += '\n'
   }
   const lower = text.toLowerCase()
   const pieceAt = (offset: number) => pieces.findLast((piece) => piece.start <= offset)
