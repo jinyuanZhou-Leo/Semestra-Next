@@ -141,6 +141,9 @@ async def open_source(ctx: Ctx, item: FilesItem) -> AsyncIterator[bytes]:
     if mat.kind == "page":
         page = await reads.page(ctx, link.course_id, mat.external_id, refresh=True)
         return _once(page_document(page.title, page.html))
+    if mat.kind == "syllabus":
+        text = await reads.syllabus(ctx, link.course_id, refresh=True)
+        return _once(page_document(mat.title or item.display_name, text.html))
     raise lms_error("lms.not_found")
 
 

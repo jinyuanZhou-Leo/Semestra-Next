@@ -976,6 +976,10 @@ class CanvasProvider:
                 io, cfg, creds, f"/courses/{quote(course_id)}", [("include[]", "syllabus_body")]
             ),
         )
+        if "syllabus_body" not in r:
+            # Not given to this user at all (no right to read it): unknown, not "no syllabus";
+            # an empty or null field is the platform saying there is none (M09 table 2, row 22).
+            raise lms_error("lms.forbidden")
         return RichText(
             html=_text(r.get("syllabus_body")),
             web_url=f"{_cfg(cfg).base_url}/courses/{course_id}/assignments/syllabus",

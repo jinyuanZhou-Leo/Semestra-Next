@@ -154,6 +154,8 @@ class FakeProvider:
         # exception stands for an answer the provider cannot make sense of.
         self.faults: dict[str, Exception] = {}
         self.reads: list[str] = []  # every read, by method name
+        # The course's syllabus (None: the course has none).
+        self.syllabus_html: str | None = None
         # The announcements list (`announcements`); None: one "Welcome" per course.
         self.announcement_list: list[Announcement] | None = None
 
@@ -375,7 +377,9 @@ class FakeProvider:
         return [q.model_copy() for q in self.quiz_list]
 
     async def syllabus(self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str) -> RichText:
-        return RichText(html="<p>Labs 20%, midterm 80%</p>")
+        self._fault("syllabus")
+        self._throttle("syllabus")
+        return RichText(html=self.syllabus_html, web_url="https://fake/syllabus")
 
     async def file(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, file_id: str

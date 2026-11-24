@@ -20,7 +20,7 @@ def make(kind: RefKind, item_id: str) -> str:
 def parse(ref: str) -> tuple[RefKind, str]:
     ref = ref.strip().removeprefix("lms:")
     if ref == SYLLABUS:
-        return "syllabus", ""
+        return "syllabus", SYLLABUS  # the id of its material (`materials.SYLLABUS_ID`)
     kind, sep, item_id = ref.partition(":")
     if not sep or kind not in KINDS or not item_id.strip():
         raise lms_error("lms.invalid_ref", ref=ref[:100])

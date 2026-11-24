@@ -46,6 +46,7 @@ PARTS = (
     "files",
     "pages",
     "modules",
+    "syllabus",
     "front_page",
 )
 # The parts the sync still reads of a course it no longer visits (its term ended, §4.8).
@@ -55,7 +56,7 @@ ENDED_STAGES = ("course", "calendar")
 # Areas a teacher closes whose kept content the panel names (表 5c, row 8). Not the files area
 # nor the pages: their items are each read on their own, found from the front page, the modules
 # and the pages, and listed one by one when not got (row 9).
-CLOSABLE = ("announcements", "assignments", "quizzes", "modules")
+CLOSABLE = ("announcements", "assignments", "quizzes", "modules", "syllabus")
 
 State = Literal["ok", "stale", "failed"]
 

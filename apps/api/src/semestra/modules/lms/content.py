@@ -141,7 +141,7 @@ async def _kept(ctx: Ctx, link: LmsCourseLink) -> dict[str, FilesItem]:
             select(LmsMaterial.kind, LmsMaterial.external_id, LmsMaterial.item_id).where(
                 LmsMaterial.link_id == link.id,
                 LmsMaterial.state == "synced",
-                LmsMaterial.kind.in_(("file", "page")),
+                LmsMaterial.kind.in_(("file", "page", "syllabus")),
                 LmsMaterial.item_id.is_not(None),
             )
         )
@@ -611,6 +611,8 @@ async def _search_platform(
             )
 
     async def syllabus() -> None:
+        if _readable(docs.kept.get(refs.SYLLABUS)) is not None:
+            return  # the course files have it: searched there (`_search_kept`)
         text = await reads.syllabus(ctx, cid, inp.refresh)
         if text.html:
             docs.add("syllabus", refs.SYLLABUS, "Syllabus", _md(text.html), url=text.web_url)
@@ -700,7 +702,7 @@ async def _read(ctx: Ctx, inp: LmsReadInput) -> LmsContentDetail:
             raise lms_error("lms.invalid_ref", ref=(inp.url or "")[:100])
         kind, item_id = refs.parse(ref)
     in_course = None
-    if kind in ("file", "page"):
+    if kind in ("file", "page", "syllabus"):
         in_course = await files.course_item(ctx, link, refs.make(kind, item_id))
         if (in_files := _readable(in_course)) is not None:
             return await _from_files(ctx, refs.make(kind, item_id), kind, in_files)

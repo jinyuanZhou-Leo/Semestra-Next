@@ -462,13 +462,21 @@ async def quizzes(ctx: Ctx, course_id: str, refresh: bool) -> QuizList:
     return QuizList.model_validate({"items": data, "truncated": truncated})
 
 
-async def syllabus(ctx: Ctx, course_id: str, refresh: bool) -> RichText:
+async def syllabus(
+    ctx: Ctx,
+    course_id: str,
+    refresh: bool,
+    *,
+    linked: tuple[LmsCourseLink, Bound] | None = None,
+) -> RichText:
     async def fetch(b: Bound, i: Any, ext: str) -> Any:
         text = await b.provider.syllabus(i, b.cfg, b.creds, ext)
         text.html = b.clean(text.html, text.web_url, ext)
         return text
 
-    data, *_ = await _read(ctx, course_id, "syllabus", "syllabus", {}, fetch, refresh=refresh)
+    data, *_ = await _read(
+        ctx, course_id, "syllabus", "syllabus", {}, fetch, refresh=refresh, linked=linked
+    )
     return RichText.model_validate(data)
 
 

@@ -16,7 +16,31 @@ from typing import Literal, cast
 from semestra.modules.lms.models import LmsMaterial, MaterialChange, MaterialState
 from semestra.modules.lms.schemas.dto import FileMeta
 
-MaterialKind = Literal["file", "page", "link"]
+MaterialKind = Literal["file", "page", "link", "syllabus"]
+# The course's syllabus is one material of its own kind, by this id (M09 §4.6).
+SYLLABUS_ID = "syllabus"
+
+# Names of what the sync makes that the platform names nothing (M09 §4.6, table 4d): the
+# syllabus, and the folders of what only an assignment, announcement or calendar event links
+# to. In the account's language when made; renamed with it, unless the user renamed them.
+NAMES: dict[str, dict[str, str]] = {
+    "en": {
+        "syllabus": "Syllabus",
+        "assignments": "Assignments",
+        "announcements": "Announcements",
+        "calendar": "Calendar",
+    },
+    "zh-CN": {
+        "syllabus": "课程大纲",
+        "assignments": "作业",
+        "announcements": "公告",
+        "calendar": "日历",
+    },
+}
+
+
+def names(locale: str) -> dict[str, str]:
+    return NAMES.get(locale, NAMES["en"])
 
 
 def file_version(meta: FileMeta) -> str:

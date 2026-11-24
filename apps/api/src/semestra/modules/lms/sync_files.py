@@ -144,7 +144,9 @@ async def _follow(ctx: Ctx, m: Material, mat: LmsMaterial, row: FilesItem) -> bo
 def _seen(mat: LmsMaterial, m: Material) -> None:
     """What this run saw of the platform's item; what it did not read again stays. Its version
     only while it has no followed item, whose own version it is then (M09 §4.6)."""
-    mat.title, mat.path = m.title, [list(level) for level in m.path]
+    mat.title = m.title
+    if m.path is not None:  # else this run found it only by a way in that is no place: as it was
+        mat.path = [list(level) for level in m.path]
     mat.version = m.version if mat.state != "synced" else None
     if m.links is not None:
         mat.links = m.links
@@ -359,11 +361,11 @@ async def _found(
         if row is not None:
             if await _follow(ctx, m, mat, row) and w.settled:
                 note(mat, "updated", now)
-            await w.places.follow_names(m.path)
+            await w.places.follow_names(m.start)
         _seen(mat, m)  # a dismissed one: what it links to is known without reading it every run
         return None, None, None
     news = w.settled and not (mat is not None and mat.quiet)
-    folder_id = await w.places.folder_at(m.path)
+    folder_id = await w.places.folder_at(m.start)
     auto_index = await w.auto_index.get()
     row = await _create(ctx, link, w.r.b, m, folder_id, unseen=news, auto_index=auto_index)
     if mat is None:
@@ -405,9 +407,9 @@ async def _gone(ctx: Ctx, w: _Batch, mat: LmsMaterial, row: FilesItem | None) ->
 
 
 async def _enabled(ctx: Ctx, link: LmsCourseLink, b: Bound) -> bool:
-    if not {"modules", "pages", "folders"} & b.provider.features:
+    if not {"modules", "pages", "folders", "syllabus"} & b.provider.features:
         return False
     return (await material_settings(ctx, link.course_id)).sync
 
 
-register_sync_stage("files", run, order=60, enabled=_enabled, parts=tuple(material_reads.AREAS))
+register_sync_stage("files", run, order=60, enabled=_enabled, parts=material_reads.PARTS)

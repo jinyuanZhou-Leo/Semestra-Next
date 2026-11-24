@@ -30,8 +30,10 @@ from semestra.modules.lms import older_backups, sync, sync_files
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.models import LmsMaterial
 from semestra.modules.lms.schemas.dto import (
+    Announcement,
     FileMeta,
     InternalRef,
+    LmsCalendarEvent,
     Module,
     ModuleItem,
     PageSummary,
@@ -2097,6 +2099,7 @@ async def test_one_budget_for_files_and_pages(
     """Files and pages both closed, more of them than a round may read: they share the round's
     budget oldest first (M09 table 3c, the one judging flow), so the page gets its turn once
     every file has been read, rather than files taking the budget every round."""
+    fake.announcement_list = []  # the course's own lists are the only way in here
     _materials(fake)
     program_id, course = await _course(api)
     await _materials_setting(api, course, store="local")
@@ -2370,3 +2373,105 @@ async def test_a_front_page_not_read_is_told(api: Api, fake: FakeProvider, clock
     clock.advance(minutes=20)
     status = await api.sync(program_id)
     assert report(status) == set()
+
+
+# --- every way in (M09 §4.6, table 4d) ----------------------------------------------------------
+
+
+def _ways_in(fake: FakeProvider) -> None:
+    """A course that hides its files and pages and leaves its modules empty: its materials are
+    linked only from its syllabus, an assignment, an announcement and a calendar event."""
+    fake.files_hidden = fake.pages_hidden = True
+    fake.module_list = []
+    fake.course_file_list = []
+    fake.unlisted_files = [
+        _file("301", "Outline.pdf"),
+        _file("302", "Lab 1 handout.pdf"),
+        _file("303", "Slides 1.pdf"),
+        _file("304", "Room map.pdf"),
+    ]
+    files = "https://fake/courses/101/files"
+    fake.syllabus_html = (
+        "<h2>Grading</h2><p>Labs 20%, midterm 30%, final 50%. Office hours on Fridays, the "
+        "course outline as a PDF, the readings for every week of the term, and what to do when "
+        f'a deadline is missed.</p><a href="{files}/301">Outline</a>'
+    )
+    fake.course_assignments["101"][0].html = f'<p>Use <a href="{files}/302">the handout</a></p>'
+    fake.announcement_list = [
+        Announcement(external_id="n1", external_course_id="101", title="Week 1",
+                     html=f'<p><a href="{files}/303">Slides</a></p>'),
+    ]  # fmt: skip
+    fake.events = [
+        LmsCalendarEvent(external_id="e1", external_course_id="101", title="Midterm",
+                         start_at=datetime(2026, 3, 1, 15, tzinfo=UTC),
+                         html=f'<a href="{files}/304">Rooms</a>'),
+    ]  # fmt: skip
+
+
+async def test_every_way_in_brings_in_what_it_links(api: Api, fake: FakeProvider):
+    """The syllabus, the assignments, the announcements and the calendar events are read as ways
+    in, all of them: what they link to comes in, the syllabus too, each where its way in puts
+    it."""
+    _ways_in(fake)
+    program_id, course = await _course(api)
+    await api.sync(program_id)
+    folders, items = await _files(api, course)
+    assert {name: _where(folders, item) for name, item in items.items()} == {
+        "Syllabus": None,
+        "Outline.pdf": None,  # the syllabus links everything: no place of its own
+        "Lab 1 handout.pdf": "Assignments",
+        "Slides 1.pdf": "Announcements",
+        "Room map.pdf": "Calendar",
+    }
+    page = await api.client.get(f"/files/{items['Syllabus']['id']}/content")
+    assert b"<h1>Syllabus</h1>" in page.content
+    assert b"midterm 30%" in page.content
+
+    # The syllabus changed: read again; emptied on the platform, it leaves.
+    fake.syllabus_html = (fake.syllabus_html or "").replace("30%", "40%")
+    await api.sync(program_id)
+    page = await api.client.get(f"/files/{items['Syllabus']['id']}/content")
+    assert b"midterm 40%" in page.content
+    fake.syllabus_html = None
+    await api.sync(program_id)
+    assert "Syllabus" not in (await _files(api, course))[1]
+
+
+async def test_a_syllabus_not_given_is_not_taken_as_gone(api: Api, fake: FakeProvider):
+    """Refused (Canvas leaves the field out: no right to read it), the syllabus is not known this
+    round: the one kept stays (M09 table 2, row 22)."""
+    _ways_in(fake)
+    program_id, course = await _course(api)
+    await api.sync(program_id)
+    fake.faults["syllabus"] = lms_error("lms.forbidden")
+    status = await api.sync(program_id)
+    assert "Syllabus" in (await _files(api, course))[1]
+    # The default navigation leaves the syllabus out: closed by the teacher (表 5c, row 8).
+    assert report(status) == {(8, "syllabus")}
+
+
+async def test_a_way_in_that_is_no_place_never_moves_an_item(
+    api: Api, fake: FakeProvider, clock: Clock
+):
+    """A file a page and an assignment both link goes in the page's folder. A round that does not
+    read the page finds it by the assignment only: that tells nothing of where it is, so
+    Organize offers no move (M09 §4.6)."""
+    _ways_in(fake)
+    notes = f"<p>{'Lab notes ' * 30}</p>"
+    handout = '<a href="https://fake/courses/101/files/302">Handout</a>'
+    fake.page_texts = {"labs": ("Labs", notes + handout)}
+    labs_page = '<a href="https://fake/courses/101/pages/labs">Labs</a>'
+    fake.course_assignments["101"][1].html = labs_page
+    program_id, course = await _course(api)
+    await api.sync(program_id)
+    folders, items = await _files(api, course)
+    # The page goes in the folder of the assignment that links it, with what it links to.
+    labs = folders[items["Labs"]["folder_id"]]
+    assert labs["name"] == "Labs"
+    assert folders[labs["parent_id"]]["name"] == "Assignments"
+    assert items["Lab 1 handout.pdf"]["folder_id"] == labs["id"]
+
+    fake.faults["page"] = lms_error("lms.unreachable")
+    clock.advance(days=2)
+    await api.sync(program_id)
+    assert (await _organize(api, course))["moves"] == []
