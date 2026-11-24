@@ -18,6 +18,7 @@ import { Progress } from '@/ui/progress'
 import { Spinner } from '@/ui/spinner'
 import { importAssignments } from '../import/assignments'
 import { useSyncAnswers } from './answers'
+import { ScrollArea } from '@/ui/scroll-area'
 import { CalendarLines } from './CalendarNote'
 import { byCourse, staleCourses } from './labels'
 import { MoreSections } from './MoreSections'
@@ -153,39 +154,43 @@ function Panel({
         ) : null}
       </div>
 
-      <div className="flex min-h-0 flex-col gap-4 overflow-y-auto p-2 pb-3">
-        {broken ? null : (
-          <div className="flex flex-col px-2 empty:hidden">
-            <ProblemList problems={status.problems} course={course} />
-          </div>
-        )}
-        {broken ? null : <CalendarLines status={status} unreadable={false} className="px-2 pt-1" />}
-        <PendingSection
-          {...shared}
-          pending={status.pending}
-          broken={Boolean(broken)}
-          onImport={(items) => void importItems(items)}
-          onDelete={deleting.show}
-          onClose={onClose}
-        />
-        <RecentSection
-          {...shared}
-          programId={programId}
-          changes={status.recent}
-          materials={status.materials}
-          now={now}
-          onClose={onClose}
-        />
-        <MoreSections
-          {...shared}
-          programId={programId}
-          status={status}
-          broken={Boolean(broken)}
-          now={now}
-          onImport={(items) => void importItems(items)}
-          onClose={onClose}
-        />
-      </div>
+      <ScrollArea className="scroll-area-fade min-h-0 flex-1">
+        <div className="flex flex-col gap-4 p-2 pb-3">
+          {broken ? null : (
+            <div className="flex flex-col px-2 empty:hidden">
+              <ProblemList problems={status.problems} course={course} />
+            </div>
+          )}
+          {broken ? null : (
+            <CalendarLines status={status} unreadable={false} className="px-2 pt-1" />
+          )}
+          <PendingSection
+            {...shared}
+            pending={status.pending}
+            broken={Boolean(broken)}
+            onImport={(items) => void importItems(items)}
+            onDelete={deleting.show}
+            onClose={onClose}
+          />
+          <RecentSection
+            {...shared}
+            programId={programId}
+            changes={status.recent}
+            materials={status.materials}
+            now={now}
+            onClose={onClose}
+          />
+          <MoreSections
+            {...shared}
+            programId={programId}
+            status={status}
+            broken={Boolean(broken)}
+            now={now}
+            onImport={(items) => void importItems(items)}
+            onClose={onClose}
+          />
+        </div>
+      </ScrollArea>
 
       <ConfirmDialog
         {...deleting.props}

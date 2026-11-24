@@ -667,3 +667,25 @@
 ::highlight(files-preview-search) {
   color: var(--foreground);
 }
+
+/* Fade at the edges of a ScrollArea that has more to scroll to (Base UI sets the overflow attributes). */
+@utility scroll-area-fade {
+  --scroll-fade-top: 0px;
+  --scroll-fade-bottom: 0px;
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    #000 var(--scroll-fade-top),
+    #000 calc(100% - var(--scroll-fade-bottom)),
+    transparent
+  );
+  transition:
+    --scroll-fade-top 0.15s,
+    --scroll-fade-bottom 0.15s;
+  &[data-overflow-y-start] {
+    --scroll-fade-top: 1.5rem;
+  }
+  &[data-overflow-y-end] {
+    --scroll-fade-bottom: 1.5rem;
+  }
+}
