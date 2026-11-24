@@ -1,6 +1,6 @@
 ---
-"@semestra/web": minor
-"@semestra/api": minor
+"@semestra/web": patch
+"@semestra/api": patch
 ---
 
 <!-- area: canvas -->
