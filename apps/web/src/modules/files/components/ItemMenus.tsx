@@ -11,6 +11,7 @@ import {
   FileSearch,
   FolderInput,
   HardDrive,
+  Info,
   MoreHorizontal,
   Pencil,
   Pin,
@@ -146,6 +147,11 @@ export function ItemMenu({ item }: { item: ItemOut }) {
             ))}
           </>
         ) : null}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => act({ kind: 'info', item })}>
+          <Info aria-hidden />
+          {m.files_info_title()}
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
           variant="destructive"

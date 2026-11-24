@@ -13,6 +13,7 @@ import { FieldError } from '@/ui/field'
 import { useDeleteTargets } from '../actions'
 import { type Target, folderTree, itemsInside, targetName } from '../folders'
 import { invalidateFiles } from '../queries'
+import { InfoDialog } from './InfoDialog'
 import { MoveDialog } from './MoveDialog'
 import { NameDialog } from './NameDialog'
 
@@ -23,6 +24,7 @@ export type ItemAction =
   | { kind: 'delete'; targets: Target[] }
   | { kind: 'new-folder'; parentId: string | null }
   | { kind: 'new-link'; folderId: string | null }
+  | { kind: 'info'; item: ItemOut }
 
 /** Whether the dialog is open, and the page's hook to forget the action once it has closed. */
 type Shown = { open: boolean; onOpenChangeComplete: (open: boolean) => void }
@@ -134,6 +136,16 @@ export function ItemDialogs({
   }
   if (!action) return null
 
+  if (action.kind === 'info')
+    return (
+      <InfoDialog
+        // The list refreshes under the dialog (a copy finishing, processing ending).
+        item={items.find((i) => i.id === action.item.id) ?? action.item}
+        folders={folders}
+        onClose={close}
+        {...shown}
+      />
+    )
   if (action.kind === 'move')
     return (
       <MoveDialog
