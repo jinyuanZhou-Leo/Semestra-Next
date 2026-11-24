@@ -19,7 +19,7 @@ MAX_TABLE_COLUMNS = 100
 # Office files are zip archives; the readers inflate whole XML parts, so a small file that
 # unpacks to hundreds of megabytes is refused before it is opened.
 MAX_OFFICE_UNPACKED_BYTES = 100_000_000
-PARSER_VERSION = "1"
+PARSER_VERSION = "2"
 
 
 class ParseError(Exception):
@@ -299,14 +299,22 @@ _HTML_SKIP = ("script", "style", "noscript", "template", "head", "svg", "iframe"
 
 def _html(data: bytes) -> ParsedDocument:
     """HTML as markdown (headings, lists, links, tables) with markdownify, minus what a reader
-    never sees."""
+    never sees. An image marked as a formula (`data-formula`, which M09 puts on an LMS page's
+    formula images) is written as its LaTeX between `$`."""
     from bs4 import BeautifulSoup
     from markdownify import MarkdownConverter
+
+    class Converter(MarkdownConverter):
+        def convert_img(self, el: Any, text: str, parent_tags: set[str]) -> str:
+            formula = el.get("data-formula")
+            if isinstance(formula, str) and formula.strip():
+                return f"${formula.strip()}$"
+            return super().convert_img(el, text, parent_tags)  # pyright: ignore[reportAttributeAccessIssue]
 
     soup = BeautifulSoup(decode_text(data) or "", "html.parser")
     for tag in soup(_HTML_SKIP):
         tag.decompose()
-    text = MarkdownConverter(heading_style="ATX", bullets="-").convert_soup(soup)
+    text = Converter(heading_style="ATX", bullets="-").convert_soup(soup)
     return ParsedDocument(_text_pages(re.sub(r"\n[ \t]*\n(?:[ \t]*\n)+", "\n\n", text)))
 
 

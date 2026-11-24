@@ -20,6 +20,12 @@ class _Converter(MarkdownConverter):
             return f"[{text.strip() or ref}](lms:{kind}:{ref})"
         return super().convert_a(el, text, parent_tags)  # pyright: ignore[reportAttributeAccessIssue]
 
+    def convert_img(self, el: Any, text: str, parent_tags: set[str]) -> str:
+        formula = el.get("data-formula")
+        if formula:
+            return f"${formula}$"
+        return super().convert_img(el, text, parent_tags)  # pyright: ignore[reportAttributeAccessIssue]
+
 
 # No escaping: the model reads this text, it is not rendered, and `lab\_3.pdf` would be copied
 # into searches and titles as is.

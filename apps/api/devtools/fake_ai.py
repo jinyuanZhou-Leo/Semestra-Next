@@ -10,7 +10,7 @@ answers deterministically:
 - Structured output (`response_format: json_schema`): data that fits the schema. Extraction leaves
   (`value`, `quote`, `page`, `confidence`) are filled from the document text in the request: lines
   with a date or a percentage become the items, quoted verbatim with their `[page N]`.
-- Images (vision, OCR): a few lines of plain text.
+- Images (vision, OCR): a few lines of Markdown with LaTeX formulas.
 - Embeddings: hashed bag of words, so texts sharing words are close.
 
 Real-model checks still use a real provider (the cheapest model); this server only exercises
@@ -36,7 +36,13 @@ from devtools.control import Control, ControlMiddleware
 Json = dict[str, Any]
 MODELS = ("fake-chat", "fake-embed")
 DIMENSIONS = 384
-OCR_TEXT = "Midterm solutions\n1. V = IR = 12 V\n2. The Thevenin resistance is 4 kOhm."
+OCR_TEXT = (
+    "## Midterm solutions\n\n"
+    "1. By Ohm's law, $V = IR = 12\\,\\text{V}$.\n"
+    "2. The Thevenin resistance is the parallel combination\n\n"
+    "$$R_{th} = \\frac{R_1 R_2}{R_1 + R_2} = 4\\,\\text{k}\\Omega$$\n\n"
+    "3. The capacitor voltage is $v_C(t) = V_s\\left(1 - e^{-t/RC}\\right)$ for $t \\ge 0$."
+)
 DATE = re.compile(r"\b(\d{4}-\d{2}-\d{2})\b")
 PERCENT = re.compile(r"(\d+(?:\.\d+)?)\s*%")
 LEAF = {"value", "quote", "page", "confidence"}

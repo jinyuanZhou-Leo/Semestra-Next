@@ -21,7 +21,13 @@ export function textRanges(
   if (needles.length === 0) return []
   const pieces: { node: Text; start: number }[] = []
   let text = ''
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT)
+  // KaTeX keeps a hidden MathML copy of each formula for screen readers; a match there is invisible.
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, {
+    acceptNode: (node) =>
+      node instanceof Element && node.classList.contains('katex-mathml')
+        ? NodeFilter.FILTER_REJECT
+        : NodeFilter.FILTER_ACCEPT,
+  })
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
     if (node.nodeType !== Node.TEXT_NODE) {
       if (node.nodeName === 'BR') text += '\n'

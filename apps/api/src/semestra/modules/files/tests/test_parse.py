@@ -165,6 +165,12 @@ def test_html_keeps_headings_and_drops_scripts():
     assert "| A |" in text
 
 
+def test_html_formula_images_become_latex():
+    data = b'<p>Area <img data-formula="\\pi r_1^2" src="x.png" alt="formula"> grows.</p>'
+    text = parse(data, detect(data, "x.html")).pages[0].markdown
+    assert r"Area $\pi r_1^2$ grows." in text
+
+
 def test_text_encodings_are_guessed():
     from semestra.modules.files.parse.detect import decode_text
 

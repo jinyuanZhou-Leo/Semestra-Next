@@ -1,10 +1,17 @@
 import { type ComponentProps, createContext, use } from 'react'
+import 'katex/dist/katex.min.css'
 import ReactMarkdown, { type Components } from 'react-markdown'
+import rehypeKatex from 'rehype-katex'
 import remarkGfm from 'remark-gfm'
+import remarkMath from 'remark-math'
 import { cn } from '@/lib/utils'
 import { useExternalLink } from '@/components/ExternalLink'
 
-const REMARK_PLUGINS = [remarkGfm]
+const REMARK_PLUGINS = [remarkGfm, remarkMath]
+// A formula KaTeX cannot parse is shown as its source (in the error colour) instead of failing.
+const REHYPE_PLUGINS: NonNullable<ComponentProps<typeof ReactMarkdown>['rehypePlugins']> = [
+  [rehypeKatex, { throwOnError: false, errorColor: 'var(--destructive)' }],
+]
 
 /** Remote images are not fetched (they would tell a third party the file was opened). */
 function NoImage({ alt }: ComponentProps<'img'>) {
@@ -41,11 +48,19 @@ function MarkdownTable({ children }: ComponentProps<'table'>) {
   )
 }
 
+/**
+ * A formula on a line of its own written as `$$…$$` (as models usually write it) is display math;
+ * remark-math only takes `$$` fences on their own lines as display, and the one-line form as inline.
+ */
+const displayMath = (text: string) =>
+  text.replace(/^[ \t]*\$\$([^\n$]+)\$\$[ \t]*$/gm, '$$$$\n$1\n$$$$')
+
 const COMPONENTS: Components = { img: NoImage, a: MarkdownLink, table: MarkdownTable }
 
 /**
  * Markdown from a file (a .md upload, or the text the pipeline extracted). Raw HTML in it is not
- * rendered (react-markdown's default), so file content cannot inject markup. Web links open in a
+ * rendered (react-markdown's default), so file content cannot inject markup. Math between `$` or
+ * `$$` is typeset with KaTeX. Web links open in a
  * new tab after the leaving-Semestra check; other links are shown as text.
  */
 export function Markdown({ children, className }: { children: string; className?: string }) {
@@ -63,12 +78,18 @@ export function Markdown({ children, className }: { children: string; className?
         '[&_blockquote]:border-l-2 [&_blockquote]:pl-3 [&_blockquote]:text-muted-foreground',
         '[&_table]:w-full [&_table]:text-xs [&_td]:min-w-28 [&_th]:min-w-28 [&_td]:border [&_td]:px-2 [&_td]:py-1',
         '[&_th]:border [&_th]:bg-muted [&_th]:px-2 [&_th]:py-1 [&_th]:text-left',
+        // A display formula wider than the page scrolls on its own.
+        '[&_.katex-display]:overflow-x-auto [&_.katex-display]:overflow-y-hidden [&_.katex-display]:py-1',
         className,
       )}
     >
       <OpenLinkContext value={link.open}>
-        <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={COMPONENTS}>
-          {children}
+        <ReactMarkdown
+          remarkPlugins={REMARK_PLUGINS}
+          rehypePlugins={REHYPE_PLUGINS}
+          components={COMPONENTS}
+        >
+          {displayMath(children)}
         </ReactMarkdown>
       </OpenLinkContext>
       {link.dialog}

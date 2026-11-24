@@ -70,6 +70,11 @@ class LmsProvider(Protocol):
         """What an (absolute) address in the platform's HTML points at, if the app can open it."""
         ...
 
+    def image_formula(self, cfg: BaseModel, url: str) -> str | None:
+        """The formula (LaTeX) an image at this (absolute) address shows, for a platform whose
+        editor inserts formulas as images; None for any other image."""
+        ...
+
     def item_answer(self, error: AppError, *, area: AreaResult | None) -> Gone | Unavailable:
         """What a failed read of one item means (M09 §4.1, table 2): gone from the user's view, or
         not known. `area`: this round's result of the item's area (`answers.AREA_OF`), None when

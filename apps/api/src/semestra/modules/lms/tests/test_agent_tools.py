@@ -401,6 +401,17 @@ async def test_a_refusal_is_a_hidden_area_only_when_the_menu_says_so(
     assert err["error"]["code"] == "lms.forbidden"
 
 
+async def test_formula_images_are_read_as_latex(api: Api, fake: FakeProvider):
+    course, _ = await _linked(api)
+    fake.page_texts = {
+        "notes": ("Notes", '<p>Energy <img src="/equation/E%3Dmc%5E2" alt="E=mc^2"> holds.</p>')
+    }
+    page = await api.call("GET", f"/courses/{course}/lms/pages/notes")
+    assert 'data-formula="E=mc^2"' in page["html"]  # the Canvas tab still shows the image
+    out = await api.call("GET", f"/courses/{course}/lms/content", params={"ref": "page:notes"})
+    assert "Energy $E=mc^2$ holds." in out["text"]
+
+
 async def test_links_into_other_courses_stay_links(api: Api, fake: FakeProvider):
     course, _ = await _linked(api)
     fake.page_texts = {
