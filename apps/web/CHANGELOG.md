@@ -1,5 +1,26 @@
 # @semestra/web
 
+## 2.7.3
+
+### Patch Changes
+
+- 3cfa1e9: <!-- area: files -->
+  <!-- en -->
+  Search matches in file names and in the PDF preview are now highlighted cleanly, without extra gaps or shifted letters.
+  <!-- zh -->
+  文件名和 PDF 预览中的搜索高亮不再出现多余的间距或错位的文字。
+- 849a4d7: <!-- area: files -->
+  <!-- en -->
+  Long files now scroll continuously in the recognized-text view, loading earlier and later pages as you go instead of asking you to show more.
+  <!-- zh -->
+  文件的识别文字视图现在可以连续滚动，前后页面随滚动自动加载，不再需要点击“显示更多页”。
+- 18fb36a: <!-- area: canvas -->
+  <!-- en -->
+  The course syllabus and announcement attachments now sync into course files, along with course files linked from assignments, announcements and calendar events. You can choose which of these come in under Course materials settings.
+  <!-- zh -->
+  课程大纲和公告附件现在会同步到课程文件，作业、公告和日历事件中链接的课程文件也会一并带入。可在课程资料设置中选择要带入哪些。
+- @semestra/api-client@2.7.3
+
 ## 2.7.2
 
 ### Patch Changes
