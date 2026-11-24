@@ -17,14 +17,15 @@ from zoneinfo import ZoneInfo
 
 from semestra.modules.lms.answers import (
     AREA_HIDDEN,
+    STOPPING,
     AreaResult,
     Gone,
     ItemAnswer,
     ItemResult,
     Present,
 )
+from semestra.modules.lms.fit import DEFAULTS, OUT, fit
 
-TITLE_MAX = 200
 CLEARABLE = ("weight", "score")
 """Fields the platform may leave empty with nothing to follow (no weights, not graded yet)."""
 
@@ -52,14 +53,21 @@ def _due(raw: str | None, tz: ZoneInfo) -> dict[str, str | None] | None:
     return {"date": local.date().isoformat(), "time": at}
 
 
-def platform_value(name: str, raw: Any, tz: ZoneInfo) -> Any:
-    """A platform (snapshot) value in the common form: a due date is `{date, time}` in the
-    Program's zone to the minute (Semestra keeps no seconds; Canvas's default is 23:59:59)."""
+def platform_value(name: str, raw: Any, tz: ZoneInfo, kind: str | None = None) -> Any:
+    """A platform value in the common form, fitted to the object of `kind` (`fit.fit`; a number
+    it can't take is `fit.OUT`): a due date is `{date, time}` in the Program's zone to the
+    minute (Semestra keeps no seconds; Canvas's default is 23:59:59)."""
     if name == "due_at":
         return _due(raw, tz)
-    if name == "title":
-        return str(raw)[:TITLE_MAX] if raw is not None else None
-    return raw
+    return fit(kind, name, raw)
+
+
+def base_value(name: str, raw: Any, tz: ZoneInfo, kind: str | None) -> Any:
+    """A snapshot value in the common form: what the object took from the platform. One out of
+    the object's range was never written: the object has the field's default (`fit.DEFAULTS`,
+    M09 表 5c)."""
+    got = platform_value(name, raw, tz, kind)
+    return DEFAULTS.get(name) if got is OUT else got
 
 
 def _percent(score: dict[str, Any] | None) -> float | None:
@@ -352,6 +360,76 @@ def presence(
 READ_BACK: frozenset[str] = frozenset(("whole", "partial"))
 # Not read only this once (表 2 第 11、13 行): the next round reads it as usual.
 PASSING: frozenset[str] = frozenset(("lms.rate_limited", "lms.unreachable"))
+# Answers about the account or the connection the user fixes in the connection's settings
+# (`answers.STOPPING` but the rate limit, which passes by itself).
+CONNECTION: frozenset[str] = STOPPING - PASSING
+
+SyncReason = Literal["connection", "passing", "refused", "closed", "ours"]
+
+
+def sync_reason(code: str) -> SyncReason:
+    """Which side a part or an item of the sync was not updated for (M09 表 5c), the one place
+    codes are sorted: the connection; the platform not answering well this time; the platform
+    refusing; an area the instructor closed; Semestra's own problem (anything not an answer of
+    the platform)."""
+    if code in CONNECTION:
+        return "connection"
+    if code in PASSING:
+        return "passing"
+    if code == AREA_HIDDEN:
+        return "closed"
+    if code.startswith("lms."):
+        return "refused"
+    return "ours"
+
+
+def passing_since(area_reads: Mapping[str, Any] | None) -> tuple[datetime | None, datetime | None]:
+    """`(since, retry_at)` of the parts a round left `passing` (M09 表 5c, "再试"): the earliest
+    `unavailable_since` among them and the latest `retry_at`; None when there are none."""
+    since: datetime | None = None
+    retry: datetime | None = None
+    for entry in (area_reads or {}).values():
+        if entry.get("result") != "unavailable" or sync_reason(entry.get("reason") or "") != (
+            "passing"
+        ):
+            continue
+        if raw := entry.get("unavailable_since") or entry.get("at"):
+            at = datetime.fromisoformat(raw)
+            since = at if since is None or at < since else since
+        if raw := entry.get("retry_at"):
+            at = datetime.fromisoformat(raw)
+            retry = at if retry is None or at > retry else retry
+    return since, retry
+
+
+def next_sync(
+    synced_at: datetime,
+    every: timedelta,
+    shortest: timedelta,
+    since: datetime | None = None,
+    retry_at: datetime | None = None,
+) -> datetime:
+    """When a course synced last at `synced_at` is due again (M09 表 5c, "再试"). With nothing
+    left `passing` (`since` None), after the account's interval `every`. Else after as long as
+    it has been unreadable (`synced_at - since`, the earliest `unavailable_since` of its passing
+    parts and items), so the waits double: no shorter than the server's `shortest`, no sooner
+    than a rate limit's `retry_at`, no longer than `every`."""
+    if since is None:
+        return synced_at + every
+    due = synced_at + max(synced_at - since, shortest)
+    if retry_at is not None:
+        due = max(due, retry_at)
+    return min(due, synced_at + every)
+
+
+def reason_params(params: Mapping[str, Any] | None) -> dict[str, Any]:
+    """What of an error's params is kept with a reason (`area_reads`, `lms_item_checks`): plain
+    values only, such as `lms.unreachable`'s `reason` ("payload": an answer not understood)."""
+    return {
+        k: v
+        for k, v in (params or {}).items()
+        if isinstance(v, str | int | float | bool) and k != "retry_after"
+    }
 
 
 def area_entry(
@@ -359,15 +437,27 @@ def area_entry(
     result: AreaResult,
     at: datetime,
     reason: str | None = None,
-) -> dict[str, str]:
-    """How an area's list read this round (`LmsCourseLink.area_reads[area]`): the result and
-    when, why it was unavailable (an error code), when it last came back at all (`read_at`),
+    retry_after: float | None = None,
+    params: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """How a part of the course read this round (`LmsCourseLink.area_reads[part]`): the result
+    and when, why it was unavailable (an error code), when it last came back at all (`read_at`),
     when it last came back whole (`whole_at`: since then what is kept of it is as the platform
     last showed it) and when it was last closed to the user (`hidden_at`); a round that did
-    not tell them keeps each."""
-    entry = {"result": result, "at": at.isoformat()}
-    if result == "unavailable" and reason:
-        entry["reason"] = reason
+    not tell them keeps each. While unavailable: since when without a break
+    (`unavailable_since`), and when a rate limit lets it be read again (`retry_at`; M09 表 5c,
+    "再试")."""
+    entry: dict[str, Any] = {"result": result, "at": at.isoformat()}
+    if result == "unavailable":
+        if reason:
+            entry["reason"] = reason
+        if kept := reason_params(params):
+            entry["params"] = kept
+        before = previous or {}
+        since = before.get("unavailable_since") if before.get("result") == "unavailable" else None
+        entry["unavailable_since"] = since or at.isoformat()
+        if retry_after:
+            entry["retry_at"] = (at + timedelta(seconds=retry_after)).isoformat()
     read_at = at.isoformat() if result in READ_BACK else (previous or {}).get("read_at")
     if read_at:
         entry["read_at"] = read_at

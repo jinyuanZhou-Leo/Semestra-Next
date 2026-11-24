@@ -77,7 +77,7 @@ async def stage(ctx: Ctx, link: LmsCourseLink, b: Bound, this_round: SyncRound) 
         if not e.external_id or e.external_course_id != ext or e.external_id in seen:
             continue
         seen.add(e.external_id)
-        async with one_item(ctx, link, result, KIND, e.external_id) as item:
+        async with one_item(ctx, link, result, KIND, e.external_id, e.title) as item:
             wrote = _write(ctx, link, b, e, rows.get(e.external_id))
         changed |= item.ok and wrote
     # Gone from the platform: the one rule (表 3c). Events are only ever in this list and never
@@ -87,7 +87,7 @@ async def stage(ctx: Ctx, link: LmsCourseLink, b: Bound, this_round: SyncRound) 
         listed = external_id in seen
         if presence(listed=listed, areas=areas, now=ctx.now) != "gone":
             continue
-        async with one_item(ctx, link, result, KIND, external_id) as item:
+        async with one_item(ctx, link, result, KIND, external_id, row.title) as item:
             await ctx.db.delete(row)
             await ctx.db.flush()
         changed |= item.ok
@@ -126,7 +126,7 @@ def _write(
     return changed
 
 
-register_sync_stage("calendar", stage, order=50, area=AREA)
+register_sync_stage("calendar", stage, order=50, parts=(AREA,))
 
 
 # --- the calendar source --------------------------------------------------------------------

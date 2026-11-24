@@ -40,6 +40,7 @@ from semestra.modules.lms import assignment_refs, service, submissions
 from semestra.modules.lms import settings as lms_settings
 from semestra.modules.lms.assignment_facts import Facts, Side, Source, facts_of
 from semestra.modules.lms.errors import lms_error
+from semestra.modules.lms.fit import OUT, OUT_OF_RANGE, set_out
 from semestra.modules.lms.imports import advance, snapshot, taken_in, weights_of
 from semestra.modules.lms.models import (
     LmsAssignment,
@@ -50,6 +51,7 @@ from semestra.modules.lms.models import (
 from semestra.modules.lms.rules import (
     Action,
     Presence,
+    base_value,
     diverged,
     is_new,
     merge,
@@ -138,26 +140,38 @@ async def local_values(
     return out
 
 
-def differences(
-    ref: LmsImportedRef, local: dict[str, Any], tz: ZoneInfo
-) -> list[tuple[SyncField, Any, Any]]:
+@dataclass(frozen=True)
+class Difference:
+    """A field of an imported object set apart from the platform (`differences`)."""
+
+    field: SyncField
+    mine: Any
+    platform: Any
+    # The platform's value is out of what the object takes (M09 表 5c): it can't be taken.
+    out_of_range: bool = False
+
+
+def differences(ref: LmsImportedRef, local: dict[str, Any], tz: ZoneInfo) -> list[Difference]:
     """The fields of an imported object that the user set apart from the platform and nobody is
-    asked about: `(field, mine, platform)`, the platform value being the last one seen. A field
-    the platform leaves empty (no due date, no grade yet, no weight) is the user's to fill in."""
-    out: list[tuple[SyncField, Any, Any]] = []
-    for name in FIELDS[ref.target_kind or "task"]:
+    asked about, the platform value being the last one seen. A field the platform leaves empty
+    (no due date, no grade yet, no weight) is the user's to fill in. One whose platform value is
+    out of the object's range is always listed, with the platform's own value."""
+    out: list[Difference] = []
+    kind = ref.target_kind
+    for name in FIELDS[kind or "task"]:
         if name in ref.conflicts:
             continue
-        raw = ref.snapshot.get(name)
+        raw, mine = ref.snapshot.get(name), local.get(name)
+        out_of_range = ref.snapshot.get(OUT_OF_RANGE) or {}
+        if name in out_of_range:
+            out.append(Difference(name, mine, out_of_range[name], out_of_range=True))
+            continue
+        p = platform_value(name, raw, tz, kind)
         # Its base is the value as first taken (in the zone of then), so a change of the
         # Program's zone since is not taken for the user's own (the next sync follows that).
-        base, p, mine = (
-            platform_value(name, raw, taken_in(ref, tz)),
-            platform_value(name, raw, tz),
-            local.get(name),
-        )
+        base = base_value(name, raw, taken_in(ref, tz), kind)
         if diverged(name, base, mine, p):
-            out.append((name, mine, p))
+            out.append(Difference(name, mine, p))
     return out
 
 
@@ -212,8 +226,16 @@ async def _follow(
     for name in FIELDS[ref.target_kind or "task"]:
         if name not in platform:
             continue
-        p = platform_value(name, platform[name], tz)
-        s = platform_value(name, snap.get(name), taken_in(ref, tz))
+        p = platform_value(name, platform[name], tz, ref.target_kind)
+        if p is OUT:
+            # Out of what the object takes (M09 表 5c): not written, not followed, not asked
+            # about; the field's snapshot keeps what the object last took, and the panel lists
+            # the platform's value as set apart.
+            set_out(snap, name, platform[name])
+            conflicts.pop(name, None)
+            continue
+        set_out(snap, name, None)
+        s = base_value(name, snap.get(name), taken_in(ref, tz), ref.target_kind)
         mine = local.get(name)
         match merge(name, s, mine, p, name in follow):
             case Action.CLEAR:
@@ -287,7 +309,15 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound, sync_round: SyncRound) ->
     )
     listed = got[0] if got is not None else []
     by_id = {str(a["external_id"]): a for a in listed}
-    side = await facts.read_side(ctx, link, b, listed, refresh=True) if got is not None else Side()
+    side = Side()
+    if got is not None:
+        side = await facts.read_side(ctx, link, b, listed, refresh=True)
+        for part, (result, error) in side.reads.items():
+            sync_round.part(part, result, error)
+    else:
+        # Not read when the list gave nothing: they are read with it (M09 表 5c).
+        for part in facts.SIDE_PARTS:
+            sync_round.like(part, AREA)
     stored = list(
         await ctx.db.scalars(select(LmsImportedRef).where(LmsImportedRef.link_id == link.id))
     )
@@ -315,7 +345,7 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound, sync_round: SyncRound) ->
         )
     }
     rows = {r.external_id: r for r in await facts.mirror_rows(ctx, link.id)}
-    result = StageResult(error=side.errors[0] if side.errors else None)
+    result = StageResult()
     # The course total is the stage's own record (table 5b, row 8): what shows it refreshes.
     changed = False
     if side.total_read:
@@ -338,7 +368,8 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound, sync_round: SyncRound) ->
     )
     for ext in dict.fromkeys([*by_id, *refs, *rows]):
         out = _Done()
-        async with one_item(ctx, link, result, KIND, ext) as item:
+        title = _title(by_id.get(ext), refs.get(ext), rows.get(ext))
+        async with one_item(ctx, link, result, KIND, ext, title) as item:
             await _one(ctx, link, b, ext, by_id.get(ext), refs.get(ext), rows.get(ext), side,
                        presences.get(ext, "unknown"), s, out)  # fmt: skip
         if item.ok:
@@ -352,6 +383,15 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound, sync_round: SyncRound) ->
     if result.applied:
         await events.publish(ctx, "lms.course.imports_recorded", {"course_id": link.course_id})
     return result
+
+
+def _title(a: dict[str, Any] | None, ref: LmsImportedRef | None, row: LmsAssignment | None) -> str:
+    """An assignment's name: as listed this round, else as last kept."""
+    if a is not None:
+        return str(a.get("name") or "")
+    if row is not None:
+        return str(row.assignment.get("name") or "")
+    return str(ref.snapshot.get("title") or "") if ref is not None else ""
 
 
 @dataclass
@@ -504,7 +544,7 @@ AREA = facts.AREA
 KIND = "assignment"
 # The field of the change logged for new feedback (never put back: nothing in Semestra to undo).
 FEEDBACK = "feedback"
-register_sync_stage("assignments", run, order=20, enabled=_enabled, area=AREA)
+register_sync_stage("assignments", run, order=20, enabled=_enabled, parts=(AREA, *facts.SIDE_PARTS))
 
 
 # --- the user's answers ----------------------------------------------------------------------
@@ -586,10 +626,10 @@ async def answer(ctx: Ctx, ref_id: str, name: str, choice: str) -> str:
         ref.snapshot = snap
         ref.conflicts = {f: c for f, c in ref.conflicts.items() if f != name}
     else:
-        found = {f: (mine, p) for f, mine, p in differences(ref, local, tz)}
+        found = {d.field: d for d in differences(ref, local, tz) if not d.out_of_range}
         if choice != "platform" or name not in found:
             raise lms_error("lms.sync_nothing_to_resolve")
-        mine, p = found[name]
+        mine, p = found[name].mine, found[name].platform
         await write(ctx, ref, name, p)
         await _log(ctx, ref, name, mine, p, title)
     await ctx.db.flush()

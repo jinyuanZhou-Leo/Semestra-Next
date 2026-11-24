@@ -2084,11 +2084,24 @@ export const AssignmentDetailSchema = {
             description: 'Kept for its assessment or to-do, which no longer follows the platform (unbound, the course unlinked, gone from the platform): as last read',
             default: false
         },
-        sync_failed: {
+        stale: {
             type: 'boolean',
-            title: 'Sync Failed',
-            description: 'The last sync of the course\'s assignments failed: what is kept may be behind the platform',
+            title: 'Stale',
+            description: 'The last sync did not update this assignment (M09 表 5c): what is kept may be behind the platform',
             default: false
+        },
+        submission_as_of: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date-time'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Submission As Of',
+            description: 'The course\'s submissions were not read in the last sync: the submission and feedback are as of then (none: up to date, or never read)'
         },
         area_hidden: {
             type: 'boolean',
@@ -6344,13 +6357,15 @@ export const CourseLinkSchema = {
             title: 'Synced At',
             description: 'Last background sync of the course'
         },
-        sync_errors: {
-            additionalProperties: {
-                type: 'string'
-            },
-            type: 'object',
-            title: 'Sync Errors',
-            description: 'Error code of each sync stage whose last run failed (course, assignments, announcements, ...)'
+        sync_state: {
+            type: 'string',
+            enum: [
+                'ok',
+                'stale',
+                'failed'
+            ],
+            title: 'Sync State',
+            description: 'How the last sync went (M09 表 5c): failed on Semestra\'s side, some content not updated (the platform did not give it), or all as the platform has it'
         },
         features: {
             items: {
@@ -6397,7 +6412,7 @@ export const CourseLinkSchema = {
         'web_url',
         'sync_enabled',
         'synced_at',
-        'sync_errors',
+        'sync_state',
         'features',
         'created_at'
     ],
@@ -20717,35 +20732,6 @@ export const SyncConflictSchema = {
     title: 'SyncConflict'
 } as const;
 
-export const SyncCourseErrorSchema = {
-    properties: {
-        course_id: {
-            type: 'string',
-            title: 'Course Id'
-        },
-        course: {
-            type: 'string',
-            title: 'Course'
-        },
-        stage: {
-            type: 'string',
-            title: 'Stage'
-        },
-        code: {
-            type: 'string',
-            title: 'Code'
-        }
-    },
-    type: 'object',
-    required: [
-        'course_id',
-        'course',
-        'stage',
-        'code'
-    ],
-    title: 'SyncCourseError'
-} as const;
-
 export const SyncDifferenceSchema = {
     properties: {
         id: {
@@ -20783,6 +20769,12 @@ export const SyncDifferenceSchema = {
         platform: {
             title: 'Platform',
             description: 'The value on the platform when last synced'
+        },
+        out_of_range: {
+            type: 'boolean',
+            title: 'Out Of Range',
+            description: 'The platform\'s value is out of what the item takes, so it can\'t be taken',
+            default: false
         },
         target_kind: {
             type: 'string',
@@ -21014,6 +21006,97 @@ export const SyncMaterialChangeSchema = {
     ],
     title: 'SyncMaterialChange',
     description: 'What the platform did lately to a course material (the files stage).'
+} as const;
+
+export const SyncProblemSchema = {
+    properties: {
+        course_id: {
+            type: 'string',
+            title: 'Course Id'
+        },
+        course: {
+            type: 'string',
+            title: 'Course'
+        },
+        stage: {
+            type: 'string',
+            title: 'Stage'
+        },
+        ended: {
+            type: 'boolean',
+            title: 'Ended',
+            description: 'The course was not synced at all this round'
+        },
+        code: {
+            type: 'string',
+            title: 'Code'
+        },
+        request_id: {
+            type: 'string',
+            title: 'Request Id'
+        },
+        items: {
+            items: {
+                $ref: '#/components/schemas/SyncProblemItem'
+            },
+            type: 'array',
+            title: 'Items',
+            description: 'Items not synced'
+        },
+        reads: {
+            items: {
+                type: 'string'
+            },
+            type: 'array',
+            title: 'Reads',
+            description: 'Parts of the course not read'
+        }
+    },
+    type: 'object',
+    required: [
+        'course_id',
+        'course',
+        'stage',
+        'ended',
+        'code',
+        'request_id',
+        'items',
+        'reads'
+    ],
+    title: 'SyncProblem',
+    description: 'A problem of Semestra\'s own in a course\'s last sync (M09 表 5c, rows 2-4): it comes\nback every round until fixed; `request_id` finds it in the server\'s log.'
+} as const;
+
+export const SyncProblemItemSchema = {
+    properties: {
+        kind: {
+            type: 'string',
+            title: 'Kind',
+            description: 'assignment, announcement, calendar_event, file, page, link or course'
+        },
+        external_id: {
+            type: 'string',
+            title: 'External Id'
+        },
+        title: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Title'
+        }
+    },
+    type: 'object',
+    required: [
+        'kind',
+        'external_id',
+        'title'
+    ],
+    title: 'SyncProblemItem'
 } as const;
 
 export const SyncQueuedSchema = {
@@ -21300,14 +21383,15 @@ export const SyncStatusSchema = {
             },
             type: 'array',
             title: 'Unreadable',
-            description: 'What can\'t be read since its area is closed on the platform, by course'
+            description: 'What the platform did not give, kept as last read, by course'
         },
-        errors: {
+        problems: {
             items: {
-                $ref: '#/components/schemas/SyncCourseError'
+                $ref: '#/components/schemas/SyncProblem'
             },
             type: 'array',
-            title: 'Errors'
+            title: 'Problems',
+            description: 'Problems of Semestra\'s own in the courses\' last sync, by course'
         },
         calendar_waiting: {
             type: 'integer',
@@ -21338,7 +21422,7 @@ export const SyncStatusSchema = {
         'removed_materials',
         'removed_count',
         'unreadable',
-        'errors',
+        'problems',
         'calendar_waiting',
         'calendar_unreadable'
     ],
@@ -21350,10 +21434,10 @@ export const SyncUnreadableSchema = {
         kind: {
             type: 'string',
             enum: [
+                'parts',
+                'area',
                 'material',
-                'assignment',
-                'assignments',
-                'announcements'
+                'assignment'
             ],
             title: 'Kind'
         },
@@ -21377,10 +21461,25 @@ export const SyncUnreadableSchema = {
             type: 'string',
             title: 'Course'
         },
+        parts: {
+            items: {
+                type: 'string'
+            },
+            type: 'array',
+            title: 'Parts',
+            description: '`parts`: the parts not read (course, assignments, submissions, quizzes, total, announcements, calendar, files, pages, modules); `course` among them: the whole course'
+        },
         area: {
-            type: 'string',
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
             title: 'Area',
-            description: 'The closed area of the course on the platform'
+            description: '`area`: the closed area; an item: the area it belongs to'
         },
         title: {
             anyOf: [
@@ -21392,12 +21491,31 @@ export const SyncUnreadableSchema = {
                 }
             ],
             title: 'Title',
-            description: 'Its name on the platform; none for a course\'s row'
+            description: 'An item\'s name on the platform'
         },
         count: {
             type: 'integer',
             title: 'Count',
-            description: 'How many it stands for (1 for one item)'
+            description: '`area`: announcements kept, or assignments not imported (0: none counted)',
+            default: 0
+        },
+        code: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Code',
+            description: 'Why it was not read (an error code)'
+        },
+        params: {
+            additionalProperties: true,
+            type: 'object',
+            title: 'Params',
+            description: 'The code\'s params'
         },
         since: {
             anyOf: [
@@ -21410,7 +21528,7 @@ export const SyncUnreadableSchema = {
                 }
             ],
             title: 'Since',
-            description: 'Announcements, assignments: when their list was last read whole (none if never)'
+            description: '`parts`: when they last read back; `area`: what is kept is as of then; an item: unreadable since then. None: never read'
         },
         item_id: {
             anyOf: [
@@ -21439,23 +21557,18 @@ export const SyncUnreadableSchema = {
         removable: {
             type: 'boolean',
             title: 'Removable',
-            description: 'A followed material read from the platform (no copy saved in Semestra): it can be removed (lms.sync.material.remove)',
+            description: 'A followed material read from the platform (no copy saved in Semestra) the platform refuses or hides: it can be removed (lms.sync.material.remove)',
             default: false
         }
     },
     type: 'object',
     required: [
         'kind',
-        'id',
         'course_id',
-        'course',
-        'area',
-        'title',
-        'count',
-        'since'
+        'course'
     ],
     title: 'SyncUnreadable',
-    description: 'What the sync can\'t read because its area is closed on the platform (M09 table 3c, note):\nkept as last read, judged again once the area opens. Materials and imported assignments one\nby one; a course\'s announcements, and its assignments not imported, as one row each.'
+    description: 'What the platform did not give, kept as last read until it reads back (M09 表 5c, rows\n5-9): parts of a course not read for one reason, an area the teacher closed, an item in\nSemestra whose own read did not get it.'
 } as const;
 
 export const TaskSchema = {
@@ -24838,11 +24951,24 @@ export const AssignmentDetailWritableSchema = {
             description: 'Kept for its assessment or to-do, which no longer follows the platform (unbound, the course unlinked, gone from the platform): as last read',
             default: false
         },
-        sync_failed: {
+        stale: {
             type: 'boolean',
-            title: 'Sync Failed',
-            description: 'The last sync of the course\'s assignments failed: what is kept may be behind the platform',
+            title: 'Stale',
+            description: 'The last sync did not update this assignment (M09 表 5c): what is kept may be behind the platform',
             default: false
+        },
+        submission_as_of: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date-time'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Submission As Of',
+            description: 'The course\'s submissions were not read in the last sync: the submission and feedback are as of then (none: up to date, or never read)'
         },
         area_hidden: {
             type: 'boolean',

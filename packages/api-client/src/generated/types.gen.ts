@@ -1137,11 +1137,17 @@ export type AssignmentDetail = {
      */
     held?: boolean;
     /**
-     * Sync Failed
+     * Stale
      *
-     * The last sync of the course's assignments failed: what is kept may be behind the platform
+     * The last sync did not update this assignment (M09 表 5c): what is kept may be behind the platform
      */
-    sync_failed?: boolean;
+    stale?: boolean;
+    /**
+     * Submission As Of
+     *
+     * The course's submissions were not read in the last sync: the submission and feedback are as of then (none: up to date, or never read)
+     */
+    submission_as_of?: string | null;
     /**
      * Area Hidden
      *
@@ -3611,13 +3617,11 @@ export type CourseLink = {
      */
     synced_at: string | null;
     /**
-     * Sync Errors
+     * Sync State
      *
-     * Error code of each sync stage whose last run failed (course, assignments, announcements, ...)
+     * How the last sync went (M09 表 5c): failed on Semestra's side, some content not updated (the platform did not give it), or all as the platform has it
      */
-    sync_errors: {
-        [key: string]: string;
-    };
+    sync_state: 'ok' | 'stale' | 'failed';
     /**
      * Features
      *
@@ -11771,28 +11775,6 @@ export type SyncConflict = {
 };
 
 /**
- * SyncCourseError
- */
-export type SyncCourseError = {
-    /**
-     * Course Id
-     */
-    course_id: string;
-    /**
-     * Course
-     */
-    course: string;
-    /**
-     * Stage
-     */
-    stage: string;
-    /**
-     * Code
-     */
-    code: string;
-};
-
-/**
  * SyncDifference
  *
  * A field of an imported item the user set apart from the platform, not asked about: it
@@ -11835,6 +11817,12 @@ export type SyncDifference = {
      * The value on the platform when last synced
      */
     platform: unknown;
+    /**
+     * Out Of Range
+     *
+     * The platform's value is out of what the item takes, so it can't be taken
+     */
+    out_of_range?: boolean;
     /**
      * Target Kind
      */
@@ -11971,6 +11959,73 @@ export type SyncMaterialChange = {
      * The name of the folder it is in
      */
     folder: string | null;
+};
+
+/**
+ * SyncProblem
+ *
+ * A problem of Semestra's own in a course's last sync (M09 表 5c, rows 2-4): it comes
+ * back every round until fixed; `request_id` finds it in the server's log.
+ */
+export type SyncProblem = {
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * Course
+     */
+    course: string;
+    /**
+     * Stage
+     */
+    stage: string;
+    /**
+     * Ended
+     *
+     * The course was not synced at all this round
+     */
+    ended: boolean;
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Items
+     *
+     * Items not synced
+     */
+    items: Array<SyncProblemItem>;
+    /**
+     * Reads
+     *
+     * Parts of the course not read
+     */
+    reads: Array<string>;
+};
+
+/**
+ * SyncProblemItem
+ */
+export type SyncProblemItem = {
+    /**
+     * Kind
+     *
+     * assignment, announcement, calendar_event, file, page, link or course
+     */
+    kind: string;
+    /**
+     * External Id
+     */
+    external_id: string;
+    /**
+     * Title
+     */
+    title: string | null;
 };
 
 /**
@@ -12166,13 +12221,15 @@ export type SyncStatus = {
     /**
      * Unreadable
      *
-     * What can't be read since its area is closed on the platform, by course
+     * What the platform did not give, kept as last read, by course
      */
     unreadable: Array<SyncUnreadable>;
     /**
-     * Errors
+     * Problems
+     *
+     * Problems of Semestra's own in the courses' last sync, by course
      */
-    errors: Array<SyncCourseError>;
+    problems: Array<SyncProblem>;
     /**
      * Calendar Waiting
      *
@@ -12190,21 +12247,21 @@ export type SyncStatus = {
 /**
  * SyncUnreadable
  *
- * What the sync can't read because its area is closed on the platform (M09 table 3c, note):
- * kept as last read, judged again once the area opens. Materials and imported assignments one
- * by one; a course's announcements, and its assignments not imported, as one row each.
+ * What the platform did not give, kept as last read until it reads back (M09 表 5c, rows
+ * 5-9): parts of a course not read for one reason, an area the teacher closed, an item in
+ * Semestra whose own read did not get it.
  */
 export type SyncUnreadable = {
     /**
      * Kind
      */
-    kind: 'material' | 'assignment' | 'assignments' | 'announcements';
+    kind: 'parts' | 'area' | 'material' | 'assignment';
     /**
      * Id
      *
      * The material's id (`material`) or the imported assignment's sync item id (`assignment`); none for a course's row
      */
-    id: string | null;
+    id?: string | null;
     /**
      * Course Id
      */
@@ -12214,29 +12271,49 @@ export type SyncUnreadable = {
      */
     course: string;
     /**
+     * Parts
+     *
+     * `parts`: the parts not read (course, assignments, submissions, quizzes, total, announcements, calendar, files, pages, modules); `course` among them: the whole course
+     */
+    parts?: Array<string>;
+    /**
      * Area
      *
-     * The closed area of the course on the platform
+     * `area`: the closed area; an item: the area it belongs to
      */
-    area: string;
+    area?: string | null;
     /**
      * Title
      *
-     * Its name on the platform; none for a course's row
+     * An item's name on the platform
      */
-    title: string | null;
+    title?: string | null;
     /**
      * Count
      *
-     * How many it stands for (1 for one item)
+     * `area`: announcements kept, or assignments not imported (0: none counted)
      */
-    count: number;
+    count?: number;
+    /**
+     * Code
+     *
+     * Why it was not read (an error code)
+     */
+    code?: string | null;
+    /**
+     * Params
+     *
+     * The code's params
+     */
+    params?: {
+        [key: string]: unknown;
+    };
     /**
      * Since
      *
-     * Announcements, assignments: when their list was last read whole (none if never)
+     * `parts`: when they last read back; `area`: what is kept is as of then; an item: unreadable since then. None: never read
      */
-    since: string | null;
+    since?: string | null;
     /**
      * Item Id
      *
@@ -12252,7 +12329,7 @@ export type SyncUnreadable = {
     /**
      * Removable
      *
-     * A followed material read from the platform (no copy saved in Semestra): it can be removed (lms.sync.material.remove)
+     * A followed material read from the platform (no copy saved in Semestra) the platform refuses or hides: it can be removed (lms.sync.material.remove)
      */
     removable?: boolean;
 };
@@ -14229,11 +14306,17 @@ export type AssignmentDetailWritable = {
      */
     held?: boolean;
     /**
-     * Sync Failed
+     * Stale
      *
-     * The last sync of the course's assignments failed: what is kept may be behind the platform
+     * The last sync did not update this assignment (M09 表 5c): what is kept may be behind the platform
      */
-    sync_failed?: boolean;
+    stale?: boolean;
+    /**
+     * Submission As Of
+     *
+     * The course's submissions were not read in the last sync: the submission and feedback are as of then (none: up to date, or never read)
+     */
+    submission_as_of?: string | null;
     /**
      * Area Hidden
      *

@@ -276,7 +276,7 @@ async def _write(ctx: Ctx, r: _Run) -> bool:
                 return True
             added += 1
         created = dropped = notice = None
-        async with one_item(ctx, link, result, m.kind, m.external_id) as item:
+        async with one_item(ctx, link, result, m.kind, m.external_id, m.title) as item:
             created, dropped, notice = await _found(ctx, w, m, mat)
         _done(ctx, w, key, item.ok)
         if not item.ok:
@@ -297,7 +297,7 @@ async def _write(ctx: Ctx, r: _Run) -> bool:
         if restored_at is not None and restored_at > (r.sync_round.started or w.now):
             continue  # restored after this run read: left to the run after it
         row = rows.get(mat.item_id or "") if mat.state == "synced" else None
-        async with one_item(ctx, link, result, mat.kind, mat.external_id) as item:
+        async with one_item(ctx, link, result, mat.kind, mat.external_id, mat.title) as item:
             await _gone(ctx, w, mat, row)
         _done(ctx, w, key, item.ok)
         if item.ok and row is not None:
@@ -311,7 +311,7 @@ async def _write(ctx: Ctx, r: _Run) -> bool:
         if item_id in left or key in r.failed:  # a failed one's objects went back expired
             continue
         before = room.left
-        async with one_item(ctx, link, result, *key) as item:
+        async with one_item(ctx, link, result, *key, row.display_name) as item:
             if _retry_due(row, w.now):
                 await sources.retry_synced(ctx, row)
             if _copy_due(row, w.now):
@@ -410,4 +410,4 @@ async def _enabled(ctx: Ctx, link: LmsCourseLink, b: Bound) -> bool:
     return (await material_settings(ctx, link.course_id)).sync
 
 
-register_sync_stage("files", run, order=60, enabled=_enabled)
+register_sync_stage("files", run, order=60, enabled=_enabled, parts=tuple(material_reads.AREAS))

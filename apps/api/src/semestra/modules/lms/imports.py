@@ -29,6 +29,7 @@ from semestra.modules.imports.models import ImportsSession
 from semestra.modules.imports.schemas import Confidence, NewItem, SessionCreateInput, SessionTarget
 from semestra.modules.lms import assignment_refs, html, reads, service
 from semestra.modules.lms.errors import lms_error
+from semestra.modules.lms.fit import OUT, fit, fit_or_default, snapshot_for
 from semestra.modules.lms.models import LmsCourseLink, LmsImportedRef
 from semestra.modules.lms.schemas.io import (
     AssessmentRef,
@@ -297,7 +298,10 @@ async def _import(
         note = a.get("web_url")
         key = f"a{len(new)}"
         if kind == "assessment":
-            item: dict[str, Any] = {"course_ref": course_ref, "title": a["name"][:200]}
+            item: dict[str, Any] = {
+                "course_ref": course_ref,
+                "title": fit("assessment", "title", a["name"]),
+            }
             group = a.get("group_name")
             if group:
                 # Canvas groups are told apart by id: two groups may share a name or a slug.
@@ -306,17 +310,21 @@ async def _import(
                     groups[group_key] = f"g{len(new)}"
                     # An existing category's key goes into it; none creates one (M08 §2).
                     into = category_of(group_key, group)
+                    group_weight = a.get("group_weight")
                     new.append(
                         NewItem(
                             key=groups[group_key],
                             type="category",
                             data={
                                 "course_ref": course_ref,
-                                "name": group[:200],
+                                "name": fit("category", "name", group),
                                 **({"key": into} if into else {}),
+                                # Only checks the assessments' weights: left out when it is
+                                # out of what a category takes.
                                 **(
-                                    {"weight_total": a["group_weight"]}
-                                    if a.get("group_weight") is not None
+                                    {"weight_total": total}
+                                    if (total := fit("category", "weight_total", group_weight))
+                                    not in (None, OUT)
                                     else {}
                                 ),
                             },
@@ -324,21 +332,30 @@ async def _import(
                     )
                 item["category_ref"] = f"item:{groups[group_key]}"
             confidence: dict[str, Confidence] = {}
-            if external_id in weights:
-                item["weight"] = weights[external_id]
+            weight = fit("assessment", "weight", weights.get(external_id))
+            if weight is not None and weight is not OUT:
+                item["weight"] = weight
             else:
-                confidence = {"weight": "low"}  # left for the user to fill in
-            item.update(due_date=due_date, due_time=due_time, note=note, source_ref=ref)
-            # A grade already on the platform comes along, so it needs no second review.
-            item.update(platform_score(a) or {})
+                # Left for the user to fill in: none on the platform, or one out of what an
+                # assessment takes (M09 表 5c; the sync lists it as set apart).
+                confidence = {"weight": "low"}
+            item.update(
+                due_date=due_date,
+                due_time=due_time,
+                note=fit("assessment", "note", note),
+                source_ref=ref,
+            )
+            # A grade already on the platform comes along, so it needs no second review (one
+            # out of what an assessment takes stays out, as the weight).
+            item.update(fit_or_default("assessment", "score", platform_score(a)) or {})
             new.append(NewItem(key=key, type="assessment", data=item, confidence=confidence))
         else:
             item = {
                 "course_ref": course_ref,
-                "title": a["name"][:200],
+                "title": fit("task", "title", a["name"]),
                 "due_date": due_date,
                 "due_time": due_time,
-                "notes": note,
+                "notes": fit("task", "note", note),
                 "source_ref": ref,
             }
             new.append(NewItem(key=key, type="task", data=item))
@@ -625,6 +642,8 @@ async def on_commit(ctx: Ctx, row: ImportsSession, created: dict[str, str]) -> N
             snap[ZONE] = zones[link.program_id].key
         if str(item.data.get("existing_assessment_id")) in bound:
             snap = bound_snapshot(info["snapshot"])
+        # A platform number out of what the object takes went in as the field's default.
+        snap = snapshot_for(item.type, snap)
         ref = await _item_ref(ctx, link.id, info["external_id"])
         # New or ignored before ("import"), or added to the gradebook ("move": the assessment
         # took the to-do over, M05, and is now the one Semestra object of this assignment).

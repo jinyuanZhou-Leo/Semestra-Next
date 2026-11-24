@@ -18,11 +18,10 @@ from semestra.modules.academics import service as academics
 from semestra.modules.files import register_content_source, sources
 from semestra.modules.files.models import FilesItem
 from semestra.modules.files.source_folders import SourceFolders
-from semestra.modules.lms import reads, rules, service
-from semestra.modules.lms.answers import AREA_HIDDEN, AREA_OF
+from semestra.modules.lms import reads, service, sync_state
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.materials import enter
-from semestra.modules.lms.models import LmsConnection, LmsCourseLink, LmsItemCheck, LmsMaterial
+from semestra.modules.lms.models import LmsConnection, LmsCourseLink, LmsMaterial
 from semestra.modules.lms.providers.base import get_provider
 from semestra.modules.lms.schemas.io import HeldMaterials
 from semestra.modules.lms.settings import materials as material_settings
@@ -257,52 +256,16 @@ async def restore_all(ctx: Ctx, program_id: str) -> None:
         await sync_queue(ctx, list(restored.values()), manual=True)
 
 
-async def unreadable(
-    ctx: Ctx, links: list[LmsCourseLink]
-) -> list[tuple[LmsMaterial, FilesItem | None]]:
-    """The materials listed under "Not syncing for now" (M09 table 3c, note): of courses whose
-    materials sync, followed (`synced`) or restored and waiting (`absent` with `quiet`), whose
-    last single read was refused since their area is closed, while it still is. With their
-    course file, if any."""
-    links = [li for li in links if (await material_settings(ctx, li.course_id)).sync]
-    by_id = {li.id: li for li in links}
-    if not links:
-        return []
-    ids = [li.id for li in links]
-    held = {
-        (c.link_id, c.kind, c.external_id)
-        for c in await ctx.db.scalars(
-            select(LmsItemCheck).where(
-                LmsItemCheck.user_id == ctx.user_id,
-                LmsItemCheck.link_id.in_(ids),
-                LmsItemCheck.result == "unavailable",
-                LmsItemCheck.reason == AREA_HIDDEN,
-            )
-        )
-    }
-    mats = [
-        m
-        for m in await ctx.db.scalars(
-            select(LmsMaterial)
-            .where(
-                LmsMaterial.user_id == ctx.user_id,
-                LmsMaterial.link_id.in_(ids),
-                (LmsMaterial.state == "synced")
-                | ((LmsMaterial.state == "absent") & LmsMaterial.quiet),
-            )
-            .execution_options(populate_existing=True)
-        )
-        if (m.link_id, m.kind, m.external_id) in held
-        and rules.area_closed(by_id[m.link_id].area_reads, AREA_OF.get(m.kind, "files"))
+async def removable(ctx: Ctx, links: list[LmsCourseLink]) -> list[tuple[LmsMaterial, FilesItem]]:
+    """The materials "Not syncing for now" offers to remove (M09 表 5c, row 9): followed, read
+    from the platform (no copy), refused or hidden by it (`sync_state.Item.removable`)."""
+    syncs = await sync_state.course_syncs(ctx, links)
+    return [
+        (i.material, i.file)
+        for c in syncs.values()
+        for i in c.items
+        if i.removable and i.material is not None and i.file is not None
     ]
-    rows = {r.id: r for r in await sources.find_items(ctx, [m.item_id for m in mats if m.item_id])}
-    return [(m, rows.get(m.item_id or "")) for m in mats]
-
-
-def removable(mat: LmsMaterial, row: FilesItem | None) -> bool:
-    """Only a followed material read from the platform: a saved copy may be the user's only
-    one, so it is never removed from this list (M09 table 3c, note)."""
-    return mat.state == "synced" and row is not None and not has_copy(row)
 
 
 async def _remove(ctx: Ctx, mat: LmsMaterial, row: FilesItem) -> None:
@@ -321,9 +284,8 @@ async def remove_unreadable(ctx: Ctx, material_id: str) -> str:
     link = await ctx.db.get(LmsCourseLink, mat.link_id)
     assert link is not None
     await hold(ctx, link)
-    found = dict((m.id, row) for m, row in await unreadable(ctx, [link]))
-    row = found.get(mat.id)
-    if mat.id not in found or row is None or not removable(mat, row):
+    row = dict((m.id, row) for m, row in await removable(ctx, [link])).get(mat.id)
+    if row is None:
         raise lms_error("lms.sync_nothing_to_resolve")
     await _remove(ctx, mat, row)
     await events.publish(ctx, UPDATED, {"program_id": link.program_id})
@@ -336,11 +298,10 @@ async def remove_all_unreadable(ctx: Ctx, program_id: str) -> None:
     links = await service.program_links(ctx, program_id)
     if links:
         await hold(ctx, links[0])  # the database's write lock: one for every course
-    found = [(m, row) for m, row in await unreadable(ctx, links) if removable(m, row)]
+    found = await removable(ctx, links)
     if not found:
         raise lms_error("lms.sync_nothing_to_resolve")
     for mat, row in found:
-        assert row is not None
         await _remove(ctx, mat, row)
     await events.publish(ctx, UPDATED, {"program_id": program_id})
 

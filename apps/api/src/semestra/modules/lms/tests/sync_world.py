@@ -150,11 +150,14 @@ class World:
         await self.check(status)
 
     async def check(self, status: dict[str, Any]) -> None:
-        errors = {e["stage"]: e["code"] for e in status["errors"]}
-        # The side read is made only once the list came in.
+        # Nothing here is Semestra's own problem (M09 表 5c, rows 2-4).
+        assert status["problems"] == [], f"{self.done}: {status['problems']}"
+        # The side read is made only once the list came in; refused, it is told (row 7).
         side = self.side_refused and self.linked and not (self.closed or self.refused)
-        expected = {"assignments": "lms.forbidden"} if side else {}
-        assert errors == expected, f"{self.done}: {errors}"
+        told = any(
+            u["kind"] == "parts" and "submissions" in u["parts"] for u in status["unreadable"]
+        )
+        assert told == (side or (self.refused and self.linked)), f"{self.done}: {told}"
         async with system_ctx(self.app.state, self.user_id) as ctx:
             link = await ctx.db.scalar(
                 select(LmsCourseLink).where(LmsCourseLink.course_id == self.course)

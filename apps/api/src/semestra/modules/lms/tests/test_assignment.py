@@ -22,7 +22,7 @@ from semestra.modules.lms.schemas.dto import (
     SubmissionDetail,
     SubmittedFile,
 )
-from semestra.modules.lms.tests.conftest import Api, FakeProvider
+from semestra.modules.lms.tests.conftest import Api, FakeProvider, report
 from semestra.modules.lms.tests.test_sync import _assessments, _course
 from semestra.modules.tasks.models import TasksItem
 from semestra.testing import API_DIR, Clock
@@ -105,7 +105,7 @@ async def test_an_assignment_opens_from_the_platform_then_from_the_mirror(
     fake.down = True
     clock.advance(minutes=10)
     kept = await _open(api, course, "a1")
-    assert (kept["source"], kept["held"], kept["sync_failed"]) == ("mirror", False, False)
+    assert (kept["source"], kept["held"], kept["stale"]) == ("mirror", False, False)
     assert datetime.fromisoformat(kept["as_of"]) == synced_at
     assert kept["state"] == "graded"
     assert (kept["assignment"]["name"], kept["assignment"]["html"]) == ("Lab 1", "<p>Do it</p>")
@@ -270,7 +270,7 @@ async def test_a_to_do_deleted_a_moment_ago_does_not_fail_the_sync(
         await db.execute(delete(TasksItem))
         await db.commit()
     status = await api.sync(program_id)
-    assert status["errors"] == []
+    assert report(status) == set()
     assert (await api.call("GET", f"/programs/{program_id}/lms/assignment-targets"))["items"]
 
 

@@ -164,7 +164,7 @@ async def test_binding_and_link_rules(api: Api):
     # Sync, toggle and unlink.
     await api.sync(program_id, course_a)
     state = await api.call("GET", f"/courses/{course_a}/lms-link")
-    assert (state["link"]["sync_errors"], state["link"]["synced_at"] is not None) == ({}, True)
+    assert (state["link"]["sync_state"], state["link"]["synced_at"] is not None) == ("ok", True)
     state = await api.call("PATCH", f"/courses/{course_a}/lms-link", json={"sync_enabled": False})
     assert state["link"]["sync_enabled"] is False
     state = await api.call("DELETE", f"/courses/{course_a}/lms-link")

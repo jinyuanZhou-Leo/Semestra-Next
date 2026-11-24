@@ -14,8 +14,8 @@ async def course(ctx: Ctx, link: LmsCourseLink, b: Bound, sync_round: SyncRound)
     removed from it, deleted; M09 table 2, row 2) raises, and the round ends judging nothing.
     Writing its details is an item of its own (table 5b, row 7): the course was read, so the
     other stages go on if it fails."""
-    del sync_round
     external = await service.read_course(ctx, link, b)
+    sync_round.part("course", "whole")
     result = StageResult()
     await hold(ctx, link)
     async with one_item(ctx, link, result, "course", link.external_course_id):
@@ -23,4 +23,4 @@ async def course(ctx: Ctx, link: LmsCourseLink, b: Bound, sync_round: SyncRound)
     return result
 
 
-register_sync_stage("course", course, order=0)
+register_sync_stage("course", course, order=0, parts=("course",))

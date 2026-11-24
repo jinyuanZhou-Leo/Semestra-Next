@@ -26,7 +26,7 @@ from semestra.modules.lms.models import (
 from semestra.modules.lms.schemas.dto import Announcement, FileMeta, NavTab, PageSummary
 from semestra.modules.lms.schemas.dto import LmsCalendarEvent as Event
 from semestra.modules.lms.sync_round import SyncRound
-from semestra.modules.lms.tests.conftest import Api, FakeProvider, SyncFailures
+from semestra.modules.lms.tests.conftest import Api, FakeProvider, Row, SyncFailures, report
 from semestra.modules.lms.tests.test_sync import _assessments, _course
 from semestra.testing import Clock, collect_events
 
@@ -69,7 +69,7 @@ async def _world(api: Api, fake: FakeProvider) -> tuple[str, str]:
     fake.page_texts = {"notes": ("Notes", "<p>" + "Read chapter one with care. " * 20 + "</p>")}
     program_id, course = await _course(api, "a1")
     status = await api.sync(program_id)
-    assert status["errors"] == []
+    assert report(status) == set()
     return program_id, course
 
 
@@ -128,10 +128,6 @@ async def _seen(app: FastAPI, api: Api) -> Seen:
         )
 
 
-def _errors(status: dict[str, Any]) -> dict[str, str]:
-    return {e["stage"]: e["code"] for e in status["errors"]}
-
-
 @pytest.fixture
 def poison() -> Iterator[None]:
     """Any write of a sync row holding `POISON` fails, as a bug in that write would."""
@@ -158,7 +154,7 @@ async def test_row1_course_not_read_ends_the_round(api: Api, app: FastAPI, fake:
     fake.faults["get_course"] = lms_error("lms.forbidden")
     fake.reads.clear()
     status = await api.sync(program_id)
-    assert _errors(status) == {"course": "lms.forbidden"}
+    assert report(status) == {(5, ("course",), "lms.forbidden")}
     assert fake.reads == ["get_course"]  # nothing under the course is asked
     seen = await _seen(app, api)
     assert not any(seen.wrote(stage) for stage in STAGES[1:])
@@ -175,13 +171,17 @@ async def test_row2_an_answer_about_the_connection_ends_the_round(
     fake.faults["announcements"] = lms_error("lms.rate_limited", retry_after=60)
     fake.reads.clear()
     status = await api.sync(program_id)
-    assert _errors(status) == {"announcements": "lms.rate_limited"}
+    # The parts this round did not reach, as one row (表 5c, row 6).
+    assert report(status) == {
+        (6, ("announcements", "calendar", "files", "pages", "modules"), "lms.rate_limited")
+    }
     seen = await _seen(app, api)
     assert seen.wrote("assignments")  # committed before
     assert not seen.wrote("announcements")
     assert "calendar_events" not in fake.reads
     assert "course_files" not in fake.reads
     assert seen.link.area_reads["calendar"]["reason"] == "lms.rate_limited"
+    assert seen.link.area_reads["calendar"]["retry_at"] is not None
     assert status["synced_at"] is not None
 
 
@@ -190,7 +190,7 @@ async def test_row3_a_list_not_given_is_about_that_list(api: Api, app: FastAPI, 
     _canaries(fake)
     fake.faults["pages"] = lms_error("lms.unreachable", upstream_status=502)
     status = await api.sync(program_id)
-    assert status["errors"] == []
+    assert report(status) == {(6, ("pages",), "lms.unreachable")}
     seen = await _seen(app, api)
     assert all(seen.wrote(stage) for stage in STAGES[1:])
     assert seen.link.area_reads["pages"]["result"] == "unavailable"
@@ -208,7 +208,11 @@ async def test_row4_an_item_not_given_is_about_that_item(
     fake.reads.clear()
     status = await api.sync(program_id)
     assert "file" in fake.reads
-    assert status["errors"] == []
+    # The list closed, f1 is read on its own and not given: listed as not read (表 5c, row 9).
+    assert report(status) == {
+        (8, "files"),
+        (9, "material", "one.txt", "lms.unreachable"),
+    }
     seen = await _seen(app, api)
     assert seen.materials["file:f1"] == "synced"
     assert all(seen.wrote(stage) for stage in STAGES[1:4])
@@ -221,7 +225,7 @@ async def test_row5_a_side_read_keeps_what_was_read_before(
     _canaries(fake)
     fake.faults["submissions"] = lms_error("lms.forbidden")
     status = await api.sync(program_id)
-    assert _errors(status) == {"assignments": "lms.forbidden"}
+    assert report(status) == {(7, ("submissions",), "lms.forbidden")}
     seen = await _seen(app, api)
     assert all(seen.wrote(stage) for stage in STAGES[1:])
     assert (await _assessments(api, course))["a1"]["title"] == "Lab 1"
@@ -251,7 +255,10 @@ async def test_row6_shared_work_fails_only_what_uses_it(
 
     monkeypatch.setattr(sources, "own_files", broken)
     status = await api.sync(program_id)
-    assert _errors(status) == {"files": "common.internal"}
+    assert report(status) == {(4, "files", "common.internal")}
+    [problem] = status["problems"]
+    assert [i["title"] for i in problem["items"]] == ["two.txt", "three.txt"]
+    assert problem["request_id"]
     assert asked == ["own_files"]
     assert sorted(expect_sync_failures.items()) == [
         ("file", "f2", "common.internal"),
@@ -310,7 +317,7 @@ async def test_row7_an_item_that_fails_is_left_as_it_was(
     user_id = (await api.call("GET", "/account/me"))["id"]
     with collect_events(app, user_id) as pushed:
         status = await api.sync(program_id)
-    assert _errors(status) == {stage: "common.internal"}
+    assert report(status) == {(4, stage, "common.internal")}
     assert expect_sync_failures.items() == [(*expected, "common.internal")]
     [synced] = [m["data"] for m in pushed if m["type"] == sync.SYNCED]
     assert expected[1] not in {n["external_id"] for n in synced["notices"]}  # never told of it
@@ -342,7 +349,7 @@ async def test_row7_an_item_that_fails_is_left_as_it_was(
     fake.course_file_list = [_file("f1", "one.txt"), _file("f2", "two.txt"), _file("f3", "x.txt")]
     clock.advance(minutes=1)
     status = await api.sync(program_id)
-    assert status["errors"] == []
+    assert report(status) == set()
 
 
 async def test_row8_the_stage_s_own_record_failing_fails_the_stage(
@@ -363,7 +370,7 @@ async def test_row8_the_stage_s_own_record_failing_fails_the_stage(
 
     monkeypatch.setattr(SyncRound, "save", broken)
     status = await api.sync(program_id)
-    assert _errors(status) == {"files": "common.internal"}
+    assert report(status) == {(3, "files", "common.internal")}
     assert expect_sync_failures.events() == ["lms.sync_stage_failed"]
     seen = await _seen(app, api)
     assert all(seen.wrote(stage) for stage in STAGES[1:4])
@@ -422,7 +429,9 @@ ANSWERS: dict[str, str | None] = {
     "unreachable": "lms.unreachable",
     "invalid_credentials": "lms.invalid_credentials",
     "invalid_config": "lms.invalid_config",
-    "payload": "lms.unreachable",  # an answer not understood
+    "garbled": "lms.unreachable",  # not JSON, or not the shape asked for (row 19)
+    # A value the provider's DTO can't take: Semestra's own, as a bug (row 20).
+    "payload": "common.internal",
     "bug": "common.internal",  # Semestra's own, in the provider: never told as the platform's
 }
 STOPPING = {"rate_limited", "invalid_credentials", "invalid_config"}
@@ -435,7 +444,79 @@ ITEM_KEPT = {
 }
 
 
-LOGGED = {"payload": "lms.provider_payload", "bug": "lms.provider_failed"}
+LOGGED = {"payload": "lms.provider_failed", "bug": "lms.provider_failed"}
+
+
+# What each stage reads, as parts of the course (M09 表 5c).
+PARTS = {
+    "course": ("course",),
+    "assignments": ("assignments", "submissions", "quizzes", "total"),
+    "announcements": ("announcements",),
+    "calendar": ("calendar",),
+    "files": ("files", "pages", "modules"),
+}
+# The part each list or side read is, and the area each list refused as closed (`needs`) is.
+PART_OF = {
+    "assignments": "assignments",
+    "announcements": "announcements",
+    "calendar_events": "calendar",
+    "course_files": "files",
+    "pages": "pages",
+    "modules": "modules",
+    "module_items": "modules",
+    "submissions": "submissions",
+    "quizzes": "quizzes",
+    "course_total": "total",
+}
+# The item each single read is about, as the panel names it; announcements are not kept as
+# items in Semestra (表 5c, row 9).
+ITEM_ROW = {
+    "assignment": ("assignment", "Lab 1"),
+    "file": ("material", "one.txt"),
+    "page": ("material", "Notes"),
+}
+BUG = "common.internal"
+
+
+def _expected(read: Read, answer: str) -> set[Row]:
+    """Where the panel tells of each case, by row of M09 表 5c."""
+    code = ANSWERS[answer]
+    # The lists refused as closed; the navigation's case is what tells it closed.
+    closed = {PART_OF[n] for n in read.needs} if read.kind != "nav" or answer == "ok" else set()
+    rows: set[Row] = {(8, a) for a in closed}
+    if answer in ("invalid_credentials", "invalid_config"):
+        return rows  # told on the connection (row 1), not by course
+    if answer == "rate_limited":  # the round ends: the parts it did not reach, as one row
+        reached = STAGES[STAGES.index(read.stage) :]
+        # A closed list tells for its own parts and, the assignments, those that add to it.
+        hidden = closed | (set(PARTS["assignments"]) if "assignments" in closed else set())
+        parts = tuple(p for s in reached for p in PARTS[s] if p not in hidden)
+        return rows | {(6, parts, code)}
+    if answer == "ok":
+        return rows
+    if answer in ("payload", "bug"):
+        if read.kind == "nav":  # no part of its own: logged, and the list stays refused
+            return {(7, ("pages",), "lms.forbidden")}
+        return rows | {(2 if read.kind == "course" else 4, read.stage, BUG)}
+    if read.kind == "course":
+        if answer in ("unreachable", "garbled"):
+            return {(6, tuple(p for s in STAGES for p in PARTS[s]), code)}
+        return {(5, ("course",), code)}
+    if read.kind == "nav":  # the navigation not read: the list refused is just refused
+        return {(7, ("pages",), "lms.forbidden")}
+    if read.kind == "item":
+        if read.method not in ITEM_ROW or answer == "not_found":
+            return rows  # an announcement, or gone (table 3c)
+        why = "lms.unreachable" if answer in ("unreachable", "garbled") else "lms.area_hidden"
+        return rows | {(9, *ITEM_ROW[read.method], why)}
+    part = PART_OF[read.method]
+    whole = PARTS["assignments"] if part == "assignments" else (part,)
+    closes = part not in ("calendar", "submissions", "total")
+    if answer in ("closed", "not_found") and closes:
+        return rows | {(8, part)}
+    if answer in ("unreachable", "garbled"):
+        return rows | {(6, whole, code)}
+    return rows | {(7, whole, code)}
 
 
 def _not_understood() -> ValidationError:
@@ -460,6 +541,8 @@ def _answer(fake: FakeProvider, read: Read, answer: str) -> None:
             fake.faults[read.method] = lms_error(code, retry_after=60)
         case "invalid_config":
             fake.faults[read.method] = lms_error(code, field="base_url", reason="redirect")
+        case "garbled":
+            fake.faults[read.method] = lms_error(code, reason="payload")
         case _:
             fake.faults[read.method] = lms_error(code)
     if read.kind not in ("area", "side") or read.area in (None, "calendar"):
@@ -488,6 +571,7 @@ async def test_matrix(
         fake.faults[needed] = lms_error("lms.forbidden")  # closed: the default navigation
     if read.method == "page":
         clock.advance(days=2)  # the page's text read last round is not read again for a day
+    clock.advance(minutes=1)  # an area closed now is closed later than it last read back
     _answer(fake, read, answer)
     fake.reads.clear()
     status = await api.sync(program_id)
@@ -496,17 +580,9 @@ async def test_matrix(
     code = ANSWERS[answer]
     failed = code is not None
     ended = failed and (read.kind == "course" or answer in STOPPING)
-    # A side read that fails is the stage's error (table 5b, row 5); a closed quiz list is how
-    # the course is set up (#436).
-    side_error = (
-        failed
-        and read.kind == "side"
-        and not (read.method == "quizzes" and answer in ("closed", "not_found"))
-    )
-    # A bug of Semestra's is about that read too, but its stage reports it: it will happen every
-    # round (table 2, row 20).
-    expected = {read.stage: code} if ended or side_error or answer == "bug" else {}
-    assert _errors(status) == expected
+    # Each case lands in its row of 表 5c: the platform's answers by reason, Semestra's own bugs
+    # as problems (they come back every round), the connection's on the connection.
+    assert report(status) == _expected(read, answer)
 
     seen = await _seen(app, api)
     end = STAGES.index(read.stage) if ended else len(STAGES)
@@ -531,4 +607,7 @@ async def test_matrix(
     # An answer not understood and a bug are logged each time (the navigation is read for the
     # round and for the course's overview).
     logged = set(expect_sync_failures.events())
-    assert logged == ({LOGGED[answer]} if answer in LOGGED else set())
+    expected_logs = {LOGGED[answer]} if answer in LOGGED else set()
+    if read.kind == "course" and answer in LOGGED:
+        expected_logs.add("lms.sync_stage_failed")  # the course not read is Semestra's: ended
+    assert logged == expected_logs

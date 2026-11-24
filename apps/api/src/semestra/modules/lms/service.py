@@ -10,7 +10,7 @@ from collections.abc import AsyncIterator, Awaitable, Callable, Iterator, Sequen
 from contextlib import asynccontextmanager, contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 from urllib.parse import urljoin
 
 import structlog
@@ -597,14 +597,15 @@ async def call[T](ctx: Ctx, b: Bound, fn: Callable[[Io], Awaitable[T]]) -> tuple
 
 def provider_failure(b: Bound, exc: Exception) -> AppError:
     """What a provider call raised other than an answer (`AppError`), in the `except` block that
-    caught it; about this read only, and logged. A value of the platform's answer that its DTO
-    cannot take (`ValidationError`) is an answer not understood, `lms.unreachable` (M09 table 2,
-    row 19); anything else is Semestra's own bug, `common.internal` (row 21), never told as the
-    platform's."""
+    caught it; about this read only, and logged. It is Semestra's own bug, `common.internal`
+    (M09 table 2, row 20), never told as the platform's: a value of the platform's answer that
+    its DTO can't take included (`ValidationError`), as what the platform may send is the DTO's
+    to take, fitted to Semestra's objects later (table 5c); its fields go into the log."""
     if isinstance(exc, ValidationError):
-        log.error("lms.provider_payload", exc_info=True, provider=b.row.provider)
-        return lms_error("lms.unreachable", reason="payload")
-    log.error("lms.provider_failed", exc_info=True, provider=b.row.provider)
+        fields = [".".join(str(p) for p in e["loc"]) for e in exc.errors()]
+        log.error("lms.provider_failed", exc_info=True, provider=b.row.provider, fields=fields)
+    else:
+        log.error("lms.provider_failed", exc_info=True, provider=b.row.provider)
     return AppError(BUG, 500)
 
 
@@ -747,7 +748,10 @@ async def program_connection(ctx: Ctx, program_id: str) -> LmsConnection:
 # --- external courses and links -------------------------------------------------------------
 
 
-def link_out(row: LmsCourseLink, provider: str) -> CourseLink:
+def link_out(
+    row: LmsCourseLink, provider: str, sync_state: Literal["ok", "stale", "failed"] = "ok"
+) -> CourseLink:
+    """A link as the app shows it; `sync_state` from `sync_state.states`."""
     return CourseLink(
         id=row.id,
         course_id=row.course_id,
@@ -761,7 +765,7 @@ def link_out(row: LmsCourseLink, provider: str) -> CourseLink:
         web_url=row.web_url,
         sync_enabled=row.sync_enabled,
         synced_at=row.synced_at,
-        sync_errors=row.sync_errors,
+        sync_state=sync_state,
         features=provider_features(provider),
         created_at=row.created_at,
     )
@@ -811,7 +815,12 @@ async def link_list(ctx: Ctx, program_id: str, term_id: str | None = None) -> Co
         ids = await academics.term_course_ids(ctx, term_id)
         query = query.where(LmsCourseLink.course_id.in_(ids))
     rows = (await ctx.db.execute(query)).all()
-    return CourseLinkList(items=[link_out(link, provider) for link, provider in rows])
+    from semestra.modules.lms import sync_state  # imports this module
+
+    states = await sync_state.states(ctx, [link for link, _ in rows])
+    return CourseLinkList(
+        items=[link_out(link, provider, states[link.id]) for link, provider in rows]
+    )
 
 
 async def external_courses(
@@ -885,13 +894,14 @@ async def link_state(ctx: Ctx, course_id: str) -> CourseLinkState:
     binding = await binding_row(ctx, course.program_id)
     out = counts = None
     if link is not None:
+        from semestra.modules.lms import sync_state  # imports this module
         from semestra.modules.lms.material_items import (
             has_copy,
             synced_items,
         )  # imports this module
 
         conn = await get_connection_row(ctx, link.connection_id)
-        out = link_out(link, conn.provider)
+        out = link_out(link, conn.provider, (await sync_state.states(ctx, [link]))[link.id])
         rows = await synced_items(ctx, link.id)
         local = sum(1 for r in rows if has_copy(r))
         counts = MaterialCounts(local=local, online=len(rows) - local)
@@ -950,7 +960,7 @@ async def create_link(
     link.sync_enabled = sync_enabled
     _apply_meta(link, external)
     # Not synced yet: the scheduler's next round picks it up first.
-    link.synced_at, link.sync_errors = None, {}
+    link.synced_at, link.sync_problems = None, {}
     link.updated_at = ctx.now
     await ctx.db.flush()
     # The link is written first, so this transaction holds the write lock: a binding change
