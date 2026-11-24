@@ -61,14 +61,17 @@ export function useContentSearch(
   })
 }
 
-/** Text split into plain and marked parts; the marked ones are the matches. */
-function MarkedParts({ parts }: { parts: readonly SnippetPart[] }) {
+/**
+ * Text split into plain and marked parts; the marked ones are the matches. One element, so a flex
+ * parent (an item title) does not turn every part into a flex item with a gap in between.
+ */
+function MarkedParts({ parts, className }: { parts: readonly SnippetPart[]; className?: string }) {
   return (
-    <>
+    <span className={className}>
       {parts.map((part, index) =>
         part.marked ? (
           // oxlint-disable-next-line no-array-index-key -- parts never reorder
-          <mark key={index} className="rounded-sm bg-primary/15 px-0.5 text-foreground">
+          <mark key={index} className="rounded-sm bg-primary/15 text-foreground">
             {part.text}
           </mark>
         ) : (
@@ -76,7 +79,7 @@ function MarkedParts({ parts }: { parts: readonly SnippetPart[] }) {
           <span key={index}>{part.text}</span>
         ),
       )}
-    </>
+    </span>
   )
 }
 
@@ -86,7 +89,8 @@ export function Snippet({ text }: { text: string }) {
 
 /** `text` with every case-insensitive occurrence of `needle` marked. */
 function Marked({ text, needle }: { text: string; needle: string }) {
-  return <MarkedParts parts={matchParts(text, needle)} />
+  // Truncated here: the title is a flex row, where only an element of its own can show an ellipsis.
+  return <MarkedParts parts={matchParts(text, needle)} className="truncate" />
 }
 
 function Heading({ children, count }: { children: string; count: number }) {

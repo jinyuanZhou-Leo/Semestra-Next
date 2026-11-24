@@ -3,11 +3,11 @@ import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Blob as NodeBlob, File as NodeFile } from 'node:buffer'
 import { http, HttpResponse } from 'msw'
-import { type ReactNode, useEffect } from 'react'
+import { type ReactNode, useEffect, useState } from 'react'
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest'
 import type { Scope } from '@/app/extensions'
 import { API, renderWithRouter, server } from '@/test-utils'
-import { highlightHtml, searchTerms, snippetParts } from './highlight'
+import { searchTerms, snippetParts, textRanges } from './highlight'
 import { Citation } from './components/Citation'
 import { DocumentText } from './components/DocumentText'
 import { type Target, canMoveInto, canMoveIntoNewFolder, folderTree } from './folders'
@@ -555,10 +555,18 @@ test('uploads that cannot fit are refused before sending', () => {
   expect(planUpload([big], { ...usage, quota_bytes: 0, max_upload_bytes: 100 }).room).toBe(true)
 })
 
-test('highlighting escapes file text and marks every match', () => {
-  expect(highlightHtml('<b>Midterm</b> & midterm', ['midterm'])).toBe(
-    '&lt;b&gt;<mark>Midterm</mark>&lt;/b&gt; &amp; <mark>midterm</mark>',
-  )
+test('search terms are found across the elements a layout cut a word into', () => {
+  const root = document.createElement('div')
+  root.innerHTML = '<span>The Mid</span><span>term</span> and <span>midterm</span>'
+  expect(textRanges(root, ['midterm'], { joined: true }).map(String)).toEqual([
+    'Midterm',
+    'midterm',
+  ])
+  // Cells and paragraphs are separate words, and so are lines of a layout.
+  root.innerHTML = '<p>data</p><p>base</p>'
+  expect(textRanges(root, ['database'])).toEqual([])
+  root.innerHTML = '<span>data</span><br /><span>base</span>'
+  expect(textRanges(root, ['database'], { joined: true })).toEqual([])
   expect(searchTerms('midterm, 期中考试 a')).toEqual(['midterm', '期中考试'])
   expect(snippetParts('a <mark>b</mark> c')).toEqual([
     { text: 'a ', marked: false },
@@ -612,56 +620,79 @@ test('a PDF can be read as the text Semestra recognized in it', async () => {
   expect(await within(dialog).findByText('Read from page one')).toBeInTheDocument()
 })
 
-test('the recognized text goes on above the pages being read as their placeholder nears', async () => {
+/** jsdom cannot scroll; the virtualizer asks the scroller to. */
+function noScrollTo() {
+  Object.defineProperty(Element.prototype, 'scrollTo', { value: () => {}, configurable: true })
+  return () => Reflect.deleteProperty(Element.prototype, 'scrollTo')
+}
+
+function serveDocumentText(pageCount: number, fail?: (from: number) => boolean) {
+  const reads: number[] = []
   server.use(
     http.get(`${API}/files/:id/document`, ({ request }) => {
       const url = new URL(request.url)
       const from = Number(url.searchParams.get('page_from'))
-      const to = Math.min(Number(url.searchParams.get('page_to')), 100)
+      reads.push(from)
+      if (fail?.(from)) return HttpResponse.json({ error: { code: 'boom' } }, { status: 500 })
+      const to = Math.min(Number(url.searchParams.get('page_to')), pageCount)
       return HttpResponse.json({
         item_id: 'i1',
         display_name: 'syllabus.pdf',
-        page_count: 100,
+        page_count: pageCount,
         pages: Array.from({ length: to - from + 1 }, (_, n) => ({
           page_no: from + n,
           markdown: `Text of page ${from + n}`,
           ocr_used: false,
           citation_id: 'x',
         })),
-        next_page: to < 100 ? to + 1 : null,
+        next_page: to < pageCount ? to + 1 : null,
         citations: [],
       })
     }),
   )
-  // Only the placeholder above the pages is in range, as when the reader sits at the top.
-  vi.stubGlobal(
-    'IntersectionObserver',
-    class {
-      constructor(private readonly callback: IntersectionObserverCallback) {}
-      observe(target: Element) {
-        const earlier = target.firstElementChild?.getAttribute('data-edge') === 'earlier'
-        if (earlier) {
-          this.callback(
-            [{ isIntersecting: true, target } as IntersectionObserverEntry],
-            this as unknown as IntersectionObserver,
-          )
-        }
-      }
-      disconnect() {}
-      unobserve() {}
-    },
-  )
-  const spy = vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {})
+  return reads
+}
+
+test('the recognized text lays out every page and reads only the run being reached', async () => {
+  const reads = serveDocumentText(100)
+  const restore = noScrollTo()
+  function Reader() {
+    const [target, setTarget] = useState(pageTarget(40))
+    return (
+      <DocumentText
+        itemId="i1"
+        target={target}
+        terms={[]}
+        onNavigate={(page) => setTarget(pageTarget(page))}
+      />
+    )
+  }
+  renderWithRouter(<Reader />)
+  // The run page 40 is in is read, the runs far from the pages shown are not; the page bar knows
+  // all 100 pages, and no button asks for more.
+  expect(await screen.findByText('Text of page 31')).toBeInTheDocument()
+  expect(reads).toContain(31)
+  expect(reads).not.toContain(61)
+  expect(reads).not.toContain(91)
+  expect(screen.getByText('of 100')).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /earlier|later/i })).not.toBeInTheDocument()
+  restore()
+})
+
+test('a run that fails to read shows on its own pages and can be read again', async () => {
+  let broken = true
+  serveDocumentText(100, (from) => broken && from === 1)
+  const restore = noScrollTo()
+  // Opened on page 40, with nothing scrolled (no layout here), the pages at the top are shown.
   renderWithRouter(
     <DocumentText itemId="i1" target={pageTarget(40)} terms={[]} onNavigate={() => {}} />,
   )
-  expect(await screen.findByText('Text of page 40')).toBeInTheDocument()
-  // The pages above it follow without a click, and the pages below wait.
+  const retry = (await screen.findAllByRole('button', { name: 'Retry' }))[0] as HTMLElement
+  broken = false
+  await userEvent.click(retry)
   expect(await screen.findByText('Text of page 1')).toBeInTheDocument()
-  expect(screen.queryByText('Text of page 70')).not.toBeInTheDocument()
-  expect(screen.queryByRole('button', { name: /earlier|later/i })).not.toBeInTheDocument()
-  spy.mockRestore()
-  vi.unstubAllGlobals()
+  expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
+  restore()
 })
 
 test('the grid shows page images only for PDFs and images, and falls back to the icon', async () => {

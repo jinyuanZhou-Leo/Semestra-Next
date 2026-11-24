@@ -657,8 +657,13 @@
   color: var(--foreground);
 }
 
-/* Search terms in a file preview's text view (`files/components/DocumentText.tsx`). */
-::highlight(files-preview-search) {
+/* Search terms in a file preview: the text view (`files/components/DocumentText.tsx`) and a PDF's
+   text layer (`PdfViewer.tsx`), whose text is invisible, so its marks keep the text colour. */
+::highlight(files-preview-search),
+::highlight(files-pdf-search) {
   background-color: color-mix(in oklch, var(--primary) 25%, transparent);
+}
+
+::highlight(files-preview-search) {
   color: var(--foreground);
 }
