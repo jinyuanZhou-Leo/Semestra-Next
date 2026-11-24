@@ -7,7 +7,7 @@ import { type ReactNode, useEffect, useState } from 'react'
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest'
 import type { Scope } from '@/app/extensions'
 import { API, renderWithRouter, server } from '@/test-utils'
-import { highlightHtml, searchTerms, snippetParts } from './highlight'
+import { searchTerms, snippetParts, textRanges } from './highlight'
 import { Citation } from './components/Citation'
 import { DocumentText } from './components/DocumentText'
 import { type Target, canMoveInto, canMoveIntoNewFolder, folderTree } from './folders'
@@ -555,10 +555,18 @@ test('uploads that cannot fit are refused before sending', () => {
   expect(planUpload([big], { ...usage, quota_bytes: 0, max_upload_bytes: 100 }).room).toBe(true)
 })
 
-test('highlighting escapes file text and marks every match', () => {
-  expect(highlightHtml('<b>Midterm</b> & midterm', ['midterm'])).toBe(
-    '&lt;b&gt;<mark>Midterm</mark>&lt;/b&gt; &amp; <mark>midterm</mark>',
-  )
+test('search terms are found across the elements a layout cut a word into', () => {
+  const root = document.createElement('div')
+  root.innerHTML = '<span>The Mid</span><span>term</span> and <span>midterm</span>'
+  expect(textRanges(root, ['midterm'], { joined: true }).map(String)).toEqual([
+    'Midterm',
+    'midterm',
+  ])
+  // Cells and paragraphs are separate words, and so are lines of a layout.
+  root.innerHTML = '<p>data</p><p>base</p>'
+  expect(textRanges(root, ['database'])).toEqual([])
+  root.innerHTML = '<span>data</span><br /><span>base</span>'
+  expect(textRanges(root, ['database'], { joined: true })).toEqual([])
   expect(searchTerms('midterm, 期中考试 a')).toEqual(['midterm', '期中考试'])
   expect(snippetParts('a <mark>b</mark> c')).toEqual([
     { text: 'a ', marked: false },
@@ -612,35 +620,71 @@ test('a PDF can be read as the text Semestra recognized in it', async () => {
   expect(await within(dialog).findByText('Read from page one')).toBeInTheDocument()
 })
 
-test('earlier pages of the recognized text stay in view once loaded', async () => {
+/** jsdom has no scrolling or layout; the virtualizer scrolls with `scrollTo` and measures. */
+function scrollable() {
+  const tops = new WeakMap<Element, number>()
+  const original = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop')
+  Object.defineProperty(Element.prototype, 'scrollTop', {
+    get(this: Element) {
+      return tops.get(this) ?? 0
+    },
+    set(this: Element, top: number) {
+      tops.set(this, top)
+    },
+    configurable: true,
+  })
+  Object.defineProperty(Element.prototype, 'scrollTo', {
+    value(this: Element, options: ScrollToOptions) {
+      this.scrollTop = options.top ?? 0
+      this.dispatchEvent(new Event('scroll'))
+    },
+    configurable: true,
+  })
+  // Pages are measured, and every one is as tall as a page is estimated to be.
+  const rect = Element.prototype.getBoundingClientRect
+  Element.prototype.getBoundingClientRect = function (this: Element) {
+    const tall = this.hasAttribute('data-index')
+    return { ...rect.call(this), height: tall ? 360 : 0, width: 700 }
+  }
+  return () => {
+    Element.prototype.getBoundingClientRect = rect
+    Reflect.deleteProperty(Element.prototype, 'scrollTo')
+    if (original) Object.defineProperty(Element.prototype, 'scrollTop', original)
+  }
+}
+
+function serveDocumentText(pageCount: number, fail?: (from: number) => boolean) {
+  const reads: number[] = []
   server.use(
     http.get(`${API}/files/:id/document`, ({ request }) => {
       const url = new URL(request.url)
       const from = Number(url.searchParams.get('page_from'))
-      const to = Math.min(Number(url.searchParams.get('page_to')), 40)
+      reads.push(from)
+      if (fail?.(from)) return HttpResponse.json({ error: { code: 'boom' } }, { status: 500 })
+      const to = Math.min(Number(url.searchParams.get('page_to')), pageCount)
       return HttpResponse.json({
         item_id: 'i1',
         display_name: 'syllabus.pdf',
-        page_count: 40,
+        page_count: pageCount,
         pages: Array.from({ length: to - from + 1 }, (_, n) => ({
           page_no: from + n,
           markdown: `Text of page ${from + n}`,
           ocr_used: false,
           citation_id: 'x',
         })),
-        next_page: to < 40 ? to + 1 : null,
+        next_page: to < pageCount ? to + 1 : null,
         citations: [],
       })
     }),
   )
-  const scrolled: string[] = []
-  const spy = vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(function (
-    this: Element,
-  ) {
-    scrolled.push(this.getAttribute('data-page') ?? '')
-  })
+  return reads
+}
+
+test('the recognized text lays out every page and reads only the run being reached', async () => {
+  const reads = serveDocumentText(100)
+  const restore = scrollable()
   function Reader() {
-    const [target, setTarget] = useState(pageTarget(10))
+    const [target, setTarget] = useState(pageTarget(40))
     return (
       <DocumentText
         itemId="i1"
@@ -651,14 +695,32 @@ test('earlier pages of the recognized text stay in view once loaded', async () =
     )
   }
   renderWithRouter(<Reader />)
-  expect(await screen.findByText('Text of page 10')).toBeInTheDocument()
-  await waitFor(() => expect(scrolled).toEqual(['10']))
+  // The run page 40 is in is read, the runs far from the pages shown are not; the page bar knows
+  // all 100 pages, and no button asks for more.
+  expect(await screen.findByText('of 100')).toBeInTheDocument()
+  expect(reads).toContain(31)
+  expect(reads).not.toContain(61)
+  expect(reads).not.toContain(91)
+  expect(screen.getByText('of 100')).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /earlier|later/i })).not.toBeInTheDocument()
+  restore()
+})
 
-  await userEvent.click(screen.getByRole('button', { name: 'Show earlier pages' }))
-  expect(await screen.findByText('Text of page 1')).toBeInTheDocument()
-  await waitFor(() => expect(scrolled.at(-1)).toBe('1'))
-  expect(scrolled).toEqual(['10', '1'])
-  spy.mockRestore()
+test('a run that fails to read shows on its own pages and can be read again', async () => {
+  let broken = true
+  serveDocumentText(100, (from) => broken && from === 31)
+  const restore = scrollable()
+  // Page 30 ends the first run, so the pages shown reach into the next one, which fails.
+  renderWithRouter(
+    <DocumentText itemId="i1" target={pageTarget(30)} terms={[]} onNavigate={() => {}} />,
+  )
+  expect(await screen.findByText('Text of page 30')).toBeInTheDocument()
+  const retry = (await screen.findAllByRole('button', { name: 'Retry' }))[0] as HTMLElement
+  broken = false
+  await userEvent.click(retry)
+  expect(await screen.findByText('Text of page 31')).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
+  restore()
 })
 
 test('the grid shows page images only for PDFs and images, and falls back to the icon', async () => {
