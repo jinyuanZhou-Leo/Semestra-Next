@@ -146,7 +146,7 @@ export function ItemDialogs({
             type: 'folder',
             folder: folders.find((f) => f.id === target.folder.id) ?? target.folder,
           }
-    return <InfoDialog target={latest} folders={folders} onClose={close} {...shown} />
+    return <InfoDialog target={latest} folders={folders} items={items} onClose={close} {...shown} />
   }
   if (action.kind === 'move')
     return (

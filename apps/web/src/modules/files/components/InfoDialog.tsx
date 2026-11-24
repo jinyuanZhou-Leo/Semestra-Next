@@ -1,4 +1,4 @@
-import type { FolderOut } from '@semestra/api-client'
+import type { FolderOut, ItemOut } from '@semestra/api-client'
 import { Folder } from 'lucide-react'
 import { SettingRow, SettingsGroup } from '@/app/settings/rows'
 import { formatBytes, formatDateTime } from '@/lib/format'
@@ -20,6 +20,14 @@ import { FileIcon } from './FileIcon'
 /** Values wrap inside their row, so a long path or address never widens the dialog. */
 const VALUE = 'min-w-0 text-right break-words'
 
+/** What a folder holds as the list shows it: its files, links and folders. */
+function contents(folder: FolderOut, folders: readonly FolderOut[], items: readonly ItemOut[]) {
+  return (
+    folders.filter((f) => f.parent_id === folder.id).length +
+    items.filter((i) => i.folder_id === folder.id).length
+  )
+}
+
 /**
  * A file's, link's or folder's properties, read-only: the "属性" entry of its menu. What the file
  * list already shows (where it is read from, whether its text has been read) stays there.
@@ -27,12 +35,14 @@ const VALUE = 'min-w-0 text-right break-words'
 export function InfoDialog({
   target,
   folders,
+  items,
   open,
   onOpenChangeComplete,
   onClose,
 }: {
   target: Target
   folders: readonly FolderOut[]
+  items: readonly ItemOut[]
   open: boolean
   onOpenChangeComplete: (open: boolean) => void
   onClose: () => void
@@ -41,7 +51,6 @@ export function InfoDialog({
   const trail = pathTo(parentId, folderTree(folders)).map((f) => f.name)
   const item = target.type === 'item' ? target.item : null
   const created = target.type === 'item' ? target.item.created_at : target.folder.created_at
-  const modified = target.type === 'item' ? target.item.modified_at : target.folder.updated_at
   const kind = !item
     ? m.files_info_folder()
     : item.kind === 'link'
@@ -90,7 +99,7 @@ export function InfoDialog({
             ) : null,
             target.type === 'folder' ? (
               <SettingRow key="count" label={m.files_info_items()}>
-                {target.folder.item_count}
+                {contents(target.folder, folders, items)}
               </SettingRow>
             ) : null,
             <SettingRow key="location" label={m.files_info_location()}>
@@ -101,9 +110,11 @@ export function InfoDialog({
             <SettingRow key="created" label={m.files_info_created()}>
               {formatDateTime(created)}
             </SettingRow>,
-            <SettingRow key="modified" label={m.files_modified()}>
-              {formatDateTime(modified)}
-            </SettingRow>,
+            item ? (
+              <SettingRow key="modified" label={m.files_modified()}>
+                {formatDateTime(item.modified_at)}
+              </SettingRow>
+            ) : null,
           ]}
         </SettingsGroup>
         <DialogFooter>
