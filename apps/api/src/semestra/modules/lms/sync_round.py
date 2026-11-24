@@ -4,7 +4,7 @@ read on its own, within this round's budget (`rules.CHECKS_PER_RUN`).
 Every stage of a course's sync reads the platform through the round (`area`, `judge`,
 `read_many`), and the materials, the assignments and the announcements it did not find are judged
 by `judge`: the one flow around `rules.presence` (M09 table 3c). The budget is spent in one place
-(`_spend`). The round keeps only plain values: each stage has a transaction (and a database
+(`spend`). The round keeps only plain values: each stage has a transaction (and a database
 session) of its own, and writes what it read with `save` once it holds the write lock.
 """
 
@@ -114,6 +114,8 @@ class SyncRound:
     _new: dict[Key, _Read] = field(default_factory=lambda: {})
     # Why a part was unavailable this round (an error code, with its params).
     _reasons: dict[str, tuple[str, dict[str, Any]]] = field(default_factory=lambda: {})
+    # Parts whose record is forgotten (`drop`).
+    _dropped: set[str] = field(default_factory=lambda: set[str]())
     # Reads that failed on a bug of Semestra's in the provider (M09 table 2, row 20), the parts
     # and the items read on their own: about that read only, and the stage they were read in
     # reports them (`sync.sync_course`, `sync_problems`), as every round will hit them again.
@@ -182,6 +184,7 @@ class SyncRound:
         if part and before is not None and _WORSE[before] > _WORSE[result]:
             result = before
         self.areas[area] = result
+        self._dropped.discard(area)
         return got
 
     def unsupported(self, area: str) -> None:
@@ -272,13 +275,13 @@ class SyncRound:
         error it got; throttling, the platform down or the token failing is raised (the stage
         stops; the next round reads it again). Not `budgeted`: the contents of items a list
         showed changed (pages), read whatever the budget."""
-        wanted = self._spend(list(external_ids)) if budgeted else list(external_ids)
+        wanted = self.spend(list(external_ids)) if budgeted else list(external_ids)
         if not wanted:
             return {}
         got = await read(wanted)
         return {e: self._record(ctx, b, kind, e, one) for e, one in zip(wanted, got, strict=True)}
 
-    def _spend[K](self, wanted: list[K]) -> list[K]:
+    def spend[K](self, wanted: list[K]) -> list[K]:
         """The round's budget rule, the one place it is applied: the first of `wanted` (in the
         order the budget goes) up to what is left, spent before reading; the rest wait for a
         later round (`out_of_budget`)."""
@@ -309,6 +312,18 @@ class SyncRound:
             result_of(answer), reason, ctx.now, rules.reason_params(params)
         )
         return answer
+
+    def drop(self, part: str) -> None:
+        """Forgets a part's record: not needed this round (the way to the front page when the
+        pages list was read whole, M09 table 2 row 21), and not to be taken as read or not."""
+        self.areas.pop(part, None)
+        self._reasons.pop(part, None)
+        self._dropped.add(part)
+
+    def read_another_way(self, ctx: Ctx, kind: str, external_id: str) -> None:
+        """Records an item got this round by a read not addressed by it (the front page by the
+        way to it, M09 §4.6): its single read of this round (table 3c, row 4)."""
+        self._new[(kind, external_id)] = _Read("present", None, ctx.now)
 
     async def judge(
         self,
@@ -344,7 +359,7 @@ class SyncRound:
                     wanted.append(key)
                 verdict = "unknown"
             verdicts[key] = verdict
-        ordered = self._spend(await self.oldest_first(ctx, link, wanted))
+        ordered = self.spend(await self.oldest_first(ctx, link, wanted))
         answers: dict[Key, ItemAnswer] = {}
         for kind in dict.fromkeys(k for k, _ in ordered):
             ids = [e for k, e in ordered if k == kind]
@@ -385,8 +400,10 @@ class SyncRound:
                     row.unavailable_since = None
                 row.result, row.reason, row.at = r.result, r.reason, r.at
                 row.reason_params = r.params
-        if self.areas:
+        if self.areas or self._dropped:
             merged: dict[str, Any] = dict(link.area_reads or {})
+            for a in self._dropped:
+                merged.pop(a, None)
             for a, r in self.areas.items():
                 code, params = self._reasons.get(a, (None, None))
                 merged[a] = area_entry(merged.get(a), r, ctx.now, code, params=params)

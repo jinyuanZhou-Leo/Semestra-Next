@@ -634,11 +634,12 @@ async def test_following_the_platform(api: Api, fake: FakeProvider, clock: Clock
     await api.sync(program_id)
     assert "Midterm 2025.pdf" in (await _files(api, course))[1]
 
-    # An area that could not be read: nothing is taken for gone.
+    # An area that could not be read: nothing is taken for gone. The files area closed is no row
+    # of its own (表 5c, row 8): its items are each read on their own.
     fake.files_hidden = True
     clock.advance(minutes=1)
     status = await api.sync(program_id)
-    assert report(status) == {(8, "files")}
+    assert report(status) == set()
     assert "data.zip" in (await _files(api, course))[1]
 
 
@@ -2101,8 +2102,9 @@ async def test_one_budget_for_files_and_pages(
     await _materials_setting(api, course, store="local")
     await api.sync(program_id)
     await api.run_jobs()
-    # Four a round: the two the modules point at, and two of the hidden ones.
-    monkeypatch.setattr(sync, "SyncRound", partial(SyncRound, budget=4))
+    # Five a round: the way to the front page, the two the modules point at (the page read every
+    # round: no list gives its version), and two of the hidden ones.
+    monkeypatch.setattr(sync, "SyncRound", partial(SyncRound, budget=5))
     fake.files_hidden = True
     fake.pages_hidden = True
     rounds: list[list[tuple[str, str]]] = []
@@ -2139,7 +2141,7 @@ async def test_what_a_closed_area_hides_read_online_is_removed(
 
     url = f"/programs/{program_id}/lms/sync/materials:remove"
     status = await api.call("POST", url)
-    assert [u["kind"] for u in status["unreadable"]] == ["area"]  # still closed
+    assert status["unreadable"] == []  # the files area closed is no row (表 5c, row 8)
     assert {r["title"] for r in status["removed_materials"]} == set(rows)
     assert not set(rows) & set((await _files(api, course))[1])
     error = await api.call("POST", url, status=409)
@@ -2287,3 +2289,84 @@ def test_a_backup_before_0070_keeps_following_once():
         ("synced", "shared", None, "shared"),
         ("absent", None, None, None),
     ]
+
+
+def _front_page_course(fake: FakeProvider) -> None:
+    """A course that hides its pages and its files and leaves the modules empty: everything
+    comes in through links from the front page (M09 §4.6, starting points)."""
+    fake.pages_hidden = True
+    fake.files_hidden = True
+    fake.module_list = []
+    fake.front_page = "home"
+    fake.page_texts = {
+        "home": ("Home", '<a href="https://fake/courses/101/pages/lectures">Lectures</a>'),
+        "lectures": (
+            "Lectures",
+            '<a href="https://fake/courses/101/files/301">Lecture 1</a>',
+        ),
+    }
+    fake.unlisted_files = [_file("301", "Lecture 1.pdf")]
+
+
+async def test_materials_linked_only_from_the_front_page_come_in(
+    api: Api, fake: FakeProvider, clock: Clock
+):
+    """The pages list hidden, the front page is found by the way to it: a page like the others
+    (read as that page's own read, though no item's place); it and the pages it links to, which
+    no list gives a version of, are read every round, so what the teacher adds comes in at the
+    next sync, not a day later."""
+    _front_page_course(fake)
+    program_id, course = await _course(api)
+    status = await api.sync(program_id)
+    folders, items = await _files(api, course)
+    assert _where(folders, items["Lecture 1.pdf"]) == "Lectures"  # the front page is no place
+    assert "Home" not in items  # only links: list pages
+    assert "Lectures" not in items
+    # The files area and the pages closed have no row of their own (表 5c, row 8).
+    assert report(status) == set()
+
+    # A lecture added: in at the next sync.
+    fake.page_texts["lectures"] = (
+        "Lectures",
+        '<a href="https://fake/courses/101/files/301">Lecture 1</a>'
+        '<a href="https://fake/courses/101/files/302">Lecture 2</a>',
+    )
+    fake.unlisted_files.append(_file("302", "Lecture 2.pdf"))
+    fake.calls.clear()
+    clock.advance(minutes=20)
+    await api.sync(program_id)
+    _, items = await _files(api, course)
+    assert "Lecture 2.pdf" in items
+    # The front page is read once, by the way to it, not again by its slug (table 3c).
+    assert ("front_page", "@front") in fake.calls
+    assert ("page", "home") not in fake.calls
+
+
+async def test_a_front_page_not_read_is_told(api: Api, fake: FakeProvider, clock: Clock):
+    """The way to the front page not read is told as not updated (表 5c, rows 6-7); what came
+    in through it stays (table 3c judges each on its own). The pages list read whole lists the
+    front page: the way to it is not read, nor kept as not read."""
+    _front_page_course(fake)
+    program_id, course = await _course(api)
+    await api.sync(program_id)
+    fake.faults["front_page"] = lms_error("lms.unreachable")
+    clock.advance(minutes=20)
+    status = await api.sync(program_id)
+    assert report(status) == {(6, ("front_page",), "lms.unreachable")}
+    assert "Lecture 1.pdf" in (await _files(api, course))[1]
+
+    fake.pages_hidden = False
+    fake.page_list = [PageSummary(external_id="p-home", ref="home", title="Home", front_page=True)]
+    fake.calls.clear()
+    clock.advance(minutes=20)
+    status = await api.sync(program_id)
+    assert report(status) == set()
+    assert ("front_page", "@front") not in fake.calls
+
+    # The pages hidden again, and no front page at all: nothing to start from, nothing not updated.
+    del fake.faults["front_page"]
+    fake.pages_hidden = True
+    fake.front_page = None
+    clock.advance(minutes=20)
+    status = await api.sync(program_id)
+    assert report(status) == set()

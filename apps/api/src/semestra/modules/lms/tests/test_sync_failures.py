@@ -208,11 +208,9 @@ async def test_row4_an_item_not_given_is_about_that_item(
     fake.reads.clear()
     status = await api.sync(program_id)
     assert "file" in fake.reads
-    # The list closed, f1 is read on its own and not given: listed as not read (表 5c, row 9).
-    assert report(status) == {
-        (8, "files"),
-        (9, "material", "one.txt", "lms.unreachable"),
-    }
+    # The list closed (no row of its own), f1 is read on its own and not given: listed as not
+    # read (表 5c, row 9).
+    assert report(status) == {(9, "material", "one.txt", "lms.unreachable")}
     seen = await _seen(app, api)
     assert seen.materials["file:f1"] == "synced"
     assert all(seen.wrote(stage) for stage in STAGES[1:4])
@@ -407,6 +405,7 @@ READS = [
     Read("files", "pages", "area", "pages"),
     Read("files", "modules", "area", "modules"),
     Read("files", "module_items", "area", "modules"),
+    Read("files", "front_page", "area", "front_page", needs=("pages",)),
     Read("files", "file", "item", "files", needs=("course_files",)),
     Read("files", "page", "item", "pages", needs=("pages", "modules")),
     Read("files", "navigation", "nav", "pages", needs=("pages",)),
@@ -455,6 +454,9 @@ PARTS = {
     "calendar": ("calendar",),
     "files": ("files", "pages", "modules"),
 }
+# Closed areas with a row of their own (表 5c, row 8): not the files area nor the pages, whose
+# items are each read on their own.
+ROW8 = ("assignments", "announcements", "quizzes", "modules")
 # The part each list or side read is, and the area each list refused as closed (`needs`) is.
 PART_OF = {
     "assignments": "assignments",
@@ -464,6 +466,7 @@ PART_OF = {
     "pages": "pages",
     "modules": "modules",
     "module_items": "modules",
+    "front_page": "front_page",
     "submissions": "submissions",
     "quizzes": "quizzes",
     "course_total": "total",
@@ -483,7 +486,7 @@ def _expected(read: Read, answer: str) -> set[Row]:
     code = ANSWERS[answer]
     # The lists refused as closed; the navigation's case is what tells it closed.
     closed = {PART_OF[n] for n in read.needs} if read.kind != "nav" or answer == "ok" else set()
-    rows: set[Row] = {(8, a) for a in closed}
+    rows: set[Row] = {(8, a) for a in closed if a in ROW8}
     if answer in ("invalid_credentials", "invalid_config"):
         return rows  # told on the connection (row 1), not by course
     if answer == "rate_limited":  # the round ends: the parts it did not reach, as one row
@@ -511,9 +514,12 @@ def _expected(read: Read, answer: str) -> set[Row]:
         return rows | {(9, *ITEM_ROW[read.method], why)}
     part = PART_OF[read.method]
     whole = PARTS["assignments"] if part == "assignments" else (part,)
-    closes = part not in ("calendar", "submissions", "total")
-    if answer in ("closed", "not_found") and closes:
+    if part == "front_page" and answer == "not_found":
+        return rows  # the platform says there is none (table 2, row 21)
+    if answer in ("closed", "not_found") and part in ROW8:
         return rows | {(8, part)}
+    if answer in ("closed", "not_found") and part in ("files", "pages"):
+        return rows  # closed, with no row of its own
     if answer in ("unreachable", "garbled"):
         return rows | {(6, whole, code)}
     return rows | {(7, whole, code)}
@@ -545,7 +551,7 @@ def _answer(fake: FakeProvider, read: Read, answer: str) -> None:
             fake.faults[read.method] = lms_error(code, reason="payload")
         case _:
             fake.faults[read.method] = lms_error(code)
-    if read.kind not in ("area", "side") or read.area in (None, "calendar"):
+    if read.kind not in ("area", "side") or read.area in (None, "calendar", "front_page"):
         return  # what the navigation says is only asked of a list refused (table 2, rows 7-8)
     if answer == "refused_nav_open":
         tab = NavTab(external_id=read.area or "", kind=read.area, label="Tab")  # type: ignore[arg-type]
@@ -569,6 +575,8 @@ async def test_matrix(
     _canaries(fake)
     for needed in read.needs:
         fake.faults[needed] = lms_error("lms.forbidden")  # closed: the default navigation
+    if read.method == "front_page":
+        fake.front_page = "notes"
     if read.method == "page":
         clock.advance(days=2)  # the page's text read last round is not read again for a day
     clock.advance(minutes=1)  # an area closed now is closed later than it last read back
@@ -600,9 +608,10 @@ async def test_matrix(
         assert entry["result"] == ("unavailable" if failed else "hidden")
     elif failed and read.kind == "area" and read.area:
         entry = seen.link.area_reads[read.area]
-        hidden = answer in ("closed", "not_found") and read.area != "calendar"
-        assert entry["result"] == ("hidden" if hidden else "unavailable")
-        if not hidden:
+        none = read.area == "front_page" and answer == "not_found"  # no starting point
+        hidden = answer in ("closed", "not_found") and read.area not in ("calendar", "front_page")
+        assert entry["result"] == ("whole" if none else "hidden" if hidden else "unavailable")
+        if not (hidden or none):
             assert entry["reason"] == code
     # An answer not understood and a bug are logged each time (the navigation is read for the
     # round and for the course's overview).
