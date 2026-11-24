@@ -35,8 +35,8 @@ The first sync after you link courses follows this; you can change it later in s
 </Step>
 </Steps>
 
-Access tokens are stored encrypted. If a token expires or is revoked, the sidebar asks you to
-reconnect.
+Access tokens are stored encrypted. If a token expires or is revoked, the sidebar and the course
+settings ask you to reconnect.
 
 New users can also add a connection and choose how course materials sync during onboarding, then
 import courses from Canvas when creating their first term.
@@ -95,13 +95,22 @@ done. Open it to see what needs you and the recent updates, course materials inc
 updates from the last 14 days can be undone.
 
 Values you changed that no longer match Canvas are listed separately, and each can go back to the
-Canvas value in one step.
+Canvas value in one step. A Canvas value Semestra can't hold, such as a weight over 100%, isn't
+copied: Semestra keeps its own and lists it as out of range. A name that is too long is shortened.
 
 When part of a sync runs into a problem, only that part is affected and everything else syncs as
-usual. If Canvas can't give one item right now, Semestra keeps it as it was and reads it again next
-sync; if one item can't be saved in Semestra, the sync status lists its course and the item is
-tried again next sync. A sync stops early only when the Canvas account or connection itself has a
-problem, such as an expired access token or too many requests.
+usual. Nothing stays out of date without saying so:
+
+- **Not updated** lists what Canvas didn't give this time, with the reason (Canvas not responding,
+  no access, a section the teacher closed) and when it was last updated. Semestra keeps it as it
+  was, and the row goes away by itself once Canvas gives it again. When Canvas isn't responding,
+  Semestra tries again sooner, then less often the longer it lasts.
+- **Sync errors** lists what Semestra itself couldn't sync. These come back every sync until
+  fixed; copy the error ID to report the problem.
+
+The sync status line and the course's settings show when a course has something not updated or a
+sync error. A sync stops early only when the Canvas account or connection itself has a problem,
+such as an expired access token or too many requests.
 
 ## Assignment details
 
@@ -125,8 +134,9 @@ Semestra can't tell whether you did it: it stays under **To do** in the Canvas t
 work until its due date, then leaves it and only says **Past due**.
 
 Assignments are saved in Semestra and updated with each sync, so they open quickly, even when
-Canvas can't be reached. When the last sync of assignments didn't succeed, or the teacher turned
-off the assignments area, the details say when what you see was saved. The refresh button in the
+Canvas can't be reached. When an assignment couldn't be updated in the last sync, or the teacher
+turned off the assignments area, the details say when what you see was saved; when only your
+submission couldn't be read, it says when its status was last updated. The refresh button in the
 top corner syncs the course's assignments right away; for a course whose sync is off, it reads the
 assignment from Canvas again. When an assignment has been deleted on Canvas, the details say it is
 no longer there.
@@ -148,7 +158,7 @@ no longer there.
 - **Calendar**: Canvas calendar events appear in your term calendar, including events for just
   your section. They're saved with each sync, so the calendar still shows them when Canvas can't
   be reached. The calendar's filter panel shows how many course calendars are not yet synced or
-  unavailable; the sync status gives the reason. Canvas calendar events don't send reminders.
+  unavailable; the sync status lists each under **Not updated** with the reason. Canvas calendar events don't send reminders.
 - **Announcements**: every linked course gets an **Announcements** page, and each term one that
   gathers the announcements of all its courses, with a filter by course. Unread announcements are
   marked, and the page's tab shows how many there are. Announcements are kept in Semestra, so you

@@ -11,7 +11,7 @@ one assembly (`assignment.py`) serves the details, the gradebook, the lists and 
 The platform reads are shared with the sync's assignments stage, which stores them: the
 assignments list, and three reads that add to it (the course's submissions, its quizzes when an
 assignment is one, the course total). One of those three failing leaves the assignments as read;
-`Side.errors` names what failed.
+`Side.reads` says how each one read (the sync records them as parts, M09 表 5c).
 """
 
 from collections.abc import Awaitable, Callable
@@ -24,7 +24,7 @@ from sqlalchemy import select
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError
 from semestra.modules.lms import reads, service
-from semestra.modules.lms.answers import AREA_HIDDEN, STOPPING
+from semestra.modules.lms.answers import AREA_HIDDEN, STOPPING, AreaResult
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.models import LmsAssignment, LmsCourseLink
 from semestra.modules.lms.schemas.dto import SubmissionDetail
@@ -64,17 +64,21 @@ class Facts:
         return str(self.assignment["external_id"])
 
 
+# The reads that add to the assignments list, as parts of the course (M09 表 5c).
+SIDE_PARTS = ("submissions", "quizzes", "total")
+
+
 @dataclass
 class Side:
-    """What the reads that add to the assignments list got: None for a read not made or failed
-    (`errors` names the failures)."""
+    """What the reads that add to the assignments list got: None for a read not made or failed.
+    `reads` says how each part read, and the error of one that gave nothing."""
 
     submissions: dict[str, dict[str, Any]] | None = None
     submissions_cut: bool = False
     quizzes: dict[str, dict[str, Any]] | None = None
     total: dict[str, Any] | None = None
     total_read: bool = False
-    errors: list[str] = field(default_factory=lambda: [])
+    reads: dict[str, tuple[AreaResult, AppError | None]] = field(default_factory=lambda: {})
 
 
 @dataclass
@@ -96,19 +100,20 @@ async def read_list(
     return await reads.raw_assignments(ctx, link.course_id, refresh, linked=(link, b))
 
 
-async def _side_read(side: Side, run: Callable[[], Awaitable[Any]]) -> tuple[bool, Any]:
-    """`(read, value)`: one read that adds to the list; a failure not about the account or the
-    connection (`STOPPING`) is noted in `side.errors` and leaves it unread. An area the
-    instructor closed (the quizzes) is how the course is set up, not a failure: left unread,
-    each item keeps what was last read of it."""
+async def _side_read(side: Side, part: str, run: Callable[[], Awaitable[Any]]) -> tuple[bool, Any]:
+    """`(read, value)`: one read that adds to the list, noted in `side.reads` as `whole`; a
+    failure not about the account or the connection (`STOPPING`) leaves it unread, `unavailable`
+    with its error. An area the instructor closed (the quizzes) is how the course is set up:
+    `hidden`, and each item keeps what was last read of it."""
     try:
-        return True, await run()
+        got = await run()
     except AppError as exc:
         if exc.code in STOPPING:
             raise
-        if exc.code != AREA_HIDDEN:
-            side.errors.append(exc.code)
+        side.reads[part] = ("hidden" if exc.code == AREA_HIDDEN else "unavailable", exc)
         return False, None
+    side.reads[part] = ("whole", None)
+    return True, got
 
 
 async def read_side(
@@ -126,9 +131,11 @@ async def read_side(
                 ctx, b, lambda i: b.provider.submissions(i, b.cfg, b.creds, ext)
             )
 
-        ok, got = await _side_read(side, subs)
+        ok, got = await _side_read(side, "submissions", subs)
         if ok:
             found, side.submissions_cut = got
+            if side.submissions_cut:
+                side.reads["submissions"] = ("partial", None)
             side.submissions = {}
             for s in found:
                 s.body = b.clean(s.body, None, ext)
@@ -138,8 +145,10 @@ async def read_side(
         async def quizzes() -> Any:
             return await reads.quizzes(ctx, link.course_id, refresh)
 
-        ok, found = await _side_read(side, quizzes)
+        ok, found = await _side_read(side, "quizzes", quizzes)
         if ok:
+            if found.truncated:
+                side.reads["quizzes"] = ("partial", None)
             side.quizzes = {
                 q.external_id: {"question_count": q.question_count, "time_limit": q.time_limit}
                 for q in found.items
@@ -152,9 +161,12 @@ async def read_side(
             )
             return got
 
-        side.total_read, found = await _side_read(side, total)
+        side.total_read, found = await _side_read(side, "total", total)
         if found is not None:
             side.total = found.model_dump(mode="json")
+    for part in SIDE_PARTS:
+        # Not offered by the provider, or (the quizzes) not wanted: no assignment is one.
+        side.reads.setdefault(part, ("unsupported", None))
     return side
 
 
@@ -323,7 +335,7 @@ async def read_one(ctx: Ctx, link: LmsCourseLink, b: Bound, external_id: str) ->
         async def submission() -> SubmissionDetail:
             return await reads.submission(ctx, link.course_id, external_id, True)
 
-        ok, got = await _side_read(side, submission)
+        ok, got = await _side_read(side, "submissions", submission)
         if ok:
             side.submissions = {external_id: got.model_dump(mode="json")}
     if a.get("quiz_id") and "quizzes" in b.provider.features:
@@ -331,7 +343,7 @@ async def read_one(ctx: Ctx, link: LmsCourseLink, b: Bound, external_id: str) ->
         async def quizzes() -> Any:
             return await reads.quizzes(ctx, link.course_id, False)
 
-        ok, listed = await _side_read(side, quizzes)
+        ok, listed = await _side_read(side, "quizzes", quizzes)
         if ok:
             side.quizzes = {
                 q.external_id: {"question_count": q.question_count, "time_limit": q.time_limit}

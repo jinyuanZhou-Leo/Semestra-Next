@@ -75,7 +75,7 @@ const LINK: CourseLink = {
   web_url: 'https://q.utoronto.ca/courses/101',
   sync_enabled: false,
   synced_at: null,
-  sync_errors: {},
+  sync_state: 'ok',
   created_at: '2026-09-01T10:00:00Z',
 }
 

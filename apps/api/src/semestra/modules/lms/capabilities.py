@@ -108,7 +108,7 @@ _BINDING_FIELDS = (
 )  # fmt: skip
 _LINK = (
     "id", "connection_id", "external_course_id", "external_code", "external_name",
-    "external_term", "sync_enabled", "synced_at", "sync_errors",
+    "external_term", "sync_enabled", "synced_at", "sync_state",
 )  # fmt: skip
 _LINK_FIELDS = ("course_id", "program_connection_id", *(f"link.{f}" for f in _LINK))
 

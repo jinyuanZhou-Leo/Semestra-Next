@@ -6,18 +6,22 @@ import { syncStatusOptions } from './status'
 
 /**
  * How many courses' calendars the sync has not read yet, or never could (M09 §4.8), a line each;
- * nothing once they are read. In the sync panel and under the platform in the calendar's filters.
+ * nothing once they are read. Under the platform in the calendar's filters; the sync panel tells
+ * only the first (a calendar not read is a row of its course there, 表 5c).
  */
 export function CalendarLines({
   status,
+  unreadable = true,
   className,
 }: {
   status: SyncStatus | undefined
+  /** The courses whose calendar can't be read: the sync panel lists them by course instead. */
+  unreadable?: boolean
   className?: string
 }) {
   const lines = [
     status?.calendar_waiting ? m.lms_calendar_waiting({ count: status.calendar_waiting }) : null,
-    status?.calendar_unreadable
+    unreadable && status?.calendar_unreadable
       ? m.lms_calendar_unreadable({ count: status.calendar_unreadable })
       : null,
   ].filter((line) => line !== null)

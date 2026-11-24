@@ -2,28 +2,32 @@
 
 One job per course, `lms.course.sync`, runs the registered stages in order (course details,
 assignments, announcements; the file sync adds its own). Each stage reads the platform first and
-then writes in a transaction of its own, so a failing stage keeps its error code in
-`LmsCourseLink.sync_errors` and the next one still runs. A part failing stops only that part (M09
-table 5b): each item a stage writes is written on its own (`one_item`), values its items share
-are worked out once and fail only the items that use them (`Shared`). Only the course itself not
-read, or an answer about the account or the connection (`STOPPING`), ends the run. When all have
-run the link's `synced_at` moves on and `lms.course.synced` says what the run did, for
-notifications (M18) and the app's status line.
+then writes in a transaction of its own, so a failing stage leaves what went wrong in
+`LmsCourseLink.sync_problems` (Semestra's own problems) or `area_reads` (the platform's answers,
+M09 表 5c) and the next one still runs. A part failing stops only that part (M09 table 5b): each
+item a stage writes is written on its own (`one_item`), values its items share are worked out
+once and fail only the items that use them (`Shared`). Only the course itself not read, or an
+answer about the account or the connection (`STOPPING`), ends the run. When all have run the
+link's `synced_at` moves on and `lms.course.synced` says what the run did, for notifications
+(M18) and the app's status line.
 
 Jobs are queued by the scheduler (`lms.sync_due`, every few minutes: courses whose last sync is
 older than the account's interval, `lms.sync_every`), when the app opens a Program whose courses
 were not synced lately, and when the user asks. The server's shortest interval
 (`lms_sync_min_interval`) holds for the first two; asking again within `COOLDOWN` of a course's
-last sync does nothing, unless that sync failed. Jobs run in the `background` lane, on workers
-of their own, so a long queue of them never delays the jobs a user waits on. Only synced
-courses of a running, upcoming or recent term are synced, and only for accounts used in the
-last weeks; a returning user's courses sync when the app opens.
+last sync does nothing, unless that sync had a problem of Semestra's. A course whose last round
+left parts or items unread for a while (`passing`: rate limited, not answered) is tried again
+sooner, waiting longer the longer they stay unread (`rules.next_sync`). Jobs run in the
+`background` lane, on workers of their own, so a long queue of them never delays the jobs a user
+waits on. Only synced courses of a running, upcoming or recent term are synced, and only for
+accounts used in the last weeks; a returning user's courses sync when the app opens.
 """
 
 from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from typing import Any
 
 import structlog
 from pydantic import BaseModel
@@ -38,7 +42,16 @@ from semestra.modules.academics import service as academics
 from semestra.modules.auth import service as auth
 from semestra.modules.lms import rules, service
 from semestra.modules.lms.answers import BUG, STOPPING
-from semestra.modules.lms.models import LmsConnection, LmsCourseLink
+from semestra.modules.lms.models import (
+    LmsAnnouncement,
+    LmsAssignment,
+    LmsCalendarEvent,
+    LmsConnection,
+    LmsCourseLink,
+    LmsImportedRef,
+    LmsItemCheck,
+    LmsMaterial,
+)
 from semestra.modules.lms.service import Bound
 from semestra.modules.lms.settings import account, floor, interval
 from semestra.modules.lms.sync_round import SyncRound
@@ -104,6 +117,7 @@ class Skipped:
     kind: str
     external_id: str
     code: str
+    title: str | None = None
 
 
 @dataclass
@@ -112,9 +126,6 @@ class StageResult:
     # Items waiting for the user: new ones, conflicts, items gone from the platform.
     pending: int = 0
     notices: list[Notice] = field(default_factory=lambda: [])
-    # A read that adds to the stage's area failed (the course's submissions, its total): the
-    # stage wrote what it read and kept the rest; recorded as the stage's error.
-    error: str | None = None
     skipped: list[Skipped] = field(default_factory=lambda: [])
 
 
@@ -127,13 +138,19 @@ class Item:
 
 @asynccontextmanager
 async def one_item(
-    ctx: Ctx, link: LmsCourseLink, result: StageResult, kind: str, external_id: str
+    ctx: Ctx,
+    link: LmsCourseLink,
+    result: StageResult,
+    kind: str,
+    external_id: str,
+    title: str | None = None,
 ) -> AsyncGenerator[Item]:
-    """Writes one item of a stage on its own (M09 table 5b, row 7): in a savepoint that, when the
-    block raises, takes back its writes and the events it queued (`events.savepoint`), notes it
-    in `result.skipped` and goes on with the next item. An answer about the account or the
-    connection (`STOPPING`) still ends the stage. What the block learns for the stage (its notices,
-    counts) it adds once `item.ok`. Called after `hold`, which begins the transaction."""
+    """Writes one item of a stage on its own (M09 table 5b, row 7): in a savepoint that, when
+    the block raises, takes back its writes and the events it queued (`events.savepoint`), notes
+    it in `result.skipped` and goes on with the next item. An answer about the account or the
+    connection (`STOPPING`) still ends the stage. What the block learns for the stage (its
+    notices, counts) it adds once `item.ok`. `title` names it to the user when it fails (M09
+    表 5c, row 4). Called after `hold`, which begins the transaction."""
     item = Item()
     course_id = link.course_id  # what the block changed goes back expired: not read after
     try:
@@ -157,7 +174,7 @@ async def one_item(
         code=code,
         request_id=ctx.request_id,
     )
-    result.skipped.append(Skipped(kind, external_id, code))
+    result.skipped.append(Skipped(kind, external_id, code, title))
     # What the block changed of the link went back with it: read again as committed.
     await ctx.db.refresh(link)
 
@@ -197,9 +214,9 @@ class SyncStage:
     order: int
     run: StageRun
     enabled: StageEnabled | None = None
-    # The area whose list the stage reads (`LmsCourseLink.area_reads`, M09 表 3c): a round that
-    # fails it, or ends before it, records it `unavailable`.
-    area: str | None = None
+    # The parts of the course the stage reads (`LmsCourseLink.area_reads`, M09 表 5c): a round
+    # in which it raises, or that ends before it, records them `unavailable`.
+    parts: tuple[str, ...] = ()
 
 
 _stages: dict[str, SyncStage] = {}
@@ -211,30 +228,18 @@ def register_sync_stage(
     *,
     order: int,
     enabled: StageEnabled | None = None,
-    area: str | None = None,
+    parts: Sequence[str] = (),
 ) -> None:
     """Adds a stage to every course sync. `run(ctx, link, b, round)` reads the platform through
     the round (`SyncRound.area`, `.judge`, `.read_many`), then writes in `ctx`'s transaction
     (committed after it returns; rolled back if it raises), taking the write lock with `hold`
-    before it reads what it compares, and saving what it read with `round.save`. An `AppError` is
-    recorded as the stage's error; the other stages still run. `enabled(ctx, link, b)` skips the
-    stage for a course (its settings, the provider's features). A stage with an `area` that
-    reads it on its own records how its list read with `record_area`."""
+    before it reads what it compares, and saving what it read with `round.save`. When it raises,
+    its `parts` are recorded unread and the other stages still run (M09 table 5b);
+    `enabled(ctx, link, b)` skips the stage for a course (its settings, the provider's
+    features), and its parts with it."""
     if name in _stages:
         raise ValueError(f"duplicate sync stage {name!r}")
-    _stages[name] = SyncStage(name, order, run, enabled, area)
-
-
-def record_area(
-    ctx: Ctx,
-    link: LmsCourseLink,
-    area: str,
-    result: rules.AreaResult,
-    reason: str | None = None,
-) -> None:
-    """Notes how an area's list read this round (M09 表 3c, §4.8)."""
-    entry = rules.area_entry(link.area_reads.get(area), result, ctx.now, reason)
-    link.area_reads = {**link.area_reads, area: entry}
+    _stages[name] = SyncStage(name, order, run, enabled, tuple(parts))
 
 
 async def hold(ctx: Ctx, link: LmsCourseLink) -> None:
@@ -296,60 +301,84 @@ async def sync_course(
     todo = [s for s in stages() if only is None or s.name in only]
     this_round = SyncRound()
     results: list[StageResult] = []
-    errors: dict[str, str] = {}
-    # Stages that raised: their area was not read this round.
-    failed: set[str] = set()
+    # Semestra's own problems, by stage (M09 表 5c, `sync_problems`).
+    problems: dict[str, dict[str, Any]] = {}
+    # Stages that raised, with the code: their parts were not read this round.
+    failed: dict[str, AppError] = {}
     ran: set[str] = set()
+    off: set[str] = set()
     # What ended the round before its last stage (M09 table 5b, rows 1-2).
-    ended: str | None = None
+    ended: AppError | None = None
     for n, stage in enumerate(todo):
         if progress is not None:
             await progress(n, len(todo))
+        request_id = ""
 
         async def run(sys: Ctx, stage: SyncStage = stage) -> None:
+            nonlocal request_id
+            request_id = sys.request_id
             link = await service.link_row(sys, course_id)
             if link is None or not link.sync_enabled:
                 raise _Unlinked
             b = await service.bound(sys, await service.get_connection_row(sys, link.connection_id))
             if stage.enabled is not None and not await stage.enabled(sys, link, b):
+                off.add(stage.name)
                 return
             this_round.begin(sys.now)
             ran.add(stage.name)
-            bugs = this_round.bugs
-            result = await stage.run(sys, link, b, this_round)
+            reads, items = len(this_round.bug_reads), len(this_round.bug_items)
+            # Its logs carry the run's id, which the panel shows (M09 表 5c, rows 2-4).
+            with structlog.contextvars.bound_contextvars(request_id=sys.request_id):
+                result = await stage.run(sys, link, b, this_round)
             results.append(result)
-            code = result.error or (result.skipped[0].code if result.skipped else None)
-            if code is None and this_round.bugs > bugs:
-                # A read failed on a bug of Semestra's (M09 table 2, row 20): it will every round,
-                # so the stage reports it, though the rest of it went on.
-                code = BUG
-            if code is not None:
-                errors[stage.name] = code
+            problem = _problem(
+                result.skipped,
+                this_round.bug_reads[reads:],
+                this_round.bug_items[items:],
+                sys.request_id,
+            )
+            if problem is not None:
+                problems[stage.name] = problem
 
         try:
             await run_as_system(state, user_id, run)
         except _Unlinked:
             return SyncOutcome(course_id=course_id)
         except AppError as exc:
-            errors[stage.name] = exc.code
-            failed.add(stage.name)
+            failed[stage.name] = exc
+            if rules.sync_reason(exc.code) == "ours":
+                log.error(
+                    "lms.sync_stage_failed",
+                    stage=stage.name,
+                    course_id=course_id,
+                    code=exc.code,
+                    request_id=request_id,
+                )
+                problems[stage.name] = {"code": exc.code, "request_id": request_id}
             if stage.name == "course" or exc.code in STOPPING:
                 # The course itself could not be read (M09 table 5b, row 1), or the account or the
                 # connection answered (row 2): the stages left would only be refused.
-                ended = exc.code
+                ended = exc
         except Exception:
-            log.exception("lms.sync_stage_failed", stage=stage.name, course_id=course_id)
-            errors[stage.name] = "common.internal"
-            failed.add(stage.name)
+            log.exception(
+                "lms.sync_stage_failed",
+                stage=stage.name,
+                course_id=course_id,
+                request_id=request_id,
+            )
+            failed[stage.name] = AppError(BUG, 500)
+            problems[stage.name] = {"code": BUG, "request_id": request_id}
             if stage.name == "course":
-                ended = "common.internal"
+                ended = failed[stage.name]
         if ended is not None:
+            if stage.name in problems:
+                problems[stage.name]["ended"] = True
             break
     outcome = SyncOutcome(
         course_id=course_id,
         applied=sum(len(r.applied) for r in results),
         pending=sum(r.pending for r in results),
-        errors=errors,
+        errors={stage: p["code"] for stage, p in problems.items()},
     )
 
     async def finish(sys: Ctx) -> None:
@@ -358,12 +387,35 @@ async def sync_course(
             return
         if only is None:
             link.synced_at = sys.now
-        link.sync_errors = errors if only is None else {**link.sync_errors, **errors}
-        # An area whose stage failed, or that the round never reached (the course could not be
-        # read, the account or the connection answered), was not read this round.
+        # The parts read this round, then those of the stages that raised or that the round
+        # never reached (the course could not be read, the account or the connection answered):
+        # not read this round, for the reason that stopped them (M09 表 5c). A stage that is off
+        # for the course reads nothing and leaves its parts as they were.
+        await this_round.save(sys, link, [])
+        if ended is not None:
+            off.update(await _off(sys, link, [s for s in todo if s.name not in ran | off]))
+        reads = dict(link.area_reads)
         for stage in todo:
-            if stage.area and (stage.name in failed or stage.name not in ran):
-                record_area(sys, link, stage.area, "unavailable", errors.get(stage.name, ended))
+            exc = failed.get(stage.name) or (ended if stage.name not in ran | off else None)
+            if exc is None:
+                continue
+            retry = exc.params.get("retry_after")
+            for part in stage.parts:
+                reads[part] = rules.area_entry(
+                    reads.get(part),
+                    "unavailable",
+                    sys.now,
+                    exc.code,
+                    float(retry) if isinstance(retry, int | float) else None,
+                    exc.params,
+                )
+        if reads != link.area_reads:
+            link.area_reads = reads
+        await _name_items(sys, link, problems)
+        # A round of some stages only says nothing new of the others.
+        names = {s.name for s in todo}
+        kept = {k: v for k, v in link.sync_problems.items() if k not in names}
+        link.sync_problems = problems if only is None else {**kept, **problems}
         await events.publish(
             sys,
             SYNCED,
@@ -393,13 +445,103 @@ async def sync_course(
                     for x in r.notices
                 ],
                 "pending": outcome.pending,
-                "errors": errors,
+                "errors": outcome.errors,
             },
         )
         await events.publish(sys, UPDATED, {"program_id": link.program_id})
 
     await run_as_system(state, user_id, finish)
     return outcome
+
+
+def _problem(
+    skipped: Sequence[Skipped],
+    reads: Sequence[str],
+    items: Sequence[tuple[str, str]],
+    request_id: str,
+) -> dict[str, Any] | None:
+    """A stage's problems of Semestra's own this round (M09 表 5c, rows 3-4): the items it could
+    not write, the items and the parts it could not read for a bug in the provider."""
+    listed = [
+        {"kind": x.kind, "external_id": x.external_id, "title": x.title, "code": x.code}
+        for x in skipped
+    ]
+    written = {(x.kind, x.external_id) for x in skipped}
+    listed += [
+        {"kind": kind, "external_id": ext, "title": None, "code": BUG}
+        for kind, ext in items
+        if (kind, ext) not in written
+    ]
+    if not listed and not reads:
+        return None
+    code = listed[0]["code"] if listed else BUG
+    return {"code": code, "request_id": request_id, "items": listed, "reads": list(reads)}
+
+
+async def _off(ctx: Ctx, link: LmsCourseLink, unreached: Sequence[SyncStage]) -> set[str]:
+    """Of the stages a round never reached, those off for the course: they would have read
+    nothing. Told without reading the platform; when the connection can't be bound (no
+    credentials), none is known to be off."""
+    if not unreached:
+        return set()
+    try:
+        b = await service.bound(ctx, await service.get_connection_row(ctx, link.connection_id))
+    except AppError:
+        return set()
+    return {
+        s.name for s in unreached if s.enabled is not None and not await s.enabled(ctx, link, b)
+    }
+
+
+async def _name_items(ctx: Ctx, link: LmsCourseLink, problems: dict[str, dict[str, Any]]) -> None:
+    """Names the items of `problems` that their stage did not (read on their own and not
+    written): as Semestra keeps them."""
+    wanted = [item for p in problems.values() for item in p.get("items") or [] if not item["title"]]
+    if not wanted:
+        return
+    names: dict[tuple[str, str], str] = {}
+    by_kind: dict[str, list[str]] = {}
+    for item in wanted:
+        by_kind.setdefault(item["kind"], []).append(item["external_id"])
+    for kind, ids in by_kind.items():
+        if kind == "assignment":
+            for row in await ctx.db.scalars(
+                select(LmsAssignment).where(
+                    LmsAssignment.link_id == link.id, LmsAssignment.external_id.in_(ids)
+                )
+            ):
+                names[(kind, row.external_id)] = str(row.assignment.get("name") or "")
+            for ref in await ctx.db.scalars(
+                select(LmsImportedRef).where(
+                    LmsImportedRef.link_id == link.id, LmsImportedRef.external_id.in_(ids)
+                )
+            ):
+                names.setdefault((kind, ref.external_id), str(ref.snapshot.get("title") or ""))
+        elif kind == "announcement":
+            for a in await ctx.db.scalars(
+                select(LmsAnnouncement).where(
+                    LmsAnnouncement.link_id == link.id, LmsAnnouncement.external_id.in_(ids)
+                )
+            ):
+                names[(kind, a.external_id)] = a.title
+        elif kind == "calendar_event":
+            for e in await ctx.db.scalars(
+                select(LmsCalendarEvent).where(
+                    LmsCalendarEvent.link_id == link.id, LmsCalendarEvent.external_id.in_(ids)
+                )
+            ):
+                names[(kind, e.external_id)] = e.title
+        else:
+            for m in await ctx.db.scalars(
+                select(LmsMaterial).where(
+                    LmsMaterial.link_id == link.id,
+                    LmsMaterial.kind == kind,
+                    LmsMaterial.external_id.in_(ids),
+                )
+            ):
+                names[(kind, m.external_id)] = m.title or m.name or ""
+    for item in wanted:
+        item["title"] = names.get((item["kind"], item["external_id"])) or None
 
 
 # --- queueing --------------------------------------------------------------------------------
@@ -549,12 +691,12 @@ async def request_sync(
     if course_id is not None:
         links = [li for li in links if li.course_id == course_id]
     since = ctx.now - (COOLDOWN if force else max(ON_OPEN, floor(ctx)))
-    # A course whose last sync failed is tried again whenever the user asks (after they fixed
-    # the connection, say); a sync queued already is not queued twice either way.
+    # A course whose last sync left something not updated is tried again whenever the user
+    # asks; a sync queued already is not queued twice either way.
     links = [
         li
         for li in links
-        if li.synced_at is None or li.synced_at <= since or (force and li.sync_errors)
+        if li.synced_at is None or li.synced_at <= since or (force and _not_updated(li))
     ]
     if not force:
         # Opening the app asks for nothing new: a course syncing now is left to that run.
@@ -569,6 +711,14 @@ async def request_sync(
         current = [li for li in current if li.course_id not in picked]
         queued += await _queue_first_calendar_reads(ctx, (current, ended), PER_TICK)
     return queued
+
+
+def _not_updated(link: LmsCourseLink) -> bool:
+    """Whether the course's last sync left something not updated: a problem of Semestra's, or
+    a part the platform did not give (M09 表 5c)."""
+    return bool(link.sync_problems) or any(
+        (e or {}).get("result") == "unavailable" for e in (link.area_reads or {}).values()
+    )
 
 
 async def syncing_courses(ctx: Ctx, course_ids: Sequence[str]) -> set[str]:
@@ -623,6 +773,36 @@ async def sync_round(ctx: Ctx, course_ids: Sequence[str]) -> tuple[int, int] | N
     return len(courses - running), len(courses)
 
 
+async def due_links(ctx: Ctx, every: timedelta) -> list[LmsCourseLink]:
+    """The ctx user's courses due a sync (`rules.next_sync`): after the account's interval
+    `every`, or sooner while parts or items of the last round are left `passing` (M09 表 5c,
+    "再试")."""
+    links = await syncable_links(ctx)
+    waiting = [li for li in links if li.synced_at is not None]
+    items: dict[str, datetime] = {}
+    if waiting:
+        rows = await ctx.db.execute(
+            select(LmsItemCheck.link_id, func.min(LmsItemCheck.unavailable_since))
+            .where(
+                LmsItemCheck.link_id.in_([li.id for li in waiting]),
+                LmsItemCheck.result == "unavailable",
+                LmsItemCheck.reason.in_(sorted(rules.PASSING)),
+            )
+            .group_by(LmsItemCheck.link_id)
+        )
+        items = {link_id: since for link_id, since in rows if since is not None}
+
+    def due(li: LmsCourseLink) -> bool:
+        if li.synced_at is None:
+            return True
+        since, retry_at = rules.passing_since(li.area_reads)
+        if (item := items.get(li.id)) is not None and (since is None or item < since):
+            since = item
+        return rules.next_sync(li.synced_at, every, floor(ctx), since, retry_at) <= ctx.now
+
+    return [li for li in links if due(li)]
+
+
 @periodic("lms.sync_due", every=TICK, first_after=timedelta(minutes=1))
 async def sync_due(ctx: Ctx) -> None:
     """Queues the courses whose last sync is older than their account's interval, oldest first,
@@ -661,12 +841,7 @@ async def sync_due(ctx: Ctx) -> None:
             # Calendars never read go first (§4.8).
             queued = await _queue_first_calendar_reads(sys, await first_calendar_reads(sys), room)
             room -= queued
-            every = interval(sys, await account(sys))
-            links = [
-                li
-                for li in await syncable_links(sys)
-                if li.synced_at is None or li.synced_at <= sys.now - every
-            ]
+            links = await due_links(sys, interval(sys, await account(sys)))
             busy = await syncing_courses(sys, [li.course_id for li in links])
             links = [li for li in links if li.course_id not in busy][:room]
             queued += await queue(sys, links) if links else 0

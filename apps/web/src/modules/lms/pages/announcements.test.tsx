@@ -68,7 +68,7 @@ function link(courseId: string, features: CourseLink['features']): CourseLink {
     web_url: null,
     sync_enabled: true,
     synced_at: null,
-    sync_errors: {},
+    sync_state: 'ok',
     features,
     created_at: '2026-01-01T00:00:00Z',
   }

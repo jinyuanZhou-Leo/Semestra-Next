@@ -11,9 +11,10 @@ import { type CourseOf, fieldIcon } from './rows'
 import { UnreadableList } from './UnreadableList'
 
 /**
- * The folded lists at the panel's end (M09 §4.1): what can't be read since its area is closed on
- * the platform, fields the user set apart from the platform (each can take the platform's value
- * again), materials the user removed and new items the user ignored (each can be restored).
+ * The folded lists at the panel's end (M09 §4.1): what the platform did not give (表 5c), fields
+ * set apart from the platform (each can take the platform's value again, unless it is out of
+ * Semestra's range), materials the user removed and new items the user ignored (each can be
+ * restored).
  */
 export function MoreSections({
   programId,
@@ -64,20 +65,25 @@ export function MoreSections({
                 icon={fieldIcon(d.field)}
                 title={m.lms_sync_change({ title: d.title, field: fieldLabel(d.field) })}
                 {...course(d.course_id, d.course)}
-                detail={m.lms_sync_different_values({
+                detail={(d.out_of_range
+                  ? m.lms_sync_different_out_of_range
+                  : m.lms_sync_different_values)({
                   mine: formatValue(d.field, d.mine),
                   provider,
                   platform: formatValue(d.field, d.platform),
                 })}
               >
-                <IconAction
-                  className="text-muted-foreground"
-                  label={m.lms_sync_follow({ provider })}
-                  disabled={busy}
-                  onClick={() => answers.resolveField(d.id, d.field, 'platform')}
-                >
-                  <CloudDownload aria-hidden />
-                </IconAction>
+                {/* A value out of Semestra's range can't be taken: the user sets one in range. */}
+                {d.out_of_range ? null : (
+                  <IconAction
+                    className="text-muted-foreground"
+                    label={m.lms_sync_follow({ provider })}
+                    disabled={busy}
+                    onClick={() => answers.resolveField(d.id, d.field, 'platform')}
+                  >
+                    <CloudDownload aria-hidden />
+                  </IconAction>
+                )}
               </PanelRow>
             </PanelFold>
           ))}

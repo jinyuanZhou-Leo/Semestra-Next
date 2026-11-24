@@ -85,15 +85,18 @@ class LmsCourseLink(Base, OwnedMixin, TimestampMixin):
     # When the course was last synced (`sync.py`): every stage ran, failed or not. The
     # scheduler compares it with the account's interval.
     synced_at: Mapped[datetime | None] = mapped_column(default=None)
-    # Error code of each stage whose last run failed, by stage name; a stage that ran cleanly
-    # is left out.
-    sync_errors: Mapped[dict[str, str]] = mapped_column(JSON, default=dict)
+    # What went wrong on Semestra's side of the last sync, by stage (M09 表 5c): `{code,
+    # request_id, items: [{kind, external_id, title, code}], reads: [part], ended}`. A stage
+    # that ran cleanly is left out; what the platform answered is in `area_reads`.
+    sync_problems: Mapped[dict[str, dict[str, Any]]] = mapped_column(JSON, default=dict)
     # When the announcements stage last read the course's announcements. Until then the course
     # has none stored: what the first read finds is kept as read and not reported, so linking a
     # course is quiet.
     watched_at: Mapped[datetime | None] = mapped_column(default=None)
-    # How each area's list read on the last sync, by area (`rules.area_entry`: result, when,
-    # why it was unavailable, when it last came back and came back whole; M09 表 1, 表 3c).
+    # How each part of the course read on the last sync, by part: the areas' lists, the course
+    # itself and the reads that add to the assignments (`rules.area_entry`: result, when, why it
+    # was unavailable, when it last came back and came back whole, since when it has not come
+    # back, when a rate limit lets it be read again; M09 表 1, 表 3c, 表 5c).
     # Empty for an area never read: the calendar of a course listed here without `calendar`
     # has not been read yet (§4.8).
     area_reads: Mapped[dict[str, dict[str, str]]] = mapped_column(JSON, default=dict)
@@ -285,6 +288,8 @@ class LmsItemCheck(Base, OwnedMixin):
     at: Mapped[datetime] = mapped_column()
     # Since when the reads have been `unavailable` without a break (cleared by present or gone).
     unavailable_since: Mapped[datetime | None] = mapped_column(default=None)
+    # The params of the `reason` (`rules.reason_params`), which tell it apart for the user.
+    reason_params: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
 
 
 class LmsAnnouncement(Base, OwnedMixin):

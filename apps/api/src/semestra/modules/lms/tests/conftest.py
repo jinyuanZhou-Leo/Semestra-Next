@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field, SecretStr
 from semestra.core.config import Settings
 from semestra.core.errors import AppError
 from semestra.modules.files.tests.conftest import fake_ai  # noqa: F401 (a fixture)
-from semestra.modules.lms import sync
+from semestra.modules.lms import rules, sync
 from semestra.modules.lms.answers import AreaResult, Gone, Unavailable
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.providers import Io, register_lms_provider, unregister_lms_provider
@@ -508,9 +508,7 @@ class FakeProvider:
 
 # What the sync logs when it skipped a part (M09 table 5b): a test that meets one without
 # asking for it (`expect_sync_failures`) fails, so a part can never fail unnoticed (M09 §11).
-SYNC_FAILURES = frozenset(
-    {"lms.sync_stage_failed", "lms.sync_item_failed", "lms.provider_payload", "lms.provider_failed"}
-)
+SYNC_FAILURES = frozenset({"lms.sync_stage_failed", "lms.sync_item_failed", "lms.provider_failed"})
 
 
 class SyncFailures:
@@ -522,7 +520,8 @@ class SyncFailures:
 
     def __call__(self, _logger: Any, _method: str, event: Any) -> Any:
         if event.get("event") in SYNC_FAILURES:
-            self.seen.append(dict(event))
+            # Runs first: the context (the request id) is merged in further down the chain.
+            self.seen.append({**structlog.contextvars.get_contextvars(), **event})
         return event
 
     def events(self) -> list[str]:
@@ -535,6 +534,37 @@ class SyncFailures:
             for e in self.seen
             if e["event"] == "lms.sync_item_failed"
         ]
+
+
+Row = tuple[Any, ...]
+
+
+def report(status: dict[str, Any]) -> set[Row]:
+    """What `lms.sync.status` tells of the courses' last sync, by row of M09 表 5c: `(2|3|4,
+    stage, code)` for Semestra's problems; `(5|6|7, parts, code)` for parts not read; `(8, area)`
+    for a closed area; `(9, kind, title, code)` for an item not read."""
+    out: set[Row] = set()
+    for p in status["problems"]:
+        row = 2 if p["ended"] else 4 if p["items"] or p["reads"] else 3
+        out.add((row, p["stage"], p["code"]))
+    for u in status["unreadable"]:
+        match u["kind"]:
+            case "parts":
+                reason = rules.sync_reason(u["code"])
+                row = 5 if u["parts"] == ["course"] and reason == "refused" else 6
+                out.add(
+                    (7 if row == 6 and reason == "refused" else row, tuple(u["parts"]), u["code"])
+                )
+            case "area":
+                out.add((8, u["area"]))
+            case _:
+                out.add((9, u["kind"], u["title"], u["code"]))
+    return out
+
+
+def problems(status: dict[str, Any]) -> dict[str, str]:
+    """Semestra's own problems of the last sync, by stage (表 5c, rows 2-4)."""
+    return {p["stage"]: p["code"] for p in status["problems"]}
 
 
 @pytest.fixture(autouse=True)

@@ -1,6 +1,6 @@
 """The per-field sync decision (M09 §4.1), every state combination."""
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -17,6 +17,7 @@ from semestra.modules.lms.rules import (
     item_due_state,
     marks,
     merge,
+    next_sync,
     platform_value,
     same,
     state_of,
@@ -273,3 +274,24 @@ def test_a_submission_never_read_has_no_state_and_no_due_hint():
 )
 def test_marks(state: Any, missing: bool, late: bool, shown: list[str]):
     assert marks(state, missing=missing, late=late) == shown
+
+
+T = datetime.fromisoformat("2026-03-01T12:00:00+00:00")
+H = timedelta(hours=1)
+
+
+@pytest.mark.parametrize(
+    ("name", "since", "retry_at", "due"),
+    [
+        ("nothing passing: the account's interval", None, None, T + 6 * H),
+        ("unreadable an hour: an hour more", T - H, None, T + H),
+        ("just now: the server's shortest", T, None, T + H / 2),
+        ("a rate limit's wait is longer", T - H, T + 2 * H, T + 2 * H),
+        ("never longer than the interval", T - 30 * H, None, T + 6 * H),
+    ],
+)
+def test_a_part_not_read_for_a_passing_reason_is_tried_again_sooner_then_less_often(
+    name: str, since: datetime | None, retry_at: datetime | None, due: datetime
+):
+    """M09 表 5c, "再试": the waits double from the server's shortest up to the interval."""
+    assert next_sync(T, 6 * H, H / 2, since, retry_at) == due

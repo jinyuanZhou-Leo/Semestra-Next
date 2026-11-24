@@ -129,7 +129,7 @@ async def stage(ctx: Ctx, link: LmsCourseLink, b: Bound, sync_round: SyncRound) 
         if not a.external_id or a.external_course_id not in ("", ext) or a.external_id in seen:
             continue
         seen.add(a.external_id)
-        async with one_item(ctx, link, result, KIND, a.external_id) as item:
+        async with one_item(ctx, link, result, KIND, a.external_id, a.title) as item:
             wrote, news = await _write(
                 ctx, link, b, a, rows.get(a.external_id), first, platform_marks
             )
@@ -140,7 +140,7 @@ async def stage(ctx: Ctx, link: LmsCourseLink, b: Bound, sync_round: SyncRound) 
     for external_id in gone:
         if (row := rows.get(external_id)) is None or external_id in seen:
             continue
-        async with one_item(ctx, link, result, KIND, external_id) as item:
+        async with one_item(ctx, link, result, KIND, external_id, row.title) as item:
             await ctx.db.delete(row)
             await ctx.db.flush()
         changed |= item.ok
@@ -234,7 +234,7 @@ async def _announces(ctx: Ctx, link: LmsCourseLink, b: Bound) -> bool:
     return "announcements" in b.provider.features
 
 
-register_sync_stage("announcements", stage, order=40, enabled=_announces)
+register_sync_stage("announcements", stage, order=40, enabled=_announces, parts=(AREA,))
 
 
 # --- reads ----------------------------------------------------------------------------------

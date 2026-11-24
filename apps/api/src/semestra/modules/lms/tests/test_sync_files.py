@@ -37,7 +37,7 @@ from semestra.modules.lms.schemas.dto import (
     PageSummary,
 )
 from semestra.modules.lms.sync_round import SyncRound
-from semestra.modules.lms.tests.conftest import Api, FakeProvider
+from semestra.modules.lms.tests.conftest import Api, FakeProvider, report
 from semestra.modules.lms.tests.test_lms import setup_program
 from semestra.testing import API_DIR, Clock
 
@@ -118,7 +118,7 @@ async def test_materials_come_into_their_platform_folders(api: Api, fake: FakePr
     _materials(fake)
     program_id, course = await _course(api)
     status = await api.sync(program_id)
-    assert status["errors"] == []
+    assert report(status) == set()
     folders, items = await _files(api, course)
     assert {name: _where(folders, item) for name, item in items.items()} == {
         "Lecture 1.pdf": "Lectures",
@@ -249,7 +249,7 @@ async def test_platform_names_and_addresses_files_cannot_take_as_they_are(
     fake.page_texts = {"notes": ("Week 1\\2 notes", SYLLABUS)}
     program_id, course = await _course(api)
     status = await api.sync(program_id)
-    assert status["errors"] == []
+    assert report(status) == set()
     folders, items = await _files(api, course)
     assert {name: _where(folders, item) for name, item in items.items()} == {
         "Zoom - Piazza": "Week 1-2: Intro",
@@ -262,7 +262,7 @@ async def test_platform_names_and_addresses_files_cannot_take_as_they_are(
     # Renamed on the platform: followed under the same rule.
     fake.module_list[0].items[0].title = "Zoom / Piazza / Ed"  # type: ignore[index]
     clock.advance(minutes=1)
-    assert (await api.sync(program_id))["errors"] == []
+    assert report(await api.sync(program_id)) == set()
     assert (await api.call("GET", f"/files/{items['Zoom - Piazza']['id']}"))[
         "display_name"
     ] == "Zoom - Piazza - Ed"
@@ -638,7 +638,7 @@ async def test_following_the_platform(api: Api, fake: FakeProvider, clock: Clock
     fake.files_hidden = True
     clock.advance(minutes=1)
     status = await api.sync(program_id)
-    assert status["errors"] == []
+    assert report(status) == {(8, "files")}
     assert "data.zip" in (await _files(api, course))[1]
 
 
@@ -2049,7 +2049,7 @@ async def test_what_a_closed_area_hides_is_listed_until_it_opens(
     fake.refused_files = {"201", "203", "205"}
     clock.advance(days=2)
     status = await api.sync(program_id)
-    rows = {u["title"]: u for u in status["unreadable"]}
+    rows = {u["title"]: u for u in status["unreadable"] if u["kind"] == "material"}
     assert set(rows) == {"Lecture 1.pdf", "Midterm 2025.pdf", "data.zip"}
     assert {(u["kind"], u["area"], u["removable"]) for u in rows.values()} == {
         ("material", "files", False)
@@ -2065,7 +2065,7 @@ async def test_what_a_closed_area_hides_is_listed_until_it_opens(
     fake.nav_refused = True
     clock.advance(hours=1)
     status = await api.sync(program_id)
-    assert {u["title"] for u in status["unreadable"]} == set(rows)
+    assert {u["title"] for u in status["unreadable"] if u["kind"] == "material"} == set(rows)
     fake.nav_refused = False
 
     # The copy may be the user's only one: not removed from here.
@@ -2078,7 +2078,7 @@ async def test_what_a_closed_area_hides_is_listed_until_it_opens(
     midterm_id = rows["Midterm 2025.pdf"]["id"]
     await api.call("POST", f"/lms/sync/materials/{midterm_id}:restore")
     status = await api.sync(program_id)
-    waiting = {u["title"]: u for u in status["unreadable"]}
+    waiting = {u["title"]: u for u in status["unreadable"] if u["kind"] == "material"}
     assert set(waiting) == set(rows)
     assert waiting["Midterm 2025.pdf"]["removable"] is False
 
@@ -2127,18 +2127,19 @@ async def test_what_a_closed_area_hides_read_online_is_removed(
     fake.refused_files = {"201", "203", "205"}
     clock.advance(days=2)
     status = await api.sync(program_id)
-    rows = {u["title"]: u for u in status["unreadable"]}
+    rows = {u["title"]: u for u in status["unreadable"] if u["kind"] == "material"}
     assert len(rows) == 3
     assert all(u["removable"] for u in rows.values())
 
     midterm_id = rows["Midterm 2025.pdf"]["id"]
     status = await api.call("POST", f"/lms/sync/materials/{midterm_id}:remove")
-    assert {u["title"] for u in status["unreadable"]} == set(rows) - {"Midterm 2025.pdf"}
+    left = {u["title"] for u in status["unreadable"] if u["kind"] == "material"}
+    assert left == set(rows) - {"Midterm 2025.pdf"}
     assert [r["title"] for r in status["removed_materials"]] == ["Midterm 2025.pdf"]
 
     url = f"/programs/{program_id}/lms/sync/materials:remove"
     status = await api.call("POST", url)
-    assert status["unreadable"] == []
+    assert [u["kind"] for u in status["unreadable"]] == ["area"]  # still closed
     assert {r["title"] for r in status["removed_materials"]} == set(rows)
     assert not set(rows) & set((await _files(api, course))[1])
     error = await api.call("POST", url, status=409)

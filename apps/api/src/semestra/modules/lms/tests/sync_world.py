@@ -99,6 +99,9 @@ class World:
     side_refused: bool = False
     linked: bool = True
     materials_on: bool = True
+    # The course's areas read as closed, and not read back since: a list refused then is still
+    # taken for closed (M09 3c note), so what it holds is told as kept, not as refused.
+    held_closed: bool = False
     done: list[str] = field(default_factory=lambda: [])
 
     async def setup(self, before: Callable[[World], None] | None = None) -> None:
@@ -147,14 +150,22 @@ class World:
         self.fake.events = [_lecture(self.tick)]
         self.clock.advance(minutes=5)
         status = await self.sync()
+        if not self.linked or not (self.closed or self.refused):
+            self.held_closed = False
+        elif self.closed and not self.refused:  # refused wins: the lists are refused
+            self.held_closed = True
         await self.check(status)
 
     async def check(self, status: dict[str, Any]) -> None:
-        errors = {e["stage"]: e["code"] for e in status["errors"]}
-        # The side read is made only once the list came in.
+        # Nothing here is Semestra's own problem (M09 表 5c, rows 2-4).
+        assert status["problems"] == [], f"{self.done}: {status['problems']}"
+        # The side read is made only once the list came in; refused, it is told (row 7).
         side = self.side_refused and self.linked and not (self.closed or self.refused)
-        expected = {"assignments": "lms.forbidden"} if side else {}
-        assert errors == expected, f"{self.done}: {errors}"
+        told = any(
+            u["kind"] == "parts" and "submissions" in u["parts"] for u in status["unreadable"]
+        )
+        refused = self.refused and self.linked and not self.held_closed
+        assert told == (side or refused), f"{self.done}: {told}"
         async with system_ctx(self.app.state, self.user_id) as ctx:
             link = await ctx.db.scalar(
                 select(LmsCourseLink).where(LmsCourseLink.course_id == self.course)
