@@ -9,10 +9,17 @@ page itself, and the page with it. The course's front page does not count: it li
 everything. At most three levels (M07's deepest), the folders made on first need and remembered
 by their place (`files.source_folders`), so the user may rename or move them.
 
+Pages are found from the pages list, the modules and the links of pages. The front page is a page
+like the others (no item's place, though): in the pages list when that is read whole; else found
+by the way to it (`front_page`, M09 table 2 row 21), read first, as that page's single read of
+this round. A page no list gives a version of is read every round within the budget (only reading
+it tells whether it changed); one its closed area refused is not read again within a day (table
+3c, row 8).
+
 The lists of the files area, the modules and the pages are read through the round
 (`SyncRound.area`), so their results are what table 3c judges by. What no list gives a version
 for (a file only a module or a page shows, a page only a module or a page links to) is read on
-its own, within the round's budget, oldest first, and not again within a day (table 3c, rows
+its own, within the round's budget, oldest first (a file not again within a day, table 3c rows
 7-8). Pages that are only a list of links (a module's table of contents) are not kept; what they
 list goes in a folder named after them.
 """
@@ -33,7 +40,7 @@ from semestra.modules.lms.answers import AREA_HIDDEN, ItemAnswer, Present
 from semestra.modules.lms.materials import MaterialKind, file_version, page_shape
 from semestra.modules.lms.models import LmsCourseLink, LmsMaterial
 from semestra.modules.lms.rules import CHECK_EVERY, Presence
-from semestra.modules.lms.schemas.dto import FileMeta, ModuleItem, PageDetail
+from semestra.modules.lms.schemas.dto import FRONT_PAGE_REF, FileMeta, ModuleItem, PageDetail
 from semestra.modules.lms.service import Bound
 from semestra.modules.lms.sync_round import Asked, SyncRound
 
@@ -140,6 +147,17 @@ class _Reader:
             return last.reason == AREA_HIDDEN
         mat = self.found.known.get(key)
         return last.result == "present" and mat is not None and mat.state in FOLLOWED
+
+    async def closed_lately(self, key: Key) -> bool:
+        """Its last single read, within a day, was refused for its area closed: not read again
+        now (table 3c, row 8)."""
+        last = await self.round.last(self.ctx, self.link, *key)
+        return (
+            last is not None
+            and self.ctx.now - last.at < CHECK_EVERY
+            and last.result == "unavailable"
+            and last.reason == AREA_HIDDEN
+        )
 
     async def fetch(self, kind: str, ids: list[str]) -> Sequence[Any]:
         """Files or pages read side by side: each one's data or the error it got."""
@@ -329,6 +347,8 @@ async def _pages(r: _Reader) -> None:
         if page.front_page:
             r.found.front.add(page.ref)
     done: set[str] = set()
+    if (front := await _front_page(r)) is not None:
+        done.add(front)
     # Pages bring in what they link to, other pages among it: until no new page is found. The
     # pages of one round that are to be read are read side by side; a page the pages list shows
     # changed is read whatever the budget, one only linked to within it (table 3c, note).
@@ -349,13 +369,14 @@ async def _pages(r: _Reader) -> None:
 
 
 async def _page_as_known(r: _Reader, slug: str) -> bool:
-    """A page unchanged since it was last read (its version the same, or read on its own within
-    a day): taken as it was, what it links to still holds. False when it is to be read."""
+    """A page unchanged since it was last read (its version in the pages list the same), or
+    refused for its closed area within a day: taken as it was, what it links to still holds.
+    False when it is to be read (a page no list gives a version of is read every round)."""
     found = r.found
     title, version, _ = found.pages[slug]
     key = ("page", slug)
     mat = found.known.get(key)
-    if not (found.unchanged(key, version) or (version is None and await r.resting(key))):
+    if not (found.unchanged(key, version) or (version is None and await r.closed_lately(key))):
         return False
     if mat is None:
         return True  # its area closed: not read again today
@@ -364,6 +385,41 @@ async def _page_as_known(r: _Reader, slug: str) -> bool:
     if mat.state == "list":
         found.add(Material("page", slug, title, version or "", is_list=True, links=mat.links))
     return True
+
+
+async def _front_page(r: _Reader) -> str | None:
+    """The course's front page found by the way to it (M09 §4.6, table 2 row 21), when the pages
+    list was not read whole (read whole, it lists the front page, and the way to it is not
+    recorded): a page no list gives a version of, read within the budget and first of the
+    round's pages; got, it is that page's single read of this round. Its slug, or None (none
+    set, not read, or not needed)."""
+    course_id = r.link.course_id
+    if r.round.areas.get("pages") == "whole":
+        r.round.drop("front_page")
+        return None
+    if not r.round.spend(["front_page"]):
+        return None
+
+    async def read() -> PageDetail | None:
+        try:
+            return await reads.page(
+                r.ctx, course_id, FRONT_PAGE_REF, refresh=True, linked=(r.link, r.b)
+            )
+        except AppError as exc:
+            if exc.code == "lms.not_found":
+                return None  # the platform says there is none: no starting point
+            raise
+
+    detail = await r.round.area(r.ctx, r.link, r.b, "front_page", read)
+    if detail is None:
+        return None
+    slug = detail.ref
+    r.round.read_another_way(r.ctx, "page", slug)
+    r.found.pages[slug] = (detail.title, None, detail.web_url)
+    r.found.front.add(slug)
+    r.found.given.add(("page", slug))
+    _page(r, slug, detail)
+    return slug
 
 
 def _page(r: _Reader, slug: str, detail: PageDetail) -> None:

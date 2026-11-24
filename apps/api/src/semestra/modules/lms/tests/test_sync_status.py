@@ -76,19 +76,19 @@ async def test_a_course_the_platform_refuses_is_one_row(
 async def test_an_area_never_open_is_not_listed(api: Api, fake: FakeProvider, clock: Clock):
     """表 5c, row 10: nothing of it in Semestra, so nothing is out of date; closed after it was
     read, it is listed (row 8), though as the teacher's setting, not as out of date."""
-    fake.files_hidden = True
+    fake.assignments_hidden = True
     program_id, course = await _course(api)
     status = await api.sync(program_id)
     assert report(status) == set()
     assert await _state(api, course) == "ok"
 
-    fake.files_hidden = False
+    fake.assignments_hidden = False
     clock.advance(minutes=1)
     await api.sync(program_id)
-    fake.files_hidden = True
+    fake.assignments_hidden = True
     clock.advance(minutes=1)
     status = await api.sync(program_id)
-    assert report(status) == {(8, "files")}
+    assert report(status) == {(8, "assignments")}
     assert await _state(api, course) == "ok"
 
 

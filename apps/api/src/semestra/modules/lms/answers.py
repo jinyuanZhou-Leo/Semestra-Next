@@ -61,9 +61,9 @@ AREA_OF: dict[str, str] = {
     "announcement": "announcements",
 }
 
-# Areas that are no tab of the course's navigation: a refused list of one is never the
-# instructor closing it (`hidden`), only not known (table 2, row 17).
-OFF_NAV: frozenset[str] = frozenset(("calendar",))
+# Parts that are no tab of the course's navigation: a refused read of one is never the
+# instructor closing it (`hidden`), only not known (table 2, rows 17 and 21).
+OFF_NAV: frozenset[str] = frozenset(("calendar", "front_page"))
 
 # Answers about the account or the connection (the rate limit, the token, the address), not
 # anything about the item or area read: every read after would get the same. The stage stops

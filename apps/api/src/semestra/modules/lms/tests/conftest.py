@@ -22,6 +22,7 @@ from semestra.modules.lms.providers.canvas import answers as canvas_answers
 from semestra.modules.lms.providers.canvas import provider as canvas_module
 from semestra.modules.lms.schemas.dto import (
     ALL_FEATURES,
+    FRONT_PAGE_REF,
     Announcement,
     Assignment,
     ConnectionSummary,
@@ -117,6 +118,8 @@ class FakeProvider:
         self.nav = [NavTab(external_id="home", kind="home", label="Home")]
         # The instructor hid the pages: their list is refused, each page still opens.
         self.pages_hidden = False
+        # The front page's ref (`page(FRONT_PAGE_REF)`, read as "front_page"); None: none set.
+        self.front_page: str | None = None
         # Page ref → (title, body); `page` serves "Intro" for any other ref.
         self.page_texts: dict[str, tuple[str, str]] = {}
         self.module_list: list[Module] | None = None
@@ -340,11 +343,16 @@ class FakeProvider:
     async def page(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, page_ref: str
     ) -> PageDetail:
-        self._fault("page")
-        self.calls.append(("page", page_ref))
-        self._throttle("page")
+        read = "front_page" if page_ref == FRONT_PAGE_REF else "page"
+        self._fault(read)
+        self.calls.append((read, page_ref))
+        self._throttle(read)
         if self.closed:
             raise lms_error("lms.forbidden")
+        if page_ref == FRONT_PAGE_REF:
+            if self.front_page is None:
+                raise lms_error("lms.not_found")
+            page_ref = self.front_page
         if page_ref in self.page_texts:
             title, body = self.page_texts[page_ref]
             listed = next((p for p in self.page_list or [] if p.ref == page_ref), None)
