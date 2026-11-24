@@ -15,6 +15,9 @@ Every text of the course the sync reads is a way in (M09 §4.6, table 4d), and a
 round: the lists, the front page, the syllabus (read with the lists), and the descriptions of
 the assignments, the announcements and the calendar events (their mirrors, written by this
 round's earlier stages: no request). What they link to of the course is read the same way.
+The files attached to the announcements come in from the mirror too, never read on their own;
+one last seen only that way leaves when no announcement carries it (`Material.attached`). The
+settings turn some ways in off (`MaterialSettings`): then they bring in nothing new.
 
 Pages are found from the pages list, the modules and the links of pages. The front page is a page
 like the others (no item's place, though): in the pages list when that is read whole; else found
@@ -33,7 +36,7 @@ list goes in a folder named after them.
 
 import hashlib
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from typing import Any
 from urllib.parse import urlsplit
@@ -45,8 +48,8 @@ from semestra.core.errors import AppError
 from semestra.modules.files import sources
 from semestra.modules.files.models import FilesItem
 from semestra.modules.files.source_folders import Segment
-from semestra.modules.lms import reads
-from semestra.modules.lms.answers import AREA_HIDDEN, ItemAnswer, Present
+from semestra.modules.lms import announcements, reads
+from semestra.modules.lms.answers import AREA_HIDDEN, Gone, ItemAnswer, Present
 from semestra.modules.lms.materials import (
     SYLLABUS_ID,
     MaterialKind,
@@ -70,6 +73,7 @@ from semestra.modules.lms.schemas.dto import (
     RichText,
 )
 from semestra.modules.lms.service import Bound
+from semestra.modules.lms.settings import MaterialSettings
 from semestra.modules.lms.sync_round import Asked, SyncRound
 
 Key = tuple[str, str]
@@ -120,6 +124,9 @@ class Material:
     is_list: bool = False
     # What a page links to (None: not read this round).
     links: list[list[str]] | None = None
+    # Seen this round only as an announcement's attachment (M09 §4.6, "公告附件"); None: this
+    # round did not read every way in whole, so it does not tell (`attached` stays as it was).
+    attached: bool | None = None
 
 
 @dataclass
@@ -149,6 +156,14 @@ class Found:
     # file only a module shows is listed, not given). Only these may let their copies go
     # (table 3c, note): the platform gives their contents now.
     given: set[Key] = field(default_factory=lambda: set[Key]())
+    # What the course's materials settings bring in (`settings.MaterialSettings`).
+    cfg: MaterialSettings = field(default_factory=MaterialSettings)
+    # Files attached to the kept announcements (table 4d row 7), by id: their facts are the
+    # mirror's, never read on their own.
+    attachments: dict[str, FileMeta] = field(default_factory=lambda: {})
+    # A page that was to be read this round was not (refused, not answered, left for the
+    # budget): what it links to is not known.
+    pages_short: bool = False
 
     def unchanged(self, key: Key, version: str | None) -> bool:
         """The platform's `version` of a known material is the one last applied: its followed
@@ -226,12 +241,18 @@ class _Reader:
 
 
 async def read(
-    ctx: Ctx, link: LmsCourseLink, b: Bound, sync_round: SyncRound, known: dict[Key, LmsMaterial]
+    ctx: Ctx,
+    link: LmsCourseLink,
+    b: Bound,
+    sync_round: SyncRound,
+    known: dict[Key, LmsMaterial],
+    cfg: MaterialSettings,
 ) -> Found:
     """The course's materials on the platform, with their places."""
     followed = [m.item_id for m in known.values() if m.state == "synced" and m.item_id]
     items = {row.id: row for row in await sources.find_items(ctx, followed)}
-    r = _Reader(ctx, link, b, sync_round, Found(known, items, names=names(ctx.locale)))
+    found = Found(known, items, names=names(ctx.locale), cfg=cfg)
+    r = _Reader(ctx, link, b, sync_round, found)
     features = b.provider.features
     for area, feature in {**AREAS, SYLLABUS_AREA: SYLLABUS_AREA}.items():
         if feature not in features:
@@ -244,6 +265,7 @@ async def read(
     if "pages" in features:
         await _pages(r)
     await _files(r)
+    _attachments(r)
     _place(r.found)
     return r.found
 
@@ -263,10 +285,24 @@ async def judge(
         and (mat.state in FOLLOWED or (mat.state == "absent" and mat.quiet))
     ]  # fmt: skip
     verdicts: dict[Key, Presence] = {}
-    # The syllabus may be listed only in its own area; the rest in the files, modules and pages.
+
+    def attached(a: Asked) -> bool:
+        mat = found.known[(a.kind, a.external_id)]
+        return mat.attached and a.kind == "file"
+
+    # The syllabus may be listed only in its own area; one last seen only as an attachment only
+    # among the announcements (not read on its own: it leaves when none carries it, §4.6); the
+    # rest in the files, modules and pages.
     for wanted, areas in (
-        ([a for a in asked if (a.kind, a.external_id) != SYLLABUS], tuple(AREAS)),
+        (
+            [a for a in asked if (a.kind, a.external_id) != SYLLABUS and not attached(a)],
+            tuple(AREAS),
+        ),
         ([a for a in asked if (a.kind, a.external_id) == SYLLABUS], (SYLLABUS_AREA,)),
+        (
+            [replace(a, readable=False) for a in asked if attached(a)],
+            (announcements.AREA,),
+        ),
     ):
         if not wanted:
             continue
@@ -361,7 +397,9 @@ async def _files(r: _Reader) -> None:
     if "files" in features:
         # Files only a module or a page shows (the files area hidden): on their own, side by
         # side, now and then.
-        wanted = [("file", f) for f in r.found.file_ids if f not in metas]
+        wanted = [
+            ("file", f) for f in r.found.file_ids if f not in metas and f not in r.found.attachments
+        ]
         todo = [
             key[1]
             for key in await r.round.oldest_first(r.ctx, r.link, wanted)
@@ -420,9 +458,12 @@ async def _pages(r: _Reader) -> None:
         answers = await r.read_many("page", changed, budgeted=False)
         answers.update(await r.read_many("page", linked))
         for slug in unread:
-            if isinstance(answer := answers.get(slug), Present):
+            answer = answers.get(slug)
+            if isinstance(answer, Present):
                 r.found.given.add(("page", slug))
                 _page(r, slug, answer.data)
+            elif not isinstance(answer, Gone):
+                r.found.pages_short = True
 
 
 async def _page_as_known(r: _Reader, slug: str) -> bool:
@@ -512,13 +553,18 @@ def _page(r: _Reader, slug: str, detail: PageDetail) -> None:
     )
 
 
-def _links(r: _Reader, urls: Sequence[str], source: Key) -> list[list[str]]:
+def _links(
+    r: _Reader, urls: Sequence[str], source: Key, *, known_only: bool = False
+) -> list[list[str]]:
     """The course's files and pages among `urls` (a text's links), each brought in as linked
-    from `source`: as `[kind, external id]` pairs, once each."""
+    from `source`: as `[kind, external id]` pairs, once each. `known_only`: a way in turned off
+    in the settings (M09 §4.6): it brings in nothing new, only keeps linking what it brought."""
     out: list[list[str]] = []
     for url in urls:
         target = r.b.rewrite(url, r.link.external_course_id)
         if target is None or target.kind not in ("file", "page"):
+            continue
+        if known_only and (target.kind, target.ref) not in r.found.known:
             continue
         if source == ("page", target.ref) and target.kind == "page":
             continue  # a page linking to itself
@@ -588,10 +634,88 @@ async def _entries(r: _Reader) -> None:
             )
         ),
     }
+    off = {"calendar": not r.found.cfg.calendar_links}
     for name in ENTRIES:
         for html in texts[name]:
             if html:
-                _links(r, page_shape(html).links, ("entry", name))
+                _links(r, page_shape(html).links, ("entry", name), known_only=off.get(name, False))
+    # The files attached to the announcements (table 4d row 7): turned off, only those that came
+    # in already keep coming.
+    for row in await r.ctx.db.scalars(
+        select(LmsAnnouncement).where(LmsAnnouncement.link_id == link_id)
+    ):
+        for meta in announcements.attachment_files(row):
+            key = ("file", meta.external_id)
+            if r.found.cfg.announcement_attachments or key in r.found.known:
+                r.found.attachments.setdefault(meta.external_id, meta)
+                r.found.linked_from.append((("entry", "announcements"), key))
+
+
+def _attachments(r: _Reader) -> None:
+    """The announcements' attachments no list showed come in from what the mirror holds (table
+    4d row 7): no read of their own. Whether each was seen only that way, when this round read
+    every way in whole (`_saw_everything`)."""
+    found = r.found
+    whole = r.round.areas.get(announcements.AREA) == "whole"
+    for file_id, meta in found.attachments.items():
+        key = ("file", file_id)
+        if key in found.materials or key in found.locked:
+            continue  # a list or a read of its own gave it
+        version = file_version(meta)
+        if meta.content_at is None and meta.updated_at is None:
+            # Kept before the mirror held when it changed: taken as it was, not read again.
+            version = _known_version(found, key) or version
+        found.add(
+            Material(
+                "file",
+                file_id,
+                meta.name,
+                version=version,
+                size=meta.size_bytes or 0,
+                mime=meta.mime_type,
+                modified_at=meta.content_at or meta.updated_at,
+            )
+        )
+        if whole:
+            found.given.add(key)
+    if not _saw_everything(r):
+        return
+    for (kind, external_id), m in found.materials.items():
+        m.attached = (
+            kind == "file"
+            and external_id in found.attachments
+            and (kind, external_id) not in found.listed
+            and external_id not in found.file_ids
+        )
+
+
+def _known_version(found: Found, key: Key) -> str | None:
+    mat = found.known.get(key)
+    if mat is None:
+        return None
+    if mat.state == "synced":
+        row = found.items.get(mat.item_id or "")
+        return row.source_version if row is not None else None
+    return mat.version
+
+
+_READ_IN_FULL = ("whole", "hidden", "unsupported")
+
+
+def _saw_everything(r: _Reader) -> bool:
+    """Every way in of table 4d read in full this round (M09 §4.6, "只作为附件出现的"): the
+    areas, the front page (in the whole pages list, else by its way in), this round's stages that
+    kept the texts (a way in turned off not counted), every page that was to be read. Else one
+    of them may list or link a file this round did not see."""
+    areas = r.round.areas
+    parts = [*AREAS, SYLLABUS_AREA, "assignments", announcements.AREA]
+    if r.found.cfg.calendar_links:
+        parts.append("calendar")
+    if any(areas.get(a) not in _READ_IN_FULL for a in parts):
+        return False
+    if areas.get("pages") != "whole" and areas.get("front_page") != "whole":
+        return False
+    return not r.found.pages_short
 
 
 # --- places ---------------------------------------------------------------------------------
@@ -656,7 +780,9 @@ def _place(found: Found) -> None:
         elif source == _TOP:
             out = [], False
         elif source is not None and source[0] == "entry":
-            out = [(f"entry:{source[1]}", found.names[source[1]])], False
+            # In the folder named after the way in, or at the top (`entry_folders` off).
+            folder = [(f"entry:{source[1]}", found.names[source[1]])]
+            out = (folder if found.cfg.entry_folders else []), False
         elif source is not None and source[0] == "page" and source not in seen:
             title = found.pages.get(source[1], (source[1],))[0]
             above, located = own(source, seen | {key})

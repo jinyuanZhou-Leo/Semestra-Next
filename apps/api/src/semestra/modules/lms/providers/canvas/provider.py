@@ -703,6 +703,8 @@ class CanvasProvider:
                         mime_type=_text(f.get("content-type")),
                         size_bytes=_int(f.get("size")) if f.get("size") is not None else None,
                         download_url=_text(f.get("url")),
+                        updated_at=f.get("updated_at"),
+                        content_at=f.get("modified_at"),
                     )
                     for f in cast(list[dict[str, Any]], r.get("attachments") or [])
                     if isinstance(f, dict) and f.get("id") is not None

@@ -150,6 +150,8 @@ def _seen(mat: LmsMaterial, m: Material) -> None:
     mat.version = m.version if mat.state != "synced" else None
     if m.links is not None:
         mat.links = m.links
+    if m.attached is not None:  # else this run did not read every way in whole: as it was
+        mat.attached = m.attached
 
 
 def _retry_due(row: FilesItem, now: datetime) -> bool:
@@ -198,7 +200,8 @@ async def _known(ctx: Ctx, link: LmsCourseLink, *, again: bool = False) -> dict[
 
 async def run(ctx: Ctx, link: LmsCourseLink, b: Bound, sync_round: SyncRound) -> StageResult:
     known = await _known(ctx, link)
-    found = await material_reads.read(ctx, link, b, sync_round, known)
+    cfg = await material_settings(ctx, link.course_id)
+    found = await material_reads.read(ctx, link, b, sync_round, known, cfg)
     verdicts = await material_reads.judge(ctx, link, b, sync_round, found)
     r = _Run(link, b, sync_round, found, verdicts)
     # Written a batch at a time, each in a transaction of its own: a large course comes in whole

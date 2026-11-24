@@ -22,7 +22,7 @@ import html as htmllib
 import re
 from collections.abc import Iterable, Sequence
 from datetime import datetime, timedelta
-from typing import get_args
+from typing import Any, get_args
 
 import structlog
 from sqlalchemy import func, select
@@ -39,7 +39,7 @@ from semestra.modules.lms.models import (
     LmsImportedRef,
     LmsMaterial,
 )
-from semestra.modules.lms.schemas.dto import Announcement, FileMeta
+from semestra.modules.lms.schemas.dto import Announcement, Attachment, FileMeta
 from semestra.modules.lms.schemas.io import (
     AnnouncementAttachment,
     AnnouncementList,
@@ -172,9 +172,7 @@ async def _write(
         "web_url": a.web_url,
         "posted_at": a.posted_at,
         "updated_at": a.updated_at,
-        "attachments": [
-            x.model_dump(mode="json") | {"download_url": x.download_url} for x in a.attachments
-        ],
+        "attachments": [_kept(x) for x in a.attachments],
     }
     changed = False
     news: list[Notice] = []
@@ -200,6 +198,34 @@ async def _write(
         changed = True
     await ctx.db.flush()
     return changed, news
+
+
+def _kept(x: Attachment) -> dict[str, Any]:
+    """An attachment as the mirror keeps it: with what is not sent (its download address, when
+    it changed)."""
+    return x.model_dump(mode="json") | {
+        "download_url": x.download_url,
+        "updated_at": x.updated_at.isoformat() if x.updated_at else None,
+        "content_at": x.content_at.isoformat() if x.content_at else None,
+    }
+
+
+def attachment_files(row: LmsAnnouncement) -> list[FileMeta]:
+    """The files attached to a kept announcement, as files (M09 §4.6 table 4d row 7): from what
+    the announcement gave, no lookup."""
+    return [
+        FileMeta(
+            external_id=str(x.get("external_id")),
+            name=str(x.get("name") or x.get("external_id")),
+            mime_type=x.get("mime_type"),
+            size_bytes=x.get("size_bytes"),
+            download_url=x.get("download_url"),
+            updated_at=x.get("updated_at"),
+            content_at=x.get("content_at"),
+        )
+        for x in row.attachments
+        if x.get("external_id") is not None
+    ]
 
 
 async def _gone(
@@ -300,15 +326,9 @@ async def attachment_meta(ctx: Ctx, course_id: str, file_id: str) -> FileMeta | 
         return None
     rows = await ctx.db.scalars(select(LmsAnnouncement).where(LmsAnnouncement.link_id == link.id))
     for row in rows:
-        for x in row.attachments:
-            if str(x.get("external_id")) == file_id and x.get("download_url"):
-                return FileMeta(
-                    external_id=file_id,
-                    name=str(x.get("name") or file_id),
-                    mime_type=x.get("mime_type"),
-                    size_bytes=x.get("size_bytes"),
-                    download_url=x["download_url"],
-                )
+        for meta in attachment_files(row):
+            if meta.external_id == file_id and meta.download_url:
+                return meta
     return None
 
 

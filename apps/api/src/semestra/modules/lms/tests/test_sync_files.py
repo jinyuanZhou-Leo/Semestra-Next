@@ -31,6 +31,7 @@ from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.models import LmsMaterial
 from semestra.modules.lms.schemas.dto import (
     Announcement,
+    Attachment,
     FileMeta,
     InternalRef,
     LmsCalendarEvent,
@@ -2475,3 +2476,85 @@ async def test_a_way_in_that_is_no_place_never_moves_an_item(
     clock.advance(days=2)
     await api.sync(program_id)
     assert (await _organize(api, course))["moves"] == []
+
+
+def _attached(fake: FakeProvider, file_id: str = "305", name: str = "Notes 1.pdf") -> None:
+    """The announcement of `_ways_in` carries a file, given by its own download address."""
+    [post] = fake.announcement_list or []
+    post.attachments = [
+        Attachment(
+            external_id=file_id,
+            name=name,
+            size_bytes=1000,
+            download_url=f"https://lms.example/files/{file_id}/download?verifier=v",
+            updated_at=JAN,
+        )
+    ]
+
+
+async def test_an_attachment_comes_in_and_leaves_with_its_announcement(
+    api: Api, fake: FakeProvider
+):
+    """An announcement's attachment comes into the course's files from what the announcement
+    gave, opened by its address (no read of the file, which the hidden files area refuses).
+    Deleted with its announcement, it leaves (M09 §4.6, "公告附件")."""
+    _ways_in(fake)
+    _attached(fake)
+    fake.refused_files.add("305")
+    program_id, course = await _course(api)
+    await api.sync(program_id)
+    folders, items = await _files(api, course)
+    assert _where(folders, items["Notes 1.pdf"]) == "Announcements"
+    assert ("file", "305") not in fake.calls
+    got = await api.client.get(f"/files/{items['Notes 1.pdf']['id']}/content")
+    assert (got.status_code, got.content) == (200, b"hello")
+
+    fake.announcement_list = []
+    await api.sync(program_id)
+    assert "Notes 1.pdf" not in (await _files(api, course))[1]
+
+
+async def test_a_partial_round_does_not_make_a_file_an_attachment_only(
+    api: Api, fake: FakeProvider
+):
+    """A file in the files area that an announcement also carries: a round that could not read
+    the files area does not take it as seen only in the announcement, so the announcement deleted
+    later does not take it away (unknown is not deleted)."""
+    _ways_in(fake)
+    fake.files_hidden = False
+    fake.course_file_list = [_file("305", "Notes 1.pdf")]
+    _attached(fake)
+    program_id, course = await _course(api)
+    await api.sync(program_id)
+    assert "Notes 1.pdf" in (await _files(api, course))[1]
+
+    fake.faults["course_files"] = lms_error("lms.unreachable")
+    await api.sync(program_id)
+    fake.announcement_list = []
+    await api.sync(program_id)
+    assert "Notes 1.pdf" in (await _files(api, course))[1]
+
+
+async def test_ways_in_turned_off_bring_nothing_new(api: Api, fake: FakeProvider):
+    """Attachments and calendar links turned off bring in nothing; folders by source turned off,
+    what only an assignment or an announcement links goes at the top (M09 §4.6, "设置")."""
+    _ways_in(fake)
+    _attached(fake)
+    program_id, course = await _course(api)
+    body = {
+        "scope_type": "account",
+        "values": {
+            "announcement_attachments": False,
+            "calendar_links": False,
+            "entry_folders": False,
+        },
+    }
+    await api.call("PATCH", "/me/settings/lms.materials", json=body)
+    await api.sync(program_id)
+    folders, items = await _files(api, course)
+    assert {name: _where(folders, item) for name, item in items.items()} == {
+        "Syllabus": None,
+        "Outline.pdf": None,
+        "Lab 1 handout.pdf": None,
+        "Slides 1.pdf": None,
+    }

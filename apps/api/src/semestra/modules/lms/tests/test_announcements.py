@@ -190,6 +190,10 @@ async def test_links_and_attachments_open_what_the_app_has(
         "POST", f"/courses/{course}/lms/imports:assignments", json={"external_ids": ["a1"]}
     )
     await api.commit(started["session_id"])
+    # Attachments are not brought into the course's files: they open from the announcement.
+    body = {"scope_type": "course", "scope_id": course,
+            "values": {"announcement_attachments": False}}  # fmt: skip
+    await api.call("PATCH", "/me/settings/lms.materials", json=body)
     board.post(
         "n1",
         "Lab 1 is out",

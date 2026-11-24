@@ -258,6 +258,10 @@ class LmsMaterial(Base, OwnedMixin):
     placed_folder_id: Mapped[str | None] = mapped_column(String, default=None)
     # The course's files and pages a page links to, as `[kind, external id]` pairs.
     links: Mapped[list[list[str]]] = mapped_column(JSON, default=list)
+    # Last seen only as an announcement's attachment (M09 §4.6, "公告附件"): then the
+    # announcements are the one place it may be in, and it leaves when none carries it. Changed
+    # only by a round that read every way in whole.
+    attached: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     imported_at: Mapped[datetime | None] = mapped_column(default=None)
     # What the platform last did to it, for the status panel's recent updates (`CHANGES_KEPT`);
     # none for what came in before the course settled (`materials_settled_at`).

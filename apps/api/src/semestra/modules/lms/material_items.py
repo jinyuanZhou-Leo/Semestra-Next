@@ -18,7 +18,7 @@ from semestra.modules.academics import service as academics
 from semestra.modules.files import register_content_source, sources
 from semestra.modules.files.models import FilesItem
 from semestra.modules.files.source_folders import SourceFolders
-from semestra.modules.lms import reads, service, sync_state
+from semestra.modules.lms import announcements, reads, service, sync_state
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.materials import enter
 from semestra.modules.lms.models import LmsConnection, LmsCourseLink, LmsMaterial
@@ -136,7 +136,10 @@ async def open_source(ctx: Ctx, item: FilesItem) -> AsyncIterator[bytes]:
     document (read fresh, so a changed page is read as it is now)."""
     mat, link = await _material_of(ctx, item)
     if mat.kind == "file":
-        _, stream = await reads.open_file(ctx, link.course_id, mat.external_id)
+        # An announcement carrying it gives the way that opens it where the files are hidden
+        # (M09 §4.6, "公告附件"); else it is read by its id.
+        meta = await announcements.attachment_meta(ctx, link.course_id, mat.external_id)
+        _, stream = await reads.open_file(ctx, link.course_id, mat.external_id, meta=meta)
         return stream
     if mat.kind == "page":
         page = await reads.page(ctx, link.course_id, mat.external_id, refresh=True)
@@ -418,6 +421,10 @@ async def on_store_changing(ctx: Ctx, event: Event) -> None:
         await sources.reset_copy_choices(ctx, await synced_items(ctx, link.id))
 
 
+# The settings that change what the course's materials bring in (M09 §4.6, "设置").
+WAYS_IN = frozenset({"announcement_attachments", "entry_folders", "calendar_links"})
+
+
 @events.subscribe("settings.values.updated")
 async def on_settings_changed(ctx: Ctx, event: Event) -> None:
     """The materials settings of the account or a course changed: turned on, the courses sync
@@ -446,6 +453,10 @@ async def on_settings_changed(ctx: Ctx, event: Event) -> None:
             # What the platform added while off is not news: the next run is quiet again.
             link.materials_settled_at = None
             turned_on.append(link)
+        if changed & WAYS_IN and cfg.sync and link not in turned_on:
+            # What the course's materials bring in changed: the course syncs now, so what it
+            # turns on is there this round (M09 §4.6, "设置").
+            again.append(link)
         if "store" in changed and cfg.store == "local":
             await sources.apply_copies(
                 ctx,

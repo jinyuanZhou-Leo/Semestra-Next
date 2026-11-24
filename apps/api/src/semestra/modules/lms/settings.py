@@ -101,6 +101,19 @@ class MaterialSettings(BaseModel):
         "copy is kept, still updated by the platform, and saved as the user's own file when the "
         "platform deletes it or the course is unlinked",
     )
+    announcement_attachments: bool = Field(
+        default=True,
+        description="Files attached to announcements come in too (M09 §4.6 table 4d row 7)",
+    )
+    calendar_links: bool = Field(
+        default=True,
+        description="Course files and pages linked from calendar event descriptions come in too",
+    )
+    entry_folders: bool = Field(
+        default=True,
+        description="Items found only through assignments, announcements or calendar events are "
+        "first placed in folders named after them; off, at the top of the course's files",
+    )
 
 
 async def materials(ctx: Ctx, course_id: str) -> MaterialSettings:
