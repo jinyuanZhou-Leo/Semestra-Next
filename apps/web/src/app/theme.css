@@ -647,7 +647,8 @@
 }
 
 /* Follows the scroll position, not time: reduced motion leaves it alone. */
-[data-reduce-motion='on'] .scroll-fade {
+[data-reduce-motion='on'] .scroll-fade,
+[data-reduce-motion='on'] .scroll-area-fade > [data-slot='scroll-area-viewport'] {
   animation-duration: auto !important;
 }
 
