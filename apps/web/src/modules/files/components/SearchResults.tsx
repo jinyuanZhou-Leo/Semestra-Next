@@ -61,14 +61,17 @@ export function useContentSearch(
   })
 }
 
-/** Text split into plain and marked parts; the marked ones are the matches. */
+/**
+ * Text split into plain and marked parts; the marked ones are the matches. One element, so a flex
+ * parent (an item title) does not turn every part into a flex item with a gap in between.
+ */
 function MarkedParts({ parts }: { parts: readonly SnippetPart[] }) {
   return (
-    <>
+    <span>
       {parts.map((part, index) =>
         part.marked ? (
           // oxlint-disable-next-line no-array-index-key -- parts never reorder
-          <mark key={index} className="rounded-sm bg-primary/15 px-0.5 text-foreground">
+          <mark key={index} className="rounded-sm bg-primary/15 text-foreground">
             {part.text}
           </mark>
         ) : (
@@ -76,7 +79,7 @@ function MarkedParts({ parts }: { parts: readonly SnippetPart[] }) {
           <span key={index}>{part.text}</span>
         ),
       )}
-    </>
+    </span>
   )
 }
 

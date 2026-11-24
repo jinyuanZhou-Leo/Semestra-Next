@@ -657,6 +657,14 @@
   color: var(--foreground);
 }
 
+/* Search terms in a PDF's text layer (`files/components/PdfViewer.tsx`): the layer is invisible
+   text over the page image, so a match is only a see-through tint (the browser's default `mark`
+   is opaque yellow with black text, which hides the page's own letters and draws its own). */
+.textLayer mark {
+  background-color: color-mix(in oklch, var(--primary) 25%, transparent);
+  color: transparent;
+}
+
 /* Search terms in a file preview's text view (`files/components/DocumentText.tsx`). */
 ::highlight(files-preview-search) {
   background-color: color-mix(in oklch, var(--primary) 25%, transparent);
