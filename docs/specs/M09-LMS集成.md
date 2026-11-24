@@ -245,6 +245,7 @@ Canvas 的映射（`providers/canvas/`）。同一个 HTTP 回应只对应一种
 | 18 | 日历列表里的一项 | `context_code` 为 `course_section_<id>`（只给某个 Section 的事件），`effective_context_code` 为 `course_<id>` | 分节事件（待确认：学生查询课程 context 时 Canvas 是否返回本人所在 Section 的子事件，以及 `effective_context_code` 是否总有） | 属于 `effective_context_code` 的课程；没有 `effective_context_code` 时丢弃这一项 | 现状 |
 | 19 | 任意 | 200，但回应读不懂（不是 JSON，JSON 的结构不对：列表不是列表、对象缺它的 id） | 平台或中间的代理出了问题 | `unavailable`（`lms.unreachable`，原因 `payload`，同第 13 行）。Canvas 在 `_get`/`_list` 里判断 | 2026-11-23；值放不进 DTO 的一种移到第 20 行（#439） |
 | 20 | 任意 | provider 抛出的其他异常，包括平台的某个值放不进 provider 的 DTO（`ValidationError`） | Semestra 自己的程序错误（DTO 太严也是 Semestra 的模型的问题，不会自己好），不是平台的回答 | `unavailable`（`common.internal`），只关于这一次读取，同样不结束本轮；记进 `sync_problems`，面板按表 5c 第 2、4 行显示（每轮都会再出现）；记日志 `lms.provider_failed`（`ValidationError` 带出错的字段）。经 HTTP 读（Canvas 标签页、Sem、MCP）时是 500 `common.internal`，界面说“出了点问题”，不说“连不上平台” | 2026-11-23 |
+| 21 | 首页（`/courses/:id/front_page`，provider `page(FRONT_PAGE_REF)`；只在页面列表这一轮没读全时读，§4.6） | 200 / 404 / 401 不带 `WWW-Authenticate`、403（非限流） | 读到首页 / 课程没有设首页 / 读不到（首页一定已发布，关闭区域里已发布的页面照常 200（第 3 行），所以被拒不会是老师隐藏了页面栏目） | 部分 `front_page`：`whole`（读到的首页作为页面遍历的起点）/ `whole`（没有起点，不算没读到）/ `unavailable`（原因即错误码；首页不是课程导航里的栏目，没有 `hidden`，不按第 7、8 行判断，`answers.OFF_NAV`） | 2026-11-24；待确认（页面栏目关闭时 `/front_page` 是否 200，#430 的两门课都有首页但没录这个接口） |
 
 - **类型所属的区域**：单项的读取接口属于哪个区域，只看类型，不看它在哪里被列出或链接：文件 → 文件区，文件夹 → 文件区，页面 → 页面，syllabus → syllabus，单元里的外部链接与外部工具 → 单元，作业 → 作业，测验 → 测验，讨论 → 讨论，公告 → 公告，单元 → 单元，日历事件 → 日历（只在列表里读，不单独读）。同一份文件同时出现在隐藏的文件区和开着的单元里时，它的类型所属的区域是文件区。
 - `unavailable` 的原因就是错误码（§9），界面与 Sem 按它说明；`lms.forbidden` 与 `lms.not_found` 只在 provider 内部用来区分上面的行，共享代码不再分别处理它们（第 6b 行记下的原因 `lms.forbidden` 只存在 `lms_item_checks`，不出现在界面上）。
@@ -498,6 +499,7 @@ Canvas 的映射（`providers/canvas/`）。同一个 HTTP 回应只对应一种
 | | 一条公告（provider 有 `discussions` 时） | 单项 | `lms_item_checks` | 表 2 第 5、6、6b 行 |
 | `calendar` | 日历列表 | 区域列表 | `area_reads.calendar` | 表 2 第 17 行 |
 | `files` | 文件列表、页面列表、单元列表与单元条目 | 区域列表 | `area_reads.files`、`.pages`、`.modules` | 表 2 第 7、8 行 |
+| | 首页（页面列表这一轮不是 `whole`：栏目关闭、被拒、截断；`whole` 时首页就在列表里，或课程没有首页，不读，记 `whole`） | 起点读取（每轮一次，不占单独读的名额） | `area_reads.front_page` | 表 2 第 21 行 |
 | | 一份文件、一个页面 | 单项 | `lms_item_checks` | 表 2 第 5、6、6b 行 |
 
 **表 5b：同步的一部分出错时**（按顺序取第一行）。
@@ -547,7 +549,7 @@ Canvas 的映射（`providers/canvas/`）。同一个 HTTP 回应只对应一种
     | `assignments` | `assignments`、`submissions`、`quizzes`、`total` |
     | `announcements` | `announcements` |
     | `calendar` | `calendar` |
-    | `files` | `files`、`pages`、`modules` |
+    | `files` | `files`、`pages`、`modules`、`front_page` |
 - **`lms_item_checks`：只能单独读到的项最近一次的单独读取**（表 3c 第 6–10 行）。
   - 不变，已有 `unavailable_since`：从什么时候起一直读不到。
 - **`lms_course_links.sync_problems`：只记 Semestra 这一边的问题。**
@@ -602,6 +604,7 @@ Canvas 的映射（`providers/canvas/`）。同一个 HTTP 回应只对应一种
   | `files` | 文件 |
   | `pages` | 页面 |
   | `modules` | 单元 |
+  | `front_page` | 首页 |
 - **再试（第 6、9 行的 `passing`）**：
   - **适用范围**：上一轮留下 `passing` 部分或项的课程不等账户的同步频率，按下面的间隔由 `lms.sync_due` 再排。
   - **间隔**：下一次 = 上一轮的时间 + 间隔，间隔 = 上一轮的时间 − `unavailable_since`（它已经连续读不到的时长；部分用 `area_reads` 条目的、项用 `lms_item_checks` 的，取这门课 `passing` 的部分与项里最早的 `unavailable_since`）。不用 `read_at`（最后一次读回来的时间，偶然失败时它已是一个同步周期之前）也不用 `at`（每轮覆盖）。
@@ -671,8 +674,9 @@ Canvas 的映射（`providers/canvas/`）。同一个 HTTP 回应只对应一种
 
 ### 4.6 课程资料
 - **范围**：`files` 阶段把平台上课程的文件（`folders`）、页面（`pages`）、syllabus（作为一份页面；未落地，见表 1）和单元里的文件、页面、外部链接与外部工具（`modules`）带进 M07 的课程文件；页面里链接到的文件和页面、只在单元里出现的文件也带进来（逐个读取，占表 3c 的单独读名额；单独读的一天最多查一次，期间按表 3c 第 7、8 行）。只看 provider 的 `features`。设置在 M11 命名空间 `lms.materials`（`sync` 开关与 `store` 保存方式，全局与课程两级，默认开、`online`）。
+- **页面从哪里找起**（2026-11-24）：页面列表（读全时它列出全部页面，含首页）、单元里的页面，以及**首页**：页面列表这一轮不是 `whole`（老师隐藏了页面栏目、被拒、截断）时，同一阶段再读一次首页（表 5a、表 2 第 21 行），读到的首页和列表里的页面一样处理（读正文、带进它链接的文件和页面、按它判断在不在；只有链接的是列表页，不保存），只是**不作为位置**（下一条）。有的老师隐藏页面与文件栏目、单元留空，全部资料都从首页的链接进入（首页 → “Lectures” 等页面 → 文件）；原来这类课一项资料也带不进来，面板却只说“栏目已关闭”。首页每轮读一次（是起点，和区域列表一样不占名额）；它链接的页面没有列表给出版本，按上面的单独读规则一天最多查一次，所以这类课程新加的资料最晚一天后带进来。首页读不到时它是“未更新”里的一部分（表 5c 第 6、7 行，名称“首页”），这一轮少了这个起点，已有的资料不受影响（按表 3c 各自判断）。页面栏目关着时面板第 8 行“页面 · 栏目已关闭”照常显示：从首页与单元都链接不到的页面仍然找不到。
 - **不占存储**：文件与页面建成 M07 的远程文件（`source_kind="lms"`），内容经 M07 的内容源在打开、预览、建索引时从平台读；链接建成 M07 的链接项。锁定的项算“在”（表 3c 第 3 行），在开放之前不建新项。
-- **按平台目录放**：每项第一次带进来时按它在平台上的位置（所在单元，否则文件区里的文件夹，否则第一个链接它的页面的位置加上该页面；首页不算）放进由 M07 `SourceFolders` 建立并记住的文件夹，最多三级；不按周归类，不调用模型。只有链接、自身文字不到 160 字的页面是列表页，不保存。
+- **按平台目录放**：每项第一次带进来时按它在平台上的位置（所在单元，否则文件区里的文件夹，否则第一个链接它的页面的位置加上该页面；首页不算，不论它是从页面列表还是直接读到的）放进由 M07 `SourceFolders` 建立并记住的文件夹，最多三级；不按周归类，不调用模型。只有链接、自身文字不到 160 字的页面是列表页，不保存。
 - **用户优先**：每项只放一次，用户移动、改名、删除都不会被同步改回；平台改了名而用户没改的才跟着改名（按 M07 `sources.name_from_source` 得到的名字与 `name` 比较）；平台上换了位置的由 M07 的「整理」提议移回。版本变了的文件重新处理。每次最多新建 100 项。
 - **平台上没有了**：按表 3c 判断，按表 4a 转换。新带进来的文件与用户自己的某个文件同名且大小相同时照常带进来，记为 `duplicate`，由用户决定留哪份。
 - **保存方式**：`online` 从平台读取 / `local` 保存在 Semestra；每个文件还可以在 ⋯ 菜单里单独选（`files_items.keep_copy`）。改了 `store` 时同一事务里清空这些课程里各文件的 `keep_copy`（以最后一次明确的操作为准）。副本每个文件一个 `files.store_synced_copies` 任务（`background`，去重键按文件），入队前按大小筛掉超过上传上限和剩余配额的。放掉副本只对这一轮平台给出了它本身的项做（表 3c 注）：课程关闭、区域读不到或只在单元里列出时，副本可能是唯一的一份。平台拒绝给出副本（`lms.not_found`/`lms.forbidden`）的文件 1 小时内不再重排副本任务。新建的项每 100 个（`BATCH`）一个事务写入，一轮带进全部；单独读的文件和页面并发读（`reads.files_many`/`pages_many`），仍在名额之内。
