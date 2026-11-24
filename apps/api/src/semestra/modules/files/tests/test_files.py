@@ -1200,7 +1200,7 @@ async def test_an_upload_asks_which_files_look_already_there(fx: Fx):
     assert got["duplicates"] == [0, 1, 2, 4]
 
 
-async def test_files_read_by_an_older_reader_are_read_again(fx: Fx):
+async def test_own_files_read_by_an_older_reader_are_read_again(fx: Fx):
     from semestra.core.jobs import run_periodic
     from semestra.modules.files.models import FilesDocument, FilesItem
 

@@ -12,8 +12,7 @@ from semestra.core.jobs import CoreJob, JobCtx, enqueue, job_handler, periodic
 from semestra.modules import ai
 from semestra.modules.files import pipeline, service, sources
 from semestra.modules.files.models import FilesChunk, FilesDocument, FilesIndexState, FilesItem
-from semestra.modules.files.parse.detect import KIND_OF_MIME
-from semestra.modules.files.parse.readers import REREAD_KINDS, reader_version
+from semestra.modules.files.parse.readers import outdated
 
 # Weights follow M07 §3.1; stages that do not apply are skipped and their weight is shared out.
 PROCESS_STAGES = [
@@ -166,36 +165,28 @@ async def retry_vectors(ctx: Ctx) -> None:
         await run_as_system(ctx.state, user_id, again)
 
 
-def _read_with(fingerprint: str) -> int:
-    """The reader version a document was read with (`pipeline`); 1 before versions were kept."""
-    parts = fingerprint.split(":")
-    return int(parts[1]) if len(parts) == 3 and parts[1].isdigit() else 1
-
-
 @periodic("files.reread_outdated", every=timedelta(hours=6), first_after=timedelta(minutes=10))
 async def reread_outdated(ctx: Ctx) -> None:
-    """Files read by an older version of a reader that needs no model (`REREAD_KINDS`) are read
-    again, behind the users' own files, so a reader's change (M09's formulas on LMS pages) reaches
-    the files already read and not only those read from now on."""
-    mimes = [
-        mime
-        for mime, kind in KIND_OF_MIME.items()
-        if kind in REREAD_KINDS and reader_version(kind) > 1
-    ]
-    if not mimes:
-        return
+    """The user's own files read by an older version of a reader that needs no model
+    (`readers.outdated`) are read again from their stored bytes, behind the users' own reads, so
+    a reader's change reaches the files already read. A source's files are its sync's to read
+    again (`sources.read_again_if_outdated`): their bytes are on the source's platform."""
     found = await ctx.db.execute(
         select(
             FilesItem.user_id, FilesItem.id, FilesItem.mime_type, FilesDocument.parser_fingerprint
         )
         .join(FilesDocument, FilesDocument.id == FilesItem.active_document_id)
-        .where(FilesItem.doc_status == "ready", FilesItem.mime_type.in_(mimes))
+        .where(
+            FilesItem.doc_status == "ready",
+            FilesItem.storage_key.is_not(None),
+            FilesItem.source_kind.is_(None),
+        )
     )
-    outdated: dict[str, list[str]] = {}
+    stale: dict[str, list[str]] = {}
     for user_id, item_id, mime, fingerprint in found.all():
-        if _read_with(fingerprint) < reader_version(KIND_OF_MIME.get(mime or "", "")):
-            outdated.setdefault(user_id, []).append(item_id)
-    for user_id, item_ids in outdated.items():
+        if outdated(mime, fingerprint):
+            stale.setdefault(user_id, []).append(item_id)
+    for user_id, item_ids in stale.items():
 
         async def again(user_ctx: Ctx, item_ids: list[str] = item_ids) -> None:
             rows = await user_ctx.db.scalars(select(FilesItem).where(FilesItem.id.in_(item_ids)))

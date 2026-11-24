@@ -51,6 +51,7 @@ from semestra.modules.files.items import (
 )
 from semestra.modules.files.models import FilesDocument, FilesDocumentPage, FilesItem
 from semestra.modules.files.parse.detect import DOCX, PPTX, XLSX
+from semestra.modules.files.parse.readers import outdated
 from semestra.modules.files.schemas import SourceKind
 from semestra.modules.files.service import find_items, get_folder, name_from_source, purge_items
 
@@ -582,6 +583,40 @@ async def retry_synced(ctx: Ctx, row: FilesItem) -> None:
     source's sync decides when (M09 retries once its platform answers again)."""
     await service.request_read(ctx, row, "source")
     await events.publish(ctx, "files.item.updated", {"item_id": row.id, "course_id": row.course_id})
+
+
+async def outdated_items(ctx: Ctx, rows: Sequence[FilesItem]) -> set[str]:
+    """Which of a source's files had their text read by an older version of a reader that needs
+    no model (`readers.outdated`): the source's sync reads them from its platform again this round
+    even when unchanged there, and `read_again_if_outdated` then reads their text again."""
+    documents = [row.active_document_id for row in rows if row.doc_status == "ready"]
+    if not documents:
+        return set()
+    mime = {row.active_document_id: row for row in rows}
+    found = await ctx.db.execute(
+        select(FilesDocument.id, FilesDocument.parser_fingerprint).where(
+            FilesDocument.id.in_(documents)
+        )
+    )
+    return {
+        mime[document_id].id
+        for document_id, fingerprint in found.all()
+        if outdated(mime[document_id].mime_type, fingerprint)
+    }
+
+
+async def read_again_if_outdated(ctx: Ctx, row: FilesItem) -> bool:
+    """Reads a source's file again when its text was read by an older version of a reader that
+    needs no model (`readers.outdated`); True when it does. The source's sync calls it for the
+    files it keeps in step, so the source's platform is read when the sync reads it (the user's
+    own files: `jobs.reread_outdated`)."""
+    if row.doc_status != "ready" or row.active_document_id is None:
+        return False
+    document = await ctx.db.get(FilesDocument, row.active_document_id)
+    if document is None or not outdated(row.mime_type, document.parser_fingerprint):
+        return False
+    await retry_synced(ctx, row)
+    return True
 
 
 async def rename_synced(ctx: Ctx, row: FilesItem, name: str) -> None:

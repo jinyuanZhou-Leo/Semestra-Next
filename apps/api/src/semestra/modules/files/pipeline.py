@@ -40,7 +40,7 @@ from semestra.modules.files.parse.isolated import (
     parse_isolated,
     render_isolated,
 )
-from semestra.modules.files.parse.readers import MAX_PAGES, guess_language, reader_version
+from semestra.modules.files.parse.readers import MAX_PAGES, fingerprint_reader, guess_language
 from semestra.modules.files.parse.render import PageImage
 from semestra.modules.files.vectors import VectorRow, VectorStore, fingerprint, get_vector_store
 
@@ -273,7 +273,7 @@ async def _run(ctx: JobCtx, work: _Work) -> int:
         f"{ocr_model or ''}|{chunking.CHUNKER_VERSION}".encode()
     ).hexdigest()[:16]
     # The reader and its version stay readable: `jobs.reread_outdated` compares them.
-    fingerprint = f"{detected.kind}:{reader_version(detected.kind)}:{fingerprint}"
+    fingerprint = f"{fingerprint_reader(detected.kind)}{fingerprint}"
     ocr_pages = {i for i, p in enumerate(parsed.pages) if p.needs_ocr and p.markdown}
     text_sample = "\n".join(p.markdown for p in parsed.pages[:20])
     async with ctx.state.session_factory() as db:

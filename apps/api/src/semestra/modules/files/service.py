@@ -251,8 +251,8 @@ async def request_read(
       a source's in the queue behind it (`files.process_synced`);
     - a backup restore: what was read when the backup was made is read again, the rest as
       `auto_index` says;
-    - a reader that changed (`upgrade`, `jobs.reread_outdated`): what was read is read again,
-      behind the user's own files.
+    - a reader that changed (`upgrade`, `jobs.reread_outdated`): a file of the user's own that
+      was read is read again, behind the user's own reads.
 
     A job queued for an older version of the item (or, for the user, behind the synced files)
     is withdrawn; one running reads again once it ends (`again`), and a result for a version the

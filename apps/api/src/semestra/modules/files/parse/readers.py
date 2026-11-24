@@ -8,7 +8,7 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, cast
 
-from semestra.modules.files.parse.detect import Detected, decode_text
+from semestra.modules.files.parse.detect import KIND_OF_MIME, Detected, decode_text
 
 MAX_PAGES = 500
 OCR_MIN_CHARS = 50
@@ -20,8 +20,8 @@ MAX_TABLE_COLUMNS = 100
 # unpacks to hundreds of megabytes is refused before it is opened.
 MAX_OFFICE_UNPACKED_BYTES = 100_000_000
 # Each reader's version: raised when the text a reader writes changes. A document read by an
-# older version of a reader that needs no model is read again (`jobs.reread_outdated`); a document
-# read before versions were recorded counts as version 1.
+# older version of a reader that needs no model is read again (`outdated`); a document read before
+# versions were recorded counts as version 1.
 READER_VERSIONS: dict[str, int] = {"html": 2}
 # Readers whose documents are read again when their version goes up: they never run OCR, so
 # reading again costs no model use beyond embedding.
@@ -30,6 +30,24 @@ REREAD_KINDS = frozenset({"docx", "pptx", "xlsx", "csv", "text", "markdown", "ht
 
 def reader_version(kind: str) -> int:
     return READER_VERSIONS.get(kind, 1)
+
+
+def fingerprint_reader(kind: str) -> str:
+    """How a document's `parser_fingerprint` starts: the reader and its version (`pipeline`)."""
+    return f"{kind}:{reader_version(kind)}:"
+
+
+def outdated(mime: str | None, fingerprint: str) -> bool:
+    """A document of a file of type `mime` (the item's, once read) was read by an older version
+    of a reader that needs no model: it is to be read again. Who reads it again: the user's own
+    files `jobs.reread_outdated`, a source's files its sync (`sources.read_again_if_outdated`),
+    which reads its platform within its own limits and retries its failures."""
+    kind = KIND_OF_MIME.get(mime or "")
+    if kind not in REREAD_KINDS or reader_version(kind) == 1:
+        return False
+    parts = fingerprint.split(":")
+    read_with = int(parts[1]) if len(parts) == 3 and parts[1].isdigit() else 1
+    return read_with < reader_version(kind)
 
 
 class ParseError(Exception):
@@ -324,7 +342,17 @@ def _html(data: bytes) -> ParsedDocument:
     soup = BeautifulSoup(decode_text(data) or "", "html.parser")
     for tag in soup(_HTML_SKIP):
         tag.decompose()
-    latex = any(_tex(m) for m in soup.find_all("math"))
+    latex = False
+    for math in soup.find_all("math"):
+        if _tex(math) is None:
+            continue
+        latex = True
+        # KaTeX's output keeps the formula twice: the MathML, and a drawing of it in text
+        # hidden from screen readers (`.katex-html`), which would be read as a second, garbled
+        # copy.
+        katex = math.find_parent(class_="katex")
+        for drawn in katex.select('[aria-hidden="true"]') if katex is not None else []:
+            drawn.decompose()
 
     class Converter(MarkdownConverter):
         def convert_math(self, el: Any, text: str, parent_tags: set[str]) -> str:

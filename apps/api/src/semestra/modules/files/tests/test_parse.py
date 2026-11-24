@@ -177,6 +177,15 @@ def test_html_math_with_tex_source_is_latex_and_other_dollars_are_escaped():
     assert page.latex
     assert r"Area $\pi r_1^2$ costs \$5." in page.markdown
     assert "$$\nE = mc^2\n$$" in page.markdown
+    # KaTeX's output: the MathML and a drawing of the formula hidden from screen readers.
+    katex = (
+        '<p>Energy <span class="katex"><span class="katex-mathml"><math><semantics><mi>E</mi>'
+        + tex.format("E=mc^2")
+        + '</semantics></math></span><span class="katex-html" aria-hidden="true">'
+        "<span>E</span><span>=</span><span>mc</span><span>2</span></span></span> holds.</p>"
+    ).encode()
+    page = parse(katex, detect(katex, "x.html")).pages[0]
+    assert "Energy $E=mc^2$ holds." in page.markdown
     plain = b"<p>Late fee is $5 and the kit costs $10.</p>"
     page = parse(plain, detect(plain, "x.html")).pages[0]
     assert not page.latex
