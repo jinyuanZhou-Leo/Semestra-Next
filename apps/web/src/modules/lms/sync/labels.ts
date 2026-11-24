@@ -1,4 +1,5 @@
-import type { SyncItem } from '@semestra/api-client'
+import type { SyncItem, SyncStatus, SyncUnreadable } from '@semestra/api-client'
+import { isSameDay } from 'date-fns'
 import { formatDate, formatPercent, formatTime } from '@/lib/format'
 import { m } from '@/paraglide/messages'
 
@@ -59,4 +60,60 @@ export function byCourse<T extends { course_id: string; course: string }>(
     course: items[0]?.course ?? '',
     items,
   }))
+}
+
+/** The parts of a course the sync reads (M09 表 5c), by name. */
+const PARTS: Record<string, () => string> = {
+  course: () => m.lms_part_course(),
+  assignments: () => m.lms_area_assignments(),
+  submissions: () => m.lms_part_submissions(),
+  quizzes: () => m.lms_part_quizzes(),
+  total: () => m.lms_part_total(),
+  announcements: () => m.lms_area_announcements(),
+  calendar: () => m.lms_part_calendar(),
+  files: () => m.lms_area_files(),
+  pages: () => m.lms_area_pages(),
+  modules: () => m.lms_area_modules(),
+}
+
+/** "Submissions and feedback, course total". */
+export function partsLabel(parts: readonly string[]): string {
+  return parts.map((p) => PARTS[p]?.() ?? p).join(m.lms_sync_list_separator())
+}
+
+/**
+ * Why the platform did not give it (M09 表 5c, rows 5-9), in a few words: the platform not
+ * answering, a rate limit, an answer not understood, the area closed, or refused.
+ */
+export function reasonLabel(
+  u: Pick<SyncUnreadable, 'code' | 'params' | 'parts'>,
+  provider: string,
+) {
+  switch (u.code) {
+    case 'lms.area_hidden':
+      return m.lms_sync_reason_closed()
+    case 'lms.rate_limited':
+      return m.lms_sync_reason_rate_limited({ provider })
+    case 'lms.unreachable':
+      return u.params?.['reason'] === 'payload'
+        ? m.lms_sync_reason_payload({ provider })
+        : m.lms_sync_reason_unreachable({ provider })
+    default:
+      return u.parts?.includes('course')
+        ? m.lms_sync_reason_course_refused()
+        : m.lms_sync_reason_refused()
+  }
+}
+
+/** A moment in the panel's rows: its time today, its day before ("14:20", "Nov 20"). */
+export function shortWhen(at: string, now: number): string {
+  return isSameDay(at, now) ? formatTime(at) : formatDate(at, { short: true })
+}
+
+/**
+ * The courses whose last sync left something not updated (M09 表 5c, rows 5-7 and 9): an area
+ * the teacher closed is the course's setting, not out of date (row 8).
+ */
+export function staleCourses(status: SyncStatus): string[] {
+  return [...new Set(status.unreadable.filter((u) => u.kind !== 'area').map((u) => u.course_id))]
 }

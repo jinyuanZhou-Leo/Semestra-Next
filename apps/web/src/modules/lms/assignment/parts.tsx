@@ -274,6 +274,7 @@ export function MySubmission({
   marks,
   held,
   online,
+  asOf,
 }: {
   courseId: string
   submission: SubmissionDetail | null
@@ -282,10 +283,21 @@ export function MySubmission({
   held: boolean
   /** Whether the assignment is handed in online at all. */
   online: boolean
+  /** When the submission was last read, when the last sync could not read it (M09 表 5c). */
+  asOf?: string | null
 }) {
   const files = s?.files ?? []
   const handedIn = s !== null && (s.status === 'submitted' || s.status === 'graded')
-  const heading = <h3 className="text-sm font-medium">{m.lms_assignment_my_submission()}</h3>
+  const heading = (
+    <div className="flex items-baseline justify-between gap-3">
+      <h3 className="text-sm font-medium">{m.lms_assignment_my_submission()}</h3>
+      {asOf ? (
+        <span className="text-xs text-muted-foreground">
+          {m.lms_assignment_submission_as_of({ time: formatDateTime(asOf) })}
+        </span>
+      ) : null}
+    </div>
+  )
   if (!s || !handedIn || (files.length === 0 && !s.body && !s.url && !s.submitted_at)) {
     return (
       <section className="space-y-2">
@@ -507,8 +519,8 @@ export function SourceNote({ detail, provider }: { detail: AssignmentDetail; pro
     ? m.lms_assignment_source_held({ provider })
     : detail.area_hidden
       ? m.lms_assignment_source_area_hidden({ provider })
-      : detail.sync_failed
-        ? m.lms_assignment_source_sync_failed({ provider })
+      : detail.stale
+        ? m.lms_assignment_source_stale({ provider })
         : null
   if (!why) return null
   return (

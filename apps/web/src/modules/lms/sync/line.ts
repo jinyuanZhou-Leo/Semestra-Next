@@ -2,7 +2,7 @@ import { CircleAlert, School } from 'lucide-react'
 import { type StatusItem, preloadable } from '@/app/extensions'
 import { useNow } from '@/hooks/use-now'
 import { m } from '@/paraglide/messages'
-import { pendingCount } from './labels'
+import { pendingCount, staleCourses } from './labels'
 import { hasSyncLine, syncedAgo, useProgramId, useSync } from './status'
 
 const SyncPanel = preloadable<{ onClose: () => void }>(() => import('./SyncPanel'))
@@ -47,8 +47,8 @@ export function useSyncLine(): StatusItem | null {
   if (pending > 0) {
     return { ...line, ...waiting, hint: m.lms_sync_line_pending({ provider, count: pending }) }
   }
-  if (status.errors.length > 0) {
-    const courses = [...new Set(status.errors.map((e) => e.course))].join(
+  if (status.problems.length > 0) {
+    const courses = [...new Set(status.problems.map((p) => p.course))].join(
       m.lms_sync_list_separator(),
     )
     return {
@@ -60,5 +60,11 @@ export function useSyncLine(): StatusItem | null {
     }
   }
   if (!status.synced_at) return { ...line, rank: 'idle', meta: m.lms_sync_meta_waiting() }
-  return { ...line, rank: 'idle', meta: syncedAgo(status.synced_at, now) }
+  const stale = staleCourses(status).length
+  return {
+    ...line,
+    rank: 'idle',
+    meta: syncedAgo(status.synced_at, now),
+    hint: stale > 0 ? m.lms_sync_hint_stale({ count: stale }) : undefined,
+  }
 }

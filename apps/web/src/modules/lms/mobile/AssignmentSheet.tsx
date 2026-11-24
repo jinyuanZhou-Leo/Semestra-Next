@@ -152,6 +152,7 @@ function Details({ target, onClose }: { target: AssignmentTarget; onClose: () =>
                 submission={s}
                 marks={detail.marks ?? []}
                 held={detail.held ?? false}
+                asOf={detail.submission_as_of}
                 online={a.online}
               />
               <SubmissionFeedback

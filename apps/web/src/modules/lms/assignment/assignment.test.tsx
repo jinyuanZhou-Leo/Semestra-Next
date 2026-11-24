@@ -187,7 +187,8 @@ test('kept by the sync, refresh syncs the course; read now, refresh reads it aga
     ...LAB,
     source: 'mirror',
     as_of: '2026-02-06T12:00:00Z',
-    sync_failed: true,
+    stale: true,
+    submission_as_of: '2026-02-05T12:00:00Z',
   } as const
   mount(kept, undefined, Host, [
     http.post(`${API}/programs/p1/lms/sync`, async ({ request }) => {
@@ -201,15 +202,18 @@ test('kept by the sync, refresh syncs the course; read now, refresh reads it aga
     }),
   ])
   const dialog = await screen.findByRole('dialog', { name: 'Lab 1' })
-  expect(
-    await within(dialog).findByText(/last sync of assignments from Canvas/),
-  ).toBeInTheDocument()
+  expect(await within(dialog).findByText(/hasn.t been updated from Canvas yet/)).toBeInTheDocument()
+  await userEvent.click(within(dialog).getByRole('tab', { name: 'Submission and feedback' }))
+  expect(await within(dialog).findByText(/^Submission status as of /)).toBeInTheDocument()
+  await userEvent.click(within(dialog).getByRole('tab', { name: 'Description' }))
   await userEvent.click(within(dialog).getByRole('button', { name: 'Refresh' }))
   await waitFor(() => expect(synced).toEqual([{ course_id: 'c1', stages: ['assignments'] }]))
 
   await userEvent.click(within(dialog).getByRole('link', { name: 'Lab 2' }))
   expect(await within(dialog).findByText(/Implement a linked list/)).toBeInTheDocument()
-  expect(within(dialog).queryByText(/last sync/)).toBeNull() // read now: nothing to explain
+  // Read now: nothing to explain.
+  expect(within(dialog).queryByText(/hasn.t been updated/)).toBeNull()
+  expect(within(dialog).queryByText(/^Submission status as of /)).toBeNull()
   await userEvent.click(within(dialog).getByRole('button', { name: 'Refresh' }))
   await waitFor(() => expect(refreshed).toContain('true'))
 })
