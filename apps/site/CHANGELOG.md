@@ -1,5 +1,9 @@
 # @semestra/site
 
+## 2.7.2
+
+No changes in this release.
+
 ## 2.7.1
 
 No changes in this release.
