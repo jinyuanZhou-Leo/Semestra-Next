@@ -173,7 +173,11 @@ async def test_row2_an_answer_about_the_connection_ends_the_round(
     status = await api.sync(program_id)
     # The parts this round did not reach, as one row (表 5c, row 6).
     assert report(status) == {
-        (6, ("announcements", "calendar", "files", "pages", "modules"), "lms.rate_limited")
+        (
+            6,
+            ("announcements", "calendar", "files", "pages", "modules", "syllabus"),
+            "lms.rate_limited",
+        )
     }
     seen = await _seen(app, api)
     assert seen.wrote("assignments")  # committed before
@@ -406,6 +410,7 @@ READS = [
     Read("files", "modules", "area", "modules"),
     Read("files", "module_items", "area", "modules"),
     Read("files", "front_page", "area", "front_page", needs=("pages",)),
+    Read("files", "syllabus", "area", "syllabus"),
     Read("files", "file", "item", "files", needs=("course_files",)),
     Read("files", "page", "item", "pages", needs=("pages", "modules")),
     Read("files", "navigation", "nav", "pages", needs=("pages",)),
@@ -452,11 +457,11 @@ PARTS = {
     "assignments": ("assignments", "submissions", "quizzes", "total"),
     "announcements": ("announcements",),
     "calendar": ("calendar",),
-    "files": ("files", "pages", "modules"),
+    "files": ("files", "pages", "modules", "syllabus"),
 }
 # Closed areas with a row of their own (表 5c, row 8): not the files area nor the pages, whose
 # items are each read on their own.
-ROW8 = ("assignments", "announcements", "quizzes", "modules")
+ROW8 = ("assignments", "announcements", "quizzes", "modules", "syllabus")
 # The part each list or side read is, and the area each list refused as closed (`needs`) is.
 PART_OF = {
     "assignments": "assignments",
@@ -467,6 +472,7 @@ PART_OF = {
     "modules": "modules",
     "module_items": "modules",
     "front_page": "front_page",
+    "syllabus": "syllabus",
     "submissions": "submissions",
     "quizzes": "quizzes",
     "course_total": "total",

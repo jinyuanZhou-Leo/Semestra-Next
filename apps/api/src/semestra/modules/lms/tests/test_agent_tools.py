@@ -176,6 +176,7 @@ async def test_outline_fills_in_items_and_lists_pages_outside_modules(api: Api, 
 
 async def test_read_takes_any_ref_or_address(api: Api, fake: FakeProvider):
     _course_like_mat291(fake)
+    fake.syllabus_html = "<p>Labs 20%, midterm 80%</p>"
     course, _ = await _linked(api)
 
     async def read(**params: Any) -> dict[str, Any]:

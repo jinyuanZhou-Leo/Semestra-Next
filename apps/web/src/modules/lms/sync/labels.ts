@@ -75,6 +75,7 @@ const PARTS: Record<string, () => string> = {
   pages: () => m.lms_area_pages(),
   modules: () => m.lms_area_modules(),
   front_page: () => m.lms_part_front_page(),
+  syllabus: () => m.lms_part_syllabus(),
 }
 
 /** "Submissions and feedback, course total". */

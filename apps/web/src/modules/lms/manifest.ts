@@ -7,8 +7,6 @@ import {
   Megaphone,
   RefreshCw,
   School,
-  ShieldCheck,
-  Type,
 } from 'lucide-react'
 import { lmsSyncRequest } from '@semestra/api-client'
 import { defineModule, preloadable } from '@/app/extensions'
@@ -104,19 +102,20 @@ const ofCourse = (data: Readonly<Record<string, unknown>>) => [
 const sections = () => import('./settings/sections')
 
 /**
- * The `lms` namespace shows as five sections: background sync, what follows the platform without
- * asking, to-dos, writes, how platform content is shown. Each hides the fields of the others.
+ * The `lms` namespace shows as two sections: General (how often courses sync, what Semestra may
+ * change on the platform, how its content shows) and Assignments (what follows the platform
+ * without asking, the to-dos it completes). Each hides the fields of the other.
  */
 const LMS_FIELDS = {
-  sync: ['sync_every'],
-  follow: ['follow_title', 'follow_due_at', 'follow_weight', 'follow_score'],
-  todos: ['complete_submitted'],
-  writes: ['allow_writes'],
-  display: ['display'],
+  general: ['sync_every', 'allow_writes', 'display'],
+  assignments: [
+    'follow_title',
+    'follow_due_at',
+    'follow_weight',
+    'follow_score',
+    'complete_submitted',
+  ],
 } as const
-const showOnly = (part: keyof typeof LMS_FIELDS) => ({
-  hidden: Object.entries(LMS_FIELDS).flatMap(([key, fields]) => (key === part ? [] : fields)),
-})
 
 const onboardingSteps: readonly OnboardingStep[] = [
   {
@@ -240,15 +239,15 @@ export default defineModule({
       prefetch: settingsPrefetch.connections,
     },
     {
-      id: 'lms-sync',
+      id: 'lms-general',
       level: 'account',
       group: 'lms',
-      title: m.lms_settings_sync,
-      description: m.lms_settings_sync_description,
+      title: m.lms_settings_general,
       icon: RefreshCw,
       order: 20,
       namespace: 'lms',
-      fields: showOnly('sync'),
+      // How often courses sync, what Semestra may change on the platform, how its content shows.
+      fields: { hidden: [...LMS_FIELDS.assignments] },
     },
     {
       id: 'lms-materials',
@@ -271,7 +270,7 @@ export default defineModule({
       order: 30,
       namespace: 'lms',
       // What follows the platform, then the to-do it completes.
-      fields: { hidden: [...LMS_FIELDS.sync, ...LMS_FIELDS.writes, ...LMS_FIELDS.display] },
+      fields: { hidden: [...LMS_FIELDS.general] },
     },
     {
       id: 'lms-notify',
@@ -283,27 +282,6 @@ export default defineModule({
       // The same setting as in Notifications, where it is one of the activity kinds.
       namespace: 'notifications',
       fields: { hidden: hiddenExcept(['lms']) },
-    },
-    {
-      id: 'lms-writes',
-      level: 'account',
-      group: 'lms',
-      title: m.lms_settings_writes,
-      description: m.lms_settings_writes_description,
-      icon: ShieldCheck,
-      order: 40,
-      namespace: 'lms',
-      fields: showOnly('writes'),
-    },
-    {
-      id: 'lms-display',
-      level: 'account',
-      group: 'lms',
-      title: m.lms_settings_display,
-      icon: Type,
-      order: 45,
-      namespace: 'lms',
-      fields: showOnly('display'),
     },
     {
       id: 'program-lms',

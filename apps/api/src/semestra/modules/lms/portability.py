@@ -135,6 +135,8 @@ class MaterialRow(BaseModel):
     # The folder the sync put its item in (M07's folder id).
     placed_folder_id: str | None = None
     links: list[list[str]] = []
+    # Older backups have none: not seen only as an attachment.
+    attached: bool = False
     imported_at: datetime | None = None
 
 

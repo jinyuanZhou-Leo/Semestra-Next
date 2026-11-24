@@ -703,6 +703,8 @@ class CanvasProvider:
                         mime_type=_text(f.get("content-type")),
                         size_bytes=_int(f.get("size")) if f.get("size") is not None else None,
                         download_url=_text(f.get("url")),
+                        updated_at=f.get("updated_at"),
+                        content_at=f.get("modified_at"),
                     )
                     for f in cast(list[dict[str, Any]], r.get("attachments") or [])
                     if isinstance(f, dict) and f.get("id") is not None
@@ -976,6 +978,10 @@ class CanvasProvider:
                 io, cfg, creds, f"/courses/{quote(course_id)}", [("include[]", "syllabus_body")]
             ),
         )
+        if "syllabus_body" not in r:
+            # Not given to this user at all (no right to read it): unknown, not "no syllabus";
+            # an empty or null field is the platform saying there is none (M09 table 2, row 22).
+            raise lms_error("lms.forbidden")
         return RichText(
             html=_text(r.get("syllabus_body")),
             web_url=f"{_cfg(cfg).base_url}/courses/{course_id}/assignments/syllabus",

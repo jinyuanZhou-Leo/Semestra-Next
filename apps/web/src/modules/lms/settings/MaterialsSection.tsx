@@ -6,7 +6,14 @@ import { MATERIALS } from '../queries'
 import { HeldMaterials } from './HeldMaterials'
 
 /** Where materials are kept matters only while they come in. */
-export const MATERIAL_FIELDS = { when: { store: 'sync' } }
+export const MATERIAL_FIELDS = {
+  when: {
+    store: 'sync',
+    announcement_attachments: 'sync',
+    entry_folders: 'sync',
+    calendar_links: 'sync',
+  },
+}
 
 /**
  * Account settings → LMS → Course materials (M09 §4.2): how every linked course takes in its
