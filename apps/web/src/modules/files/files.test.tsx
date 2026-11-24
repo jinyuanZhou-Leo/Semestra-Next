@@ -7,7 +7,7 @@ import { type ReactNode, useEffect, useState } from 'react'
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest'
 import type { Scope } from '@/app/extensions'
 import { API, renderWithRouter, server } from '@/test-utils'
-import { highlightHtml, searchTerms, snippetParts } from './highlight'
+import { searchTerms, snippetParts, textRanges } from './highlight'
 import { Citation } from './components/Citation'
 import { DocumentText } from './components/DocumentText'
 import { type Target, canMoveInto, canMoveIntoNewFolder, folderTree } from './folders'
@@ -555,10 +555,10 @@ test('uploads that cannot fit are refused before sending', () => {
   expect(planUpload([big], { ...usage, quota_bytes: 0, max_upload_bytes: 100 }).room).toBe(true)
 })
 
-test('highlighting escapes file text and marks every match', () => {
-  expect(highlightHtml('<b>Midterm</b> & midterm', ['midterm'])).toBe(
-    '&lt;b&gt;<mark>Midterm</mark>&lt;/b&gt; &amp; <mark>midterm</mark>',
-  )
+test('search terms are found across the elements a layout cut a word into', () => {
+  const root = document.createElement('div')
+  root.innerHTML = '<span>The Mid</span><span>term</span> and <span>midterm</span>'
+  expect(textRanges(root, ['midterm']).map(String)).toEqual(['Midterm', 'midterm'])
   expect(searchTerms('midterm, 期中考试 a')).toEqual(['midterm', '期中考试'])
   expect(snippetParts('a <mark>b</mark> c')).toEqual([
     { text: 'a ', marked: false },

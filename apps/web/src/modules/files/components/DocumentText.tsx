@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
+import { showRanges, textRanges } from '../highlight'
 import type { PageTarget } from '../page-target'
 import { Markdown } from './Markdown'
 import { PageControls } from './PageControls'
@@ -54,34 +55,12 @@ export function DocumentText({
   })
   const scroller = useRef<HTMLDivElement>(null)
 
-  // Search terms are marked with the CSS Custom Highlight API (styled by
-  // `::highlight(files-preview-search)` in theme.css), so the rendered Markdown is left as it is.
+  // Search terms are marked with the CSS Custom Highlight API (`::highlight(files-preview-search)`
+  // in theme.css), so the rendered Markdown is left as it is.
   useEffect(() => {
     const element = scroller.current
-    if (!element || !query.data || typeof CSS === 'undefined' || !('highlights' in CSS)) return
-    const needles = terms.map((t) => t.toLowerCase()).filter(Boolean)
-    if (needles.length === 0) return
-    const ranges: Range[] = []
-    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT)
-    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-      const text = (node.textContent ?? '').toLowerCase()
-      for (const needle of needles) {
-        for (
-          let at = text.indexOf(needle);
-          at !== -1;
-          at = text.indexOf(needle, at + needle.length)
-        ) {
-          const range = new Range()
-          range.setStart(node, at)
-          range.setEnd(node, at + needle.length)
-          ranges.push(range)
-        }
-      }
-    }
-    CSS.highlights.set(HIGHLIGHT, new Highlight(...ranges))
-    return () => {
-      CSS.highlights.delete(HIGHLIGHT)
-    }
+    if (!element || !query.data) return
+    return showRanges(HIGHLIGHT, textRanges(element, terms))
   }, [terms, query.data])
 
   // Bring each requested page into view once, when it has rendered (not again on a refetch).

@@ -7,7 +7,7 @@ import { useExternalLink } from '@/components/ExternalLink'
 import { m } from '@/paraglide/messages'
 import { Alert, AlertDescription } from '@/ui/alert'
 import { Spinner } from '@/ui/spinner'
-import { highlightHtml } from '../highlight'
+import { showRanges, textRanges } from '../highlight'
 import type { PageTarget } from '../page-target'
 import { clampZoom, PageControls } from './PageControls'
 
@@ -37,6 +37,8 @@ const PADDING_END = PADDING + 64
 const DEFAULT_RATIO = 297 / 210
 // Stable, so a page's text renderer keeps its identity across scroll renders.
 const NO_TERMS: readonly string[] = []
+// `::highlight(files-pdf-search)` in theme.css.
+const HIGHLIGHT = 'files-pdf-search'
 
 /**
  * The whole document as one vertical scroll, fitted to the width and zoomable, with search terms
@@ -322,11 +324,26 @@ function PdfPage({
   height: number
   terms: readonly string[]
 }) {
+  const page = useRef<HTMLDivElement | null>(null)
+  // How many times the text layer has been drawn: a redraw (new width) replaces its elements, so
+  // the marks are made again.
+  const [drawn, setDrawn] = useState(0)
+  // The text layer is invisible text over the page image, so a match is marked on that text with
+  // the highlight API (as in the text view) and not by wrapping it in an element, whose own
+  // default style would draw the letters a second time. Where the mark falls follows the layer's
+  // letters, so it can sit slightly off the printed ones when the layer's font is a stand-in for
+  // the PDF's (as in pdf.js's own find).
+  useEffect(() => {
+    const layer = page.current?.querySelector('.textLayer')
+    if (!layer || drawn === 0) return
+    return showRanges(HIGHLIGHT, textRanges(layer, terms))
+  }, [terms, drawn])
   return (
     <Page
       pageNumber={pageNumber}
       width={width}
-      customTextRenderer={({ str }) => highlightHtml(str, terms)}
+      inputRef={page}
+      onRenderTextLayerSuccess={() => setDrawn((n) => n + 1)}
       loading={
         <div className="flex items-center justify-center bg-background" style={{ width, height }}>
           <Spinner />
