@@ -3,6 +3,17 @@
 Generated from `release-notes/*.json` by `scripts/release.mjs`; do not edit by hand.
 The same notes in Chinese are in the JSON files and on the docs site.
 
+## 2.7.2 (2026-11-23)
+
+### Improved
+
+- **Canvas:** The sync status now lists everything not updated from Canvas with the reason and when it was last updated, and shows sync errors separately with an error ID to report. Canvas values Semestra can't hold no longer stop the sync.
+
+### Fixed
+
+- **Canvas:** Courses whose instructor hid the quizzes no longer show their assignments as failing to sync.
+- **Canvas:** A problem with one item no longer stops the rest of a course from syncing.
+
 ## 2.7.1 (2026-11-23)
 
 ### Fixed
