@@ -4,6 +4,6 @@
 
 <!-- area: files -->
 <!-- en -->
-See a file's type, size, location, dates and source from its menu.
+See the type, size, location and dates of a file or folder from its menu.
 <!-- zh -->
-可以在文件菜单中查看文件的类型、大小、位置、时间与来源。
+可以在文件和文件夹的菜单中查看类型、大小、位置与时间。
