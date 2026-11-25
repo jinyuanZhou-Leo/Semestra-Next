@@ -3,6 +3,15 @@
 Generated from `release-notes/*.json` by `scripts/release.mjs`; do not edit by hand.
 The same notes in Chinese are in the JSON files and on the docs site.
 
+## 2.7.4 (2026-11-24)
+
+### Fixed
+
+- **Overview & Today:** The Today card now marks the current time inside the class in progress.
+- **Files:** See the type, size, location and dates of a file or folder from its menu.
+- **Files:** Formulas in a file's recognized text are now typeset.
+- **Canvas:** Refined scrolling in the Canvas sync panel.
+
 ## 2.7.3 (2026-11-24)
 
 ### Fixed
