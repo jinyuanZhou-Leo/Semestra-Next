@@ -1,5 +1,31 @@
 # @semestra/web
 
+## 2.7.4
+
+### Patch Changes
+
+- 0e026b3: <!-- area: files -->
+  <!-- en -->
+  See the type, size, location and dates of a file or folder from its menu.
+  <!-- zh -->
+  可以在文件和文件夹的菜单中查看类型、大小、位置与时间。
+- 9b09834: <!-- area: files -->
+  <!-- en -->
+  Formulas in a file's recognized text are now typeset.
+  <!-- zh -->
+  文件识别文字中的数学公式现在会排版显示。
+- 733203b: <!-- area: canvas -->
+  <!-- en -->
+  Refined scrolling in the Canvas sync panel.
+  <!-- zh -->
+  优化了 Canvas 同步面板的滚动效果。
+- 721db2c: <!-- area: overview -->
+  <!-- en -->
+  The Today card now marks the current time inside the class in progress.
+  <!-- zh -->
+  今日课程卡片会把当前时间标在正在进行的课程中间。
+- @semestra/api-client@2.7.4
+
 ## 2.7.3
 
 ### Patch Changes
