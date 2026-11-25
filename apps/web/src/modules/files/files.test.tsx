@@ -197,7 +197,15 @@ beforeEach(() => {
         item_id: params.id,
         display_name: 'syllabus.pdf',
         page_count: 9,
-        pages: [{ page_no: 1, markdown: 'Read from page one', ocr_used: false, citation_id: 'x' }],
+        pages: [
+          {
+            page_no: 1,
+            markdown: 'Read from page one',
+            ocr_used: false,
+            latex: false,
+            citation_id: 'x',
+          },
+        ],
         next_page: null,
         citations: [],
       }),
@@ -567,6 +575,12 @@ test('search terms are found across the elements a layout cut a word into', () =
   expect(textRanges(root, ['database'])).toEqual([])
   root.innerHTML = '<span>data</span><br /><span>base</span>'
   expect(textRanges(root, ['database'], { joined: true })).toEqual([])
+  // A formula's hidden MathML copy is not searched; what KaTeX draws is.
+  root.innerHTML =
+    '<span class="katex"><span class="katex-mathml">sin</span><span class="katex-html">sin</span></span>'
+  expect(textRanges(root, ['sin']).map((r) => r.startContainer.parentElement?.className)).toEqual([
+    'katex-html',
+  ])
   expect(searchTerms('midterm, 期中考试 a')).toEqual(['midterm', '期中考试'])
   expect(snippetParts('a <mark>b</mark> c')).toEqual([
     { text: 'a ', marked: false },
@@ -614,10 +628,48 @@ test("a link in a PDF asks before leaving, like the course's other links", async
   open.mockRestore()
 })
 
-test('a PDF can be read as the text Semestra recognized in it', async () => {
+test('a PDF can be read as the text Semestra recognized in it, formulas typeset', async () => {
+  server.use(
+    http.get(`${API}/files/:id/document`, ({ params }) =>
+      HttpResponse.json({
+        item_id: params.id,
+        display_name: 'syllabus.pdf',
+        page_count: 2,
+        pages: [
+          {
+            page_no: 1,
+            markdown: 'Read from page one, where $V = IR$:\n\n$$P = I^2 R$$\n\n```\n$$a$$\n```',
+            ocr_used: true,
+            latex: true,
+            citation_id: 'x',
+          },
+          // Not written to the LaTeX rule: a dollar is a dollar.
+          {
+            page_no: 2,
+            markdown: 'Late fee is $5 and the kit costs $10.',
+            ocr_used: false,
+            latex: false,
+            citation_id: 'y',
+          },
+        ],
+        next_page: null,
+        citations: [],
+      }),
+    ),
+  )
   const dialog = await openPreview()
   await userEvent.click(await within(dialog).findByRole('button', { name: 'Recognized text' }))
-  expect(await within(dialog).findByText('Read from page one')).toBeInTheDocument()
+  expect(await within(dialog).findByText(/Read from page one/)).toBeInTheDocument()
+  // A formula on a line of its own is shown on its own, one in a sentence inline; code stays code.
+  const formulas = within(dialog).getAllByRole('math')
+  expect(formulas.map((f) => [f.textContent, f.closest('.katex-display') !== null])).toEqual([
+    [expect.stringContaining('V=IR'), false],
+    [expect.stringContaining('P=I2R'), true],
+  ])
+  expect(within(dialog).getByText('$$a$$')).toBeInTheDocument()
+  expect(
+    await within(dialog).findByText('Late fee is $5 and the kit costs $10.'),
+  ).toBeInTheDocument()
 })
 
 /** jsdom has no scrolling or layout; the virtualizer scrolls with `scrollTo` and measures. */
@@ -670,6 +722,7 @@ function serveDocumentText(pageCount: number, fail?: (from: number) => boolean) 
           page_no: from + n,
           markdown: `Text of page ${from + n}`,
           ocr_used: false,
+          latex: false,
           citation_id: 'x',
         })),
         next_page: to < pageCount ? to + 1 : null,

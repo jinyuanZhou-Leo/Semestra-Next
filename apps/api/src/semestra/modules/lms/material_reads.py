@@ -135,6 +135,9 @@ class Found:
     known: dict[Key, LmsMaterial]
     # The followed items of the known materials (`synced`), whose version is theirs (§4.6).
     items: dict[str, FilesItem] = field(default_factory=lambda: {})
+    # Followed items whose text M07 reads differently now (`sources.outdated_items`): read from the
+    # platform again even when unchanged there, so their text is read again (not told as a change).
+    reread: set[str] = field(default_factory=lambda: set[str]())
     materials: dict[Key, Material] = field(default_factory=lambda: {})
     # Pages to look at: slug → (title, version known from the list or None, web address).
     pages: dict[str, tuple[str, str | None, str | None]] = field(default_factory=lambda: {})
@@ -174,7 +177,11 @@ class Found:
             return False
         if mat.state == "synced":
             row = self.items.get(mat.item_id or "")
-            return row is not None and not sources.source_changed(row, version)
+            return (
+                row is not None
+                and not sources.source_changed(row, version)
+                and row.id not in self.reread
+            )
         return mat.version == version
 
     def linked_elsewhere(self) -> set[str]:
@@ -271,6 +278,7 @@ async def read(
     followed = [m.item_id for m in known.values() if m.state == "synced" and m.item_id]
     items = {row.id: row for row in await sources.find_items(ctx, followed)}
     found = Found(known, items, names=names(ctx.locale), cfg=cfg)
+    found.reread = await sources.outdated_items(ctx, list(items.values()))
     r = _Reader(ctx, link, b, sync_round, found)
     features = b.provider.features
     for area, feature in {**AREAS, SYLLABUS_AREA: SYLLABUS_AREA}.items():

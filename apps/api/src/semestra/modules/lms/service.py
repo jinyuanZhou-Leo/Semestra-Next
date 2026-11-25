@@ -454,7 +454,12 @@ class Bound:
         against `web_url`, the item's own address on the platform, like they do there, and only
         links into the same course are marked as items the app can open."""
         base = urljoin(self.provider.web_base(self.cfg), web_url or "")
-        return html.clean(raw, base=base, rewrite=lambda url: self.rewrite(url, course))
+        return html.clean(
+            raw,
+            base=base,
+            rewrite=lambda url: self.rewrite(url, course),
+            formula=lambda url: self.provider.image_formula(self.cfg, url),
+        )
 
 
 async def bound(ctx: Ctx, row: LmsConnection) -> Bound:

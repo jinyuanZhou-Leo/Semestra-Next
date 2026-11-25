@@ -9,7 +9,9 @@ text as Markdown (`markdown.py`), which drops the styles. Links open in a new ta
 would otherwise resolve a relative one against itself. A platform link the provider recognizes
 also carries `data-lms-kind` / `data-lms-ref` so the Canvas tab (M16) can open it in the app. An
 image of a course file is marked the same way: its own address needs a platform session, so the
-Canvas tab loads it through the file proxy instead.
+Canvas tab loads it through the file proxy instead. An image the provider knows to be a formula
+(`LmsProvider.image_formula`) carries its LaTeX in `data-formula`: the Canvas tab shows the
+image, and the page handed to M07 (`with_math`) has it as MathML with its TeX source.
 """
 
 import html as htmllib
@@ -57,13 +59,17 @@ STYLE_PROPERTIES = {
 URL_SCHEMES = {"http", "https", "mailto"}
 
 Rewriter = Callable[[str], InternalRef | None]
+# The formula (LaTeX) an image address shows (`LmsProvider.image_formula`).
+FormulaOf = Callable[[str], str | None]
 
 # A link or image in the cleaned output, which always double-quotes attribute values (so a `>`
 # can only appear inside quotes).
 _LINK = re.compile(r'<(a|img)((?:\s+[^\s=>"]+(?:="[^"]*")?)*?)\s+(href|src)="([^"]*)"', re.I)
 
 
-def _resolve_links(cleaned: str, base: str, rewrite: Rewriter | None) -> str:
+def _resolve_links(
+    cleaned: str, base: str, rewrite: Rewriter | None, formula: FormulaOf | None = None
+) -> str:
     """Makes every link and image address absolute against the platform (`base`), and marks the
     ones the provider recognizes. The HTML is shown inside the app, where a relative address
     (`cover.html`, `/courses/1/discussion_topics/2`) would point at the app instead."""
@@ -76,12 +82,20 @@ def _resolve_links(cleaned: str, base: str, rewrite: Rewriter | None) -> str:
         if ref is not None and (tag.lower() == "a" or ref.kind == "file"):
             kind, target = htmllib.escape(ref.kind), htmllib.escape(ref.ref)
             extra = f' data-lms-kind="{kind}" data-lms-ref="{target}"'
+        elif tag.lower() == "img" and formula is not None and (latex := formula(url)):
+            extra = f' data-formula="{htmllib.escape(latex)}"'
         return f'<{tag}{before}{extra} {attr}="{htmllib.escape(url)}"'
 
     return _LINK.sub(repl, cleaned)
 
 
-def clean(raw: str | None, *, base: str, rewrite: Rewriter | None = None) -> str | None:
+def clean(
+    raw: str | None,
+    *,
+    base: str,
+    rewrite: Rewriter | None = None,
+    formula: FormulaOf | None = None,
+) -> str | None:
     """Sanitized HTML with absolute addresses; `base` is the item's own address on the platform
     (or the platform's root), the address relative links in it were written against."""
     if raw is None:
@@ -96,7 +110,26 @@ def clean(raw: str | None, *, base: str, rewrite: Rewriter | None = None) -> str
         set_tag_attribute_values={"a": {"target": "_blank"}},
         strip_comments=True,
     ).strip()
-    return _resolve_links(cleaned, base, rewrite) if cleaned else None
+    return _resolve_links(cleaned, base, rewrite, formula) if cleaned else None
+
+
+def with_math(cleaned: str) -> str:
+    """Cleaned HTML with each formula image (`data-formula`) as the standard MathML that carries
+    its TeX source, which M07's HTML reader writes as LaTeX."""
+    if "data-formula" not in cleaned:
+        return cleaned
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(cleaned, "html.parser")
+    for img in soup.find_all("img", attrs={"data-formula": True}):
+        annotation = soup.new_tag("annotation", attrs={"encoding": "application/x-tex"})
+        annotation.string = str(img["data-formula"])
+        semantics = soup.new_tag("semantics")
+        semantics.append(annotation)
+        math = soup.new_tag("math")
+        math.append(semantics)
+        img.replace_with(math)
+    return str(soup)
 
 
 def to_text(raw: str | None) -> str | None:

@@ -2571,3 +2571,55 @@ async def test_ways_in_turned_off_bring_nothing_new(api: Api, fake: FakeProvider
     notes = (await _files(api, course))[1]["Notes 1.pdf"]
     assert not notes["unseen"]
     assert status["materials"] == []
+
+
+async def test_formulas_on_a_page_are_read_as_latex(api: Api, fake: FakeProvider):
+    fake.page_list = [PageSummary(external_id="p1", ref="notes", title="Notes", updated_at=JAN)]
+    fake.page_texts = {
+        "notes": ("Notes", '<p>Energy <img src="/equation/E%3Dmc%5E2" alt="E=mc^2"> costs $5.</p>')
+    }
+    program_id, course = await _course(api)
+    await api.sync(program_id)
+    page = await api.call("GET", f"/courses/{course}/lms/pages/notes")
+    assert 'data-formula="E=mc^2"' in page["html"]  # the Canvas tab shows the image
+    item = (await _files(api, course))[1]["Notes"]
+    read = await api.call("GET", f"/files/{item['id']}/document")
+    assert read["pages"][0]["latex"]
+    assert r"Energy $E=mc^2$ costs \$5." in read["pages"][0]["markdown"]
+
+
+async def test_a_page_read_by_an_older_reader_is_read_again_by_the_sync(
+    api: Api, fake: FakeProvider, app: FastAPI, clock: Clock
+):
+    from semestra.core.jobs import run_periodic
+
+    fake.page_list = [PageSummary(external_id="p1", ref="notes", title="Notes", updated_at=JAN)]
+    fake.page_texts = {"notes": ("Notes", '<p>Square: <img src="/equation/x%5E2" alt="x^2"></p>')}
+    program_id, course = await _course(api)
+    await api.sync(program_id)
+    item = (await _files(api, course))[1]["Notes"]
+    async with app.state.session_factory() as db:
+        row = await db.get(FilesItem, item["id"])
+        assert row is not None
+        document = await db.get(FilesDocument, row.active_document_id)
+        assert document is not None
+        # Read before reader versions, by a reader that kept the formula as an image.
+        document.parser_fingerprint = "0123456789abcdef"
+        page = await db.scalar(
+            select(FilesDocumentPage).where(FilesDocumentPage.document_id == document.id)
+        )
+        assert page is not None
+        page.markdown, page.latex = "Square: ![x^2](https://fake/equation/x%5E2)", False
+        await db.commit()
+
+    # Its bytes are on the platform: the files module leaves it to the sync.
+    reads = len(fake.calls)
+    await run_periodic(app.state, "files.reread_outdated")
+    assert (await api.call("GET", f"/files/{item['id']}"))["doc_status"] == "ready"
+    assert len(fake.calls) == reads
+
+    clock.advance(hours=2)
+    assert report(await api.sync(program_id)) == set()  # not told as a change
+    read = await api.call("GET", f"/files/{item['id']}/document")
+    assert read["pages"][0]["latex"]
+    assert "$x^2$" in read["pages"][0]["markdown"]

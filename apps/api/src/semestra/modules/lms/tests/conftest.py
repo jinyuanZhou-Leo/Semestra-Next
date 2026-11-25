@@ -4,6 +4,7 @@ for the LMS tests (M09 §11)."""
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterator, Sequence
 from datetime import datetime, timedelta
 from typing import Any, ClassVar, Literal, cast
+from urllib.parse import unquote
 
 import pytest
 import respx
@@ -179,6 +180,9 @@ class FakeProvider:
 
     def web_base(self, cfg: BaseModel) -> str:
         return "https://fake/"
+
+    def image_formula(self, cfg: BaseModel, url: str) -> str | None:
+        return unquote(url.split("/equation/", 1)[1]) if "/equation/" in url else None
 
     def rewrite_internal_link(self, cfg: BaseModel, url: str) -> InternalRef | None:
         course = url.split("/courses/", 1)[1].split("/", 1)[0] if "/courses/" in url else None

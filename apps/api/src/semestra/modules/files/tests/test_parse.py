@@ -165,6 +165,33 @@ def test_html_keeps_headings_and_drops_scripts():
     assert "| A |" in text
 
 
+def test_html_math_with_tex_source_is_latex_and_other_dollars_are_escaped():
+    tex = '<annotation encoding="application/x-tex">{}</annotation>'
+    data = (
+        "<p>Area <math><semantics><mi>A</mi>" + tex.format("\\pi r_1^2") + "</semantics></math>"
+        " costs $5.</p><math display='block'><semantics>"
+        + tex.format("E = mc^2")
+        + "</semantics></math>"
+    ).encode()
+    page = parse(data, detect(data, "x.html")).pages[0]
+    assert page.latex
+    assert r"Area $\pi r_1^2$ costs \$5." in page.markdown
+    assert "$$\nE = mc^2\n$$" in page.markdown
+    # KaTeX's output: the MathML and a drawing of the formula hidden from screen readers.
+    katex = (
+        '<p>Energy <span class="katex"><span class="katex-mathml"><math><semantics><mi>E</mi>'
+        + tex.format("E=mc^2")
+        + '</semantics></math></span><span class="katex-html" aria-hidden="true">'
+        "<span>E</span><span>=</span><span>mc</span><span>2</span></span></span> holds.</p>"
+    ).encode()
+    page = parse(katex, detect(katex, "x.html")).pages[0]
+    assert "Energy $E=mc^2$ holds." in page.markdown
+    plain = b"<p>Late fee is $5 and the kit costs $10.</p>"
+    page = parse(plain, detect(plain, "x.html")).pages[0]
+    assert not page.latex
+    assert "Late fee is $5 and the kit costs $10." in page.markdown
+
+
 def test_text_encodings_are_guessed():
     from semestra.modules.files.parse.detect import decode_text
 

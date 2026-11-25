@@ -4182,6 +4182,12 @@ export type DocumentPage = {
      */
     ocr_used: boolean;
     /**
+     * Latex
+     *
+     * Math in `markdown` is LaTeX between `$` or `$$`, and `\$` is a dollar sign; in other pages a `$` is just a dollar sign
+     */
+    latex: boolean;
+    /**
      * Citation Id
      *
      * `<item_id>:p<page_no>-<page_no>`

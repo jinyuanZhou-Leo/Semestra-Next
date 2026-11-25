@@ -134,6 +134,10 @@ async def _follow(ctx: Ctx, m: Material, mat: LmsMaterial, row: FilesItem) -> bo
         )
     elif retitled and title is not None:
         await sources.rename_synced(ctx, row, title)
+    if not changed:
+        # Read again when M07's reader changed since (a page's formulas; `Found.reread` had the
+        # platform read it this round); not a change of the platform's, so not told as one.
+        await sources.read_again_if_outdated(ctx, row)
     if title is not None:
         mat.name = row.display_name  # as named now (made unique in its folder)
     if m.modified_at is not None and row.source_modified_at != m.modified_at:

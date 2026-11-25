@@ -172,6 +172,8 @@ class FilesDocumentPage(Base, OwnedMixin):
     page_no: Mapped[int] = mapped_column(Integer)  # 1-based
     markdown: Mapped[str] = mapped_column(String, default="")
     ocr_used: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Math in `markdown` is LaTeX between `$` (`ParsedPage.latex`).
+    latex: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     image_storage_key: Mapped[str | None] = mapped_column(String, default=None)
 
 

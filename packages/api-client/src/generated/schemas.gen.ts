@@ -7389,6 +7389,11 @@ export const DocumentPageSchema = {
             type: 'boolean',
             title: 'Ocr Used'
         },
+        latex: {
+            type: 'boolean',
+            title: 'Latex',
+            description: 'Math in `markdown` is LaTeX between `$` or `$$`, and `\\$` is a dollar sign; in other pages a `$` is just a dollar sign'
+        },
         citation_id: {
             type: 'string',
             title: 'Citation Id',
@@ -7400,6 +7405,7 @@ export const DocumentPageSchema = {
         'page_no',
         'markdown',
         'ocr_used',
+        'latex',
         'citation_id'
     ],
     title: 'DocumentPage'

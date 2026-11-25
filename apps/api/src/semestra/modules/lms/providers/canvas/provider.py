@@ -483,6 +483,14 @@ class CanvasProvider:
                 )
         return None
 
+    def image_formula(self, cfg: BaseModel, url: str) -> str | None:
+        # The rich content editor draws a formula as `/equation_images/<LaTeX>`, the LaTeX
+        # URL-encoded twice.
+        if _origin(url) != _origin(_cfg(cfg).base_url):
+            return None
+        match = re.fullmatch(r"/equation_images/([^/]+)", urlsplit(url).path)
+        return unquote(unquote(match.group(1))).strip() or None if match else None
+
     # --- transport ------------------------------------------------------------------------
 
     async def _send(

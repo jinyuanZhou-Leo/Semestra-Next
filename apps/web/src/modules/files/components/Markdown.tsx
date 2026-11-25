@@ -1,10 +1,51 @@
 import { type ComponentProps, createContext, use } from 'react'
+import 'katex/dist/katex.min.css'
 import ReactMarkdown, { type Components } from 'react-markdown'
+import rehypeKatex from 'rehype-katex'
 import remarkGfm from 'remark-gfm'
+import remarkMath from 'remark-math'
 import { cn } from '@/lib/utils'
 import { useExternalLink } from '@/components/ExternalLink'
 
-const REMARK_PLUGINS = [remarkGfm]
+type Plugins = NonNullable<ComponentProps<typeof ReactMarkdown>['remarkPlugins']>
+type MdNode = {
+  type: string
+  children?: MdNode[]
+  position?: { start: { offset?: number } }
+  data?: Record<string, unknown>
+}
+
+/**
+ * A paragraph that is only a one-line `$$…$$` is a formula on its own line, as models write it;
+ * remark-math takes only a `$$` fence on lines of its own as display math. It works on the parsed
+ * tree, so code is left as it is.
+ */
+function remarkDisplayLines() {
+  return (tree: MdNode, file: { value: unknown }) => {
+    const source = String(file.value)
+    const visit = (node: MdNode) => {
+      const only = node.children?.[0]
+      if (node.type === 'paragraph' && node.children?.length === 1 && only?.type === 'inlineMath') {
+        const at = only.position?.start.offset
+        if (at !== undefined && source.startsWith('$$', at)) {
+          only.data = {
+            ...only.data,
+            hProperties: { className: ['language-math', 'math-display'] },
+          }
+        }
+      }
+      node.children?.forEach(visit)
+    }
+    visit(tree)
+  }
+}
+
+const REMARK_PLUGINS: Plugins = [remarkGfm]
+const MATH_REMARK_PLUGINS: Plugins = [remarkGfm, remarkMath, remarkDisplayLines]
+// A formula KaTeX cannot parse is shown as its source (in the error colour) instead of failing.
+const MATH_REHYPE_PLUGINS: Plugins = [
+  [rehypeKatex, { throwOnError: false, errorColor: 'var(--destructive)' }],
+]
 
 /** Remote images are not fetched (they would tell a third party the file was opened). */
 function NoImage({ alt }: ComponentProps<'img'>) {
@@ -46,9 +87,19 @@ const COMPONENTS: Components = { img: NoImage, a: MarkdownLink, table: MarkdownT
 /**
  * Markdown from a file (a .md upload, or the text the pipeline extracted). Raw HTML in it is not
  * rendered (react-markdown's default), so file content cannot inject markup. Web links open in a
- * new tab after the leaving-Semestra check; other links are shown as text.
+ * new tab after the leaving-Semestra check; other links are shown as text. With `math` (text the
+ * pipeline wrote to the LaTeX rule, `DocumentPage.latex`), math between `$` or `$$` is typeset
+ * with KaTeX; elsewhere a `$` is just a dollar sign.
  */
-export function Markdown({ children, className }: { children: string; className?: string }) {
+export function Markdown({
+  children,
+  className,
+  math = false,
+}: {
+  children: string
+  className?: string
+  math?: boolean
+}) {
   const link = useExternalLink()
   return (
     <div
@@ -63,11 +114,17 @@ export function Markdown({ children, className }: { children: string; className?
         '[&_blockquote]:border-l-2 [&_blockquote]:pl-3 [&_blockquote]:text-muted-foreground',
         '[&_table]:w-full [&_table]:text-xs [&_td]:min-w-28 [&_th]:min-w-28 [&_td]:border [&_td]:px-2 [&_td]:py-1',
         '[&_th]:border [&_th]:bg-muted [&_th]:px-2 [&_th]:py-1 [&_th]:text-left',
+        // A display formula wider than the page scrolls on its own.
+        '[&_.katex-display]:overflow-x-auto [&_.katex-display]:overflow-y-hidden [&_.katex-display]:py-1',
         className,
       )}
     >
       <OpenLinkContext value={link.open}>
-        <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={COMPONENTS}>
+        <ReactMarkdown
+          remarkPlugins={math ? MATH_REMARK_PLUGINS : REMARK_PLUGINS}
+          rehypePlugins={math ? MATH_REHYPE_PLUGINS : undefined}
+          components={COMPONENTS}
+        >
           {children}
         </ReactMarkdown>
       </OpenLinkContext>
