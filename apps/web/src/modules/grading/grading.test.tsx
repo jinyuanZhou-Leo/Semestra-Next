@@ -543,7 +543,7 @@ test('the submission column and the filters follow the platform, else the due da
         weight: 30,
         due_at: new Date(Date.now() - 3 * day).toISOString(),
       }),
-      assessment({ id: 'a6', title: 'Final exam', weight: 30, status: 'graded', score: 80 }),
+      assessment({ id: 'a6', title: 'Final exam', weight: 30, status: 'graded', score_percentage: 80 }),
     ],
   })
   const target = { course_id: 'c1', task_id: null, feedback: false, due_state: 'none' }
@@ -590,9 +590,9 @@ test('the submission column and the filters follow the platform, else the due da
 test('the score column sorts by score', async () => {
   book = gradebook({
     assessments: [
-      assessment({ id: 'a1', title: 'Lab 1', status: 'graded', score: 80, score_percentage: 80 }),
-      assessment({ id: 'a2', title: 'Lab 2', status: 'graded', score: 60, score_percentage: 60 }),
-      assessment({ id: 'a3', title: 'Lab 3', status: 'graded', score: 95, score_percentage: 95 }),
+      assessment({ id: 'a1', title: 'Lab 1', status: 'graded', score_percentage: 80 }),
+      assessment({ id: 'a2', title: 'Lab 2', status: 'graded', score_percentage: 60 }),
+      assessment({ id: 'a3', title: 'Lab 3', status: 'graded', score_percentage: 95 }),
     ],
   })
   mount()
