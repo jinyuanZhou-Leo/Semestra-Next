@@ -12,6 +12,7 @@ const FIELDS: Record<string, () => string> = {
   due_at: () => m.lms_sync_field_due_at(),
   weight: () => m.lms_sync_field_weight(),
   score: () => m.lms_sync_field_score(),
+  dropped: () => m.lms_sync_field_dropped(),
   feedback: () => m.lms_sync_field_feedback(),
 }
 
@@ -19,7 +20,7 @@ export function fieldLabel(field: string): string {
   return FIELDS[field]?.() ?? field
 }
 
-/** A field's value as the panel shows it: "Nov 20 23:59", "20%", "18/20", or a dash. */
+/** A field's value as the panel shows it: "Nov 20 23:59", "20%", "18/20", "Not counted", or a dash. */
 export function formatValue(field: string, value: unknown): string {
   if (value === null || value === undefined) return '—'
   if (field === 'due_at') {
@@ -28,6 +29,7 @@ export function formatValue(field: string, value: unknown): string {
     return due.time ? `${day} ${formatTime(new Date(`${due.date}T${due.time}`))}` : day
   }
   if (field === 'weight') return formatPercent(Number(value) / 100)
+  if (field === 'dropped') return value ? m.lms_sync_not_counted() : m.lms_sync_counted()
   if (field === 'score') {
     const score = value as Score
     if (score.points_earned != null && score.points_possible) {

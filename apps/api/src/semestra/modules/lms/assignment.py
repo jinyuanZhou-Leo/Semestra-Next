@@ -267,8 +267,9 @@ async def get(
 # --- the gradebook ---------------------------------------------------------------------------
 
 
-def _target(f: Facts, course_id: str, kind: str, target_id: str) -> AssignmentTarget:
+def _target(f: Facts, course_id: str, kind: str, target_id: str, now: datetime) -> AssignmentTarget:
     s = f.submission
+    a = f.assignment
     graded = kind == "assessment"
     return AssignmentTarget(
         course_id=course_id,
@@ -280,7 +281,13 @@ def _target(f: Facts, course_id: str, kind: str, target_id: str) -> AssignmentTa
         missing=bool(s and s.get("missing")),
         late=bool(s and s.get("late")),
         submitted_at=s.get("submitted_at") if s else None,
-        online=rules.submits_online(list(f.assignment.get("submission_types") or [])),
+        online=rules.submits_online(list(a.get("submission_types") or [])),
+        due_state=rules.facts_due_state(a, rules.facts_state(a, s), now),
+        submission_types=list(a.get("submission_types") or []),
+        is_quiz=a.get("quiz_id") is not None,
+        locked=bool(a.get("locked")),
+        lock_explanation=a.get("lock_explanation"),
+        web_url=a.get("web_url"),
     )
 
 
@@ -317,7 +324,13 @@ async def targets(ctx: Ctx, program_id: str) -> AssignmentTargets:
         row = mirror.get((link.id, ref.external_id))
         if row is not None:
             found.append(
-                _target(facts.from_row(row, link), link.course_id, ref.target_kind, ref.target_id)
+                _target(
+                    facts.from_row(row, link),
+                    link.course_id,
+                    ref.target_kind,
+                    ref.target_id,
+                    ctx.now,
+                )
             )
         else:
             # Never read by the sync yet: it opens all the same (the platform is read then).
@@ -333,7 +346,11 @@ async def targets(ctx: Ctx, program_id: str) -> AssignmentTargets:
     for row in rows:
         if row.held_for_kind is not None and row.held_for_id is not None:
             held = _target(
-                facts.from_row(row, None), row.course_id, row.held_for_kind, row.held_for_id
+                facts.from_row(row, None),
+                row.course_id,
+                row.held_for_kind,
+                row.held_for_id,
+                ctx.now,
             )
             held.held = True
             found.append(held)

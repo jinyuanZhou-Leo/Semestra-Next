@@ -348,6 +348,8 @@ async def _import(
             # A grade already on the platform comes along, so it needs no second review (one
             # out of what an assessment takes stays out, as the weight).
             item.update(fit_or_default("assessment", "score", platform_score(a)) or {})
+            if platform_excused(a):
+                item["dropped"] = True
             new.append(NewItem(key=key, type="assessment", data=item, confidence=confidence))
         else:
             item = {
@@ -417,6 +419,7 @@ def snapshot(a: dict[str, Any], weight: float | None = None) -> dict[str, Any]:
         "points": a.get("points"),
         "weight": weight,
         "score": platform_score(a),
+        "dropped": platform_excused(a),
     }
 
 
@@ -447,7 +450,13 @@ def bound_snapshot(platform: dict[str, Any]) -> dict[str, Any]:
     changes nothing. Due date, weight and grade count as never set from the platform, so the
     sync fills in what the assessment lacks and asks where both have a value that differs; the
     title stays the platform's, so a name the user chose is kept until the platform renames it."""
-    return {**platform, "due_at": None, "weight": None, "score": None}
+    return {**platform, "due_at": None, "weight": None, "score": None, "dropped": None}
+
+
+def platform_excused(a: dict[str, Any]) -> bool:
+    """Whether the platform excused the user from the assignment: it does not count in the grade
+    there, so the assessment is not counted either (followed with the grade, M09 §4.1)."""
+    return bool((a.get("submission") or {}).get("excused"))
 
 
 def platform_score(a: dict[str, Any]) -> dict[str, float] | None:
@@ -637,7 +646,10 @@ async def on_commit(ctx: Ctx, row: ImportsSession, created: dict[str, str]) -> N
             continue
         # What the sync compares later: a to-do has no grade to follow (an item may have been
         # switched in the review).
-        snap = {**info["snapshot"], **({} if item.type == "assessment" else {"score": None})}
+        snap = {
+            **info["snapshot"],
+            **({} if item.type == "assessment" else {"score": None, "dropped": None}),
+        }
         if item.type == "task":
             snap[ZONE] = zones[link.program_id].key
         if str(item.data.get("existing_assessment_id")) in bound:

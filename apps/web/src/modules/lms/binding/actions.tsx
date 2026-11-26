@@ -1,5 +1,6 @@
 import { lmsCourseLinkGetOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
+import { ExternalLink } from 'lucide-react'
 import { Suspense, useEffect } from 'react'
 import { preload, preloadable } from '@/app/extensions'
 import type {
@@ -9,6 +10,7 @@ import type {
 } from '@/modules/grading/types'
 import { m } from '@/paraglide/messages'
 import { DropdownMenuItem } from '@/ui/dropdown-menu'
+import { assignmentTargetsOptions, useAssignmentTarget } from '../assignment/queries'
 import { useProgramProviderName, useProviderName } from '../providers'
 
 // The dialogs load once a gradebook row offers them, not with the app.
@@ -82,4 +84,25 @@ export const unbindAction: AssessmentAction = {
   destructive: true,
   Item: UnbindItem,
   Dialog: LazyUnbindDialog,
+}
+
+/** "Open in {provider}": an assessment that follows an assignment (as the Canvas tab's row menu). */
+function OpenItem({ assessment, programId }: AssessmentActionItemProps) {
+  const provider = useProgramProviderName(programId)
+  const target = useAssignmentTarget(programId, { assessmentId: assessment.id })
+  // Platform data: only web links are opened (the API drops the rest too).
+  const url = target?.web_url && /^https?:\/\//i.test(target.web_url) ? target.web_url : null
+  if (!url) return null
+  return (
+    <DropdownMenuItem onClick={() => window.open(url, '_blank', 'noopener,noreferrer')}>
+      <ExternalLink aria-hidden />
+      {m.lms_open_in({ provider: provider ?? m.lms_platform() })}
+    </DropdownMenuItem>
+  )
+}
+
+export const openAction: AssessmentAction = {
+  id: 'lms.open',
+  query: ({ programId }) => assignmentTargetsOptions(programId),
+  Item: OpenItem,
 }

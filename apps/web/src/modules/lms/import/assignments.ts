@@ -31,14 +31,35 @@ export async function addToGradebook(courseId: string, externalIds: string[], pr
   return review(data, provider)
 }
 
-/** Starts the import from inside the import dialog (the gradebook's picker): its session id. */
-export async function startAssignmentImport(courseId: string, externalIds: string[]) {
-  const { data } = await lmsAssignmentImport({
-    path: { course_id: courseId },
-    body: { external_ids: externalIds },
-    throwOnError: true,
-  })
-  return data.session_id
+/**
+ * Starts the import from inside the import dialog (the gradebook's picker): its session id. New
+ * assignments are imported; ones already to-dos go into the gradebook ("Add to gradebook"). Both
+ * land in the course's one unfinished import, so the review lists them together.
+ */
+export async function startAssignmentImport(
+  courseId: string,
+  externalIds: string[],
+  toGradebook: string[],
+) {
+  let sessionId: string | null = null
+  if (externalIds.length > 0) {
+    const { data } = await lmsAssignmentImport({
+      path: { course_id: courseId },
+      body: { external_ids: externalIds },
+      throwOnError: true,
+    })
+    sessionId = data.session_id
+  }
+  if (toGradebook.length > 0) {
+    const { data } = await lmsAssignmentAddToGradebook({
+      path: { course_id: courseId },
+      body: { external_ids: toGradebook },
+      throwOnError: true,
+    })
+    sessionId = data.session_id
+  }
+  if (sessionId === null) throw new Error('nothing picked')
+  return sessionId
 }
 
 function review(started: ImportStarted, provider: string) {

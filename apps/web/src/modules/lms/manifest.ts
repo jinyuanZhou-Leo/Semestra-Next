@@ -51,10 +51,11 @@ import {
   hasAnnouncements,
 } from './announcements'
 import { assignmentHost } from './assignment/AssignmentHost'
-import { bindAction, unbindAction } from './binding/actions'
+import { bindAction, openAction, unbindAction } from './binding/actions'
 import { OpenInPlatform, PlatformMark } from './components/PlatformMark'
 import { CalendarNote } from './sync/CalendarNote'
 import { assignmentTargetsOptions } from './assignment/queries'
+import { progressOf } from './assignment/status'
 import { AssessmentAssignmentCell } from './components/AssessmentAssignment'
 import { prefetchCourseLink, prefetchCourseTools } from './course-info'
 import { taskAssignmentLink } from './components/TaskAssignment'
@@ -342,7 +343,7 @@ export default defineModule({
     [ONBOARDING_STEPS]: onboardingSteps,
     [TERM_WIZARD_IMPORT_SOURCES]: [wizardCourseSource],
     [ASSESSMENT_IMPORT_SOURCES]: [assignmentSource, syllabusSource],
-    [ASSESSMENT_ACTIONS]: [bindAction, unbindAction],
+    [ASSESSMENT_ACTIONS]: [openAction, bindAction, unbindAction],
     // Only in a gradebook where some assessment is an assignment of the platform (imported, or
     // kept from when it was): each such row opens the assignment's details, or its feedback.
     [ASSESSMENT_COLUMNS]: [
@@ -353,6 +354,13 @@ export default defineModule({
         query: ({ programId }) => assignmentTargetsOptions(programId),
         shownFor: (assessments, targets) =>
           assessments.some((a) => targets?.items.some((t) => t.assessment_id === a.id)),
+        // How the assignment stands on the platform sorts the row into the filters. Not known
+        // when the sync hasn't read the submission yet, or for one kept after unbinding (it no
+        // longer follows the assignment): its due date decides.
+        progress: (assessment, targets) => {
+          const t = targets?.items.find((x) => x.assessment_id === assessment.id && !x.held)
+          return t && t.state !== null ? progressOf(t.state, t.due_state ?? 'none') : undefined
+        },
       },
     ] satisfies AssessmentColumn<AssignmentTargets>[],
     [FIELD_ORIGINS]: [

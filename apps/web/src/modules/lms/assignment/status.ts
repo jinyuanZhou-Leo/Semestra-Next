@@ -1,4 +1,5 @@
 import type { AssignmentOut } from '@semestra/api-client'
+import type { Progress } from '@/modules/grading/types'
 import { formatDaysUntil } from '@/lib/format'
 import { m } from '@/paraglide/messages'
 
@@ -67,4 +68,26 @@ export function latenessLabel(seconds: number): string {
   return hours < 48
     ? m.lms_assignment_late_hours({ count: hours })
     : m.lms_assignment_late_days({ count: Math.round(hours / 24) })
+}
+
+/**
+ * Which of the shared filters (M03 §5.1, M16 §4) an assignment falls in by where the user is
+ * with it: still to do (not handed in, missing, or handed in off the platform before its due
+ * date), handed in and waiting for a grade, or graded; an excused one in none of them.
+ */
+export function progressOf(state: AssignmentState | null, dueState: DueState): Progress | null {
+  switch (state) {
+    case 'graded':
+      return 'graded'
+    case 'submitted':
+      return 'awaiting'
+    case 'unsubmitted':
+    case 'missing':
+      return 'todo'
+    // Nothing tells whether work handed in off the platform is done: until its due date it is.
+    case 'offline':
+      return dueState === 'upcoming' ? 'todo' : 'awaiting'
+    default:
+      return null
+  }
 }

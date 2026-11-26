@@ -644,12 +644,14 @@ test('each assignment shows the state and due state the server gives it', async 
     'Open lab',
   ]
   const shown = () => all.filter((name) => screen.queryByText(name) !== null)
+  // The gradebook's four filters: a missing one is still to do; work handed in off the platform
+  // waits for its grade once its due date is past; an excused one is only in All.
   await userEvent.click(screen.getByRole('button', { name: 'Graded' }))
   expect(shown()).toEqual(['Zeroed lab'])
-  await userEvent.click(screen.getByRole('button', { name: 'Missing' }))
-  expect(shown()).toEqual(['Missed lab'])
+  await userEvent.click(screen.getByRole('button', { name: 'Awaiting grade' }))
+  expect(shown()).toEqual(['Late lab', 'Paper quiz'])
   await userEvent.click(screen.getByRole('button', { name: 'To do' }))
-  expect(shown()).toEqual(['Paper lab', 'Overdue lab', 'Open lab'])
+  expect(shown()).toEqual(['Paper lab', 'Missed lab', 'Overdue lab', 'Open lab'])
 })
 
 test('a to-do can join the gradebook through the review', async () => {
