@@ -317,6 +317,9 @@ export function PreviewDialog({
   const [selected, setSelected] = useState<string | null>(null)
   // Words a source chip in the panel beside the file points at.
   const [cited, setCited] = useState<readonly string[] | null>(null)
+  // Opened with its button in this preview (not along with the file, because it was open
+  // before): only then does it take the focus, so reading with the keyboard is not interrupted.
+  const [openedHere, setOpenedHere] = useState(false)
   const [shown, setShown] = useState(target)
   if (target !== shown) {
     setShown(target)
@@ -327,6 +330,7 @@ export function PreviewDialog({
       setPage(target.page ?? 1)
       setSelected(null)
       setCited(null)
+      setOpenedHere(false)
     }
   }
   const query = useDebounced(search, 300).trim()
@@ -356,7 +360,10 @@ export function PreviewDialog({
     (p) => data && data.kind === 'file' && programId && (p.accepts?.(data) ?? true),
   )
   const panel = panels.find((p) => p.id === panelId && data && !p.unavailable?.(data))
-  const togglePanel = (id: string) => setPanelId(panelId === id ? null : id)
+  const togglePanel = (id: string) => {
+    setOpenedHere(panelId !== id)
+    setPanelId(panelId === id ? null : id)
+  }
   // The panel's code loads before it is shown (`preload`), the first time it is opened.
   const [loaded, setLoaded] = useState<string | null>(null)
   const shownPanel = panel ?? null
@@ -480,6 +487,7 @@ export function PreviewDialog({
                       key={data.id}
                       item={data}
                       programId={programId ?? ''}
+                      focusInput={openedHere}
                       onClose={() => togglePanel(panel.id)}
                     />
                   ) : null}

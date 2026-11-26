@@ -35,7 +35,13 @@ export type FilePreviewPanel = {
   accepts?: (item: ItemOut) => boolean
   /** Why it cannot be used for this file now (the button is disabled and says so), or null. */
   unavailable?: (item: ItemOut) => Message | null
-  Panel: ComponentType<{ item: ItemOut; programId: string; onClose: () => void }>
+  Panel: ComponentType<{
+    item: ItemOut
+    programId: string
+    /** Opened with its button just now, not along with the file: it may take the focus. */
+    focusInput: boolean
+    onClose: () => void
+  }>
 }
 
 export const FILE_PREVIEW_PANELS = 'files.previewPanels'

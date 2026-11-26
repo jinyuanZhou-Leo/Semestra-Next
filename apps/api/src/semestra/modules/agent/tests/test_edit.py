@@ -251,24 +251,20 @@ async def test_a_file_picked_again_is_stored_once_and_counted(
     assert [b["attachment_id"] for b in blocks] == [kept["id"], kept["id"]]
 
 
-async def test_conversations_about_a_file_are_listed_by_it(agent: Agent, model: FakeModel):
+async def test_a_deleted_file_takes_its_conversation_in_the_preview_along(agent: Agent):
     _, course, _ = await agent.course_with_lab()
     r = await agent.client.post(
         f"/courses/{course['id']}/files",
         files=[("files", ("notes.pdf", make_pdf(["x"]), "application/pdf"))],
     )
     item = r.json()["items"][0]
-    about, other = await agent.session(), await agent.session()
-    model.then(say("Sure."))
-    await agent.send(
-        about["id"],
-        "read @notes.pdf",
-        references=[{"kind": "file", "id": item["id"], "label": "notes.pdf"}],
+    key = f"assistant.file_session.{item['id']}"
+    await agent.call("PUT", f"/me/ui-state/{key}", json={"value": "s1"})
+    await agent.call(
+        "POST", f"/courses/{course['id']}/files:delete", json={"item_ids": [item["id"]]}
     )
-    model.then(say("Hi."))
-    await agent.send(other["id"], "hello")
-    found = await agent.call("GET", "/agent/sessions", params={"file_id": item["id"]})
-    assert [s["id"] for s in found["items"]] == [about["id"]]
+    left = await agent.call("POST", "/me/ui-state:get", json={"keys": [key]})
+    assert left["items"] == {}
 
 
 async def test_a_file_without_text_says_why(agent: Agent, model: FakeModel):

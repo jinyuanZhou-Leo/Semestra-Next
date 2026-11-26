@@ -4842,24 +4842,6 @@
             "description": "List archived sessions instead."
           },
           {
-            "name": "file_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Only conversations about this course file: it was referenced with @ in them, or one of their attachments was saved as it.",
-              "title": "File Id"
-            },
-            "description": "Only conversations about this course file: it was referenced with @ in them, or one of their attachments was saved as it."
-          },
-          {
             "name": "limit",
             "in": "query",
             "required": false,

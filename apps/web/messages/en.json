@@ -1740,6 +1740,7 @@
   "assistant_ask_about_file": "Ask Sem about this file",
   "assistant_file_panel_close": "Hide Sem",
   "assistant_file_not_read": "Sem can answer about this file once it has been read",
+  "assistant_file_not_indexed": "Build this file's index in the file list to ask Sem about it",
   "assistant_file_unreadable": "This file couldn't be read, so Sem can't see its contents",
   "assistant_file_starter_summary": "Summarize",
   "assistant_file_starter_summary_prompt": "Summarize the key points of {file}.",

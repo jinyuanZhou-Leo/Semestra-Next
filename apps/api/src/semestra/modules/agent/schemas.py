@@ -123,11 +123,6 @@ class AgentSessionDetail(BaseModel):
 class AgentSessionListInput(BaseModel):
     query: str | None = Field(default=None, description="Matches the title.")
     archived: bool = Field(default=False, description="List archived sessions instead.")
-    file_id: str | None = Field(
-        default=None,
-        description="Only conversations about this course file: it was referenced with @ in "
-        "them, or one of their attachments was saved as it.",
-    )
     limit: int = Field(default=100, ge=1, le=500, description="At most this many, newest first.")
 
 

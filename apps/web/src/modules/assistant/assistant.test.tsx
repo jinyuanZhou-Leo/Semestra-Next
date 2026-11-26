@@ -791,20 +791,28 @@ test('/ picks skills and @ refers to a course or file, which works in its term',
 
 const syllabus = { id: 'f1', course_id: 'c2', display_name: 'Syllabus.pdf' } as ItemOut
 
-/** The conversations about a file: the server lists those that referenced it. */
-function aboutFile(sessions: AgentSessionOut[]) {
+/** What the server remembers as UI state, as far as these tests read it back. */
+function rememberUiState() {
+  const saved = new Map<string, unknown>()
   server.use(
-    http.get(`${API}/agent/sessions`, ({ request }) =>
-      HttpResponse.json({
-        items: new URL(request.url).searchParams.get('file_id') === 'f1' ? sessions : [],
-      }),
-    ),
+    http.put(`${API}/me/ui-state/:key`, async ({ params, request }) => {
+      saved.set(String(params.key), ((await request.json()) as { value: unknown }).value)
+      return HttpResponse.json({ ok: true })
+    }),
+    http.post(`${API}/me/ui-state\\:get`, async ({ request }) => {
+      const { keys = [] } = (await request.json()) as { keys?: string[] }
+      return HttpResponse.json({
+        items: Object.fromEntries(keys.filter((k) => saved.has(k)).map((k) => [k, saved.get(k)])),
+      })
+    }),
   )
+  return saved
 }
 
+const filePanel = () => <FilePanel item={syllabus} programId="p1" focusInput onClose={() => {}} />
+
 test('asked about a file, the input starts with it and its question works in its term', async () => {
-  aboutFile([])
-  renderWithRouter(<FilePanel item={syllabus} programId="p1" onClose={() => {}} />)
+  renderWithRouter(filePanel())
   const input = await messageInput()
   expect(input).toHaveTextContent(/^Syllabus.pdf\s*$/)
   await userEvent.type(input, 'What is due?{Enter}')
@@ -817,9 +825,8 @@ test('asked about a file, the input starts with it and its question works in its
 })
 
 test('a starting point asks about the file and empties the input only if nothing was added', async () => {
-  aboutFile([])
   srv.reply = () => sse([])
-  const view = renderWithRouter(<FilePanel item={syllabus} programId="p1" onClose={() => {}} />)
+  const view = renderWithRouter(filePanel())
   await messageInput()
   await userEvent.click(screen.getByRole('button', { name: 'Summarize' }))
   await waitFor(() => expect(srv.sent).toHaveLength(1))
@@ -832,7 +839,9 @@ test('a starting point asks about the file and empties the input only if nothing
 
   // What the user wrote stays for them to send.
   panel.reset()
-  renderWithRouter(<FilePanel item={syllabus} programId="p1" onClose={() => {}} />)
+  renderWithRouter(
+    <FilePanel item={{ ...syllabus, id: 'f2' }} programId="p1" focusInput onClose={() => {}} />,
+  )
   const input = await messageInput()
   await userEvent.type(input, 'and the labs')
   await userEvent.click(screen.getByRole('button', { name: 'Practice questions' }))
@@ -840,17 +849,40 @@ test('a starting point asks about the file and empties the input only if nothing
   expect(input).toHaveTextContent(/^Syllabus.pdf\s*and the labs$/)
 })
 
-test('opened again, the panel shows the latest conversation about the file', async () => {
-  aboutFile([session()])
-  srv.detail.messages = [
-    msg('u1', 'user', [{ type: 'text', text: 'Summarize @Syllabus.pdf' }]),
-    msg('a1', 'assistant', [{ type: 'text', text: 'Three points.' }]),
-  ]
-  renderWithRouter(<FilePanel item={syllabus} programId="p1" onClose={() => {}} />)
+test('opened again, even after a reload, the panel shows the conversation started there', async () => {
+  const saved = rememberUiState()
+  srv.reply = () => {
+    srv.detail.messages = [
+      msg('u1', 'user', [{ type: 'text', text: 'What is due? @Syllabus.pdf' }]),
+      msg('a1', 'assistant', [{ type: 'text', text: 'Three points.' }]),
+    ]
+    return sse([])
+  }
+  const view = renderWithRouter(filePanel())
+  await userEvent.type(await messageInput(), 'What is due?{Enter}')
+  expect(await screen.findByText('Three points.')).toBeInTheDocument()
+  await waitFor(() => expect(saved.get('assistant.file_session.f1')).toBe('s1'))
+  view.unmount()
+
+  panel.reset()
+  renderWithRouter(filePanel())
   expect(await screen.findByText('Three points.')).toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'New conversation' }))
   expect(await messageInput()).toHaveTextContent(/^Syllabus.pdf\s*$/)
   expect(screen.queryByText('Three points.')).not.toBeInTheDocument()
+  await waitFor(() => expect(saved.get('assistant.file_session.f1')).toBeNull())
+})
+
+test('a conversation deleted from the history leaves a new one beside the file', async () => {
+  const saved = rememberUiState()
+  saved.set('assistant.file_session.f1', 'gone')
+  server.use(
+    http.get(`${API}/agent/sessions/gone`, () =>
+      HttpResponse.json({ error: { code: 'common.not_found' } }, { status: 404 }),
+    ),
+  )
+  renderWithRouter(filePanel())
+  expect(await messageInput()).toHaveTextContent(/^Syllabus.pdf\s*$/)
 })
 
 test('Chinese punctuation opens the menus, and @ works right after Chinese text', async () => {

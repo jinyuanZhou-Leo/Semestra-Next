@@ -166,15 +166,6 @@ async def list_sessions(ctx: Ctx, inp: AgentSessionListInput) -> list[AgentSessi
     )
     if inp.query:
         stmt = stmt.where(func.lower(AgentSession.title).contains(inp.query.lower()))
-    if inp.file_id:
-        stmt = stmt.where(
-            AgentSession.id.in_(
-                select(AgentAttachment.session_id).where(
-                    AgentAttachment.user_id == ctx.user_id,
-                    AgentAttachment.file_item_id == inp.file_id,
-                )
-            )
-        )
     stmt = stmt.order_by(AgentSession.updated_at.desc()).limit(inp.limit)
     return [session_out(r) for r in (await ctx.db.scalars(stmt)).all()]
 

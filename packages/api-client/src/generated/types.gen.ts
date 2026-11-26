@@ -17645,12 +17645,6 @@ export type AgentSessionListData = {
          */
         archived?: boolean;
         /**
-         * File Id
-         *
-         * Only conversations about this course file: it was referenced with @ in them, or one of their attachments was saved as it.
-         */
-        file_id?: string | null;
-        /**
          * Limit
          *
          * At most this many, newest first.

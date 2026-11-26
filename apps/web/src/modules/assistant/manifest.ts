@@ -62,7 +62,9 @@ export default defineModule({
             ? null
             : item.doc_status === 'failed'
               ? m.assistant_file_unreadable
-              : m.assistant_file_not_read,
+              : item.doc_status === 'none'
+                ? m.assistant_file_not_indexed
+                : m.assistant_file_not_read,
         Panel: preloadable(() => import('./components/FilePanel')),
       } satisfies FilePreviewPanel,
     ],

@@ -1,11 +1,12 @@
 import type { ItemOut } from '@semestra/api-client'
-import { agentSessionListOptions } from '@semestra/api-client/react-query'
 import type { JSONContent } from '@tiptap/core'
 import { useQuery } from '@tanstack/react-query'
 import { SquarePen, X } from 'lucide-react'
 import { useState } from 'react'
+import { useUiPref } from '@/app/ui-pref'
 import { IconAction } from '@/components/IconAction'
 import { m } from '@/paraglide/messages'
+import { Spinner } from '@/ui/spinner'
 import { conversationDrafts } from '../drafts'
 import { chipNode, type MessageReference } from '../prompt'
 import { usePageScope } from '../scope'
@@ -41,30 +42,35 @@ function starters(file: MessageReference): PromptStarter[] {
 }
 
 /**
- * Sem beside a file in its preview (`files.previewPanels`, M12 §6.1). It shows the latest
- * conversation about the file (one that referenced it, from the server), or a new one whose input
- * starts with the file referenced and starting points about it. Source chips of this file in the
- * answers turn the preview to their page.
+ * Sem beside a file in its preview (`files.previewPanels`, M12 §6.1): the conversation last
+ * started here for this file, or a new one whose input starts with the file referenced and
+ * starting points about it. Which conversation that is lives in UI state
+ * (`assistant.file_session.<item_id>`, removed with the file), so it is the same after a reload
+ * and on other devices; conversations elsewhere that mention the file stay where they are.
+ * Source chips of this file in the answers turn the preview to their page.
  */
 export default function FilePanel({
   item,
   programId,
+  focusInput,
   onClose,
 }: {
   item: ItemOut
   programId: string
+  /** The user opened the panel just now: the caret goes to its input. */
+  focusInput: boolean
   onClose: () => void
 }) {
-  const latest = useQuery(
-    agentSessionListOptions({ query: { file_id: item.id, archived: false, limit: 1 } }),
-  )
-  // The conversation picked here: undefined follows the latest one, null is a new one.
-  const [picked, setPicked] = useState<string | null | undefined>(undefined)
-  const sessionId = picked === undefined ? (latest.data?.items[0]?.id ?? null) : picked
+  const [stored, setStored, loaded] = useUiPref<string | null>('assistant.file_session', null, {
+    scope: item.id,
+  })
+  const query = useQuery(sessionQueryOptions(stored))
+  // A conversation deleted since (from the history) leaves a new one here.
+  const sessionId = query.isError ? null : stored
   // Changes when a new conversation starts, so the conversation below starts over.
   const [view, setView] = useState(0)
   const pageScope = usePageScope({ kind: 'course', programId, courseId: item.course_id })
-  const session = useQuery(sessionQueryOptions(sessionId)).data?.session
+  const session = query.data?.session
   const file: MessageReference = { kind: 'file', id: item.id, label: item.display_name }
   const initialDoc: JSONContent = {
     type: 'doc',
@@ -81,7 +87,7 @@ export default function FilePanel({
           label={m.assistant_new()}
           onClick={() => {
             conversationDrafts.forget(draftKey(item.id))
-            setPicked(null)
+            setStored(null)
             setView(view + 1)
           }}
         >
@@ -91,9 +97,11 @@ export default function FilePanel({
           <X />
         </IconAction>
       </header>
-      {/* Which conversation to show is known once the list has answered (or failed). */}
-      {latest.isPending && picked === undefined ? (
-        <div className="flex-1" />
+      {/* Which conversation to show is known once it has been read (or found gone). */}
+      {!loaded || (stored !== null && query.isPending) ? (
+        <div className="flex flex-1 items-center justify-center">
+          <Spinner />
+        </div>
       ) : (
         <Conversation
           key={view}
@@ -102,8 +110,8 @@ export default function FilePanel({
           draftKey={draftKey(item.id)}
           initialDoc={initialDoc}
           starters={starters(file)}
-          onCreated={setPicked}
-          focusInput
+          onCreated={setStored}
+          focusInput={focusInput}
         />
       )}
     </section>
