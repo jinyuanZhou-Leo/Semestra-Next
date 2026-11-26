@@ -127,9 +127,7 @@ test('adding a connection sends the form; a rejected token shows and saves nothi
   ).toHaveAttribute('href', 'https://q.utoronto.ca/profile/settings')
   await userEvent.type(within(dialog).getByLabelText('Access token'), 'wrong-token')
   await userEvent.click(save)
-  expect(
-    await within(dialog).findByText("The LMS credentials aren't valid"),
-  ).toBeInTheDocument()
+  expect(await within(dialog).findByText("The LMS credentials aren't valid")).toBeInTheDocument()
 
   await userEvent.clear(within(dialog).getByLabelText('Access token'))
   await userEvent.type(within(dialog).getByLabelText('Access token'), '7~abcdefghxy')
