@@ -802,7 +802,8 @@ def canvas_api(router: respx.MockRouter) -> None:
     )  # fmt: skip
     router.get(f"{api}/courses/101/files").mock(
         return_value=ok([
-            {"id": 77, "display_name": "slides.pdf", "folder_id": 51, "size": 4},
+            {"id": 77, "display_name": "slides.pdf", "folder_id": 51, "size": 4,
+             "content-type": "application/pdf", "url": f"{CANVAS}/files/77/download?verifier=v"},
             {"id": 78, "display_name": "hidden.pdf", "folder_id": 99},
         ])
     )  # fmt: skip

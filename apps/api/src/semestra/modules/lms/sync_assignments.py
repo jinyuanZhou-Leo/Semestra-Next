@@ -48,6 +48,7 @@ from semestra.modules.lms.models import (
     LmsImportedRef,
     LmsSyncChange,
 )
+from semestra.modules.lms.providers import Call
 from semestra.modules.lms.rules import (
     Action,
     Presence,
@@ -544,7 +545,30 @@ AREA = facts.AREA
 KIND = "assignment"
 # The field of the change logged for new feedback (never put back: nothing in Semestra to undo).
 FEEDBACK = "feedback"
-register_sync_stage("assignments", run, order=20, enabled=_enabled, parts=(AREA, *facts.SIDE_PARTS))
+
+
+def _reads(link: LmsCourseLink, b: Bound, sync_round: SyncRound) -> list[Call]:
+    """The lists `run` reads of every course (`facts.read_list`, `facts.read_side`; the quizzes
+    only when an assignment is one)."""
+    del sync_round
+    ext = link.external_course_id
+    features = b.provider.features
+    calls = [Call("assignments", (ext,))]
+    if "submissions" in features:
+        calls.append(Call("submissions", (ext,)))
+    if "grades" in features:
+        calls.append(Call("course_total", (ext,)))
+    return calls
+
+
+register_sync_stage(
+    "assignments",
+    run,
+    order=20,
+    enabled=_enabled,
+    parts=(AREA, *facts.SIDE_PARTS),
+    reads=_reads,
+)
 
 
 # --- the user's answers ----------------------------------------------------------------------

@@ -427,6 +427,7 @@ async def _files(r: _Reader) -> None:
         )
         metas = {f.external_id: f for f in listed.items} if listed is not None else {}
         r.found.listed.update(("file", f) for f in metas)
+        reads.keep_downloads(r.ctx, (r.link, r.b), list(metas.values()))
     if "files" in features:
         # Files only a module or a page shows (the files area hidden): on their own, side by
         # side, now and then.
@@ -448,6 +449,7 @@ async def _files(r: _Reader) -> None:
         for file_id, answer in (await r.read_many("file", todo)).items():
             if isinstance(answer, Present):
                 metas[file_id] = answer.data
+                reads.keep_downloads(r.ctx, (r.link, r.b), [answer.data])
     r.found.given.update(("file", f) for f in metas)
     for meta in metas.values():
         if meta.locked:

@@ -24,7 +24,7 @@ from semestra.core.errors import AppError
 from semestra.core.http import egress_allowed
 from semestra.modules.lms.answers import AreaResult, Gone, Unavailable
 from semestra.modules.lms.errors import lms_error
-from semestra.modules.lms.providers.base import Io
+from semestra.modules.lms.providers.base import Io, round_shared
 from semestra.modules.lms.providers.canvas import answers, sign_in
 from semestra.modules.lms.providers.canvas.config import (
     API_PREFIX,
@@ -508,7 +508,13 @@ class CanvasProvider:
             headers["Authorization"] = f"Bearer {token}"
         try:
             request = io.client.build_request(method, url, params=params, headers=headers)
-            return await io.client.send(request, stream=stream)
+            if io.gate is None:
+                return await io.client.send(request, stream=stream)
+            async with io.gate.slot():
+                response = await io.client.send(request, stream=stream)
+            # Sent with every API answer: what is left of the token's bucket (`gate.py`).
+            await io.gate.left(_num(response.headers.get("x-rate-limit-remaining")))
+            return response
         except AppError as exc:
             if exc.code == "common.egress_blocked":
                 raise lms_error("lms.blocked_address") from None
@@ -632,12 +638,41 @@ class CanvasProvider:
                 course.is_current = True
         return courses
 
+    async def _course_record(
+        self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
+    ) -> dict[str, Any]:
+        """The course object, with what every reader of it needs (its term, the syllabus, the
+        group weights): read once per sync round (`Io.shared`), not once per reader."""
+
+        async def read() -> dict[str, Any]:
+            return cast(
+                dict[str, Any],
+                await self._get(
+                    io,
+                    cfg,
+                    creds,
+                    f"/courses/{quote(course_id)}",
+                    [("include[]", "term"), ("include[]", "syllabus_body")],
+                ),
+            )
+
+        if io.shared is None:
+            return await read()
+        key = ("canvas.course", course_id)
+        if (task := io.shared.get(key)) is None:
+            task = io.shared[key] = asyncio.ensure_future(read())
+        try:
+            return await task
+        except BaseException:
+            # A read that failed is read again by the next reader (after renewed credentials).
+            if io.shared.get(key) is task:
+                del io.shared[key]
+            raise
+
     async def get_course(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> LmsCourse:
-        data = await self._get(
-            io, cfg, creds, f"/courses/{quote(course_id)}", [("include[]", "term")]
-        )
+        data = await self._course_record(io, cfg, creds, course_id)
         return self._course(cfg, cast(dict[str, Any], data), datetime.now(UTC))
 
     async def navigation(
@@ -664,6 +699,7 @@ class CanvasProvider:
             )
         return sorted(tabs, key=lambda t: t.position)
 
+    @round_shared
     async def announcements(
         self,
         io: Io,
@@ -722,11 +758,12 @@ class CanvasProvider:
         ]
         return sorted(out, key=lambda a: a.posted_at or now, reverse=True)
 
+    @round_shared
     async def assignments(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> list[Assignment]:
         course, groups = await asyncio.gather(
-            self._get(io, cfg, creds, f"/courses/{quote(course_id)}"),
+            self._course_record(io, cfg, creds, course_id),
             self._list(
                 io,
                 cfg,
@@ -767,6 +804,7 @@ class CanvasProvider:
     ) -> Literal["hidden", "unavailable"]:
         return answers.area_answer(error, nav_closed=nav_closed)
 
+    @round_shared
     async def course_total(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> CourseTotal | None:
@@ -784,6 +822,7 @@ class CanvasProvider:
             )
         return None
 
+    @round_shared
     async def modules(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> list[Module]:
@@ -872,6 +911,7 @@ class CanvasProvider:
             front_page=bool(r.get("front_page")),
         )
 
+    @round_shared
     async def pages(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> list[PageSummary]:
@@ -980,12 +1020,7 @@ class CanvasProvider:
         ]
 
     async def syllabus(self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str) -> RichText:
-        r = cast(
-            dict[str, Any],
-            await self._get(
-                io, cfg, creds, f"/courses/{quote(course_id)}", [("include[]", "syllabus_body")]
-            ),
-        )
+        r = await self._course_record(io, cfg, creds, course_id)
         if "syllabus_body" not in r:
             # Not given to this user at all (no right to read it): unknown, not "no syllabus";
             # an empty or null field is the platform saying there is none (M09 table 2, row 22).
@@ -1077,6 +1112,7 @@ class CanvasProvider:
             ],
         )
 
+    @round_shared
     async def course_files(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> list[FileMeta]:
@@ -1136,6 +1172,7 @@ class CanvasProvider:
         )
         return _submission_detail(_dict(r), assignment_id)
 
+    @round_shared
     async def submissions(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> list[SubmissionDetail]:
@@ -1201,6 +1238,7 @@ class CanvasProvider:
             return
         raise lms_error("lms.unreachable", reason="redirects")
 
+    @round_shared
     async def calendar_events(
         self,
         io: Io,

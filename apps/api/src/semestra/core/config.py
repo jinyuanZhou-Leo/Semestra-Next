@@ -49,8 +49,9 @@ class Settings(BaseSettings):
     job_concurrency: int = 2
     # Of those, how many may run bulk jobs (rebuilding vectors, model downloads) at once.
     job_bulk_concurrency: int = 1
-    # Workers of their own for background jobs (the LMS course sync), besides the ones above.
-    job_background_concurrency: int = 1
+    # Workers of their own for background jobs (the LMS course sync and the files it brings),
+    # besides the ones above: they mostly wait on the network, so several courses sync at once.
+    job_background_concurrency: int = 3
     jobs_autostart: bool = True
     # Import the AI SDKs in a thread after start (seconds of work tests don't need).
     ai_warm_up: bool = True

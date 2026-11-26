@@ -29,6 +29,7 @@ from semestra.modules.academics import service as academics
 from semestra.modules.lms import assignment_refs, cache, html
 from semestra.modules.lms.answers import BUG
 from semestra.modules.lms.errors import BROKEN_ON_READ, CONNECTION_ERRORS, lms_error
+from semestra.modules.lms.gate import Gate
 from semestra.modules.lms.models import (
     LmsAnnouncement,
     LmsAssignment,
@@ -165,10 +166,31 @@ def _config(provider: LmsProvider, row: LmsConnection) -> BaseModel:
     return provider.config_model.model_validate(row.config_json)
 
 
+# Answers shared by the provider calls of one course's sync round (`Io.shared`).
+_shared_reads: ContextVar[dict[Any, Any] | None] = ContextVar("lms_shared_reads", default=None)
+
+
+@contextmanager
+def shared_reads() -> Iterator[None]:
+    """The provider calls inside share their answers (`Io.shared`): one sync round."""
+    token = _shared_reads.set({})
+    try:
+        yield
+    finally:
+        _shared_reads.reset(token)
+
+
 @asynccontextmanager
-async def io(ctx: Ctx) -> AsyncIterator[Io]:
+async def io(ctx: Ctx, b: Bound | None = None) -> AsyncIterator[Io]:
+    """What a provider call uses; with `b`, through its connection's gate (`gate.py`)."""
     async with safe_client(ctx.settings) as client:
-        yield Io(client=client, settings=ctx.settings)
+        yield Io(
+            client=client, settings=ctx.settings, gate=gate(ctx, b), shared=_shared_reads.get()
+        )
+
+
+def gate(ctx: Ctx, b: Bound | None) -> Gate | None:
+    return None if b is None else cache.runtime(ctx.state).gate(b.row.id)
 
 
 # --- connections ----------------------------------------------------------------------------
@@ -490,7 +512,7 @@ async def fresh(ctx: Ctx, b: Bound, *, force: bool = False) -> bool:
         if latest is not None and latest != b.creds:
             b.creds = latest
             return True
-        async with io(ctx) as i:
+        async with io(ctx, b) as i:
             b.creds = await support.refresh_credentials(i, b.cfg, b.creds, ctx.now)
         rt.renew(b.row.id, sealed, b.creds)
     ctx.after_commit.append(_StoreRenewed(ctx.state, b.row.id, sealed, _seal(ctx, b.creds)))
@@ -588,7 +610,7 @@ async def call[T](ctx: Ctx, b: Bound, fn: Callable[[Io], Awaitable[T]]) -> tuple
     """Runs one provider call; returns its result and whether a list was truncated."""
 
     async def run() -> tuple[T, bool]:
-        async with io(ctx) as i:
+        async with io(ctx, b) as i:
             try:
                 result = await fn(i)
             except AppError:

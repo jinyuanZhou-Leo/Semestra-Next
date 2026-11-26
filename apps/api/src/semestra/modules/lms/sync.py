@@ -23,6 +23,7 @@ waits on. Only synced courses of a running, upcoming or recent term are synced, 
 accounts used in the last weeks; a returning user's courses sync when the app opens.
 """
 
+import contextlib
 from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
@@ -52,6 +53,7 @@ from semestra.modules.lms.models import (
     LmsItemCheck,
     LmsMaterial,
 )
+from semestra.modules.lms.providers import Call, prefetch
 from semestra.modules.lms.service import Bound
 from semestra.modules.lms.settings import account, floor, interval
 from semestra.modules.lms.sync_round import SyncRound
@@ -206,6 +208,8 @@ class Shared[T]:
 
 StageRun = Callable[[Ctx, LmsCourseLink, Bound, SyncRound], Awaitable[StageResult]]
 StageEnabled = Callable[[Ctx, LmsCourseLink, Bound], Awaitable[bool]]
+# The provider reads a stage will make for a course (`Call`), made ahead of it (`_prefetch`).
+StageReads = Callable[[LmsCourseLink, Bound, SyncRound], Sequence[Call]]
 
 
 @dataclass(frozen=True)
@@ -217,6 +221,7 @@ class SyncStage:
     # The parts of the course the stage reads (`LmsCourseLink.area_reads`, M09 表 5c): a round
     # in which it raises, or that ends before it, records them `unavailable`.
     parts: tuple[str, ...] = ()
+    reads: StageReads | None = None
 
 
 _stages: dict[str, SyncStage] = {}
@@ -229,6 +234,7 @@ def register_sync_stage(
     order: int,
     enabled: StageEnabled | None = None,
     parts: Sequence[str] = (),
+    reads: StageReads | None = None,
 ) -> None:
     """Adds a stage to every course sync. `run(ctx, link, b, round)` reads the platform through
     the round (`SyncRound.area`, `.judge`, `.read_many`), then writes in `ctx`'s transaction
@@ -236,10 +242,12 @@ def register_sync_stage(
     before it reads what it compares, and saving what it read with `round.save`. When it raises,
     its `parts` are recorded unread and the other stages still run (M09 table 5b);
     `enabled(ctx, link, b)` skips the stage for a course (its settings, the provider's
-    features), and its parts with it."""
+    features), and its parts with it. `reads(link, b, round)` names the provider reads the
+    stage makes of every course (its lists, `Call`): once the course is read, those of all the
+    stages are made side by side, and each stage is given its answers as it asks (`_prefetch`)."""
     if name in _stages:
         raise ValueError(f"duplicate sync stage {name!r}")
-    _stages[name] = SyncStage(name, order, run, enabled, tuple(parts))
+    _stages[name] = SyncStage(name, order, run, enabled, tuple(parts), reads)
 
 
 async def hold(ctx: Ctx, link: LmsCourseLink) -> None:
@@ -297,7 +305,20 @@ async def sync_course(
     progress: Callable[[int, int], Awaitable[None]] | None = None,
     only: Sequence[str] | None = None,
 ) -> SyncOutcome:
-    """Runs every stage for one course (or `only` these), each in a transaction of its own."""
+    """Runs every stage for one course (or `only` these), each in a transaction of its own.
+    Its provider calls share their answers (`service.shared_reads`)."""
+    with service.shared_reads():
+        return await _round(state, user_id, course_id, manual, progress, only)
+
+
+async def _round(
+    state: State,
+    user_id: str,
+    course_id: str,
+    manual: bool,
+    progress: Callable[[int, int], Awaitable[None]] | None,
+    only: Sequence[str] | None,
+) -> SyncOutcome:
     todo = [s for s in stages() if only is None or s.name in only]
     this_round = SyncRound()
     results: list[StageResult] = []
@@ -374,6 +395,8 @@ async def sync_course(
             if stage.name in problems:
                 problems[stage.name]["ended"] = True
             break
+        if n == 0 and stage.name == "course" and stage.name in ran:
+            await _prefetch(state, user_id, course_id, todo[1:], this_round)
     outcome = SyncOutcome(
         course_id=course_id,
         applied=sum(len(r.applied) for r in results),
@@ -452,6 +475,38 @@ async def sync_course(
 
     await run_as_system(state, user_id, finish)
     return outcome
+
+
+async def _prefetch(
+    state: State, user_id: str, course_id: str, todo: Sequence[SyncStage], this_round: SyncRound
+) -> None:
+    """The lists the stages left will read, read side by side now (through the connection's
+    gate), each stage then given its answers as it asks (`providers.round_shared`). Only how
+    soon they are read changes: what this fails to read, a stage reads itself, and its answer
+    or error counts as it always does (M09 table 5b)."""
+
+    async def run(sys: Ctx) -> None:
+        link = await service.link_row(sys, course_id)
+        if link is None or not link.sync_enabled:
+            return
+        b = await service.bound(sys, await service.get_connection_row(sys, link.connection_id))
+        calls: list[Call] = []
+        for stage in todo:
+            if stage.reads is None:
+                continue
+            if stage.enabled is not None and not await stage.enabled(sys, link, b):
+                continue
+            calls += stage.reads(link, b, this_round)
+        if not calls:
+            return
+        with contextlib.suppress(AppError):
+            await service.call(sys, b, lambda i: prefetch(i, b.provider, b.cfg, b.creds, calls))
+
+    try:
+        await run_as_system(state, user_id, run)
+    except Exception:
+        # Ahead of time only: the stages read what this did not.
+        log.warning("lms.sync_prefetch_failed", course_id=course_id, exc_info=True)
 
 
 def _problem(

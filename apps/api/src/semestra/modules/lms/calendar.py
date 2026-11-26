@@ -20,6 +20,7 @@ from semestra.modules.academics import service as academics
 from semestra.modules.academics.schemas import Course
 from semestra.modules.lms import html, service
 from semestra.modules.lms.models import LmsCalendarEvent, LmsCourseLink
+from semestra.modules.lms.providers import Call
 from semestra.modules.lms.rules import presence
 from semestra.modules.lms.schemas.dto import LmsCalendarEvent as CalendarEvent
 from semestra.modules.lms.service import Bound
@@ -126,7 +127,14 @@ def _write(
     return changed
 
 
-register_sync_stage("calendar", stage, order=50, parts=(AREA,))
+def _reads(link: LmsCourseLink, b: Bound, this_round: SyncRound) -> list[Call]:
+    del this_round
+    if "calendar" not in b.provider.features:
+        return []
+    return [Call("calendar_events", ([link.external_course_id],))]
+
+
+register_sync_stage("calendar", stage, order=50, parts=(AREA,), reads=_reads)
 
 
 # --- the calendar source --------------------------------------------------------------------

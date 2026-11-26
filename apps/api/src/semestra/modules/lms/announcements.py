@@ -21,7 +21,7 @@ the announcement was stored.
 import html as htmllib
 import re
 from collections.abc import Iterable, Sequence
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any, get_args
 
 import structlog
@@ -39,6 +39,7 @@ from semestra.modules.lms.models import (
     LmsImportedRef,
     LmsMaterial,
 )
+from semestra.modules.lms.providers import Call
 from semestra.modules.lms.schemas.dto import Announcement, Attachment, FileMeta
 from semestra.modules.lms.schemas.io import (
     AnnouncementAttachment,
@@ -86,7 +87,7 @@ _MARK = re.compile(r'data-lms-kind="([^"]*)" data-lms-ref="([^"]*)"')
 
 async def stage(ctx: Ctx, link: LmsCourseLink, b: Bound, sync_round: SyncRound) -> StageResult:
     now = ctx.now
-    since = now - LOOKBACK
+    since = _since(sync_round, now)
     ext = link.external_course_id
 
     async def read_list() -> tuple[list[Announcement], bool]:
@@ -260,7 +261,20 @@ async def _announces(ctx: Ctx, link: LmsCourseLink, b: Bound) -> bool:
     return "announcements" in b.provider.features
 
 
-register_sync_stage("announcements", stage, order=40, enabled=_announces, parts=(AREA,))
+def _since(sync_round: SyncRound, now: datetime) -> datetime:
+    """The window the list reads, from when the round began (the same for `_reads`)."""
+    return (sync_round.started or now) - LOOKBACK
+
+
+def _reads(link: LmsCourseLink, b: Bound, sync_round: SyncRound) -> list[Call]:
+    del b
+    since = _since(sync_round, datetime.now(UTC))
+    return [Call("announcements", ([link.external_course_id],), {"since": since})]
+
+
+register_sync_stage(
+    "announcements", stage, order=40, enabled=_announces, parts=(AREA,), reads=_reads
+)
 
 
 # --- reads ----------------------------------------------------------------------------------

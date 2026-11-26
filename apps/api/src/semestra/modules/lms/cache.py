@@ -21,6 +21,7 @@ from pydantic import BaseModel
 from starlette.datastructures import State
 
 from semestra.core.context import Ctx
+from semestra.modules.lms.gate import Gate
 
 TTL = timedelta(minutes=5)
 # The in-process level is bounded by size, not count: one file preview can be megabytes.
@@ -53,6 +54,11 @@ class LmsRuntime:
         # with the stored credentials they replace: new ones saved by the user win.
         self._renewed: dict[str, tuple[str | None, BaseModel]] = {}
         self._renewal_locks: defaultdict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
+        # Requests in flight per connection (`gate.py`).
+        self._gates: defaultdict[str, Gate] = defaultdict(Gate)
+
+    def gate(self, connection_id: str) -> Gate:
+        return self._gates[connection_id]
 
     def renewed(self, connection_id: str, stored: str | None) -> BaseModel | None:
         hit = self._renewed.get(connection_id)
