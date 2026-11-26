@@ -543,7 +543,13 @@ test('the submission column and the filters follow the platform, else the due da
         weight: 30,
         due_at: new Date(Date.now() - 3 * day).toISOString(),
       }),
-      assessment({ id: 'a6', title: 'Final exam', weight: 30, status: 'graded', score_percentage: 80 }),
+      assessment({
+        id: 'a6',
+        title: 'Final exam',
+        weight: 30,
+        status: 'graded',
+        score_percentage: 80,
+      }),
     ],
   })
   const target = { course_id: 'c1', task_id: null, feedback: false, due_state: 'none' }
