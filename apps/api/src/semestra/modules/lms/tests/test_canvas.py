@@ -374,6 +374,15 @@ async def test_default_ports_are_the_same_origin(
     assert [page.ref for page in await p.pages(io, cfg, creds, "3")] == ["a", "b"]
 
 
+def test_equation_images_give_their_latex(settings: Settings):
+    p, cfg, _ = _cfg(settings)
+    # The editor encodes the LaTeX twice.
+    url = f"{CANVAS}/equation_images/%255Cfrac%257Ba_1%257D%257B2%257D?scale=1"
+    assert p.image_formula(cfg, url) == r"\frac{a_1}{2}"
+    assert p.image_formula(cfg, f"{CANVAS}/images/logo.png") is None
+    assert p.image_formula(cfg, "https://other.example/equation_images/x") is None
+
+
 def test_links_with_bad_ports_are_not_internal(settings: Settings):
     p, cfg, _ = _cfg(settings)
     assert p.rewrite_internal_link(cfg, "https://example.edu:notaport/courses/1/pages/a") is None

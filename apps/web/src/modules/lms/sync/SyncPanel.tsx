@@ -1,7 +1,7 @@
 import type { SyncItem, SyncStatus } from '@semestra/api-client'
 import { lmsSyncRequestMutation, lmsSyncStatusQueryKey } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { CircleAlert, RefreshCw, Settings2 } from 'lucide-react'
+import { RefreshCw, Settings2 } from 'lucide-react'
 import { useSettingsDialog } from '@/app/settings/use-settings-dialog'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { IconAction } from '@/components/IconAction'
@@ -12,18 +12,18 @@ import { cn } from '@/lib/utils'
 import { courseColor } from '@/modules/academics/color'
 import { useCourses } from '@/modules/academics/queries'
 import { m } from '@/paraglide/messages'
-import { Alert, AlertDescription, AlertTitle } from '@/ui/alert'
 import { Button } from '@/ui/button'
 import { PopoverDescription, PopoverHeader, PopoverTitle } from '@/ui/popover'
 import { Progress } from '@/ui/progress'
 import { Spinner } from '@/ui/spinner'
 import { importAssignments } from '../import/assignments'
-import { CONNECTION_ERROR_LABEL } from '../labels'
 import { useSyncAnswers } from './answers'
+import { ScrollArea } from '@/ui/scroll-area'
 import { CalendarLines } from './CalendarNote'
-import { byCourse } from './labels'
+import { byCourse, staleCourses } from './labels'
 import { MoreSections } from './MoreSections'
 import { PendingSection } from './PendingSection'
+import { ProblemList } from './ProblemList'
 import { RecentSection } from './RecentSection'
 import type { CourseOf } from './rows'
 import { syncedAgo, useProgramId, useSync } from './status'
@@ -104,7 +104,9 @@ function Panel({
       : syncing
         ? m.lms_sync_panel_syncing()
         : status.synced_at
-          ? m.lms_sync_panel_synced({ ago: syncedAgo(status.synced_at, now) })
+          ? status.problems.length > 0 || staleCourses(status).length > 0
+            ? m.lms_sync_panel_synced_partly({ ago: syncedAgo(status.synced_at, now) })
+            : m.lms_sync_panel_synced({ ago: syncedAgo(status.synced_at, now) })
           : m.lms_sync_meta_waiting()
   const course: CourseOf = (id, code) => ({ course: code, color: colors.get(id) })
   const shared = { provider, answers, course }
@@ -152,57 +154,43 @@ function Panel({
         ) : null}
       </div>
 
-      <div className="flex min-h-0 flex-col gap-4 overflow-y-auto p-2 pb-3">
-        {status.errors.length > 0 && !status.connection_error ? (
-          <Alert variant="destructive" className="mx-2 mt-1 w-auto px-3 py-2 text-xs">
-            <CircleAlert aria-hidden />
-            <AlertTitle className="text-xs">
-              {m.lms_sync_panel_failed({
-                courses: [...new Set(status.errors.map((e) => e.course))].join(
-                  m.lms_sync_list_separator(),
-                ),
-              })}
-            </AlertTitle>
-            <AlertDescription className="text-xs">
-              {[
-                ...new Set(
-                  status.errors.map(
-                    (e) =>
-                      CONNECTION_ERROR_LABEL[e.code]?.() ??
-                      errorMessage({ error: { code: e.code } }),
-                  ),
-                ),
-              ].join(' ')}
-            </AlertDescription>
-          </Alert>
-        ) : null}
-        {broken ? null : <CalendarLines status={status} className="px-2 pt-1" />}
-        <PendingSection
-          {...shared}
-          pending={status.pending}
-          broken={Boolean(broken)}
-          onImport={(items) => void importItems(items)}
-          onDelete={deleting.show}
-          onClose={onClose}
-        />
-        <RecentSection
-          {...shared}
-          programId={programId}
-          changes={status.recent}
-          materials={status.materials}
-          now={now}
-          onClose={onClose}
-        />
-        <MoreSections
-          {...shared}
-          programId={programId}
-          status={status}
-          broken={Boolean(broken)}
-          now={now}
-          onImport={(items) => void importItems(items)}
-          onClose={onClose}
-        />
-      </div>
+      <ScrollArea className="scroll-area-fade flex min-h-0 flex-1 flex-col [&>[data-slot=scroll-area-viewport]]:h-auto [&>[data-slot=scroll-area-viewport]]:min-h-0 [&>[data-slot=scroll-area-viewport]]:flex-1">
+        <div className="flex flex-col gap-4 p-2 pb-3">
+          {broken ? null : (
+            <div className="flex flex-col px-2 empty:hidden">
+              <ProblemList problems={status.problems} course={course} />
+            </div>
+          )}
+          {broken ? null : (
+            <CalendarLines status={status} unreadable={false} className="px-2 pt-1" />
+          )}
+          <PendingSection
+            {...shared}
+            pending={status.pending}
+            broken={Boolean(broken)}
+            onImport={(items) => void importItems(items)}
+            onDelete={deleting.show}
+            onClose={onClose}
+          />
+          <RecentSection
+            {...shared}
+            programId={programId}
+            changes={status.recent}
+            materials={status.materials}
+            now={now}
+            onClose={onClose}
+          />
+          <MoreSections
+            {...shared}
+            programId={programId}
+            status={status}
+            broken={Boolean(broken)}
+            now={now}
+            onImport={(items) => void importItems(items)}
+            onClose={onClose}
+          />
+        </div>
+      </ScrollArea>
 
       <ConfirmDialog
         {...deleting.props}

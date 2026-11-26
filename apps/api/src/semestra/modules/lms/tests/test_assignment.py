@@ -22,7 +22,7 @@ from semestra.modules.lms.schemas.dto import (
     SubmissionDetail,
     SubmittedFile,
 )
-from semestra.modules.lms.tests.conftest import Api, FakeProvider
+from semestra.modules.lms.tests.conftest import Api, FakeProvider, report
 from semestra.modules.lms.tests.test_sync import _assessments, _course
 from semestra.modules.tasks.models import TasksItem
 from semestra.testing import API_DIR, Clock
@@ -105,7 +105,7 @@ async def test_an_assignment_opens_from_the_platform_then_from_the_mirror(
     fake.down = True
     clock.advance(minutes=10)
     kept = await _open(api, course, "a1")
-    assert (kept["source"], kept["held"], kept["sync_failed"]) == ("mirror", False, False)
+    assert (kept["source"], kept["held"], kept["stale"]) == ("mirror", False, False)
     assert datetime.fromisoformat(kept["as_of"]) == synced_at
     assert kept["state"] == "graded"
     assert (kept["assignment"]["name"], kept["assignment"]["html"]) == ("Lab 1", "<p>Do it</p>")
@@ -141,6 +141,12 @@ async def test_an_assignment_opens_from_the_platform_then_from_the_mirror(
             "submitted_at": "2026-02-05T20:00:00Z",
             "online": True,
             "held": True,
+            "due_state": "none",
+            "submission_types": [],
+            "is_quiz": False,
+            "locked": False,
+            "lock_explanation": None,
+            "web_url": None,
             "state": "graded",
             "marks": [],
         }
@@ -270,7 +276,7 @@ async def test_a_to_do_deleted_a_moment_ago_does_not_fail_the_sync(
         await db.execute(delete(TasksItem))
         await db.commit()
     status = await api.sync(program_id)
-    assert status["errors"] == []
+    assert report(status) == set()
     assert (await api.call("GET", f"/programs/{program_id}/lms/assignment-targets"))["items"]
 
 
@@ -380,3 +386,29 @@ def test_migration_moves_what_was_kept_into_the_mirror(tmp_path: Path):
     assert json.loads(quiz) == {"question_count": 3}
     assert rows["a2"][:3] == (None, "task", "t2")
     assert rows["a2"][3] is not None
+
+
+async def test_new_assignments_and_to_dos_added_to_the_gradebook_are_reviewed_together(
+    api: Api, fake: FakeProvider
+):
+    fake.course_assignments["101"].append(
+        Assignment(external_id="a9", name="Reading", due_at=datetime(2026, 2, 9, 17, tzinfo=UTC))
+    )
+    program_id, course = await _course(api, "a9")
+    [reading] = (await api.call("GET", f"/programs/{program_id}/tasks"))["items"]
+    fake.course_assignments["101"][-1] = fake.course_assignments["101"][-1].model_copy(
+        update={"points": 5}
+    )
+    # The import leaves an imported to-do out; adding it to the gradebook is its own step.
+    started = await api.call(
+        "POST", f"/courses/{course}/lms/imports:assignments", json={"external_ids": ["a2", "a9"]}
+    )
+    added = await api.call(
+        "POST", f"/courses/{course}/lms/imports:gradebook", json={"external_ids": ["a9"]}
+    )
+    assert added["session_id"] == started["session_id"]
+    await api.commit(started["session_id"])
+    graded = await _assessments(api, course)
+    assert {"a2", "a9"} <= graded.keys()
+    tasks = (await api.call("GET", f"/programs/{program_id}/tasks"))["items"]
+    assert (reading["id"], graded["a9"]["id"]) in [(t["id"], t["assessment_id"]) for t in tasks]

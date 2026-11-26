@@ -1,5 +1,64 @@
 # @semestra/web
 
+## 2.7.4
+
+### Patch Changes
+
+- 0e026b3: <!-- area: files -->
+  <!-- en -->
+  See the type, size, location and dates of a file or folder from its menu.
+  <!-- zh -->
+  可以在文件和文件夹的菜单中查看类型、大小、位置与时间。
+- 9b09834: <!-- area: files -->
+  <!-- en -->
+  Formulas in a file's recognized text are now typeset.
+  <!-- zh -->
+  文件识别文字中的数学公式现在会排版显示。
+- 733203b: <!-- area: canvas -->
+  <!-- en -->
+  Refined scrolling in the Canvas sync panel.
+  <!-- zh -->
+  优化了 Canvas 同步面板的滚动效果。
+- 721db2c: <!-- area: overview -->
+  <!-- en -->
+  The Today card now marks the current time inside the class in progress.
+  <!-- zh -->
+  今日课程卡片会把当前时间标在正在进行的课程中间。
+- @semestra/api-client@2.7.4
+
+## 2.7.3
+
+### Patch Changes
+
+- 3cfa1e9: <!-- area: files -->
+  <!-- en -->
+  Search matches in file names and in the PDF preview are now highlighted cleanly, without extra gaps or shifted letters.
+  <!-- zh -->
+  文件名和 PDF 预览中的搜索高亮不再出现多余的间距或错位的文字。
+- 849a4d7: <!-- area: files -->
+  <!-- en -->
+  Long files now scroll continuously in the recognized-text view, loading earlier and later pages as you go instead of asking you to show more.
+  <!-- zh -->
+  文件的识别文字视图现在可以连续滚动，前后页面随滚动自动加载，不再需要点击“显示更多页”。
+- 18fb36a: <!-- area: canvas -->
+  <!-- en -->
+  The course syllabus and announcement attachments now sync into course files, along with course files linked from assignments, announcements and calendar events. You can choose which of these come in under Course materials settings.
+  <!-- zh -->
+  课程大纲和公告附件现在会同步到课程文件，作业、公告和日历事件中链接的课程文件也会一并带入。可在课程资料设置中选择要带入哪些。
+- @semestra/api-client@2.7.3
+
+## 2.7.2
+
+### Patch Changes
+
+- 0f74533: <!-- area: canvas -->
+  <!-- improved -->
+  <!-- en -->
+  The sync status now lists everything not updated from Canvas with the reason and when it was last updated, and shows sync errors separately with an error ID to report. Canvas values Semestra can't hold no longer stop the sync.
+  <!-- zh -->
+  同步状态会列出没能从 Canvas 更新的内容，注明原因和上次更新的时间；同步出错单独列出，可复制错误编号反馈。Canvas 上超出 Semestra 范围的值不再导致同步出错。
+- @semestra/api-client@2.7.2
+
 ## 2.7.1
 
 ### Patch Changes

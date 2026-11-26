@@ -45,12 +45,20 @@ from semestra.modules.files.source_folders import SourceFolders
 from semestra.modules.lms import material_reads
 from semestra.modules.lms.material_items import has_copy
 from semestra.modules.lms.material_reads import Found, Key, Material
-from semestra.modules.lms.materials import enter, note
+from semestra.modules.lms.materials import Impossible, enter, note
 from semestra.modules.lms.models import LmsCourseLink, LmsMaterial
+from semestra.modules.lms.providers import Call
 from semestra.modules.lms.rules import Presence
 from semestra.modules.lms.service import Bound
 from semestra.modules.lms.settings import materials as material_settings
-from semestra.modules.lms.sync import Notice, StageResult, hold, register_sync_stage
+from semestra.modules.lms.sync import (
+    Notice,
+    Shared,
+    StageResult,
+    hold,
+    one_item,
+    register_sync_stage,
+)
 from semestra.modules.lms.sync_round import SyncRound
 
 # New items written in one transaction: a run brings in all it found, a batch at a time, so the
@@ -127,6 +135,10 @@ async def _follow(ctx: Ctx, m: Material, mat: LmsMaterial, row: FilesItem) -> bo
         )
     elif retitled and title is not None:
         await sources.rename_synced(ctx, row, title)
+    if not changed:
+        # Read again when M07's reader changed since (a page's formulas; `Found.reread` had the
+        # platform read it this round); not a change of the platform's, so not told as one.
+        await sources.read_again_if_outdated(ctx, row)
     if title is not None:
         mat.name = row.display_name  # as named now (made unique in its folder)
     if m.modified_at is not None and row.source_modified_at != m.modified_at:
@@ -137,10 +149,18 @@ async def _follow(ctx: Ctx, m: Material, mat: LmsMaterial, row: FilesItem) -> bo
 def _seen(mat: LmsMaterial, m: Material) -> None:
     """What this run saw of the platform's item; what it did not read again stays. Its version
     only while it has no followed item, whose own version it is then (M09 §4.6)."""
-    mat.title, mat.path = m.title, [list(level) for level in m.path]
+    mat.title = m.title
+    if m.path is not None:  # else this run found it only by a way in that is no place: as it was
+        mat.path = [list(level) for level in m.path]
     mat.version = m.version if mat.state != "synced" else None
     if m.links is not None:
         mat.links = m.links
+    if m.attached is not None:  # else this run did not read every way in whole: as it was
+        mat.attached = m.attached
+    if m.kind == "file":
+        # As this round gave it: none when it came only as an attachment (opened by the
+        # announcement's own address).
+        mat.download_url = m.download_url
 
 
 def _retry_due(row: FilesItem, now: datetime) -> bool:
@@ -174,8 +194,10 @@ class _Run:
     found: Found
     verdicts: dict[Key, Presence]
     result: StageResult = field(default_factory=StageResult)
-    # Items written by an earlier batch of this run.
+    # Materials written by an earlier batch of this run.
     applied: set[Key] = field(default_factory=lambda: set[Key]())
+    # Materials whose write failed this run (M09 table 5b, row 7): left as they were.
+    failed: set[Key] = field(default_factory=lambda: set[Key]())
 
 
 async def _known(ctx: Ctx, link: LmsCourseLink, *, again: bool = False) -> dict[Key, LmsMaterial]:
@@ -187,7 +209,8 @@ async def _known(ctx: Ctx, link: LmsCourseLink, *, again: bool = False) -> dict[
 
 async def run(ctx: Ctx, link: LmsCourseLink, b: Bound, sync_round: SyncRound) -> StageResult:
     known = await _known(ctx, link)
-    found = await material_reads.read(ctx, link, b, sync_round, known)
+    cfg = await material_settings(ctx, link.course_id)
+    found = await material_reads.read(ctx, link, b, sync_round, known, cfg)
     verdicts = await material_reads.judge(ctx, link, b, sync_round, found)
     r = _Run(link, b, sync_round, found, verdicts)
     # Written a batch at a time, each in a transaction of its own: a large course comes in whole
@@ -197,10 +220,26 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound, sync_round: SyncRound) ->
     return r.result
 
 
+@dataclass
+class _Batch:
+    """What one batch of `_write` works with, shared by its materials."""
+
+    r: _Run
+    rows: dict[str, FilesItem]  # the followed items, by id
+    places: SourceFolders
+    # The user's own files of the course (to tell a duplicate) and whether new files are read
+    # for their text: worked out once, for the materials that need them (table 5b, row 6).
+    own: Shared[list[tuple[str, int, str | None]]]
+    auto_index: Shared[bool]
+    settled: bool
+    now: datetime
+
+
 async def _write(ctx: Ctx, r: _Run) -> bool:
     """Applies what the run found, under the write lock: up to `BATCH` new items, then (once every
-    one is in) what left the platform and the local copies. True when items are left for another
-    batch."""
+    one is in) what left the platform and the local copies. Each material on its own
+    (`one_item`): one that fails is left as it was and skipped for the rest of the run. True
+    when items are left for another batch."""
     link, b, found, result = r.link, r.b, r.found, r.result
     await hold(ctx, link)
     await r.sync_round.save(ctx, link, material_reads.READABLE)
@@ -217,123 +256,188 @@ async def _write(ctx: Ctx, r: _Run) -> bool:
             ctx, [x.item_id for x in known.values() if x.state == "synced" and x.item_id]
         )
     }
-    now = ctx.now
-    # What came in before the course settled is not news.
-    settled = link.materials_settled_at is not None
-    places = SourceFolders(ctx, link.course_id, "lms", b.provider.display_name)
-    # Read once for the batch, not for each new item.
-    own = await sources.own_files(ctx, link.course_id)
-    auto_index = await sources.reads_text(ctx, link.course_id)
+    course_id = link.course_id
+    w = _Batch(
+        r,
+        rows,
+        SourceFolders(ctx, course_id, "lms", b.provider.display_name),
+        Shared(lambda: sources.own_files(ctx, course_id)),
+        Shared(lambda: sources.reads_text(ctx, course_id)),
+        # What came in before the course settled is not news.
+        settled=link.materials_settled_at is not None,
+        now=ctx.now,
+    )
 
-    added = 0
-    gone: list[FilesItem] = []
-    handed: list[FilesItem] = []
-    for key, m in found.materials.items():
-        if key in r.applied:
-            continue
-        mat = known.get(key)
-        row = rows.get(mat.item_id or "") if mat is not None and mat.state == "synced" else None
-        if mat is not None and mat.state == "dismissed":
-            _seen(mat, m)  # what it links to is known without reading it every run
-            r.applied.add(key)
-            continue
-        if m.is_list:
-            if mat is None:
-                mat = _material(ctx, link, m)
-            elif row is not None:
-                gone.append(row)  # a page that has become a list of links
-            if mat.state != "list":
-                enter(mat, "list", now)
-            _seen(mat, m)
-            r.applied.add(key)
-            continue
-        if mat is not None and row is not None:
-            if await _follow(ctx, m, mat, row) and settled:
-                note(mat, "updated", now)
-            _seen(mat, m)
-            await places.follow_names(m.path)
-            r.applied.add(key)
-            continue
-        # New, back on the platform, restored, or a list page that has become a page.
-        if added == BATCH:
-            await sources.purge_items(ctx, gone)
-            await ctx.db.flush()
-            return True
-        added += 1
-        news = settled and not (mat is not None and mat.quiet)
-        folder_id = await places.folder_at(m.path)
-        row = await _create(ctx, link, b, m, folder_id, unseen=news, auto_index=auto_index)
-        rows[row.id] = row
-        if mat is None:
-            mat = _material(ctx, link, m)
-        enter(mat, "synced", now, item_id=row.id)
-        _seen(mat, m)
-        mat.name, mat.placed_folder_id = row.display_name, folder_id
-        r.applied.add(key)
-        # Most likely one of the user's own files: listed, so they can keep just one.
-        if m.kind == "file" and any(
-            sources.same_file((row.display_name, m.size, None), f) for f in own
-        ):
-            note(mat, "duplicate", now)
-        elif news:
-            note(mat, "added", now)
-        if news:
-            result.notices.append(Notice("material", m.external_id, m.title, item_id=row.id))
-
-    # Gone from the platform (table 3c): one saved in Semestra stays as the user's own file, one
-    # read online goes. Either comes in again if the platform shows it again.
-    for key, mat in known.items():
-        if r.verdicts.get(key) != "gone":
-            continue
-        if mat.state == "absent" and mat.quiet:
-            if mat.state_at is not None and mat.state_at > (r.sync_round.started or now):
-                continue  # restored after this run read: left to the run after it
-            # Restored, but the platform no longer has it: told, not left waiting.
-            enter(mat, "absent", now)
-            note(mat, "gone", now)
-        elif mat.state == "list":
-            enter(mat, "absent", now)
-        elif mat.state == "synced" and (row := rows.get(mat.item_id or "")) is not None:
-            if has_copy(row):
-                handed.append(row)
-                enter(mat, "absent", now, item_id=row.id)
-                note(mat, "handed_over", now)
-            else:
-                gone.append(row)
-                enter(mat, "absent", now)
-                note(mat, "gone", now)
-    await sources.purge_items(ctx, gone)
-    await sources.detach_from_source(ctx, handed)
-    left = {x.id for x in (*gone, *handed)}
-
-    followed = [row for row in rows.values() if row.id not in left]
-    for row in followed:
-        if _retry_due(row, now):
-            await sources.retry_synced(ctx, row)
+    # Which material each followed item is, and those the platform gave this round.
+    keys = {mat.item_id: key for key, mat in known.items() if mat.state == "synced"}
     # A copy is let go only when the platform gave the item itself this round (table 3c, note):
     # in a list of its own area, or read on its own. One only a module lists may be refused when
     # read (its area closed), and its copy may be the only one left.
     there = {
-        mat.item_id
-        for key, mat in known.items()
-        if mat.state == "synced" and key in found.given and key not in found.locked
+        item_id for item_id, key in keys.items() if key in found.given and key not in found.locked
     }
-    copies = [row for row in followed if _copy_due(row, now)]
+    # A locked file has no download address on the platform: nor here (it stays as it was).
+    for key in found.locked:
+        if (mat := known.get(key)) is not None:
+            mat.download_url = None
+
+    added = 0
+    left: set[str] = set()  # items no longer followed: gone, or the page became a list
+    for key, m in found.materials.items():
+        if key in r.applied or key in r.failed:
+            continue
+        mat = known.get(key)
+        new = not m.is_list and (mat is None or mat.state in ("list", "absent"))
+        if new:
+            # New, back on the platform, restored, or a list page that has become a page.
+            if added == BATCH:
+                return True
+            added += 1
+        created = dropped = notice = None
+        async with one_item(ctx, link, result, m.kind, m.external_id, m.title) as item:
+            created, dropped, notice = await _found(ctx, w, m, mat)
+        _done(ctx, w, key, item.ok)
+        if not item.ok:
+            continue  # what it made went back with it, its notice too
+        if created is not None:
+            rows[created.id], keys[created.id] = created, key
+        if dropped is not None:
+            left.add(dropped.id)
+        if notice is not None:
+            result.notices.append(notice)
+
+    # Gone from the platform (table 3c): one saved in Semestra stays as the user's own file, one
+    # read online goes. Either comes in again if the platform shows it again.
+    for key, mat in known.items():
+        if r.verdicts.get(key) != "gone" or key in r.failed:
+            continue
+        restored_at = mat.state_at if mat.state == "absent" and mat.quiet else None
+        if restored_at is not None and restored_at > (r.sync_round.started or w.now):
+            continue  # restored after this run read: left to the run after it
+        row = rows.get(mat.item_id or "") if mat.state == "synced" else None
+        async with one_item(ctx, link, result, mat.kind, mat.external_id, mat.title) as item:
+            await _gone(ctx, w, mat, row)
+        _done(ctx, w, key, item.ok)
+        if item.ok and row is not None:
+            left.add(row.id)
+
+    # Files read again, local copies: each with its material.
     store = cfg.store == "local"
-    await sources.apply_copies(ctx, [row for row in copies if row.id in there], store)
-    await sources.apply_copies(
-        ctx, [row for row in copies if row.id not in there], store, release=False
-    )
-    if not settled and not r.sync_round.out_of_budget:
-        link.materials_settled_at = now
+    room = await sources.room(ctx)
+    for item_id, row in rows.items():
+        key = keys[item_id]
+        if item_id in left or key in r.failed:  # a failed one's objects went back expired
+            continue
+        before = room.left
+        async with one_item(ctx, link, result, *key, row.display_name) as item:
+            if _retry_due(row, w.now):
+                await sources.retry_synced(ctx, row)
+            if _copy_due(row, w.now):
+                await sources.apply_copies(ctx, [row], store, release=row.id in there, room=room)
+        if not item.ok:
+            r.failed.add(key)
+            room.left = before  # its copy went back: so does the room it took
+    if not w.settled and not r.sync_round.out_of_budget:
+        link.materials_settled_at = w.now
     await ctx.db.flush()
     return False
 
 
+def _done(ctx: Ctx, w: _Batch, key: Key, ok: bool) -> None:
+    if ok:
+        w.r.applied.add(key)
+        return
+    w.r.failed.add(key)
+    # The folders it made went back with it: read again for the materials after it.
+    w.places = SourceFolders(ctx, w.r.link.course_id, "lms", w.r.b.provider.display_name)
+
+
+async def _found(
+    ctx: Ctx, w: _Batch, m: Material, mat: LmsMaterial | None
+) -> tuple[FilesItem | None, FilesItem | None, Notice | None]:
+    """A material the platform has this round: table 4a's `appeared` or `list`. The item it
+    brought in, the one it no longer follows, and its notice for the user: the caller keeps
+    them once the material is written."""
+    link, now = w.r.link, w.now
+    row = None
+    if mat is not None and mat.state == "synced":
+        row = w.rows.get(mat.item_id or "")
+        if row is None:
+            raise Impossible(f"lms material {mat.id}: synced, its item not found")
+    if m.is_list:
+        if mat is None:
+            mat = _material(ctx, link, m)
+        enter(mat, "list", now)
+        _seen(mat, m)
+        if row is not None:  # a page that has become a list of links
+            await sources.purge_items(ctx, [row])
+        return None, row, None
+    if mat is not None and mat.state in ("synced", "dismissed"):
+        enter(mat, "appeared", now)  # kept
+        if row is not None:
+            if await _follow(ctx, m, mat, row) and w.settled:
+                note(mat, "updated", now)
+            await w.places.follow_names(m.start)
+        _seen(mat, m)  # a dismissed one: what it links to is known without reading it every run
+        return None, None, None
+    news = w.settled and not (mat is not None and mat.quiet)
+    folder_id = await w.places.folder_at(m.start)
+    auto_index = await w.auto_index.get()
+    row = await _create(ctx, link, w.r.b, m, folder_id, unseen=news, auto_index=auto_index)
+    if mat is None:
+        mat = _material(ctx, link, m)
+    enter(mat, "appeared", now, item_id=row.id)
+    _seen(mat, m)
+    mat.name, mat.placed_folder_id = row.display_name, folder_id
+    # Most likely one of the user's own files: listed, so they can keep just one.
+    if m.kind == "file" and any(
+        sources.same_file((row.display_name, m.size, None), f) for f in await w.own.get()
+    ):
+        note(mat, "duplicate", now)
+    elif news:
+        note(mat, "added", now)
+    notice = Notice("material", m.external_id, m.title, item_id=row.id) if news else None
+    return row, None, notice
+
+
+async def _gone(ctx: Ctx, w: _Batch, mat: LmsMaterial, row: FilesItem | None) -> None:
+    """A known material gone from the platform (table 3c): table 4a's `gone`."""
+    now = w.now
+    if mat.state == "synced":
+        if row is None:
+            raise Impossible(f"lms material {mat.id}: synced, its item not found")
+        if has_copy(row):
+            enter(mat, "gone", now, item_id=row.id)
+            note(mat, "handed_over", now)
+            await sources.detach_from_source(ctx, [row])
+        else:
+            enter(mat, "gone", now)
+            note(mat, "gone", now)
+            await sources.purge_items(ctx, [row])
+        return
+    if mat.state == "absent":  # restored, but the platform no longer has it: told, not left waiting
+        enter(mat, "gone", now)
+        note(mat, "gone", now)
+        return
+    enter(mat, "gone", now)  # a list page
+
+
 async def _enabled(ctx: Ctx, link: LmsCourseLink, b: Bound) -> bool:
-    if not {"modules", "pages", "folders"} & b.provider.features:
+    if not {"modules", "pages", "folders", "syllabus"} & b.provider.features:
         return False
     return (await material_settings(ctx, link.course_id)).sync
 
 
-register_sync_stage("files", run, order=60, enabled=_enabled)
+def _reads(link: LmsCourseLink, b: Bound, sync_round: SyncRound) -> list[Call]:
+    """The lists `material_reads.read` reads of every course (the syllabus comes with the
+    course itself)."""
+    del sync_round
+    ext = link.external_course_id
+    features = b.provider.features
+    wanted = {"modules": "modules", "pages": "pages", "folders": "course_files"}
+    return [Call(method, (ext,)) for feature, method in wanted.items() if feature in features]
+
+
+register_sync_stage(
+    "files", run, order=60, enabled=_enabled, parts=material_reads.PARTS, reads=_reads
+)

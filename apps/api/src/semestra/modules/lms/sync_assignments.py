@@ -22,6 +22,7 @@ number, a title a string.
 """
 
 from collections.abc import Iterable, Mapping
+from dataclasses import dataclass, field
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -39,6 +40,7 @@ from semestra.modules.lms import assignment_refs, service, submissions
 from semestra.modules.lms import settings as lms_settings
 from semestra.modules.lms.assignment_facts import Facts, Side, Source, facts_of
 from semestra.modules.lms.errors import lms_error
+from semestra.modules.lms.fit import OUT, OUT_OF_RANGE, set_out
 from semestra.modules.lms.imports import advance, snapshot, taken_in, weights_of
 from semestra.modules.lms.models import (
     LmsAssignment,
@@ -46,9 +48,11 @@ from semestra.modules.lms.models import (
     LmsImportedRef,
     LmsSyncChange,
 )
+from semestra.modules.lms.providers import Call
 from semestra.modules.lms.rules import (
     Action,
     Presence,
+    base_value,
     diverged,
     is_new,
     merge,
@@ -57,19 +61,22 @@ from semestra.modules.lms.rules import (
 )
 from semestra.modules.lms.schemas.sync import SyncField
 from semestra.modules.lms.service import Bound
+from semestra.modules.lms.settings import completes_submitted
 from semestra.modules.lms.sync import (
     ASSIGNMENTS_UPDATED,
     UPDATED,
     Applied,
+    Shared,
     StageResult,
     hold,
+    one_item,
     register_sync_stage,
 )
 from semestra.modules.lms.sync_round import Asked, SyncRound, one_by_one
 from semestra.modules.tasks.models import TasksItem
 
 FIELDS: dict[str, tuple[SyncField, ...]] = {
-    "assessment": ("title", "due_at", "weight", "score"),
+    "assessment": ("title", "due_at", "weight", "score", "dropped"),
     "task": ("title", "due_at"),
 }
 
@@ -94,7 +101,13 @@ def _assessment_values(row: GradingAssessment, tz: ZoneInfo) -> dict[str, Any]:
         score = {"score_percentage": row.score_percentage}
     else:
         score = None
-    return {"title": row.title, "due_at": due, "weight": row.weight, "score": score}
+    return {
+        "title": row.title,
+        "due_at": due,
+        "weight": row.weight,
+        "score": score,
+        "dropped": row.dropped,
+    }
 
 
 def _task_values(row: TasksItem) -> dict[str, Any]:
@@ -134,26 +147,38 @@ async def local_values(
     return out
 
 
-def differences(
-    ref: LmsImportedRef, local: dict[str, Any], tz: ZoneInfo
-) -> list[tuple[SyncField, Any, Any]]:
+@dataclass(frozen=True)
+class Difference:
+    """A field of an imported object set apart from the platform (`differences`)."""
+
+    field: SyncField
+    mine: Any
+    platform: Any
+    # The platform's value is out of what the object takes (M09 表 5c): it can't be taken.
+    out_of_range: bool = False
+
+
+def differences(ref: LmsImportedRef, local: dict[str, Any], tz: ZoneInfo) -> list[Difference]:
     """The fields of an imported object that the user set apart from the platform and nobody is
-    asked about: `(field, mine, platform)`, the platform value being the last one seen. A field
-    the platform leaves empty (no due date, no grade yet, no weight) is the user's to fill in."""
-    out: list[tuple[SyncField, Any, Any]] = []
-    for name in FIELDS[ref.target_kind or "task"]:
+    asked about, the platform value being the last one seen. A field the platform leaves empty
+    (no due date, no grade yet, no weight) is the user's to fill in. One whose platform value is
+    out of the object's range is always listed, with the platform's own value."""
+    out: list[Difference] = []
+    kind = ref.target_kind
+    for name in FIELDS[kind or "task"]:
         if name in ref.conflicts:
             continue
-        raw = ref.snapshot.get(name)
+        raw, mine = ref.snapshot.get(name), local.get(name)
+        out_of_range = ref.snapshot.get(OUT_OF_RANGE) or {}
+        if name in out_of_range:
+            out.append(Difference(name, mine, out_of_range[name], out_of_range=True))
+            continue
+        p = platform_value(name, raw, tz, kind)
         # Its base is the value as first taken (in the zone of then), so a change of the
         # Program's zone since is not taken for the user's own (the next sync follows that).
-        base, p, mine = (
-            platform_value(name, raw, taken_in(ref, tz)),
-            platform_value(name, raw, tz),
-            local.get(name),
-        )
+        base = base_value(name, raw, taken_in(ref, tz), kind)
         if diverged(name, base, mine, p):
-            out.append((name, mine, p))
+            out.append(Difference(name, mine, p))
     return out
 
 
@@ -208,8 +233,16 @@ async def _follow(
     for name in FIELDS[ref.target_kind or "task"]:
         if name not in platform:
             continue
-        p = platform_value(name, platform[name], tz)
-        s = platform_value(name, snap.get(name), taken_in(ref, tz))
+        p = platform_value(name, platform[name], tz, ref.target_kind)
+        if p is OUT:
+            # Out of what the object takes (M09 表 5c): not written, not followed, not asked
+            # about; the field's snapshot keeps what the object last took, and the panel lists
+            # the platform's value as set apart.
+            set_out(snap, name, platform[name])
+            conflicts.pop(name, None)
+            continue
+        set_out(snap, name, None)
+        s = base_value(name, snap.get(name), taken_in(ref, tz), ref.target_kind)
         mine = local.get(name)
         match merge(name, s, mine, p, name in follow):
             case Action.CLEAR:
@@ -283,7 +316,15 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound, sync_round: SyncRound) ->
     )
     listed = got[0] if got is not None else []
     by_id = {str(a["external_id"]): a for a in listed}
-    side = await facts.read_side(ctx, link, b, listed, refresh=True) if got is not None else Side()
+    side = Side()
+    if got is not None:
+        side = await facts.read_side(ctx, link, b, listed, refresh=True)
+        for part, (result, error) in side.reads.items():
+            sync_round.part(part, result, error)
+    else:
+        # Not read when the list gave nothing: they are read with it (M09 表 5c).
+        for part in facts.SIDE_PARTS:
+            sync_round.like(part, AREA)
     stored = list(
         await ctx.db.scalars(select(LmsImportedRef).where(LmsImportedRef.link_id == link.id))
     )
@@ -304,9 +345,6 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound, sync_round: SyncRound) ->
     )
     await hold(ctx, link)
     await sync_round.save(ctx, link, [KIND])
-    weights = weights_of(listed)
-    program = await academics.get_program_row(ctx, link.program_id)
-    tz = ZoneInfo(program.timezone)
     refs = {
         r.external_id: r
         for r in await ctx.db.scalars(
@@ -314,15 +352,92 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound, sync_round: SyncRound) ->
         )
     }
     rows = {r.external_id: r for r in await facts.mirror_rows(ctx, link.id)}
-    result = StageResult(error=side.errors[0] if side.errors else None)
+    result = StageResult()
+    # The course total is the stage's own record (table 5b, row 8): what shows it refreshes.
     changed = False
+    if side.total_read:
+        total = side.total or {}
+        if (link.total_score, link.total_grade) != (total.get("score"), total.get("grade")):
+            link.total_score, link.total_grade = total.get("score"), total.get("grade")
+            changed = True
+
+    async def zone() -> ZoneInfo:
+        return ZoneInfo((await academics.get_program_row(ctx, link.program_id)).timezone)
+
+    async def weights() -> dict[str, Any]:
+        return weights_of(listed)
+
+    async def follow() -> frozenset[str]:
+        return lms_settings.followed(await lms_settings.account(ctx))
+
+    s = _Shared(
+        Shared(zone), Shared(weights), Shared(follow), Shared(lambda: completes_submitted(ctx))
+    )
+    for ext in dict.fromkeys([*by_id, *refs, *rows]):
+        out = _Done()
+        title = _title(by_id.get(ext), refs.get(ext), rows.get(ext))
+        async with one_item(ctx, link, result, KIND, ext, title) as item:
+            await _one(ctx, link, b, ext, by_id.get(ext), refs.get(ext), rows.get(ext), side,
+                       presences.get(ext, "unknown"), s, out)  # fmt: skip
+        if item.ok:
+            changed |= out.changed
+            result.applied += out.applied
+            result.pending += out.pending
+    if changed:
+        await events.publish(
+            ctx, ASSIGNMENTS_UPDATED, {"course_id": link.course_id, "program_id": link.program_id}
+        )
+    if result.applied:
+        await events.publish(ctx, "lms.course.imports_recorded", {"course_id": link.course_id})
+    return result
+
+
+def _title(a: dict[str, Any] | None, ref: LmsImportedRef | None, row: LmsAssignment | None) -> str:
+    """An assignment's name: as listed this round, else as last kept."""
+    if a is not None:
+        return str(a.get("name") or "")
+    if row is not None:
+        return str(row.assignment.get("name") or "")
+    return str(ref.snapshot.get("title") or "") if ref is not None else ""
+
+
+@dataclass
+class _Shared:
+    """What the assignments of a course share (M09 table 5b, row 6)."""
+
+    zone: Shared[ZoneInfo]
+    weights: Shared[dict[str, Any]]
+    follow: Shared[frozenset[str]]
+    completes: Shared[bool]
+
+
+@dataclass
+class _Done:
+    """What one assignment's writes add to the stage's result."""
+
+    changed: bool = False
+    applied: list[Applied] = field(default_factory=lambda: [])
+    pending: int = 0
+
+
+async def _one(
+    ctx: Ctx,
+    link: LmsCourseLink,
+    b: Bound,
+    ext: str,
+    a: dict[str, Any] | None,
+    ref: LmsImportedRef | None,
+    row: LmsAssignment | None,
+    side: Side,
+    verdict: Presence,
+    s: _Shared,
+    out: _Done,
+) -> None:
+    """One assignment of the round, all its writes (M09 table 5b, row 7): its mirror row, new
+    feedback, where it stands (table 4b), the fields its object follows, its to-do finished."""
     source = Source("mirror", ctx.now)
-    submitted: set[str] = set()
-    for ext, a in by_id.items():
-        f = facts_of(a, side, rows.get(ext), b.row.provider, source)
-        row = rows.get(ext)
-        if (f.submission or {}).get("submitted_at") is not None:
-            submitted.add(ext)
+    f = facts_of(a, side, row, b.row.provider, source) if a is not None else None
+    if a is not None and f is not None:
         if row is None:
             ctx.db.add(
                 LmsAssignment(
@@ -334,97 +449,73 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound, sync_round: SyncRound) ->
                     **_columns(f),
                 )
             )
-            changed = True
-            continue
-        ref = refs.get(ext)
-        if ref is not None and ref.target_id is not None:
-            new = news(row.submission, f.submission)
-            if new is not None:
-                change = LmsSyncChange(
-                    user_id=ctx.user_id, ref_id=ref.id, field=FEEDBACK, old=None, new=new,
-                    at=ctx.now,
-                )  # fmt: skip
-                ctx.db.add(change)
-                await ctx.db.flush()
-                result.applied.append(
-                    Applied(
-                        change_id=change.id,
-                        ref_id=ref.id,
-                        name=str(a.get("name") or ""),
-                        field=FEEDBACK,
-                        external_id=ext,
+            out.changed = True
+        else:
+            if ref is not None and ref.target_id is not None:
+                new = news(row.submission, f.submission)
+                if new is not None:
+                    change = LmsSyncChange(
+                        user_id=ctx.user_id, ref_id=ref.id, field=FEEDBACK, old=None, new=new,
+                        at=ctx.now,
+                    )  # fmt: skip
+                    ctx.db.add(change)
+                    await ctx.db.flush()
+                    out.applied.append(
+                        Applied(
+                            change_id=change.id,
+                            ref_id=ref.id,
+                            name=str(a.get("name") or ""),
+                            field=FEEDBACK,
+                            external_id=ext,
+                        )
                     )
-                )
-        for name, value in _columns(f).items():
-            if getattr(row, name) != value:
-                setattr(row, name, value)
-                changed = True
-        if row.provider != b.row.provider:
-            row.provider = b.row.provider
-            changed = True
-    if side.total_read:
-        total = side.total or {}
-        if (link.total_score, link.total_grade) != (total.get("score"), total.get("grade")):
-            link.total_score, link.total_grade = total.get("score"), total.get("grade")
-            changed = True
-    imported = [r for r in refs.values() if r.target_id is not None]
-    follow = lms_settings.followed(await lms_settings.account(ctx))
-    local = await local_values(ctx, imported, tz)
-    for ext, ref in list(refs.items()):
-        a = by_id.get(ext)
-        verdict = presences.get(ext, "unknown")
+            for name, value in _columns(f).items():
+                if getattr(row, name) != value:
+                    setattr(row, name, value)
+                    out.changed = True
+            if row.provider != b.row.provider:
+                row.provider = b.row.provider
+                out.changed = True
+    if ref is not None:
         if verdict == "gone":
-            await assignment_refs.enter(ctx, ref, "gone", link=link, external_id=ext)
+            ref = await assignment_refs.enter(ctx, ref, "gone", link=link, external_id=ext)
         elif verdict == "present":
-            await assignment_refs.enter(ctx, ref, "back", link=link, external_id=ext)
-        if ref.target_id is None:
-            continue  # ignored (or no longer, once gone)
+            ref = await assignment_refs.enter(ctx, ref, "back", link=link, external_id=ext)
+    imported = ref is not None and ref.target_id is not None
+    if ref is not None and imported:
         if a is None:
             # Not listed (the list closed, or cut short): its fields wait for a round that
             # lists it, as a single read gives no group weights.
-            result.pending += ref.removed_at is not None
-            continue
-        if ref.id not in local:
-            continue  # its object is being deleted
-        platform = snapshot(a, weights.get(ext))
-        if ref.target_kind != "assessment":
-            platform.pop("score", None)
-        result.applied += await _follow(
-            ctx, ref, platform, local[ref.id], tz, str(a["name"]), follow
-        )
-        result.pending += len(ref.conflicts)
-    # The mirror rows gone from the platform go (table 3c), but an imported one waits for the
+            out.pending += ref.removed_at is not None
+        else:
+            tz = await s.zone.get()
+            local = (await local_values(ctx, [ref], tz)).get(ref.id)
+            if local is not None:  # else its object is being deleted
+                platform = snapshot(a, (await s.weights.get()).get(ext))
+                if ref.target_kind != "assessment":
+                    platform.pop("score", None)
+                    platform.pop("dropped", None)
+                follow = await s.follow.get()
+                out.applied += await _follow(ctx, ref, platform, local, tz, str(a["name"]), follow)
+                out.pending += len(ref.conflicts)
+    # Gone from the platform, its mirror row goes (table 3c), but an imported one waits for the
     # user's answer (table 4b): keeping the object keeps its content (`resolve`).
-    for ext, row in rows.items():
-        if ext in by_id or presences.get(ext) != "gone":
-            continue
-        ref = refs.get(ext)
-        if ref is not None and ref.target_id is not None and ref.removed_at is not None:
-            continue
+    if (
+        row is not None
+        and a is None
+        and verdict == "gone"
+        and not (ref is not None and imported and ref.removed_at is not None)
+    ):
         await ctx.db.delete(row)
-        changed = True
+        out.changed = True
+    handed_in = f is not None and (f.submission or {}).get("submitted_at") is not None
+    first_hand_in = ref is not None and imported and handed_in and ref.submitted_at is None
+    if first_hand_in and ref is not None and await s.completes.get():
+        await submissions.complete(ctx, ref)
+    offered = ref is None or not (imported or ref.dismissed_at)
+    if a is not None and f is not None and offered:
+        out.pending += is_new(a, f.submission, imported=False, dismissed=False, now=ctx.now)
     await ctx.db.flush()
-    await submissions.complete(ctx, link.id, submitted)
-    news_ids = {e for e, r in refs.items() if r.target_id is not None or r.dismissed_at}
-    result.pending += sum(
-        1
-        for ext, a in by_id.items()
-        if ext not in news_ids
-        and is_new(
-            a,
-            facts_of(a, side, rows.get(ext), b.row.provider, source).submission,
-            imported=False,
-            dismissed=False,
-            now=ctx.now,
-        )
-    )
-    if changed:
-        await events.publish(
-            ctx, ASSIGNMENTS_UPDATED, {"course_id": link.course_id, "program_id": link.program_id}
-        )
-    if result.applied:
-        await events.publish(ctx, "lms.course.imports_recorded", {"course_id": link.course_id})
-    return result
 
 
 async def _presences(
@@ -461,7 +552,30 @@ AREA = facts.AREA
 KIND = "assignment"
 # The field of the change logged for new feedback (never put back: nothing in Semestra to undo).
 FEEDBACK = "feedback"
-register_sync_stage("assignments", run, order=20, enabled=_enabled, area=AREA)
+
+
+def _reads(link: LmsCourseLink, b: Bound, sync_round: SyncRound) -> list[Call]:
+    """The lists `run` reads of every course (`facts.read_list`, `facts.read_side`; the quizzes
+    only when an assignment is one)."""
+    del sync_round
+    ext = link.external_course_id
+    features = b.provider.features
+    calls = [Call("assignments", (ext,))]
+    if "submissions" in features:
+        calls.append(Call("submissions", (ext,)))
+    if "grades" in features:
+        calls.append(Call("course_total", (ext,)))
+    return calls
+
+
+register_sync_stage(
+    "assignments",
+    run,
+    order=20,
+    enabled=_enabled,
+    parts=(AREA, *facts.SIDE_PARTS),
+    reads=_reads,
+)
 
 
 # --- the user's answers ----------------------------------------------------------------------
@@ -543,10 +657,10 @@ async def answer(ctx: Ctx, ref_id: str, name: str, choice: str) -> str:
         ref.snapshot = snap
         ref.conflicts = {f: c for f, c in ref.conflicts.items() if f != name}
     else:
-        found = {f: (mine, p) for f, mine, p in differences(ref, local, tz)}
+        found = {d.field: d for d in differences(ref, local, tz) if not d.out_of_range}
         if choice != "platform" or name not in found:
             raise lms_error("lms.sync_nothing_to_resolve")
-        mine, p = found[name]
+        mine, p = found[name].mine, found[name].platform
         await write(ctx, ref, name, p)
         await _log(ctx, ref, name, mine, p, title)
     await ctx.db.flush()

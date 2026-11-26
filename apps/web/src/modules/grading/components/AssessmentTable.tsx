@@ -4,7 +4,7 @@ import {
   gradingAssessmentUpdateMutation,
 } from '@semestra/api-client/react-query'
 import { type Cell, FlexRender, type SortingState, useTable } from '@tanstack/react-table'
-import { useMutation, useQueries, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowDown,
   ArrowUp,
@@ -39,10 +39,8 @@ import {
   groupKey,
   isFolded,
 } from '../sort'
-import { type AssessmentFilter, matchesFilter } from '../filter'
 import {
   ASSESSMENT_ACTIONS,
-  ASSESSMENT_COLUMNS,
   ASSESSMENT_IMPORT_SOURCES,
   type AssessmentAction,
   type AssessmentColumn,
@@ -73,7 +71,7 @@ const TITLE_COLUMN = 'w-full max-w-0 min-w-40'
 // A long category name is cut short instead of widening the table.
 const CATEGORY_COLUMN = 'max-w-44'
 
-const NUMERIC = new Set(['weight'])
+const NUMERIC = new Set(['weight', 'score'])
 
 const toSorting = (pref: SortPref): SortingState =>
   pref.key === 'manual' ? [] : [{ id: pref.key, desc: pref.dir === 'desc' }]
@@ -87,7 +85,7 @@ function fromSorting(sorting: SortingState): SortPref {
  * The gradebook table (M03 §5.1): scores and weights are typed in the cells (`18/20` is read as
  * points), columns sort, and categories can be shown as collapsible groups. In plan mode the
  * score of an ungraded item takes an assumed value that is never saved as a grade, with the
- * forecast as its hint. `filter` and `search` narrow the rows; the toolbar above holds them.
+ * forecast as its hint. `visible` narrows the rows (the toolbar's filter and search).
  * Outside plan mode rows have checkboxes, and the toolbar acts on the checked ones.
  */
 /** A course without assessments, offering the source that can fill it (a syllabus). */
@@ -127,8 +125,8 @@ export function AssessmentTable({
   collapsed,
   onToggleGroup,
   highlighted,
-  filter,
-  search,
+  visible,
+  contributed,
   onClearFilter,
   selection,
   toolbar,
@@ -150,8 +148,10 @@ export function AssessmentTable({
   onToggleGroup: (key: string) => void
   /** The assessment a link points at; its group stays open. */
   highlighted: string | null
-  filter: AssessmentFilter
-  search: string
+  /** Whether the toolbar's filter and search list the assessment. */
+  visible: (a: Assessment) => boolean
+  /** The columns other modules contribute to this course's gradebook (`useContributedColumns`). */
+  contributed: readonly AssessmentColumn[]
   onClearFilter: () => void
   selection: RowSelection
   /** The row above the table: filters and actions. */
@@ -205,19 +205,9 @@ export function AssessmentTable({
 
   const rank = new Map(categories.map((c) => [c.id, c.position]))
   const data: AssessmentRow[] = assessments
-    .filter((a) => matchesFilter(a, filter, search))
+    .filter(visible)
     .toSorted((a, b) => a.position - b.position)
     .map((a) => ({ ...a, categoryRank: a.category_id ? (rank.get(a.category_id) ?? null) : null }))
-  const columnExtensions = useExtensions<AssessmentColumn>(ASSESSMENT_COLUMNS)
-  // What decides each contributed column's presence, read once for the table.
-  const decided = columnExtensions.flatMap((ext) =>
-    ext.query ? [{ id: ext.id, options: ext.query({ programId, courseId }) }] : [],
-  )
-  const decidedData = useQueries({ queries: decided.map((d) => d.options) })
-  const dataOf = new Map(decided.map((d, i) => [d.id, decidedData[i]?.data]))
-  const contributed = columnExtensions.filter(
-    (ext) => ext.shownFor?.(assessments, dataOf.get(ext.id)) ?? true,
-  )
   const columns = [
     ...(whatIf.plan ? [] : [selectColumn]),
     ...assessmentColumns,
@@ -292,6 +282,8 @@ export function AssessmentTable({
                               NUMERIC.has(h.column.id)
                                 ? 'float-right -mr-0.5 flex-row-reverse'
                                 : '-ml-2',
+                              // The score's heading ends where the score ends, before its percent.
+                              h.column.id === 'score' && 'mr-13',
                             )}
                             onClick={h.column.getToggleSortingHandler()}
                           >

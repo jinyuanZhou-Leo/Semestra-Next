@@ -1,4 +1,10 @@
-import type { SyncItem, SyncMaterialChange, SyncStatus } from '@semestra/api-client'
+import type {
+  SyncItem,
+  SyncMaterialChange,
+  SyncProblem,
+  SyncStatus,
+  SyncUnreadable,
+} from '@semestra/api-client'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
@@ -59,7 +65,7 @@ function status(overrides: Partial<SyncStatus> = {}): SyncStatus {
     unreadable: [],
     calendar_waiting: 0,
     calendar_unreadable: 0,
-    errors: [],
+    problems: [],
     ...overrides,
   }
 }
@@ -270,57 +276,205 @@ test('every removed material is restored at once, also those past the listed row
   )
 })
 
-test('what a closed area hides is listed; only materials read online can be removed', async () => {
-  const since = new Date().toISOString()
-  const base = {
-    course_id: 'c1',
-    course: 'CSC148',
-    count: 1,
-    since: null,
-    item_id: null,
-    external_id: null,
-    removable: false,
-  }
+const UNREAD = {
+  course_id: 'c1',
+  course: 'CSC148',
+  id: null,
+  parts: [],
+  area: null,
+  title: null,
+  count: 0,
+  code: null,
+  params: {},
+  since: null,
+  item_id: null,
+  external_id: null,
+  removable: false,
+} satisfies Omit<SyncUnreadable, 'kind'>
+
+const PROBLEM = {
+  course_id: 'c1',
+  course: 'CSC148',
+  stage: 'assignments',
+  ended: false,
+  code: 'common.internal',
+  request_id: 'req-1',
+  items: [],
+  reads: [],
+} satisfies SyncProblem
+
+// One per row of M09 表 5c the panel lists: what it shows (title, then the detail after the
+// course), and in which list.
+const ROWS: [string, Partial<SyncStatus>, string, string, 'Sync errors' | 'Not updated'][] = [
+  [
+    '2: the course not synced',
+    { problems: [{ ...PROBLEM, stage: 'course', ended: true }] },
+    'CSC148',
+    'Course not synced',
+    'Sync errors',
+  ],
+  ['3: a stage not synced', { problems: [PROBLEM] }, 'Assignments', 'Not synced', 'Sync errors'],
+  [
+    '4: items not synced',
+    {
+      problems: [
+        {
+          ...PROBLEM,
+          items: [
+            { kind: 'assignment', external_id: 'a4', title: 'Lab 4' },
+            { kind: 'assignment', external_id: 'a5', title: 'Quiz 3' },
+          ],
+        },
+      ],
+    },
+    'Lab 4, Quiz 3',
+    'Assignments not synced: 2',
+    'Sync errors',
+  ],
+  [
+    '4: parts not read',
+    { problems: [{ ...PROBLEM, reads: ['submissions'] }] },
+    'Submissions and feedback',
+    'Not synced',
+    'Sync errors',
+  ],
+  [
+    '5: the course refused',
+    { unreadable: [{ ...UNREAD, kind: 'parts', parts: ['course'], code: 'lms.forbidden' }] },
+    'CSC148',
+    'Course not accessible · Not synced yet',
+    'Not updated',
+  ],
+  [
+    '6: parts the platform did not answer for',
+    {
+      unreadable: [
+        {
+          ...UNREAD,
+          kind: 'parts',
+          parts: ['submissions', 'total'],
+          code: 'lms.unreachable',
+          since: '2026-11-20T14:20:00Z',
+        },
+      ],
+    },
+    'Submissions and feedback, Course total',
+    'Canvas not responding · Updated Nov 20',
+    'Not updated',
+  ],
+  [
+    '6: an answer not understood',
+    {
+      unreadable: [
+        {
+          ...UNREAD,
+          kind: 'parts',
+          parts: ['announcements'],
+          code: 'lms.unreachable',
+          params: { reason: 'payload' },
+        },
+      ],
+    },
+    'Announcements',
+    'Unrecognized response from Canvas · Not synced yet',
+    'Not updated',
+  ],
+  [
+    '6: a rate limit',
+    { unreadable: [{ ...UNREAD, kind: 'parts', parts: ['calendar'], code: 'lms.rate_limited' }] },
+    'Calendar',
+    'Canvas rate limit · Not synced yet',
+    'Not updated',
+  ],
+  [
+    '7: a part refused',
+    { unreadable: [{ ...UNREAD, kind: 'parts', parts: ['pages'], code: 'lms.forbidden' }] },
+    'Pages',
+    'No access · Not synced yet',
+    'Not updated',
+  ],
+  [
+    '8: an area closed',
+    {
+      unreadable: [
+        {
+          ...UNREAD,
+          kind: 'area',
+          area: 'files',
+          code: 'lms.area_hidden',
+          since: '2026-11-20T14:20:00Z',
+        },
+      ],
+    },
+    'Files',
+    'Section closed · Updated Nov 20',
+    'Not updated',
+  ],
+  [
+    '9: an item refused',
+    {
+      unreadable: [
+        {
+          ...UNREAD,
+          kind: 'material',
+          id: 'm1',
+          area: 'files',
+          title: 'Notes.pdf',
+          code: 'lms.forbidden',
+          since: '2026-11-21T09:00:00Z',
+        },
+      ],
+    },
+    'Notes.pdf',
+    'No access · Since Nov 21',
+    'Not updated',
+  ],
+]
+
+test.each(ROWS)('table 5c row %s', async (_, overrides, title, detail, list) => {
+  vi.useFakeTimers({ now: new Date('2026-11-24T12:00:00Z'), shouldAdvanceTime: true })
+  server.use(...handlers(status(overrides)))
+  renderWithRouter(<InPopover />, undefined, IN_PROGRAM)
+  const toggle = await screen.findByRole('button', { name: new RegExp(`^${list}\\s*1$`) })
+  // Errors are open as the panel opens: not something to look for.
+  const open = toggle.getAttribute('aria-expanded') === 'true'
+  expect(open).toBe(list === 'Sync errors')
+  if (!open) await userEvent.click(toggle)
+  expect(await screen.findByText(title)).toBeInTheDocument()
+  expect(screen.getByText(detail)).toBeInTheDocument()
+  // A closed area is the teacher's setting, not out of date (row 8).
+  const partly = !overrides.unreadable?.every((u) => u.kind === 'area')
+  expect(screen.queryByText(/Some content not updated/) !== null).toBe(partly)
+  vi.useRealTimers()
+})
+
+test('an error row copies its error ID', async () => {
+  const user = userEvent.setup()
+  server.use(...handlers(status({ problems: [PROBLEM] })))
+  renderWithRouter(<InPopover />, undefined, IN_PROGRAM)
+  await user.click(await screen.findByRole('button', { name: 'Copy error ID' }))
+  // oxlint-disable-next-line no-restricted-properties -- reads back what user-event's clipboard got
+  expect(await navigator.clipboard.readText()).toBe('req-1')
+})
+
+test('an item of a closed area goes under its row; only materials read online can be removed', async () => {
   const removed = vi.fn<(url: string) => void>()
+  const closed = { ...UNREAD, area: 'files', code: 'lms.area_hidden' }
   const listed = status({
     unreadable: [
-      { ...base, kind: 'material', id: 'm1', area: 'files', title: 'Week 3.pdf', item_id: 'i1' },
+      { ...closed, kind: 'area' },
+      { ...closed, kind: 'material', id: 'm1', title: 'Week 3.pdf', item_id: 'i1' },
       {
-        ...base,
+        ...closed,
         kind: 'material',
         id: 'm2',
-        area: 'files',
         title: 'Rubric.pdf',
         item_id: 'i2',
         removable: true,
       },
-      {
-        ...base,
-        kind: 'material',
-        id: 'm3',
-        area: 'files',
-        title: 'Notes.pdf',
-        item_id: 'i3',
-        removable: true,
-      },
-      {
-        ...base,
-        kind: 'announcements',
-        id: null,
-        area: 'announcements',
-        title: null,
-        count: 4,
-        since,
-      },
-      {
-        ...base,
-        kind: 'assignments',
-        id: null,
-        area: 'assignments',
-        title: null,
-        count: 2,
-        since,
-      },
+      { ...closed, kind: 'material', id: 'm3', title: 'Notes.pdf', item_id: 'i3', removable: true },
+      { ...UNREAD, kind: 'area', area: 'announcements', code: 'lms.area_hidden', count: 4 },
+      { ...UNREAD, kind: 'area', area: 'assignments', code: 'lms.area_hidden', count: 2 },
     ],
   })
   server.use(
@@ -331,16 +485,13 @@ test('what a closed area hides is listed; only materials read online can be remo
       const left = listed.unreadable.filter((u) => !path.includes(`/${u.id}:`))
       return HttpResponse.json({ ...listed, unreadable: left })
     }),
-    http.post(`${API}/programs/p1/lms/sync/materials\\:remove`, ({ request }) => {
-      removed(new URL(request.url).pathname)
-      return HttpResponse.json(status())
-    }),
   )
   renderWithRouter(<InPopover />, undefined, IN_PROGRAM)
-  await userEvent.click(await screen.findByRole('button', { name: /^Not syncing for now\s*5$/ }))
+  await userEvent.click(await screen.findByRole('button', { name: /^Not updated\s*6$/ }))
   expect(await screen.findByText('Announcements: 4')).toBeInTheDocument()
   expect(screen.getByText('Assignments not imported: 2')).toBeInTheDocument()
-  expect(screen.getAllByText(/The “Files” area is turned off on Canvas/)).toHaveLength(3)
+  // Under the area's row: no course again, and why in a word.
+  expect(screen.getAllByText("Can't be read")).toHaveLength(3)
   expect(screen.getAllByRole('button', { name: 'Remove' })).toHaveLength(2)
 
   await userEvent.click(screen.getAllByRole('button', { name: 'Remove' })[0]!)
@@ -352,17 +503,14 @@ test('what a closed area hides is listed; only materials read online can be remo
 })
 
 test('every material read online is removed at once', async () => {
-  const material = (id: string, title: string) => ({
-    kind: 'material' as const,
+  const material = (id: string, title: string): SyncUnreadable => ({
+    ...UNREAD,
+    kind: 'material',
     id,
     area: 'files',
     title,
-    course_id: 'c1',
-    course: 'CSC148',
-    count: 1,
-    since: null,
+    code: 'lms.forbidden',
     item_id: `i-${id}`,
-    external_id: null,
     removable: true,
   })
   const removed = vi.fn<(url: string) => void>()
@@ -376,7 +524,7 @@ test('every material read online is removed at once', async () => {
     }),
   )
   renderWithRouter(<InPopover />, undefined, IN_PROGRAM)
-  await userEvent.click(await screen.findByRole('button', { name: /^Not syncing for now\s*2$/ }))
+  await userEvent.click(await screen.findByRole('button', { name: /^Not updated\s*2$/ }))
   await userEvent.click(await screen.findByRole('button', { name: 'Remove all' }))
   const dialog = await screen.findByRole('alertdialog')
   expect(within(dialog).getByText('Remove 2 materials?')).toBeInTheDocument()
@@ -500,9 +648,10 @@ test('a sync the user asked for shows how many courses are done', async () => {
   expect(screen.getByRole('progressbar', { name: 'Syncing · 1 of 3 courses' })).toBeInTheDocument()
 })
 
-test('the panel says how many course calendars are not read yet or cannot be read', async () => {
+test('the panel says how many course calendars are not read yet', async () => {
+  // One that can't be read is a row of its course (表 5c), not counted again.
   server.use(...handlers(status({ calendar_waiting: 3, calendar_unreadable: 1 })))
   renderWithRouter(<InPopover />, undefined, IN_PROGRAM)
   expect(await screen.findByText('Course calendars not yet synced: 3')).toBeInTheDocument()
-  expect(screen.getByText('Course calendars unavailable: 1')).toBeInTheDocument()
+  expect(screen.queryByText('Course calendars unavailable: 1')).not.toBeInTheDocument()
 })

@@ -647,7 +647,8 @@
 }
 
 /* Follows the scroll position, not time: reduced motion leaves it alone. */
-[data-reduce-motion='on'] .scroll-fade {
+[data-reduce-motion='on'] .scroll-fade,
+[data-reduce-motion='on'] .scroll-area-fade > [data-slot='scroll-area-viewport'] {
   animation-duration: auto !important;
 }
 
@@ -657,8 +658,28 @@
   color: var(--foreground);
 }
 
-/* Search terms in a file preview's text view (`files/components/DocumentText.tsx`). */
-::highlight(files-preview-search) {
+/* Search terms in a file preview: the text view (`files/components/DocumentText.tsx`) and a PDF's
+   text layer (`PdfViewer.tsx`), whose text is invisible, so its marks keep the text colour. */
+::highlight(files-preview-search),
+::highlight(files-pdf-search) {
   background-color: color-mix(in oklch, var(--primary) 25%, transparent);
+}
+
+::highlight(files-preview-search) {
   color: var(--foreground);
+}
+
+/* The same edge fade as `scroll-fade`, on the viewport of a shadcn ScrollArea, so the scroll bar itself stays solid. */
+@utility scroll-area-fade {
+  & > [data-slot='scroll-area-viewport'] {
+    mask-image: linear-gradient(
+      to bottom,
+      transparent,
+      #000 var(--scroll-fade-top),
+      #000 calc(100% - var(--scroll-fade-bottom)),
+      transparent
+    );
+    animation: scroll-fade linear both;
+    animation-timeline: scroll(self);
+  }
 }

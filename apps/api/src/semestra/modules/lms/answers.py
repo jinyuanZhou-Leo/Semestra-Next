@@ -61,16 +61,23 @@ AREA_OF: dict[str, str] = {
     "announcement": "announcements",
 }
 
-# Areas that are no tab of the course's navigation: a refused list of one is never the
-# instructor closing it (`hidden`), only not known (table 2, row 17).
-OFF_NAV: frozenset[str] = frozenset(("calendar",))
+# Parts that are no tab of the course's navigation: a refused read of one is never the
+# instructor closing it (`hidden`), only not known (table 2, rows 17 and 21).
+OFF_NAV: frozenset[str] = frozenset(("calendar", "front_page"))
 
-# Answers that say the connection or the platform is out for now, not anything about the item
-# or area read: the stage stops (nothing is changed) and the next round reads again.
+# Answers about the account or the connection (the rate limit, the token, the address), not
+# anything about the item or area read: every read after would get the same. The stage stops
+# (nothing is changed), the round ends, and the next round reads again (M09 table 5b, row 2).
+# The platform not answering one read, or answering what can't be read (`lms.unreachable`), is
+# about that read: its area or item is not known this round (rows 3-4).
+# A provider call that raised something other than an answer: Semestra's own bug, not the
+# platform's (M09 table 2, row 20). About that read only, like `lms.unreachable`, but the stage
+# it was read in reports it: every round will hit it again (table 5b, row 3).
+BUG = "common.internal"
+
 STOPPING = frozenset(
     (
         "lms.rate_limited",
-        "lms.unreachable",
         "lms.invalid_credentials",
         "lms.invalid_config",
         "lms.credentials_missing",

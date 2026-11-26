@@ -4,16 +4,18 @@ for the LMS tests (M09 §11)."""
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterator, Sequence
 from datetime import datetime, timedelta
 from typing import Any, ClassVar, Literal, cast
+from urllib.parse import unquote
 
 import pytest
 import respx
+import structlog
 from httpx import AsyncClient, Response
 from pydantic import BaseModel, Field, SecretStr
 
 from semestra.core.config import Settings
 from semestra.core.errors import AppError
 from semestra.modules.files.tests.conftest import fake_ai  # noqa: F401 (a fixture)
-from semestra.modules.lms import sync
+from semestra.modules.lms import rules, sync
 from semestra.modules.lms.answers import AreaResult, Gone, Unavailable
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.providers import Io, register_lms_provider, unregister_lms_provider
@@ -21,6 +23,7 @@ from semestra.modules.lms.providers.canvas import answers as canvas_answers
 from semestra.modules.lms.providers.canvas import provider as canvas_module
 from semestra.modules.lms.schemas.dto import (
     ALL_FEATURES,
+    FRONT_PAGE_REF,
     Announcement,
     Assignment,
     ConnectionSummary,
@@ -94,6 +97,8 @@ class FakeProvider:
                       is_current=False),
         ]  # fmt: skip
         self.quiz_list = [Quiz(external_id="q1", title="Quiz 1")]
+        # The instructor hid the quizzes: their list is refused (404, as Canvas does).
+        self.quizzes_hidden = False
         self.course_assignments: dict[str, list[Assignment]] = {
             "101": [
                 Assignment(external_id="a1", name="Lab 1", due_at=datetime.fromisoformat(
@@ -114,6 +119,8 @@ class FakeProvider:
         self.nav = [NavTab(external_id="home", kind="home", label="Home")]
         # The instructor hid the pages: their list is refused, each page still opens.
         self.pages_hidden = False
+        # The front page's ref (`page(FRONT_PAGE_REF)`, read as "front_page"); None: none set.
+        self.front_page: str | None = None
         # Page ref → (title, body); `page` serves "Intro" for any other ref.
         self.page_texts: dict[str, tuple[str, str]] = {}
         self.module_list: list[Module] | None = None
@@ -129,6 +136,7 @@ class FakeProvider:
         self.deleted_files: set[str] = set()
         # Files `file` serves that no list shows (only a module or a page links to them).
         self.unlisted_files: list[FileMeta] = []
+        self.total: CourseTotal | None = CourseTotal(score=91.5, grade="A")
         # Files hidden from the user: reading one is refused (403).
         self.refused_files: set[str] = set()
         # The platform does not answer reads of the materials (files, modules, pages).
@@ -143,6 +151,19 @@ class FakeProvider:
         # Downloads started and those whose connection was closed (ended, or closed early).
         self.downloads_open: list[str] = []
         self.downloads_closed: list[str] = []
+        # A read (the method's name) answers with this error, whatever else is set; any other
+        # exception stands for an answer the provider cannot make sense of.
+        self.faults: dict[str, Exception] = {}
+        self.reads: list[str] = []  # every read, by method name
+        # The course's syllabus (None: the course has none).
+        self.syllabus_html: str | None = None
+        # The announcements list (`announcements`); None: one "Welcome" per course.
+        self.announcement_list: list[Announcement] | None = None
+
+    def _fault(self, read: str) -> None:
+        self.reads.append(read)
+        if read in self.faults:
+            raise self.faults[read]
 
     def normalize_config(self, raw: dict[str, Any], settings: Settings) -> BaseModel:
         url = str(raw.get("base_url") or "").rstrip("/")
@@ -159,6 +180,9 @@ class FakeProvider:
 
     def web_base(self, cfg: BaseModel) -> str:
         return "https://fake/"
+
+    def image_formula(self, cfg: BaseModel, url: str) -> str | None:
+        return unquote(url.split("/equation/", 1)[1]) if "/equation/" in url else None
 
     def rewrite_internal_link(self, cfg: BaseModel, url: str) -> InternalRef | None:
         course = url.split("/courses/", 1)[1].split("/", 1)[0] if "/courses/" in url else None
@@ -192,6 +216,7 @@ class FakeProvider:
     async def get_course(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> LmsCourse:
+        self._fault("get_course")
         self.calls.append(("get_course", course_id))
         self._auth(creds)
         for c in self.courses:
@@ -207,6 +232,7 @@ class FakeProvider:
     async def navigation(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> list[NavTab]:
+        self._fault("navigation")
         self._throttle("navigation")
         if self.nav_refused:
             raise lms_error("lms.forbidden")
@@ -221,7 +247,10 @@ class FakeProvider:
         *,
         since: datetime,
     ) -> list[Announcement]:
+        self._fault("announcements")
         self.calls.append(("announcements", list(course_ids)))
+        if self.announcement_list is not None:
+            return [a.model_copy() for a in self.announcement_list]
         return [
             Announcement(
                 external_id=f"n{course_id}", external_course_id=course_id, title="Welcome",
@@ -235,6 +264,7 @@ class FakeProvider:
     async def assignments(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> list[Assignment]:
+        self._fault("assignments")
         self.calls.append(("assignments", course_id))
         if self.down:
             raise lms_error("lms.unreachable")
@@ -246,6 +276,7 @@ class FakeProvider:
     async def assignment(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, assignment_id: str
     ) -> Assignment:
+        self._fault("assignment")
         self.calls.append(("assignment", assignment_id))
         if self.down:
             raise lms_error("lms.unreachable")
@@ -268,12 +299,14 @@ class FakeProvider:
     async def course_total(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> CourseTotal | None:
+        self._fault("course_total")
         self.calls.append(("course_total", course_id))
-        return CourseTotal(score=91.5, grade="A")
+        return self.total
 
     async def modules(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> list[Module]:
+        self._fault("modules")
         self.calls.append(("modules", course_id))
         self._throttle("modules")
         if self.materials_down:
@@ -292,6 +325,7 @@ class FakeProvider:
     async def module_items(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, module_id: str
     ) -> list[ModuleItem]:
+        self._fault("module_items")
         self.calls.append(("module_items", module_id))
         return [ModuleItem(external_id="i1", title="Intro", kind="page",
                            target=InternalRef(kind="page", ref="intro"))]  # fmt: skip
@@ -299,6 +333,7 @@ class FakeProvider:
     async def pages(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> list[PageSummary]:
+        self._fault("pages")
         self.calls.append(("pages", course_id))
         self._throttle("pages")
         if self.materials_down:
@@ -314,10 +349,16 @@ class FakeProvider:
     async def page(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, page_ref: str
     ) -> PageDetail:
-        self.calls.append(("page", page_ref))
-        self._throttle("page")
+        read = "front_page" if page_ref == FRONT_PAGE_REF else "page"
+        self._fault(read)
+        self.calls.append((read, page_ref))
+        self._throttle(read)
         if self.closed:
             raise lms_error("lms.forbidden")
+        if page_ref == FRONT_PAGE_REF:
+            if self.front_page is None:
+                raise lms_error("lms.not_found")
+            page_ref = self.front_page
         if page_ref in self.page_texts:
             title, body = self.page_texts[page_ref]
             listed = next((p for p in self.page_list or [] if p.ref == page_ref), None)
@@ -334,14 +375,20 @@ class FakeProvider:
                                "</table>")  # fmt: skip
 
     async def quizzes(self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str) -> list[Quiz]:
+        self._fault("quizzes")
+        if self.quizzes_hidden:
+            raise lms_error("lms.not_found")
         return [q.model_copy() for q in self.quiz_list]
 
     async def syllabus(self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str) -> RichText:
-        return RichText(html="<p>Labs 20%, midterm 80%</p>")
+        self._fault("syllabus")
+        self._throttle("syllabus")
+        return RichText(html=self.syllabus_html, web_url="https://fake/syllabus")
 
     async def file(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, file_id: str
     ) -> FileMeta:
+        self._fault("file")
         self.calls.append(("file", file_id))
         self._throttle("file")
         if self.materials_down:
@@ -398,6 +445,7 @@ class FakeProvider:
     async def submissions(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> list[SubmissionDetail]:
+        self._fault("submissions")
         self.calls.append(("submissions", course_id))
         io.truncated |= self.truncated
         return [s.model_copy(deep=True) for s in self.course_submissions.get(course_id, [])]
@@ -424,6 +472,7 @@ class FakeProvider:
     async def discussion(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, topic_id: str
     ) -> DiscussionDetail:
+        self._fault("discussion")
         self.calls.append(("discussion", topic_id))
         if topic_id.startswith("n"):  # an announcement
             return DiscussionDetail(external_id=topic_id, title="Welcome", html="<p>Hi</p>")
@@ -437,6 +486,7 @@ class FakeProvider:
     async def course_files(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> list[FileMeta]:
+        self._fault("course_files")
         self.calls.append(("course_files", course_id))
         self._throttle("course_files")
         if self.materials_down:
@@ -464,11 +514,98 @@ class FakeProvider:
         creds: BaseModel,
         course_ids: Sequence[str],
     ) -> list[LmsCalendarEvent]:
+        self._fault("calendar_events")
         self.calls.append(("calendar_events", sorted(course_ids)))
         if self.calendar_error:
             raise lms_error(self.calendar_error)
         io.truncated |= self.calendar_truncated
         return [e for e in self.events if e.external_course_id in course_ids]
+
+
+# What the sync logs when it skipped a part (M09 table 5b): a test that meets one without
+# asking for it (`expect_sync_failures`) fails, so a part can never fail unnoticed (M09 §11).
+SYNC_FAILURES = frozenset({"lms.sync_stage_failed", "lms.sync_item_failed", "lms.provider_failed"})
+
+
+class SyncFailures:
+    """The sync failures logged during a test, in order (`expect_sync_failures`)."""
+
+    def __init__(self) -> None:
+        self.seen: list[dict[str, Any]] = []
+        self.expected = False
+
+    def __call__(self, _logger: Any, _method: str, event: Any) -> Any:
+        if event.get("event") in SYNC_FAILURES:
+            # Runs first: the context (the request id) is merged in further down the chain.
+            self.seen.append({**structlog.contextvars.get_contextvars(), **event})
+        return event
+
+    def events(self) -> list[str]:
+        return [e["event"] for e in self.seen]
+
+    def items(self) -> list[tuple[str, str, str]]:
+        """The items skipped: (kind, platform id, error code)."""
+        return [
+            (e["kind"], e["external_id"], e["code"])
+            for e in self.seen
+            if e["event"] == "lms.sync_item_failed"
+        ]
+
+
+Row = tuple[Any, ...]
+
+
+def report(status: dict[str, Any]) -> set[Row]:
+    """What `lms.sync.status` tells of the courses' last sync, by row of M09 表 5c: `(2|3|4,
+    stage, code)` for Semestra's problems; `(5|6|7, parts, code)` for parts not read; `(8, area)`
+    for a closed area; `(9, kind, title, code)` for an item not read."""
+    out: set[Row] = set()
+    for p in status["problems"]:
+        row = 2 if p["ended"] else 4 if p["items"] or p["reads"] else 3
+        out.add((row, p["stage"], p["code"]))
+    for u in status["unreadable"]:
+        match u["kind"]:
+            case "parts":
+                reason = rules.sync_reason(u["code"])
+                row = 5 if u["parts"] == ["course"] and reason == "refused" else 6
+                out.add(
+                    (7 if row == 6 and reason == "refused" else row, tuple(u["parts"]), u["code"])
+                )
+            case "area":
+                out.add((8, u["area"]))
+            case _:
+                out.add((9, u["kind"], u["title"], u["code"]))
+    return out
+
+
+def problems(status: dict[str, Any]) -> dict[str, str]:
+    """Semestra's own problems of the last sync, by stage (表 5c, rows 2-4)."""
+    return {p["stage"]: p["code"] for p in status["problems"]}
+
+
+@pytest.fixture(autouse=True)
+def _no_silent_failures(monkeypatch: pytest.MonkeyPatch) -> Iterator[SyncFailures]:
+    seen = SyncFailures()
+    configure = structlog.configure
+
+    def watched(**kw: Any) -> None:  # the app configures logging when it starts
+        if "processors" in kw:
+            kw["processors"] = [seen, *(p for p in kw["processors"] if p is not seen)]
+        configure(**kw)
+
+    monkeypatch.setattr(structlog, "configure", watched)
+    watched(processors=structlog.get_config()["processors"])
+    yield seen
+    configure(processors=[p for p in structlog.get_config()["processors"] if p is not seen])
+    if seen.seen and not seen.expected:
+        pytest.fail(f"the sync skipped a part without the test expecting it: {seen.seen}")
+
+
+@pytest.fixture
+def expect_sync_failures(_no_silent_failures: SyncFailures) -> SyncFailures:
+    """The test means a part of the sync to fail: check what `seen` logged."""
+    _no_silent_failures.expected = True
+    return _no_silent_failures
 
 
 @pytest.fixture(autouse=True)
@@ -665,7 +802,8 @@ def canvas_api(router: respx.MockRouter) -> None:
     )  # fmt: skip
     router.get(f"{api}/courses/101/files").mock(
         return_value=ok([
-            {"id": 77, "display_name": "slides.pdf", "folder_id": 51, "size": 4},
+            {"id": 77, "display_name": "slides.pdf", "folder_id": 51, "size": 4,
+             "content-type": "application/pdf", "url": f"{CANVAS}/files/77/download?verifier=v"},
             {"id": 78, "display_name": "hidden.pdf", "folder_id": 99},
         ])
     )  # fmt: skip

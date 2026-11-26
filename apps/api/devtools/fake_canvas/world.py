@@ -687,6 +687,8 @@ def _demo_course(world: World, spec: catalog.Course, term: Json) -> Course:
                 "content-type": PDF,
                 "size": lecture_files[-1]["size"],
                 "url": lecture_files[-1]["url"],
+                "updated_at": lecture_files[-1].get("updated_at"),
+                "modified_at": lecture_files[-1].get("modified_at"),
             }
         ],
     )

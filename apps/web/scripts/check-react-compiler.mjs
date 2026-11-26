@@ -21,6 +21,7 @@ const allowed = [
   ['modules/tasks/components/VirtualTaskList.tsx', 'Use of incompatible library'],
   ['modules/files/components/VirtualBody.tsx', 'Use of incompatible library'],
   ['modules/files/components/PdfViewer.tsx', 'Use of incompatible library'],
+  ['modules/files/components/DocumentText.tsx', 'Use of incompatible library'],
 ]
 
 function* files(dir) {

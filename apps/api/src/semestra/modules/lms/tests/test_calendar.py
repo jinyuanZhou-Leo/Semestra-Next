@@ -173,9 +173,9 @@ async def test_an_ended_course_whose_calendar_cannot_be_read_says_why(api: Api, 
     await _open(api, program_id)
     status = await api.call("GET", f"/programs/{program_id}/lms/sync")
     assert status["calendar_unreadable"] == 1
-    assert [(e["course_id"], e["stage"], e["code"]) for e in status["errors"]] == [
-        (course, "calendar", "lms.forbidden")
-    ]
+    # Of a course the sync no longer visits, only its calendar is told (M09 表 5c, row 7).
+    [row] = status["unreadable"]
+    assert (row["course_id"], row["parts"], row["code"]) == (course, ["calendar"], "lms.forbidden")
 
 
 async def _ended_course(api: Api) -> tuple[str, str]:

@@ -5,10 +5,13 @@ database or the user: the module hands it the normalized config, the decrypted c
 an `Io` (the outbound HTTP client and a place to report truncated lists).
 """
 
-from collections.abc import AsyncIterator, Sequence
+import asyncio
+import functools
+from collections.abc import AsyncIterator, Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, ClassVar, Literal, Protocol, runtime_checkable
+from types import CoroutineType
+from typing import Any, ClassVar, Literal, Protocol, cast, runtime_checkable
 
 import httpx
 from pydantic import BaseModel
@@ -16,6 +19,7 @@ from pydantic import BaseModel
 from semestra.core.config import Settings
 from semestra.core.errors import AppError
 from semestra.modules.lms.answers import AreaResult, Gone, Unavailable
+from semestra.modules.lms.gate import Gate
 from semestra.modules.lms.schemas.dto import (
     Announcement,
     Assignment,
@@ -49,6 +53,78 @@ class Io:
     # Set by the provider when a list hit its page limit and was cut short.
     truncated: bool = False
     notes: dict[str, Any] = field(default_factory=dict)
+    # The connection's limit on requests in flight (`gate.py`): a provider sends each request
+    # through `gate.slot()` and tells it what the platform says is left of its rate limit.
+    gate: Gate | None = None
+    # Answers the calls of one sync round share (`service.shared_reads`), so an object several
+    # stages read (the course) is asked for once; None outside a round.
+    shared: dict[Any, Any] | None = None
+
+
+@dataclass(frozen=True)
+class Call:
+    """A read a sync stage will make of the provider (`method(io, cfg, creds, *args, **kwargs)`),
+    made ahead of it (`prefetch`)."""
+
+    method: str
+    args: tuple[Any, ...] = ()
+    kwargs: dict[str, Any] = field(default_factory=lambda: {})
+
+    @property
+    def key(self) -> tuple[str, str, str]:
+        return _shared_key(self.method, self.args, self.kwargs)
+
+
+def _shared_key(method: str, args: tuple[Any, ...], kwargs: dict[str, Any]) -> tuple[str, str, str]:
+    return (f"read:{method}", repr(args), repr(sorted(kwargs.items())))
+
+
+def round_shared[**P, R](
+    fn: Callable[P, CoroutineType[Any, Any, R]],
+) -> Callable[P, CoroutineType[Any, Any, R]]:
+    """Marks a provider read a sync round may make ahead (`prefetch`): called with the same
+    arguments within the round, it is given that answer (or raises its error) once, instead of
+    asking the platform again."""
+
+    @functools.wraps(fn)
+    async def read(*args: P.args, **kwargs: P.kwargs) -> R:
+        io = cast(Io, args[1])
+        if io.shared is not None:
+            got = io.shared.pop(_shared_key(fn.__name__, tuple(args[4:]), dict(kwargs)), None)
+            if got is not None:
+                ok, value, truncated = got
+                if not ok:
+                    raise value
+                io.truncated = io.truncated or truncated
+                return value
+        return await fn(*args, **kwargs)
+
+    setattr(read, "round_shared", True)  # noqa: B010 (a flag `prefetch` reads)
+    return read
+
+
+async def prefetch(
+    io: Io, provider: Any, cfg: BaseModel, creds: BaseModel, calls: Sequence[Call]
+) -> None:
+    """Makes these reads side by side (each through the connection's gate) and keeps each one's
+    answer or error in the round's `io.shared`, for the stage that makes it (`round_shared`)."""
+    shared = io.shared
+    if shared is None:
+        return
+
+    # Only reads that take the answer made ahead (`round_shared`): any other would be made twice.
+    calls = [c for c in calls if getattr(getattr(provider, c.method, None), "round_shared", False)]
+
+    async def one(call: Call) -> None:
+        own = Io(client=io.client, settings=io.settings, gate=io.gate, shared=shared)
+        try:
+            value = await getattr(provider, call.method)(own, cfg, creds, *call.args, **call.kwargs)
+        except Exception as exc:
+            shared[call.key] = (False, exc, False)
+        else:
+            shared[call.key] = (True, value, own.truncated)
+
+    await asyncio.gather(*(one(c) for c in calls))
 
 
 class LmsProvider(Protocol):
@@ -68,6 +144,11 @@ class LmsProvider(Protocol):
 
     def rewrite_internal_link(self, cfg: BaseModel, url: str) -> InternalRef | None:
         """What an (absolute) address in the platform's HTML points at, if the app can open it."""
+        ...
+
+    def image_formula(self, cfg: BaseModel, url: str) -> str | None:
+        """The formula (LaTeX) an image at this (absolute) address shows, for a platform whose
+        editor inserts formulas as images; None for any other image."""
         ...
 
     def item_answer(self, error: AppError, *, area: AreaResult | None) -> Gone | Unavailable:

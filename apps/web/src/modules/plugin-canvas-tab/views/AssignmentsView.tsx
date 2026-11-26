@@ -20,10 +20,7 @@ import {
   ExternalLink,
   GraduationCap,
   Import,
-  FileText,
   ListChecks,
-  Lock,
-  MessagesSquare,
   Search,
   SearchX,
 } from 'lucide-react'
@@ -41,6 +38,13 @@ import { errorCode, toastError } from '@/lib/errors'
 import { formatDateTime, formatPercent } from '@/lib/format'
 import { coursePath } from '@/modules/academics/paths'
 import { quizRef } from '@/modules/lms/assignment/queries'
+import { progressOf } from '@/modules/lms/assignment/status'
+import {
+  LockMark,
+  SubmissionStatus,
+  assignmentKind,
+} from '@/modules/lms/components/AssignmentStatus'
+import type { Progress } from '@/modules/grading/types'
 import { useAssignmentDetails } from '@/modules/lms/assignment/target'
 import { addToGradebook, importAssignments } from '@/modules/lms/import/assignments'
 import { m } from '@/paraglide/messages'
@@ -54,11 +58,10 @@ import { SEGMENT, SEGMENTED } from '@/lib/segmented'
 import { Spinner } from '@/ui/spinner'
 import { cn } from '@/lib/utils'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { CanvasBoundary } from '../CanvasBoundary'
 import { useCanvasPage } from '../context'
 import { ViewHeader } from '@/modules/lms/content/LmsContent'
-import { ScoreText, SubmissionStatus } from './common'
+import { ScoreText } from './common'
 import { viewQueries } from '../queries'
 
 /**
@@ -170,13 +173,7 @@ function SelectCell({ row }: CellProps) {
 
 /** What kind of work a row is, by how it is handed in: a quiz, a discussion or an assignment. */
 function KindIcon({ row }: { row: Row }) {
-  const types = row.assignment.submission_types ?? []
-  const [Icon, label] =
-    row.quiz || types.includes('online_quiz')
-      ? [ListChecks, m.canvas_tab_quiz()]
-      : types.includes('discussion_topic')
-        ? [MessagesSquare, m.canvas_tab_kind_discussion()]
-        : [FileText, m.canvas_tab_kind_assignment()]
+  const { Icon, label } = assignmentKind(row.assignment.submission_types ?? [], row.quiz !== null)
   return <Icon aria-label={label} className="size-4 shrink-0 text-muted-foreground" />
 }
 
@@ -184,7 +181,6 @@ function NameCell({ row }: CellProps) {
   const { courseId } = useTableState()
   const details = useAssignmentDetails()
   const { assignment: a } = row.original
-  const why = a.lock_explanation || m.canvas_tab_item_locked()
   return (
     <span className="flex items-center gap-2">
       <KindIcon row={row.original} />
@@ -201,18 +197,7 @@ function NameCell({ row }: CellProps) {
       >
         {a.name}
       </button>
-      {a.locked ? (
-        <Tooltip>
-          <TooltipTrigger
-            className="inline-flex shrink-0 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-            aria-label={why}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <Lock aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
-          </TooltipTrigger>
-          <TooltipContent className="max-w-xs">{why}</TooltipContent>
-        </Tooltip>
-      ) : null}
+      {a.locked ? <LockMark explanation={a.lock_explanation} /> : null}
     </span>
   )
 }
@@ -416,31 +401,19 @@ export function AssignmentsView() {
   )
 }
 
-/** Which rows the table lists: all, the ones still to hand in, the graded ones, or the missing. */
-type Filter = 'all' | 'todo' | 'graded' | 'missing'
-const FILTERS: readonly Filter[] = ['all', 'todo', 'graded', 'missing']
+/** Which rows the table lists (M16 §4): all, or by where the user is with each, as in the gradebook. */
+type Filter = 'all' | Progress
+const FILTERS: readonly Filter[] = ['all', 'todo', 'awaiting', 'graded']
 const FILTER_LABELS: Record<Filter, () => string> = {
   all: m.canvas_tab_filter_all,
   todo: m.canvas_tab_filter_todo,
+  awaiting: m.canvas_tab_filter_awaiting,
   graded: m.canvas_tab_filter_graded,
-  missing: m.canvas_tab_filter_missing,
 }
 
 function matches({ assignment: a }: Row, filter: Filter, query: string): boolean {
   if (query && !a.name.toLocaleLowerCase().includes(query)) return false
-  // Each row in at most one of the filters: by the state its badge shows.
-  const state = a.state
-  switch (filter) {
-    case 'all':
-      return true
-    case 'graded':
-      return state === 'graded'
-    case 'missing':
-      return state === 'missing'
-    case 'todo':
-      // Work handed in off the platform stays until its due date: nothing tells us when it is done.
-      return state === 'unsubmitted' || (state === 'offline' && a.due_state === 'upcoming')
-  }
+  return filter === 'all' || progressOf(a.state, a.due_state) === filter
 }
 
 /** The group's graded points as a share of their worth, or null before anything is graded. */

@@ -24,7 +24,7 @@ from semestra.core.errors import AppError
 from semestra.core.http import egress_allowed
 from semestra.modules.lms.answers import AreaResult, Gone, Unavailable
 from semestra.modules.lms.errors import lms_error
-from semestra.modules.lms.providers.base import Io
+from semestra.modules.lms.providers.base import Io, round_shared
 from semestra.modules.lms.providers.canvas import answers, sign_in
 from semestra.modules.lms.providers.canvas.config import (
     API_PREFIX,
@@ -166,6 +166,11 @@ def _int(value: Any, default: int = 0) -> int:
 def _opt_int(value: Any) -> int | None:
     number = _num(value)
     return int(number) if number is not None else None
+
+
+def _has(value: Any, key: str) -> bool:
+    """An object of the API, by the key every one of its kind has."""
+    return isinstance(value, dict) and cast(dict[str, Any], value).get(key) is not None
 
 
 def _dict(value: Any) -> dict[str, Any]:
@@ -478,6 +483,14 @@ class CanvasProvider:
                 )
         return None
 
+    def image_formula(self, cfg: BaseModel, url: str) -> str | None:
+        # The rich content editor draws a formula as `/equation_images/<LaTeX>`, the LaTeX
+        # URL-encoded twice.
+        if _origin(url) != _origin(_cfg(cfg).base_url):
+            return None
+        match = re.fullmatch(r"/equation_images/([^/]+)", urlsplit(url).path)
+        return unquote(unquote(match.group(1))).strip() or None if match else None
+
     # --- transport ------------------------------------------------------------------------
 
     async def _send(
@@ -495,7 +508,13 @@ class CanvasProvider:
             headers["Authorization"] = f"Bearer {token}"
         try:
             request = io.client.build_request(method, url, params=params, headers=headers)
-            return await io.client.send(request, stream=stream)
+            if io.gate is None:
+                return await io.client.send(request, stream=stream)
+            async with io.gate.slot():
+                response = await io.client.send(request, stream=stream)
+            # Sent with every API answer: what is left of the token's bucket (`gate.py`).
+            await io.gate.left(_num(response.headers.get("x-rate-limit-remaining")))
+            return response
         except AppError as exc:
             if exc.code == "common.egress_blocked":
                 raise lms_error("lms.blocked_address") from None
@@ -504,21 +523,42 @@ class CanvasProvider:
             raise lms_error("lms.unreachable") from None
 
     async def _get(
-        self, io: Io, cfg: BaseModel, creds: BaseModel, path: str, params: Any = None
+        self,
+        io: Io,
+        cfg: BaseModel,
+        creds: BaseModel,
+        path: str,
+        params: Any = None,
+        *,
+        key: str | None = "id",
     ) -> Any:
+        """One object, which has `key` (None: any JSON). Anything else is an answer not
+        understood (M09 table 2, row 19), never an empty one."""
         url = f"{_cfg(cfg).base_url}{API_PREFIX}{path}"
         response = await self._send(io, url, _token(creds), params)
         if error := _map_status(response):
             raise error
         try:
-            return response.json()
+            payload = response.json()
         except ValueError:
             raise lms_error("lms.unreachable", reason="payload") from None
+        if key is not None and not _has(payload, key):
+            raise lms_error("lms.unreachable", reason="payload")
+        return payload
 
     async def _list(
-        self, io: Io, cfg: BaseModel, creds: BaseModel, path: str, params: Any = None
+        self,
+        io: Io,
+        cfg: BaseModel,
+        creds: BaseModel,
+        path: str,
+        params: Any = None,
+        *,
+        key: str = "id",
     ) -> list[dict[str, Any]]:
-        """Follows `Link: rel=next` (same origin only) up to MAX_PAGES pages."""
+        """Follows `Link: rel=next` (same origin only) up to MAX_PAGES pages. Each page is a
+        list of objects that have `key`: anything else is an answer not understood (M09 table 2,
+        row 19), never a shorter list (which would tell what is missing is gone)."""
         base = _cfg(cfg).base_url
         url: str | None = f"{base}{API_PREFIX}{path}"
         query: Any = [*(params or []), ("per_page", PER_PAGE)]
@@ -535,8 +575,9 @@ class CanvasProvider:
                 payload = response.json()
             except ValueError:
                 raise lms_error("lms.unreachable", reason="payload") from None
-            if isinstance(payload, list):
-                items += [p for p in cast(list[Any], payload) if isinstance(p, dict)]
+            if not isinstance(payload, list) or not all(_has(p, key) for p in payload):
+                raise lms_error("lms.unreachable", reason="payload")
+            items += cast(list[dict[str, Any]], payload)
             pages += 1
             url = _next_link(response)
             if url is not None and _origin(url) != _origin(base):
@@ -597,12 +638,41 @@ class CanvasProvider:
                 course.is_current = True
         return courses
 
+    async def _course_record(
+        self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
+    ) -> dict[str, Any]:
+        """The course object, with what every reader of it needs (its term, the syllabus, the
+        group weights): read once per sync round (`Io.shared`), not once per reader."""
+
+        async def read() -> dict[str, Any]:
+            return cast(
+                dict[str, Any],
+                await self._get(
+                    io,
+                    cfg,
+                    creds,
+                    f"/courses/{quote(course_id)}",
+                    [("include[]", "term"), ("include[]", "syllabus_body")],
+                ),
+            )
+
+        if io.shared is None:
+            return await read()
+        key = ("canvas.course", course_id)
+        if (task := io.shared.get(key)) is None:
+            task = io.shared[key] = asyncio.ensure_future(read())
+        try:
+            return await task
+        except BaseException:
+            # A read that failed is read again by the next reader (after renewed credentials).
+            if io.shared.get(key) is task:
+                del io.shared[key]
+            raise
+
     async def get_course(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> LmsCourse:
-        data = await self._get(
-            io, cfg, creds, f"/courses/{quote(course_id)}", [("include[]", "term")]
-        )
+        data = await self._course_record(io, cfg, creds, course_id)
         return self._course(cfg, cast(dict[str, Any], data), datetime.now(UTC))
 
     async def navigation(
@@ -629,6 +699,7 @@ class CanvasProvider:
             )
         return sorted(tabs, key=lambda t: t.position)
 
+    @round_shared
     async def announcements(
         self,
         io: Io,
@@ -676,6 +747,8 @@ class CanvasProvider:
                         mime_type=_text(f.get("content-type")),
                         size_bytes=_int(f.get("size")) if f.get("size") is not None else None,
                         download_url=_text(f.get("url")),
+                        updated_at=f.get("updated_at"),
+                        content_at=f.get("modified_at"),
                     )
                     for f in cast(list[dict[str, Any]], r.get("attachments") or [])
                     if isinstance(f, dict) and f.get("id") is not None
@@ -685,11 +758,12 @@ class CanvasProvider:
         ]
         return sorted(out, key=lambda a: a.posted_at or now, reverse=True)
 
+    @round_shared
     async def assignments(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> list[Assignment]:
         course, groups = await asyncio.gather(
-            self._get(io, cfg, creds, f"/courses/{quote(course_id)}"),
+            self._course_record(io, cfg, creds, course_id),
             self._list(
                 io,
                 cfg,
@@ -730,6 +804,7 @@ class CanvasProvider:
     ) -> Literal["hidden", "unavailable"]:
         return answers.area_answer(error, nav_closed=nav_closed)
 
+    @round_shared
     async def course_total(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> CourseTotal | None:
@@ -747,6 +822,7 @@ class CanvasProvider:
             )
         return None
 
+    @round_shared
     async def modules(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> list[Module]:
@@ -835,11 +911,12 @@ class CanvasProvider:
             front_page=bool(r.get("front_page")),
         )
 
+    @round_shared
     async def pages(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> list[PageSummary]:
         rows = await self._list(
-            io, cfg, creds, f"/courses/{quote(course_id)}/pages", [("sort", "title")]
+            io, cfg, creds, f"/courses/{quote(course_id)}/pages", [("sort", "title")], key="url"
         )
         return [self._page_summary(r) for r in rows]
 
@@ -851,7 +928,7 @@ class CanvasProvider:
             if page_ref == FRONT_PAGE_REF
             else f"/courses/{quote(course_id)}/pages/{quote(page_ref, safe='')}"
         )
-        r = cast(dict[str, Any], await self._get(io, cfg, creds, path))
+        r = cast(dict[str, Any], await self._get(io, cfg, creds, path, key="url"))
         summary = self._page_summary(r)
         return PageDetail(
             **summary.model_dump(),
@@ -893,7 +970,7 @@ class CanvasProvider:
         truncated = False
         if topic.reply_count and not topic.locked:
             # The full thread (`/view`) names authors only in `participants`.
-            view = cast(dict[str, Any], await self._get(io, cfg, creds, f"{base}/view"))
+            view = _dict(await self._get(io, cfg, creds, f"{base}/view", key=None))
             names = {
                 str(p.get("id")): _text(p.get("display_name"))
                 for p in cast(list[dict[str, Any]], view.get("participants") or [])
@@ -943,12 +1020,11 @@ class CanvasProvider:
         ]
 
     async def syllabus(self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str) -> RichText:
-        r = cast(
-            dict[str, Any],
-            await self._get(
-                io, cfg, creds, f"/courses/{quote(course_id)}", [("include[]", "syllabus_body")]
-            ),
-        )
+        r = await self._course_record(io, cfg, creds, course_id)
+        if "syllabus_body" not in r:
+            # Not given to this user at all (no right to read it): unknown, not "no syllabus";
+            # an empty or null field is the platform saying there is none (M09 table 2, row 22).
+            raise lms_error("lms.forbidden")
         return RichText(
             html=_text(r.get("syllabus_body")),
             web_url=f"{_cfg(cfg).base_url}/courses/{course_id}/assignments/syllabus",
@@ -1018,7 +1094,9 @@ class CanvasProvider:
         if current.path:
             # Every folder from the root down, in one request.
             by_path = "/".join(quote(p, safe="") for p in current.path.split("/") if p)
-            rows = await self._get(io, cfg, creds, f"/courses/{course}/folders/by_path/{by_path}")
+            rows = await self._get(
+                io, cfg, creds, f"/courses/{course}/folders/by_path/{by_path}", key=None
+            )
             trail = [
                 self._folder(cfg, course_id, _dict(r))
                 for r in cast(list[Any], rows if isinstance(rows, list) else [])
@@ -1034,6 +1112,7 @@ class CanvasProvider:
             ],
         )
 
+    @round_shared
     async def course_files(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> list[FileMeta]:
@@ -1093,6 +1172,7 @@ class CanvasProvider:
         )
         return _submission_detail(_dict(r), assignment_id)
 
+    @round_shared
     async def submissions(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> list[SubmissionDetail]:
@@ -1158,6 +1238,7 @@ class CanvasProvider:
             return
         raise lms_error("lms.unreachable", reason="redirects")
 
+    @round_shared
     async def calendar_events(
         self,
         io: Io,

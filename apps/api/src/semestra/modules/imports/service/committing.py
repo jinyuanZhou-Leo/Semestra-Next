@@ -9,6 +9,7 @@ from sqlalchemy import select, update
 
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError, not_found
+from semestra.core.events import events
 from semestra.core.storage import delete_after_commit, get_storage
 from semestra.modules.academics import service as academics
 from semestra.modules.grading import service as grading
@@ -235,6 +236,7 @@ async def _write_assessment(c: _Commit, item: ImportsItem) -> dict[str, Any]:
         "note": data.get("note"),
         "points_earned": data.get("points_earned"),
         "points_possible": data.get("points_possible"),
+        "dropped": bool(data.get("dropped")),
         "source_kind": _assessment_source(c),
         "source_ref": data.get("source_ref") or f"import:{item.id}",
     }
@@ -302,9 +304,8 @@ async def _place_section(c: _Commit, item: ImportsItem) -> None:
                 other_entry[k] == entry[k] for k in ("term_id", "type_code", "section_code")
             ):
                 group.append((other, other_entry))
-    pending = len(c.ctx.after_commit)
     try:
-        async with c.ctx.db.begin_nested():
+        async with events.savepoint(c.ctx):
             out = await deps.call(
                 c.ctx,
                 "schedule.section.create_many",
@@ -313,7 +314,6 @@ async def _place_section(c: _Commit, item: ImportsItem) -> None:
     except AppError:
         if len(group) == 1:
             raise
-        del c.ctx.after_commit[pending:]
         group = group[:1]
         out = await deps.call(
             c.ctx, "schedule.section.create_many", {"course_id": course_id, "sections": [entry]}
@@ -571,12 +571,10 @@ async def _write_items(
     created: dict[str, str] = {}
     counts = {"created": 0, "updated": 0, "failed": 0}
     for item in todo:
-        pending = len(ctx.after_commit)
         try:
-            async with ctx.db.begin_nested():
+            async with events.savepoint(ctx):  # its events go back with it
                 result = await _write(c, item)
         except AppError as exc:
-            del ctx.after_commit[pending:]  # events of the rolled-back write
             item.result = {"error_code": exc.code, "error_params": _jsonable(exc.params)}
             counts["failed"] += 1
             continue
@@ -636,7 +634,7 @@ async def _file_uploads(ctx: Ctx, row: ImportsSession, c: _Commit) -> None:
         try:
             # The upload's row goes first, so the copy is not counted against the quota twice;
             # the savepoint brings it back if the copy is refused.
-            async with ctx.db.begin_nested():
+            async with events.savepoint(ctx):
                 await ctx.db.delete(upload)
                 await ctx.db.flush()
                 moved = await deps.move_to_course(

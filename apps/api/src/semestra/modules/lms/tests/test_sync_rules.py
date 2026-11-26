@@ -1,6 +1,6 @@
 """The per-field sync decision (M09 §4.1), every state combination."""
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -17,6 +17,7 @@ from semestra.modules.lms.rules import (
     item_due_state,
     marks,
     merge,
+    next_sync,
     platform_value,
     same,
     state_of,
@@ -67,6 +68,12 @@ CASES: list[tuple[str, Any, Any, Any, Action, Action]] = [
     ("due_at", None, {"date": "2026-11-04", "time": None}, None, Action.KEEP, Action.KEEP),
     ("weight", None, 10, None, Action.CLEAR, Action.CLEAR),
     ("score", None, {"score_percentage": 85}, None, Action.CLEAR, Action.CLEAR),
+    # Excused on the platform: not counted; excused no more: counted again, unless the user
+    # changed it. Not excusing gives no value: one the user left out stays out, never listed.
+    ("dropped", False, False, True, Action.APPLY, Action.ASK),
+    ("dropped", True, True, False, Action.APPLY, Action.ASK),
+    ("dropped", False, True, False, Action.KEEP, Action.KEEP),
+    ("dropped", False, True, True, Action.AGREE, Action.AGREE),
 ]
 
 
@@ -81,7 +88,9 @@ def test_the_different_list_is_what_the_user_set_apart(
     name: str, base: Any, ours: Any, theirs: Any, on: Action, off: Action
 ):
     del on
-    expected = theirs is not None and off in (Action.KEEP, Action.CONFLICT)
+    # Not excusing is no value from the platform, like no due date.
+    given = theirs is not None and theirs is not False
+    expected = given and off in (Action.KEEP, Action.CONFLICT)
     assert diverged(name, base, ours, theirs) is expected
 
 
@@ -273,3 +282,24 @@ def test_a_submission_never_read_has_no_state_and_no_due_hint():
 )
 def test_marks(state: Any, missing: bool, late: bool, shown: list[str]):
     assert marks(state, missing=missing, late=late) == shown
+
+
+T = datetime.fromisoformat("2026-03-01T12:00:00+00:00")
+H = timedelta(hours=1)
+
+
+@pytest.mark.parametrize(
+    ("name", "since", "retry_at", "due"),
+    [
+        ("nothing passing: the account's interval", None, None, T + 6 * H),
+        ("unreadable an hour: an hour more", T - H, None, T + H),
+        ("just now: the server's shortest", T, None, T + H / 2),
+        ("a rate limit's wait is longer", T - H, T + 2 * H, T + 2 * H),
+        ("never longer than the interval", T - 30 * H, None, T + 6 * H),
+    ],
+)
+def test_a_part_not_read_for_a_passing_reason_is_tried_again_sooner_then_less_often(
+    name: str, since: datetime | None, retry_at: datetime | None, due: datetime
+):
+    """M09 表 5c, "再试": the waits double from the server's shortest up to the interval."""
+    assert next_sync(T, 6 * H, H / 2, since, retry_at) == due

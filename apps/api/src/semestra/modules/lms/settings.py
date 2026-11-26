@@ -61,9 +61,9 @@ async def account(ctx: Ctx) -> LmsSettings:
 
 def followed(cfg: LmsSettings) -> frozenset[str]:
     """The fields the sync applies without asking when the user has not changed them."""
-    return frozenset(
-        name for name in ("title", "due_at", "weight", "score") if getattr(cfg, f"follow_{name}")
-    )
+    names = {n for n in ("title", "due_at", "weight", "score") if getattr(cfg, f"follow_{n}")}
+    # Excused or not is part of the grade (M09 §4.1).
+    return frozenset(names | ({"dropped"} if cfg.follow_score else set()))
 
 
 def floor(ctx: Ctx) -> timedelta:
@@ -100,6 +100,19 @@ class MaterialSettings(BaseModel):
         description="online: read from the platform when opened (no storage); local: a local "
         "copy is kept, still updated by the platform, and saved as the user's own file when the "
         "platform deletes it or the course is unlinked",
+    )
+    announcement_attachments: bool = Field(
+        default=True,
+        description="Files attached to announcements come in too (M09 §4.6 table 4d row 7)",
+    )
+    calendar_links: bool = Field(
+        default=True,
+        description="Course files and pages linked from calendar event descriptions come in too",
+    )
+    entry_folders: bool = Field(
+        default=True,
+        description="Items found only through assignments, announcements or calendar events are "
+        "first placed in folders named after them; off, at the top of the course's files",
     )
 
 

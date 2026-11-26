@@ -15,7 +15,7 @@ pnpm dev:demo --scenario large    # plus a Canvas course with hundreds of files 
 
 `pnpm dev:demo` starts the API and the web app with their own data directory (`apps/api/data/demo`, recreated each time), so your usual development data is untouched. It signs up a demo account with a Program, last term's finished courses, this term's courses with sections, gradebooks, exams and tasks, and next term's plan, all dated relative to today. It then connects a fake Canvas, links this term's courses, starts the first sync (it continues in the background; the sidebar status line shows its progress), and adds a fake model provider for every AI purpose. When it is ready it prints the address and the sign-in (`demo@example.com` / `semestra-demo-1`). `--no-canvas`, `--no-ai` and `--no-web` leave parts out.
 
-The fake Canvas (`127.0.0.1:8090`) answers the same API as a real Canvas, so Semestra's real Canvas provider reads it: announcements, assignments with submissions and feedback, modules, pages, discussions, quizzes, files and folders (including a scanned PDF, a Word document, a locked file and a hidden folder), the syllabus and calendar events. One course has its pages turned off and one its files; like a real Canvas, the lists of a closed area are refused (files 403, pages and quizzes 404, a folder's files too) while its folders and single files and pages are still read, and assignments are read even when their tab is off. `tests/test_fake_canvas.py` checks the fake against the recordings below, so add a case there when it should answer something new. The fake model API (`127.0.0.1:8091/v1`) is OpenAI-compatible and answers deterministically: Sem calls a tool and replies in Markdown, extraction returns the dates and weights it finds in the document, images get some plain text, and embeddings are word hashes. Checks against a real model still use a real provider.
+The fake Canvas (`127.0.0.1:8090`) answers the same API as a real Canvas, so Semestra's real Canvas provider reads it: announcements, assignments with submissions and feedback, modules, pages, discussions, quizzes, files and folders (including a scanned PDF, a Word document, a locked file and a hidden folder), the syllabus and calendar events. One course has its pages turned off and one its files; like a real Canvas, the lists of a closed area are refused (files 403, pages and quizzes 404, a folder's files too) while its folders and single files and pages are still read, and assignments are read even when their tab is off. `tests/test_fake_canvas.py` checks the fake against the recordings below, so add a case there when it should answer something new. The fake model API (`127.0.0.1:8091/v1`) is OpenAI-compatible and answers deterministically: Sem calls a tool and replies in Markdown, extraction returns the dates and weights it finds in the document, images get a short Markdown text with formulas, and embeddings are word hashes. Checks against a real model still use a real provider.
 
 While it runs, drive the fakes from `apps/api`:
 
@@ -72,6 +72,20 @@ pnpm check --only api,web
 It differs from CI in two places: dependency installs are skipped, and the "nothing to regenerate" check (`git diff --exit-code`) looks at whether the job's earlier steps changed any files, so uncommitted work is fine.
 
 The script only understands the forms `ci.yml` uses today. If a change to `ci.yml` adds a new `if:` condition, step field or `${{ }}` expression, `pnpm check` stops and points at it; update `scripts/check.py` to match.
+
+### Exhaustive LMS sync tests
+
+The LMS sync has a set of exhaustive tests: every sequence of up to two platform and user actions
+on a small course (more than a thousand), plus longer sequences picked by Hypothesis. One run takes
+several minutes, so neither CI nor `pnpm check` runs them. Run them locally when you change the
+LMS sync, imports or course materials:
+
+```bash
+pnpm test:exhaustive
+```
+
+They carry the `exhaustive` pytest marker and are left out by default; `pnpm test:exhaustive` runs
+only them.
 
 ## Cloud sessions
 

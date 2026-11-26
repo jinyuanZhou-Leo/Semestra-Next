@@ -30,7 +30,8 @@ An assignment with the same name as an assessment you added yourself is bound to
 default: the assessment stays as it is and follows the assignment from then on. To import it
 separately, choose **Add as a new assessment**.
 
-An assignment imported only as a task can be added to the gradebook later.
+An assignment imported only as a task can be added to the gradebook later: select it again when
+you import.
 
 ### Bind an assessment you added yourself
 
@@ -53,11 +54,19 @@ done.
 
 ## Course materials
 
-Once a course is linked, its files, pages and recording links on Canvas appear in the course's
-[files](/docs/files) as it syncs, in the same folders as on Canvas: a module's materials in a
-folder named after the module, files in their folder from the Canvas Files page, and files that
-only a page links to in a folder named after that page. Folders that follow Canvas show its name in
-the Files list.
+Once a course is linked, its files, pages, syllabus and recording links on Canvas appear in the
+course's [files](/docs/files) as it syncs, in the same folders as on Canvas: a module's materials
+in a folder named after the module, files in their folder from the Canvas Files page, and files
+that only a page links to in a folder named after that page. Course files linked from assignment
+descriptions, announcements and calendar events come in too, and so do files attached to
+announcements; those found only there go in an “Assignments”, “Announcements” or “Calendar”
+folder. Folders that follow Canvas show its name in the Files list.
+- In global settings → **LMS → Course materials** (or a course's **LMS** settings) you can turn
+  off **Announcement attachments**, **Links in calendar events** and **Group by source**. Turning
+  one off only changes what comes in from then on: materials already brought in stay where they
+  are and keep following Canvas, and you can delete any you don't need. With **Group by source**
+  off, new files found only in assignments, announcements or calendar events go at the top of the
+  course's files. Changing these settings syncs the course right away.
 - Names keep their Canvas titles, with any slash shown as a dash (“Week 1/2” becomes “Week 1-2”).
   A link to something other than a web page, such as an email address, opens through Canvas.
 - By default, materials are read from Canvas when you open them and don't use your storage. Like
@@ -69,8 +78,11 @@ the Files list.
   automatically** in the course's **Files** settings says.
 - The first sync after linking brings in all of a course's materials at once, even for courses
   with many of them.
-- When a file or page changes on Canvas, it changes here too. Even when the instructor hides the
-  Files or Pages page on Canvas, materials deleted or unpublished there are removed here at the next sync. What's new, changed or deleted shows
+- When a file or page changes on Canvas, it changes here too. Some instructors hide the Files and
+  Pages pages and link everything from the course's front page, syllabus or assignments; those
+  materials come in and
+  update at every sync just the same. Even with those pages hidden, materials deleted or
+  unpublished on Canvas are removed here at the next sync. What's new, changed or deleted shows
   under **Recent updates** in the sidebar's sync status, next to assignment changes; choose a name
   to open it. A new material with the same name and size as one of your own files is marked
   there, so you can keep just one. With notifications for Canvas set to **All**, new materials
@@ -85,13 +97,13 @@ the Files list.
   status, where **Restore** brings it back with the next sync (**Restore all** brings back every
   one at once). If it's no longer on Canvas by then, it shows under recent updates as removed
   there.
-- When a teacher turns off an area on Canvas (Files, for example), Semestra can't tell whether
-  what was in it is still there, so nothing is deleted. Those items are listed under **Not syncing
-  for now** in the sync status. Materials saved in Semestra still open and keep following Canvas
-  once the area is back. Materials read from Canvas can't open for now; **Remove** deletes one you
-  don't need, and **Remove all** next to the title deletes every such material at once. Once the
-  area is back, the items leave the list by themselves. When the assignments or announcements area
-  is turned off, imported assignments are listed one by one, while a course's assignments not
+- When Semestra can't read a material from Canvas (for example, the teacher turned off Modules
+  or Canvas refuses that file), nothing is deleted. It's listed under **Not updated** in the sync
+  status, below the closed section if an area was turned off. Materials saved in Semestra still
+  open and keep following Canvas once they can be read again. Materials read from Canvas can't
+  open for now; **Remove** deletes one you don't need, and **Remove all** next to the title deletes
+  every such material at once. Once Canvas gives them again, the items leave the list by
+  themselves. When the assignments or announcements area is turned off, imported assignments are listed one by one, while a course's assignments not
   imported and its announcements take one row each, kept as they were; click the assignments row
   to import them.
 - Choose **Open in Canvas** in a file's **⋯** menu to see the original on Canvas.

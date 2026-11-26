@@ -8,6 +8,7 @@ import {
 } from '@semestra/api-client/react-query'
 import type { QueryClient } from '@tanstack/react-query'
 import { defineModule, scopePath, preloadable } from '@/app/extensions'
+import { FILE_PREVIEW_PANELS, type FilePreviewPanel } from '@/modules/files/types'
 import { m } from '@/paraglide/messages'
 import { assistantPage, panel } from './store'
 
@@ -44,6 +45,29 @@ export default defineModule({
       import('./components/AssistantDock').then((mod) => ({ default: mod.AssistantDock })),
     ),
     mobile: preloadable(() => import('./mobile/AssistantMobilePage')),
+  },
+  extensions: {
+    // Ask Sem about the file being read, beside it (M12 §6.1).
+    [FILE_PREVIEW_PANELS]: [
+      {
+        id: 'assistant',
+        label: m.assistant_ask_about_file,
+        icon: MessageCircle,
+        // Files Semestra does not read (archives, videos) have nothing for Sem to read.
+        accepts: (item) => item.doc_status !== 'unsupported',
+        // Sem reads a file's text: it has some once a version of the file has been read (its
+        // page count comes from that), also while a newer one is read again.
+        unavailable: (item) =>
+          item.page_count !== null
+            ? null
+            : item.doc_status === 'failed'
+              ? m.assistant_file_unreadable
+              : item.doc_status === 'none'
+                ? m.assistant_file_not_indexed
+                : m.assistant_file_not_read,
+        Panel: preloadable(() => import('./components/FilePanel')),
+      } satisfies FilePreviewPanel,
+    ],
   },
   settingsSections: [
     {
@@ -141,6 +165,8 @@ export default defineModule({
       prefetch: preferences,
     },
   ],
+  // The conversation each file's preview panel shows (`assistant.file_session.<item_id>`).
+  uiPrefPrefixes: ['assistant.'],
   realtimeInvalidations: {
     // A new title. During a turn the chat already has it from the turn's events, and reading
     // the conversation again then would overwrite what is streaming in.

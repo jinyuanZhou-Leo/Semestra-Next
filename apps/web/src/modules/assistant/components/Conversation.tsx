@@ -74,7 +74,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { Switch } from '@/ui/switch'
 import { Trace, TraceIcon, TraceLine, TraceTitle } from '@/ui/trace'
 import { conversationDrafts, newConversationKey } from '../drafts'
-import { type MessageReference, type PromptValue, promptDoc, segments } from '../prompt'
+import { type MessageReference, type PromptValue, promptDoc, readPrompt, segments } from '../prompt'
 import { useProgramEntities } from '../scope'
 import {
   buildItems,
@@ -86,7 +86,12 @@ import {
 import type { PauseReason } from '../stream'
 import { useChat } from '../use-chat'
 import { AttachmentSaveMenu } from './AttachmentSaveMenu'
-import { Composer, type ComposerSubmit, type PendingAttachment } from './Composer'
+import {
+  Composer,
+  type ComposerHandle,
+  type ComposerSubmit,
+  type PendingAttachment,
+} from './Composer'
 import { Markdown, preloadMarkdown } from './Markdown'
 import { PromptEditor, type PromptEditorHandle } from './PromptEditor'
 import { ChipCourses, FileRefChip, RefChip } from './RefChip'
@@ -95,11 +100,17 @@ import { Reveal, SmoothHeight, Swap } from './motion'
 import { PendingDock } from './PendingDock'
 import { Remembered } from './Remembered'
 import { ScopeChip } from './ScopeChip'
-import { SuggestionChips } from './SuggestionChips'
+import { type PromptStarter, PromptStarters, SuggestionChips } from './SuggestionChips'
 import { Thinking } from './Steps'
 import { IconAction } from '@/components/IconAction'
 
 const MAX_ATTACHMENTS = 10
+
+/** The same words and references, whatever spaces are around them. */
+function samePrompt(a: PromptValue, b: PromptValue): boolean {
+  const refs = (p: PromptValue) => p.references.map((r) => `${r.kind}:${r.id}`).join(' ')
+  return a.text.trim() === b.text.trim() && refs(a) === refs(b) && a.compact === b.compact
+}
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
 
 function CopyAction({ text }: { text: string }) {
@@ -433,12 +444,24 @@ export function Conversation({
   question,
   onQuestionTaken,
   focusInput,
+  draftKey: newDraftKey,
+  initialDoc,
+  starters,
   className,
   contentClassName,
 }: {
   sessionId: string | null
   pageScope: AgentScope | null
   onCreated: (id: string) => void
+  /**
+   * Where a new conversation's draft is kept, when not the Program's (`newConversationKey`):
+   * one asked about a file is that file's.
+   */
+  draftKey?: string
+  /** What the input of a new conversation starts with when nothing was typed in it yet. */
+  initialDoc?: JSONContent
+  /** Starting points in place of the suggestions from what is due (`SuggestionChips`). */
+  starters?: readonly PromptStarter[]
   /** Sent once as soon as the conversation shows (the palette's "Ask AI"). */
   question?: { text: string; key: number } | null
   onQuestionTaken?: () => void
@@ -453,7 +476,7 @@ export function Conversation({
   const ai = useAiStatus('chat')
   // What was prepared here before (another page, a closed panel, the other view): drafts belong
   // to the conversation, not to this component. A new one is the Program's it opened in.
-  const [newKey] = useState(() => newConversationKey(pageScope?.program_id))
+  const [newKey] = useState(() => newDraftKey ?? newConversationKey(pageScope?.program_id))
   const chat = useChat(sessionId, (id) => {
     conversationDrafts.created(newKey, id)
     onCreated(id)
@@ -468,6 +491,7 @@ export function Conversation({
   const [chosenScope, setChosenScope] = useState<AgentScope | null>(draft.scope ?? null)
   const newScope = chosenScope ?? pageScope
   const [temporaryChoice, setTemporaryChoice] = useState(draft.temporary ?? false)
+  const composer = useRef<ComposerHandle>(null)
   const [attachments, setAttachments] = useState<readonly PendingAttachment[]>(
     draft.attachments ?? [],
   )
@@ -797,7 +821,22 @@ export function Conversation({
             </AlertAction>
           </Alert>
         ) : null}
-        {!chat.loading && items.length === 0 && scope ? (
+        {!chat.loading && items.length === 0 && starters ? (
+          <PromptStarters
+            starters={starters}
+            disabled={chat.generating || !ai.available}
+            onPick={(prompt) => {
+              // The input still holds only what it started with (the file): the starting point
+              // asks about it already, so the input empties rather than repeating it.
+              const written = composer.current?.read()
+              if (initialDoc && written && samePrompt(written, readPrompt(initialDoc))) {
+                composer.current?.clear()
+              }
+              setSent((n) => n + 1)
+              void chat.send({ ...prompt, scope: sessionId ? null : newScope, temporary })
+            }}
+          />
+        ) : !chat.loading && items.length === 0 && scope ? (
           <SuggestionChips
             scope={scope}
             courses={courses}
@@ -860,6 +899,7 @@ export function Conversation({
           {/* Hidden, not unmounted, while the panel is up: a draft typed meanwhile is kept. */}
           <Reveal shown={waiting.length === 0}>
             <Composer
+              ref={composer}
               programId={programId}
               generating={chat.generating}
               disabled={!ai.available}
@@ -870,7 +910,7 @@ export function Conversation({
               onStop={() => void chat.stop()}
               onScope={(next) => void changeScope(next)}
               focusInput={focusInput}
-              initialContent={draft.doc ?? null}
+              initialContent={draft.doc ?? (sessionId ? null : (initialDoc ?? null))}
               onContentChange={(doc) => conversationDrafts.update(draftKey, { doc })}
               context={sessionId ? (detail?.context ?? null) : null}
               canCompact={canCompact}

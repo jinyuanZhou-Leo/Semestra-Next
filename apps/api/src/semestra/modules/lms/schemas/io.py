@@ -24,6 +24,7 @@ from semestra.modules.lms.schemas.dto import (
     Html,
     LmsCourse,
     LmsFeature,
+    LockText,
     Module,
     ModuleItem,
     NavTab,
@@ -231,9 +232,9 @@ class CourseLink(BaseModel):
     web_url: str | None
     sync_enabled: bool
     synced_at: datetime | None = Field(description="Last background sync of the course")
-    sync_errors: dict[str, str] = Field(
-        description="Error code of each sync stage whose last run failed (course, assignments, "
-        "announcements, ...)"
+    sync_state: Literal["ok", "stale", "failed"] = Field(
+        description="How the last sync went (M09 表 5c): failed on Semestra's side, some content "
+        "not updated (the platform did not give it), or all as the platform has it"
     )
     features: list[LmsFeature] = Field(description="What its platform supports")
     created_at: datetime
@@ -642,10 +643,15 @@ class AssignmentDetail(BaseModel):
         description="Kept for its assessment or to-do, which no longer follows the platform "
         "(unbound, the course unlinked, gone from the platform): as last read",
     )
-    sync_failed: bool = Field(
+    stale: bool = Field(
         default=False,
-        description="The last sync of the course's assignments failed: what is kept may be "
-        "behind the platform",
+        description="The last sync did not update this assignment (M09 表 5c): what is kept "
+        "may be behind the platform",
+    )
+    submission_as_of: datetime | None = Field(
+        default=None,
+        description="The course's submissions were not read in the last sync: the submission "
+        "and feedback are as of then (none: up to date, or never read)",
     )
     area_hidden: bool = Field(
         default=False,
@@ -698,6 +704,18 @@ class AssignmentTarget(BaseModel):
         default=False,
         description="No longer follows the assignment: kept as last read (open it with `held_for`)",
     )
+    due_state: DueState = Field(
+        default="none",
+        description="Whether the platform's due date still matters (`rules.due_state`, M09 "
+        "table 3d)",
+    )
+    submission_types: list[str] = Field(
+        default_factory=list, description="How it is handed in on the platform"
+    )
+    is_quiz: bool = Field(default=False, description="A graded quiz")
+    locked: bool = False
+    lock_explanation: LockText = None
+    web_url: WebUrl = Field(default=None, description="The assignment on the platform")
 
     @computed_field(description="Where the user is with it (`rules.assignment_state`); None "
                     "until the sync has read it")  # fmt: skip

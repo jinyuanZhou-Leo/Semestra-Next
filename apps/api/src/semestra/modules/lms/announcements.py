@@ -21,8 +21,8 @@ the announcement was stored.
 import html as htmllib
 import re
 from collections.abc import Iterable, Sequence
-from datetime import datetime, timedelta
-from typing import get_args
+from datetime import UTC, datetime, timedelta
+from typing import Any, get_args
 
 import structlog
 from sqlalchemy import func, select
@@ -39,7 +39,8 @@ from semestra.modules.lms.models import (
     LmsImportedRef,
     LmsMaterial,
 )
-from semestra.modules.lms.schemas.dto import Announcement, FileMeta
+from semestra.modules.lms.providers import Call
+from semestra.modules.lms.schemas.dto import Announcement, Attachment, FileMeta
 from semestra.modules.lms.schemas.io import (
     AnnouncementAttachment,
     AnnouncementList,
@@ -55,9 +56,11 @@ from semestra.modules.lms.service import Bound
 from semestra.modules.lms.settings import writes_allowed
 from semestra.modules.lms.sync import (
     Notice,
+    Shared,
     StageResult,
     active_course_ids,
     hold,
+    one_item,
     register_sync_stage,
 )
 from semestra.modules.lms.sync_round import Asked, SyncRound, one_by_one
@@ -84,7 +87,7 @@ _MARK = re.compile(r'data-lms-kind="([^"]*)" data-lms-ref="([^"]*)"')
 
 async def stage(ctx: Ctx, link: LmsCourseLink, b: Bound, sync_round: SyncRound) -> StageResult:
     now = ctx.now
-    since = now - LOOKBACK
+    since = _since(sync_round, now)
     ext = link.external_course_id
 
     async def read_list() -> tuple[list[Announcement], bool]:
@@ -94,7 +97,6 @@ async def stage(ctx: Ctx, link: LmsCourseLink, b: Bound, sync_round: SyncRound) 
 
     got = await sync_round.area(ctx, link, b, AREA, read_list, truncated=lambda r: r[1])
     found = got[0] if got is not None else []
-    platform_marks = "mark_read" in b.provider.features and await writes_allowed(ctx)
     listed = {a.external_id for a in found}
     # Not listed this round: gone only as `rules.presence` says (one read alone when the list is
     # closed); posted before the window, never asked about.
@@ -116,6 +118,11 @@ async def stage(ctx: Ctx, link: LmsCourseLink, b: Bound, sync_round: SyncRound) 
         )
     }
     first = link.watched_at is None
+
+    async def marks() -> bool:
+        return "mark_read" in b.provider.features and await writes_allowed(ctx)
+
+    platform_marks = Shared(marks)
     result = StageResult()
     changed = False
     seen: set[str] = set()
@@ -123,43 +130,21 @@ async def stage(ctx: Ctx, link: LmsCourseLink, b: Bound, sync_round: SyncRound) 
         if not a.external_id or a.external_course_id not in ("", ext) or a.external_id in seen:
             continue
         seen.add(a.external_id)
-        values = {
-            "title": a.title,
-            "html": b.clean(a.html, a.web_url, ext),
-            "author": a.author,
-            "web_url": a.web_url,
-            "posted_at": a.posted_at,
-            "updated_at": a.updated_at,
-            "attachments": [
-                x.model_dump(mode="json") | {"download_url": x.download_url} for x in a.attachments
-            ],
-        }
-        row = rows.get(a.external_id)
-        if row is None:
-            row = LmsAnnouncement(
-                user_id=ctx.user_id,
-                link_id=link.id,
-                external_id=a.external_id,
-                read_at=now if first else None,
-                **values,
+        async with one_item(ctx, link, result, KIND, a.external_id, a.title) as item:
+            wrote, news = await _write(
+                ctx, link, b, a, rows.get(a.external_id), first, platform_marks
             )
-            ctx.db.add(row)
-            changed = True
-            if not first and (a.posted_at is None or a.posted_at >= now - STALE):
-                result.notices.append(Notice("announcement", a.external_id, a.title))
-        else:
-            for name, value in values.items():
-                if getattr(row, name) != value:
-                    setattr(row, name, value)
-                    changed = True
-        if platform_marks and not a.unread and row.read_at is None:
-            row.read_at = now
-            changed = True
+        if item.ok:
+            changed |= wrote
+            result.notices += news
     # Gone from the platform: deleted with it, quietly.
     for external_id in gone:
-        if (row := rows.get(external_id)) is not None and external_id not in seen:
+        if (row := rows.get(external_id)) is None or external_id in seen:
+            continue
+        async with one_item(ctx, link, result, KIND, external_id, row.title) as item:
             await ctx.db.delete(row)
-            changed = True
+            await ctx.db.flush()
+        changed |= item.ok
     # A first read of a course whose list was closed has read nothing yet.
     if got is not None:
         link.watched_at = now
@@ -167,6 +152,81 @@ async def stage(ctx: Ctx, link: LmsCourseLink, b: Bound, sync_round: SyncRound) 
     if changed or first:
         await _updated(ctx, link)
     return result
+
+
+async def _write(
+    ctx: Ctx,
+    link: LmsCourseLink,
+    b: Bound,
+    a: Announcement,
+    row: LmsAnnouncement | None,
+    first: bool,
+    platform_marks: Shared[bool],
+) -> tuple[bool, list[Notice]]:
+    """Keeps one listed announcement as the platform has it: whether anything changed, and the
+    notice of a new one."""
+    now, ext = ctx.now, link.external_course_id
+    values = {
+        "title": a.title,
+        "html": b.clean(a.html, a.web_url, ext),
+        "author": a.author,
+        "web_url": a.web_url,
+        "posted_at": a.posted_at,
+        "updated_at": a.updated_at,
+        "attachments": [_kept(x) for x in a.attachments],
+    }
+    changed = False
+    news: list[Notice] = []
+    if row is None:
+        row = LmsAnnouncement(
+            user_id=ctx.user_id,
+            link_id=link.id,
+            external_id=a.external_id,
+            read_at=now if first else None,
+            **values,
+        )
+        ctx.db.add(row)
+        changed = True
+        if not first and (a.posted_at is None or a.posted_at >= now - STALE):
+            news.append(Notice("announcement", a.external_id, a.title))
+    else:
+        for name, value in values.items():
+            if getattr(row, name) != value:
+                setattr(row, name, value)
+                changed = True
+    if not a.unread and row.read_at is None and await platform_marks.get():
+        row.read_at = now
+        changed = True
+    await ctx.db.flush()
+    return changed, news
+
+
+def _kept(x: Attachment) -> dict[str, Any]:
+    """An attachment as the mirror keeps it: with what is not sent (its download address, when
+    it changed)."""
+    return x.model_dump(mode="json") | {
+        "download_url": x.download_url,
+        "updated_at": x.updated_at.isoformat() if x.updated_at else None,
+        "content_at": x.content_at.isoformat() if x.content_at else None,
+    }
+
+
+def attachment_files(row: LmsAnnouncement) -> list[FileMeta]:
+    """The files attached to a kept announcement, as files (M09 §4.6 table 4d row 7): from what
+    the announcement gave, no lookup."""
+    return [
+        FileMeta(
+            external_id=str(x.get("external_id")),
+            name=str(x.get("name") or x.get("external_id")),
+            mime_type=x.get("mime_type"),
+            size_bytes=x.get("size_bytes"),
+            download_url=x.get("download_url"),
+            updated_at=x.get("updated_at"),
+            content_at=x.get("content_at"),
+        )
+        for x in row.attachments
+        if x.get("external_id") is not None
+    ]
 
 
 async def _gone(
@@ -201,7 +261,20 @@ async def _announces(ctx: Ctx, link: LmsCourseLink, b: Bound) -> bool:
     return "announcements" in b.provider.features
 
 
-register_sync_stage("announcements", stage, order=40, enabled=_announces)
+def _since(sync_round: SyncRound, now: datetime) -> datetime:
+    """The window the list reads, from when the round began (the same for `_reads`)."""
+    return (sync_round.started or now) - LOOKBACK
+
+
+def _reads(link: LmsCourseLink, b: Bound, sync_round: SyncRound) -> list[Call]:
+    del b
+    since = _since(sync_round, datetime.now(UTC))
+    return [Call("announcements", ([link.external_course_id],), {"since": since})]
+
+
+register_sync_stage(
+    "announcements", stage, order=40, enabled=_announces, parts=(AREA,), reads=_reads
+)
 
 
 # --- reads ----------------------------------------------------------------------------------
@@ -267,15 +340,9 @@ async def attachment_meta(ctx: Ctx, course_id: str, file_id: str) -> FileMeta | 
         return None
     rows = await ctx.db.scalars(select(LmsAnnouncement).where(LmsAnnouncement.link_id == link.id))
     for row in rows:
-        for x in row.attachments:
-            if str(x.get("external_id")) == file_id and x.get("download_url"):
-                return FileMeta(
-                    external_id=file_id,
-                    name=str(x.get("name") or file_id),
-                    mime_type=x.get("mime_type"),
-                    size_bytes=x.get("size_bytes"),
-                    download_url=x["download_url"],
-                )
+        for meta in attachment_files(row):
+            if meta.external_id == file_id and meta.download_url:
+                return meta
     return None
 
 

@@ -22,8 +22,8 @@ What it records:
 - the course itself, its navigation (which areas are hidden), and the first page of every area list
   (files, folders, pages, modules, assignments, quizzes, announcements, discussions, my
   submissions, and the course's calendar events);
-- an id that does not exist in each kind (a deleted item), and one request with a wrong token (an
-  expired token's 401);
+- the course's front page (`/front_page`: 404 when none is set), an id that does not exist in each
+  kind (a deleted item), and one request with a wrong token (an expired token's 401);
 - each `--item KIND:ID:LABEL` (KIND is file, page, assignment, quiz, discussion, module or folder;
   LABEL names the situation). A file is also asked for its download (the address in its `url`),
   without following it. Table 2
@@ -288,6 +288,8 @@ def cases(course: str, items: Iterable[Item]) -> list[Case]:
         )
         for item in items
     ]
+    # The way to the front page (table 2, row 21): open while the pages are hidden?
+    out.append(Case("front-page", root + "/front_page", shown + "/front_page", {}))
     out.append(Case("bad-token", root, shown, {}, {"Authorization": "Bearer invalid-0000"}))
     return out
 

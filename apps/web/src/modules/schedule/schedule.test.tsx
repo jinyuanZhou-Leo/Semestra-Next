@@ -583,8 +583,8 @@ test("the today card shows the now line after the day's last class", async () =>
       settings={undefined}
     />,
   )
-  const list = await screen.findByRole('list')
-  expect(within(list).getAllByRole('listitem').at(-1)).toHaveAccessibleName('Now')
+  const line = await screen.findByRole('separator', { name: 'Now' })
+  expect(line.closest('li')).toBe(screen.getAllByRole('listitem').at(-1))
 })
 
 test('saving a multi-day all-day event keeps its last day', async () => {

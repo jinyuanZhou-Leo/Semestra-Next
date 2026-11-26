@@ -85,15 +85,18 @@ class LmsCourseLink(Base, OwnedMixin, TimestampMixin):
     # When the course was last synced (`sync.py`): every stage ran, failed or not. The
     # scheduler compares it with the account's interval.
     synced_at: Mapped[datetime | None] = mapped_column(default=None)
-    # Error code of each stage whose last run failed, by stage name; a stage that ran cleanly
-    # is left out.
-    sync_errors: Mapped[dict[str, str]] = mapped_column(JSON, default=dict)
+    # What went wrong on Semestra's side of the last sync, by stage (M09 表 5c): `{code,
+    # request_id, items: [{kind, external_id, title, code}], reads: [part], ended}`. A stage
+    # that ran cleanly is left out; what the platform answered is in `area_reads`.
+    sync_problems: Mapped[dict[str, dict[str, Any]]] = mapped_column(JSON, default=dict)
     # When the announcements stage last read the course's announcements. Until then the course
     # has none stored: what the first read finds is kept as read and not reported, so linking a
     # course is quiet.
     watched_at: Mapped[datetime | None] = mapped_column(default=None)
-    # How each area's list read on the last sync, by area (`rules.area_entry`: result, when,
-    # why it was unavailable, when it last came back and came back whole; M09 表 1, 表 3c).
+    # How each part of the course read on the last sync, by part: the areas' lists, the course
+    # itself and the reads that add to the assignments (`rules.area_entry`: result, when, why it
+    # was unavailable, when it last came back and came back whole, since when it has not come
+    # back, when a rate limit lets it be read again; M09 表 1, 表 3c, 表 5c).
     # Empty for an area never read: the calendar of a course listed here without `calendar`
     # has not been read yet (§4.8).
     area_reads: Mapped[dict[str, dict[str, str]]] = mapped_column(JSON, default=dict)
@@ -255,6 +258,15 @@ class LmsMaterial(Base, OwnedMixin):
     placed_folder_id: Mapped[str | None] = mapped_column(String, default=None)
     # The course's files and pages a page links to, as `[kind, external id]` pairs.
     links: Mapped[list[list[str]]] = mapped_column(JSON, default=list)
+    # Last seen only as an announcement's attachment (M09 §4.6, "公告附件"): then the
+    # announcements are the one place it may be in, and it leaves when none carries it. Changed
+    # only by a round that read every way in whole.
+    attached: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    # A file's download address as the sync's last read of it gave it (Canvas: carries the
+    # file's own verifier, which does not expire); none while it is locked. Only the downloads
+    # the sync brings (background jobs) use it, rather than reading the file on its own first;
+    # what the user opens is read first. Never sent to clients, not in backups.
+    download_url: Mapped[str | None] = mapped_column(String, default=None)
     imported_at: Mapped[datetime | None] = mapped_column(default=None)
     # What the platform last did to it, for the status panel's recent updates (`CHANGES_KEPT`);
     # none for what came in before the course settled (`materials_settled_at`).
@@ -285,6 +297,8 @@ class LmsItemCheck(Base, OwnedMixin):
     at: Mapped[datetime] = mapped_column()
     # Since when the reads have been `unavailable` without a break (cleared by present or gone).
     unavailable_since: Mapped[datetime | None] = mapped_column(default=None)
+    # The params of the `reason` (`rules.reason_params`), which tell it apart for the user.
+    reason_params: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
 
 
 class LmsAnnouncement(Base, OwnedMixin):

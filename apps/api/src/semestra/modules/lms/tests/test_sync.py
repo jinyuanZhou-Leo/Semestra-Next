@@ -13,8 +13,8 @@ from semestra.core.context import system_ctx
 from semestra.core.jobs import BACKGROUND
 from semestra.modules.lms import sync
 from semestra.modules.lms.errors import lms_error
-from semestra.modules.lms.schemas.dto import Submission
-from semestra.modules.lms.tests.conftest import Api, FakeProvider
+from semestra.modules.lms.schemas.dto import CourseTotal, Submission
+from semestra.modules.lms.tests.conftest import Api, FakeProvider, SyncFailures, report
 from semestra.modules.lms.tests.test_lms import setup_program
 from semestra.modules.notifications import service as notifications
 from semestra.testing import Clock, collect_events
@@ -219,6 +219,55 @@ async def test_a_new_grade_is_applied_and_announced(api: Api, app: FastAPI, fake
     assert synced["applied"] == []
 
 
+async def test_an_excused_assignment_is_not_counted(api: Api, fake: FakeProvider):
+    labs = fake.course_assignments["101"]
+    labs[0] = labs[0].model_copy(update={"submission": Submission(excused=True)})
+    # Excused when it is imported: it comes in not counted.
+    program_id, course = await _course(api, "a1", "a2")
+    assert (await _assessments(api, course))["a1"]["dropped"] is True
+    # Excused later: followed with the grade.
+    labs[1] = labs[1].model_copy(update={"submission": Submission(excused=True)})
+    await api.sync(program_id)
+    assert (await _assessments(api, course))["a2"]["dropped"] is True
+    # The excuse taken back, and the user counted Lab 1 again themselves: Lab 2 counts again,
+    # Lab 1 stays as the user set it.
+    lab1 = (await _assessments(api, course))["a1"]
+    await api.call("PATCH", f"/assessments/{lab1['id']}", json={"dropped": False})
+    labs[1] = labs[1].model_copy(update={"submission": None})
+    await api.sync(program_id)
+    found = await _assessments(api, course)
+    assert (found["a1"]["dropped"], found["a2"]["dropped"]) == (False, False)
+    # Not following grades: asked about instead.
+    await api.call("PATCH", "/me/settings/lms", json={"values": {"follow_score": False}})
+    labs[1] = labs[1].model_copy(update={"submission": Submission(excused=True)})
+    [asked] = [i for i in (await api.sync(program_id))["pending"] if i["kind"] == "conflict"]
+    assert [c["field"] for c in asked["conflicts"]] == ["dropped"]
+    assert (await _assessments(api, course))["a2"]["dropped"] is False
+
+
+async def test_a_new_course_total_refreshes_the_assignments(
+    api: Api, app: FastAPI, fake: FakeProvider, clock: Clock
+):
+    """Only the course total changed on the platform: what shows it is told to refresh."""
+    program_id, course = await _course(api, "a1")
+    user_id = (await api.call("GET", "/account/me"))["id"]
+
+    async def told() -> bool:
+        clock.advance(minutes=1)
+        with collect_events(app, user_id) as messages:
+            await api.sync(program_id)
+        return sync.ASSIGNMENTS_UPDATED in {m["type"] for m in messages}
+
+    await told()
+    assert not await told()  # nothing changed
+    fake.total = CourseTotal(score=78.0, grade="C+")
+    assert await told()
+    got = await api.call(
+        "GET", f"/courses/{course}/lms/assignments", params={"include_total": True}
+    )
+    assert (got["total"]["score"], got["total"]["grade"]) == (78.0, "C+")
+
+
 async def test_new_assignments_wait_for_the_user(api: Api, fake: FakeProvider):
     program_id, course = await _course(api, "a1")
     labs = fake.course_assignments["101"]
@@ -242,7 +291,7 @@ async def test_new_assignments_wait_for_the_user(api: Api, fake: FakeProvider):
     # Still on the platform, it stays ignored and the round reads the course without error.
     status = await api.sync(program_id)
     assert [i["title"] for i in status["ignored"]] == ["Lab 2"]
-    assert status["errors"] == []
+    assert report(status) == set()
     status = await api.call("POST", path, json={"assignment_ids": [lab2["id"]], "dismissed": False})
     assert [i["title"] for i in status["pending"]] == ["Lab 2", "Midterm"]
 
@@ -298,6 +347,18 @@ async def test_an_assignment_gone_from_the_platform_is_kept_or_deleted(
     assert [(a["id"], a["source_ref"]) for a in items if a["title"].startswith("Lab")] == [
         (before["a1"]["id"], None)
     ]
+
+
+async def test_hidden_quizzes_do_not_fail_the_assignments(api: Api, fake: FakeProvider):
+    """The instructor hid the quizzes (Canvas refuses their list): the assignments still sync,
+    a quiz among them keeps what was last read of it, and nothing is reported as failed."""
+    labs = fake.course_assignments["101"]
+    labs[0] = labs[0].model_copy(update={"quiz_id": "q1"})
+    program_id, course = await _course(api, "a1")
+    fake.quizzes_hidden = True
+    status = await api.sync(program_id)
+    assert report(status) == set()
+    assert "a1" in await _assessments(api, course)
 
 
 async def test_imported_assignments_are_read_alone_while_their_list_is_closed(
@@ -356,7 +417,10 @@ async def test_a_bound_assessment_fills_in_what_it_lacks_and_asks_about_the_rest
 
 
 async def test_a_course_that_cannot_be_read_keeps_its_error(
-    api: Api, fake: FakeProvider, monkeypatch: pytest.MonkeyPatch
+    api: Api,
+    fake: FakeProvider,
+    monkeypatch: pytest.MonkeyPatch,
+    expect_sync_failures: SyncFailures,
 ):
     program_id, course = await _course(api, "a1")
     await api.sync(program_id)
@@ -370,10 +434,13 @@ async def test_a_course_that_cannot_be_read_keeps_its_error(
         status = await api.sync(program_id)
     # The other stages would fail the same way: not tried.
     assert not any(kind == "assignments" for kind, _ in fake.calls)
-    assert [(e["stage"], e["code"]) for e in status["errors"]] == [("course", "lms.invalid_config")]
+    # About the connection: told there, not by course (M09 表 5c, row 1).
+    assert report(status) == set()
     assert status["connection_error"] == "lms.invalid_config"
 
-    # A broken stage does not stop the others, and a sync that works clears the errors.
+    # A bug in the provider is about that one read too (M09 table 2, row 20; table 5b, row 3):
+    # the area is not read this round, the other stages run, and its stage reports it as
+    # Semestra's own problem (it will happen every round); a sync that works clears it.
     async def broken(*_: Any) -> Any:
         raise RuntimeError("provider bug")
 
@@ -381,13 +448,15 @@ async def test_a_course_that_cannot_be_read_keeps_its_error(
         mp.setattr(type(fake), "assignments", broken)
         fake.calls.clear()
         status = await api.sync(program_id)
-    assert [(e["stage"], e["code"]) for e in status["errors"]] == [
-        ("assignments", "common.internal")
-    ]
+    assert report(status) == {(4, "assignments", "common.internal")}
+    [problem] = status["problems"]
+    assert problem["reads"] == ["assignments"]
+    assert problem["request_id"] == expect_sync_failures.seen[0]["request_id"]
+    assert expect_sync_failures.events() == ["lms.provider_failed"]
     assert any(kind == "announcements" for kind, _ in fake.calls)
     assert status["connection_error"] is None
     status = await api.sync(program_id, course)
-    assert status["errors"] == []
+    assert report(status) == set()
     assert status["synced_at"] is not None
 
 
@@ -525,6 +594,7 @@ async def test_a_field_set_apart_from_the_platform_can_follow_it_again(
         "field": "due_at",
         "mine": {"date": "2026-02-04", "time": "23:59:00"},
         "platform": {"date": "2026-02-06", "time": "23:59:00"},
+        "out_of_range": False,
         "target_kind": "assessment",
         "target_id": lab["id"],
     }
@@ -660,7 +730,7 @@ async def test_a_read_that_adds_to_the_list_failing_keeps_what_it_gave(
     api: Api, fake: FakeProvider, monkeypatch: pytest.MonkeyPatch, clock: Clock
 ):
     """The course's submissions not read this round: the assignments are written, the
-    submissions stay as last read, and the stage reports the error (M09 §4.5)."""
+    submissions stay as last read, and the panel tells it (M09 §4.5, 表 5c row 7)."""
     from semestra.modules.lms.schemas.dto import SubmissionComment, SubmissionDetail
 
     program_id, course = await _course(api, "a1")
@@ -673,6 +743,7 @@ async def test_a_read_that_adds_to_the_list_failing_keeps_what_it_gave(
         )
     ]
     await api.sync(program_id)
+    read = clock.now
 
     async def refused(*_: Any) -> Any:
         raise lms_error("lms.forbidden")
@@ -681,11 +752,13 @@ async def test_a_read_that_adds_to_the_list_failing_keeps_what_it_gave(
     fake.course_assignments["101"][0].name = "Lab 1 (revised)"
     clock.advance(minutes=1)
     status = await api.sync(program_id)
-    assert [(e["course_id"], e["code"]) for e in status["errors"]] == [(course, "lms.forbidden")]
+    assert report(status) == {(7, ("submissions",), "lms.forbidden")}
     lab = await api.call("GET", f"/courses/{course}/lms/assignments/a1")
     assert lab["assignment"]["name"] == "Lab 1 (revised)"
     assert lab["submission"]["comments"][0]["comment"] == "Good"
-    assert lab["sync_failed"] is True
+    # The assignment itself is up to date; its submission is as of the last read.
+    assert lab["stale"] is False
+    assert datetime.fromisoformat(lab["submission_as_of"]) == read
 
 
 async def test_unimported_assignments_of_a_closed_list_are_one_row(
@@ -698,8 +771,8 @@ async def test_unimported_assignments_of_a_closed_list_are_one_row(
     fake.assignments_hidden = True
     clock.advance(days=2)
     status = await api.sync(program_id)
-    [row] = [u for u in status["unreadable"] if u["kind"] == "assignments"]
-    assert (row["course_id"], row["count"]) == (course, 2)
+    [row] = [u for u in status["unreadable"] if u["kind"] == "area"]
+    assert (row["course_id"], row["area"], row["count"]) == (course, "assignments", 2)
     assert datetime.fromisoformat(row["since"]) == whole
     # Still there to read, as last read.
     assert (await api.call("GET", f"/courses/{course}/lms/assignments/a2"))["source"] == "mirror"
@@ -718,3 +791,31 @@ async def test_a_course_not_syncing_reads_its_assignments_now(
     listed = await api.call("GET", f"/courses/{course}/lms/assignments")
     assert listed["source"] == "live"
     assert listed["items"][0]["name"] == "Lab 1 (revised)"
+
+
+async def test_a_platform_value_semestra_cannot_hold_is_fitted_or_set_apart(
+    api: Api, fake: FakeProvider, clock: Clock
+):
+    """M09 表 5c, "平台的值放不进 Semestra": a title too long is cut to fit; a weight out of
+    range is not written, the field keeps its default and is listed as set apart from the
+    platform, and follows again once the platform's value is back in range. Neither fails."""
+    labs = fake.course_assignments["101"]
+    long = "Midterm " + "x" * 300
+    labs[2] = labs[2].model_copy(update={"name": long, "group_weight": 150})
+    program_id, course = await _course(api, "a3")
+    midterm = (await _assessments(api, course))["a3"]
+    assert midterm["title"].endswith("…")
+    assert long.startswith(midterm["title"][:-1])
+    assert midterm["weight"] == 0
+    status = await api.sync(program_id)
+    assert report(status) == set()
+    [apart] = status["different"]
+    assert (apart["field"], apart["platform"], apart["out_of_range"]) == ("weight", 150, True)
+    assert (await _assessments(api, course))["a3"]["weight"] == 0
+
+    # Back in range: followed like any change of the platform.
+    labs[2] = labs[2].model_copy(update={"group_weight": 60})
+    clock.advance(minutes=1)
+    status = await api.sync(program_id)
+    assert status["different"] == []
+    assert (await _assessments(api, course))["a3"]["weight"] == 60

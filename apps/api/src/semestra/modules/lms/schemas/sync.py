@@ -37,7 +37,7 @@ class SyncQueued(BaseModel):
     queued: int = Field(description="How many courses were queued")
 
 
-SyncField = Literal["title", "due_at", "weight", "score"]
+SyncField = Literal["title", "due_at", "weight", "score", "dropped"]
 
 
 class SyncConflict(BaseModel):
@@ -104,6 +104,10 @@ class SyncDifference(BaseModel):
     field: SyncField
     mine: Any = Field(description="The value in Semestra")
     platform: Any = Field(description="The value on the platform when last synced")
+    out_of_range: bool = Field(
+        default=False,
+        description="The platform's value is out of what the item takes, so it can't be taken",
+    )
     target_kind: Literal["assessment", "task"]
     target_id: str
 
@@ -138,23 +142,39 @@ class SyncRemovedMaterial(BaseModel):
 
 
 class SyncUnreadable(BaseModel):
-    """What the sync can't read because its area is closed on the platform (M09 table 3c, note):
-    kept as last read, judged again once the area opens. Materials and imported assignments one
-    by one; a course's announcements, and its assignments not imported, as one row each."""
+    """What the platform did not give, kept as last read until it reads back (M09 表 5c, rows
+    5-9): parts of a course not read for one reason, an area the teacher closed, an item in
+    Semestra whose own read did not get it."""
 
-    kind: Literal["material", "assignment", "assignments", "announcements"]
+    kind: Literal["parts", "area", "material", "assignment"]
     id: str | None = Field(
+        default=None,
         description="The material's id (`material`) or the imported assignment's sync item id "
-        "(`assignment`); none for a course's row"
+        "(`assignment`); none for a course's row",
     )
     course_id: str
     course: str
-    area: str = Field(description="The closed area of the course on the platform")
-    title: str | None = Field(description="Its name on the platform; none for a course's row")
-    count: int = Field(description="How many it stands for (1 for one item)")
+    parts: list[str] = Field(
+        default_factory=list,
+        description="`parts`: the parts not read (course, assignments, submissions, quizzes, "
+        "total, announcements, calendar, files, pages, modules); `course` among them: the whole "
+        "course",
+    )
+    area: str | None = Field(
+        default=None,
+        description="`area`: the closed area; an item: the area it belongs to",
+    )
+    title: str | None = Field(default=None, description="An item's name on the platform")
+    count: int = Field(
+        default=0,
+        description="`area`: announcements kept, or assignments not imported (0: none counted)",
+    )
+    code: str | None = Field(default=None, description="Why it was not read (an error code)")
+    params: dict[str, Any] = Field(default_factory=dict, description="The code's params")
     since: datetime | None = Field(
-        description="Announcements, assignments: when their list was last read whole (none if "
-        "never)"
+        default=None,
+        description="`parts`: when they last read back; `area`: what is kept is as of then; an "
+        "item: unreadable since then. None: never read",
     )
     item_id: str | None = Field(
         default=None, description="A material's course file, or an imported assignment's object"
@@ -162,16 +182,31 @@ class SyncUnreadable(BaseModel):
     external_id: str | None = Field(default=None, description="An assignment's id on the platform")
     removable: bool = Field(
         default=False,
-        description="A followed material read from the platform (no copy saved in Semestra): it "
-        "can be removed (lms.sync.material.remove)",
+        description="A followed material read from the platform (no copy saved in Semestra) the "
+        "platform refuses or hides: it can be removed (lms.sync.material.remove)",
     )
 
 
-class SyncCourseError(BaseModel):
+class SyncProblemItem(BaseModel):
+    kind: str = Field(
+        description="assignment, announcement, calendar_event, file, page, link or course"
+    )
+    external_id: str
+    title: str | None
+
+
+class SyncProblem(BaseModel):
+    """A problem of Semestra's own in a course's last sync (M09 表 5c, rows 2-4): it comes
+    back every round until fixed; `request_id` finds it in the server's log."""
+
     course_id: str
     course: str
     stage: str
+    ended: bool = Field(description="The course was not synced at all this round")
     code: str
+    request_id: str
+    items: list[SyncProblemItem] = Field(description="Items not synced")
+    reads: list[str] = Field(description="Parts of the course not read")
 
 
 class SyncRound(BaseModel):
@@ -208,9 +243,11 @@ class SyncStatus(BaseModel):
     )
     removed_count: int = Field(description="How many materials the user deleted, all told")
     unreadable: list[SyncUnreadable] = Field(
-        description="What can't be read since its area is closed on the platform, by course"
+        description="What the platform did not give, kept as last read, by course"
     )
-    errors: list[SyncCourseError]
+    problems: list[SyncProblem] = Field(
+        description="Problems of Semestra's own in the courses' last sync, by course"
+    )
     calendar_waiting: int = Field(
         description="Courses whose calendar the sync has not read yet (M09 §4.8)"
     )

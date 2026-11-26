@@ -3,12 +3,15 @@ platforms the app connects to, "LMS (Canvas)") is known before any capability te
 
 from semestra.core.capability import register_term
 from semestra.modules.lms.providers.base import (
+    Call,
     Io,
     LmsProvider,
     SignInProvider,
     all_providers,
     get_provider,
+    prefetch,
     register_lms_provider,
+    round_shared,
     sign_in_support,
     unregister_lms_provider,
 )
@@ -27,12 +30,15 @@ register_term("lms", _platforms)
 
 __all__ = [
     "BUILT_IN",
+    "Call",
     "Io",
     "LmsProvider",
     "SignInProvider",
     "all_providers",
     "get_provider",
+    "prefetch",
     "register_lms_provider",
+    "round_shared",
     "sign_in_support",
     "unregister_lms_provider",
 ]

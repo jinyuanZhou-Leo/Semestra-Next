@@ -1,4 +1,5 @@
 import type {
+  Connection,
   CourseLink,
   CourseLinkState,
   ExternalCourse,
@@ -76,18 +77,10 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { externalLabel, groupByTerm } from '../external'
 import { useProviderName, useProviderUis } from '../providers'
 import { MATERIALS } from '../queries'
-import { CONNECTION_ERROR_LABEL } from '../labels'
-import { LogoTile } from './ConnectionsSection'
+import { ConnectionStatus, LogoTile } from './ConnectionsSection'
 import { HeldMaterials } from './HeldMaterials'
 import { MATERIAL_FIELDS } from './MaterialsSection'
 import { useOpenConnections } from './ProgramLmsSection'
-
-/** Link errors that only a new token (or new permissions) on the connection fixes. */
-const CONNECTION_ERRORS = new Set([
-  'lms.invalid_credentials',
-  'lms.credentials_missing',
-  'lms.forbidden',
-])
 
 /**
  * Course settings → LMS (M09 §7.1): which course on the platform this one is and whether its
@@ -115,7 +108,7 @@ export function CourseLmsSection({ scope }: SettingsSectionProps) {
               materials={data.materials ?? null}
               scope={scope}
               courseId={courseId}
-              connection={connection}
+              connection={binding.data?.connection ?? null}
               onChange={() => setChanging(true)}
             />
           )
@@ -203,13 +196,17 @@ function LinkedCourse({
   materials: MaterialCounts | null
   scope: SettingsSectionProps['scope']
   courseId: string
-  connection: string | null
+  connection: Connection | null
   onChange: () => void
 }) {
   const queryClient = useQueryClient()
   const syncId = useId()
   const now = useNow()
   const openConnections = useOpenConnections()
+  // A connection that needs reconnecting stops every course's sync (M09 表 5c, row 1): told
+  // before how the course's last sync went, which says nothing of it.
+  const broken =
+    connection && (connection.status === 'error' || !connection.has_credentials) ? connection : null
   const Logo = useProviderUis().get(link.provider)?.logo ?? Link2
   const provider = useProviderName(link.provider) ?? link.provider
   const [unlinking, setUnlinking] = useState(false)
@@ -240,8 +237,6 @@ function LinkedCourse({
     },
     onError: (err) => (setUnlinking(false), toastError(err)),
   })
-  // The first stage that failed: the course itself, else what the course holds.
-  const code = Object.values(link.sync_errors)[0] ?? null
   const title = externalLabel({ code: link.external_code, name: link.external_name ?? '' })
 
   return (
@@ -256,20 +251,27 @@ function LinkedCourse({
               <span className="truncate">{title}</span>
             </ItemTitle>
             <ItemDescription className="truncate">
-              {[link.external_term, connection ?? provider].filter(Boolean).join(' · ')}
+              {[link.external_term, connection?.display_name ?? provider]
+                .filter(Boolean)
+                .join(' · ')}
             </ItemDescription>
           </ItemContent>
           <ItemActions className="shrink-0 gap-3">
             <span className="flex items-center gap-2 text-xs text-muted-foreground">
-              {code ? (
-                <Badge variant="destructive">
-                  {CONNECTION_ERROR_LABEL[code]?.() ?? m.lms_status_error()}
-                </Badge>
+              {/* The last sync (M09 表 5c): what the sync panel tells of this course. */}
+              {broken ? (
+                <ConnectionStatus connection={broken} />
+              ) : link.sync_state === 'failed' ? (
+                <Badge variant="destructive">{m.lms_link_failed()}</Badge>
+              ) : link.sync_state === 'stale' ? (
+                <Badge variant="secondary">{m.lms_link_stale()}</Badge>
               ) : (
                 <Badge variant="secondary">{m.lms_connection_ok()}</Badge>
               )}
-              {/* The last successful sync: next to an error it would read as when it broke. */}
-              {link.synced_at && !code ? formatTimeAgo(link.synced_at, now) : null}
+              {/* When it last synced: next to a problem it would read as when it broke. */}
+              {link.synced_at && link.sync_state === 'ok' && !broken
+                ? formatTimeAgo(link.synced_at, now)
+                : null}
             </span>
             {link.web_url ? (
               <Tooltip>
@@ -325,6 +327,22 @@ function LinkedCourse({
           />
         </SettingRow>
       </SettingsGroup>
+      {broken ? (
+        <Alert variant="destructive">
+          <TriangleAlert aria-hidden />
+          <AlertTitle>{m.lms_sync_hint_reconnect({ provider })}</AlertTitle>
+          <AlertDescription>
+            {errorMessage({
+              error: { code: broken.last_error_code ?? 'lms.credentials_missing', params: {} },
+            })}
+          </AlertDescription>
+          <AlertAction>
+            <Button size="sm" variant="outline" onClick={openConnections}>
+              {m.lms_sync_reconnect()}
+            </Button>
+          </AlertAction>
+        </Alert>
+      ) : null}
       {link.sync_enabled ? (
         <SettingsBlock title={m.lms_materials_group()}>
           <NamespaceForm
@@ -336,24 +354,6 @@ function LinkedCourse({
           />
           <HeldMaterials courseId={courseId} provider={provider} />
         </SettingsBlock>
-      ) : null}
-      {code ? (
-        <Alert variant="destructive">
-          <TriangleAlert aria-hidden />
-          <AlertTitle>{m.lms_course_error_title({ provider })}</AlertTitle>
-          <AlertDescription>{errorMessage({ error: { code } })}</AlertDescription>
-          <AlertAction>
-            {CONNECTION_ERRORS.has(code) ? (
-              <Button size="sm" variant="outline" onClick={openConnections}>
-                {m.lms_course_open_connections()}
-              </Button>
-            ) : (
-              <Button size="sm" variant="outline" disabled={sync.isPending} onClick={syncNow}>
-                {m.common_retry()}
-              </Button>
-            )}
-          </AlertAction>
-        </Alert>
       ) : null}
       <ConfirmDialog
         open={unlinking}

@@ -146,6 +146,7 @@ export const errorMessages = {
   error_lms_assessment_already_bound: m.error_lms_assessment_already_bound,
   error_lms_assessment_not_bound: m.error_lms_assessment_not_bound,
   error_lms_assignment_already_imported: m.error_lms_assignment_already_imported,
+  error_lms_assignment_removed: m.error_lms_assignment_removed,
   error_lms_blocked_address: m.error_lms_blocked_address,
   error_lms_connection_in_use: m.error_lms_connection_in_use,
   error_lms_course_already_linked: m.error_lms_course_already_linked,

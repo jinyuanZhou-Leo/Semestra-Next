@@ -4,7 +4,7 @@ read on its own, within this round's budget (`rules.CHECKS_PER_RUN`).
 Every stage of a course's sync reads the platform through the round (`area`, `judge`,
 `read_many`), and the materials, the assignments and the announcements it did not find are judged
 by `judge`: the one flow around `rules.presence` (M09 table 3c). The budget is spent in one place
-(`_spend`). The round keeps only plain values: each stage has a transaction (and a database
+(`spend`). The round keeps only plain values: each stage has a transaction (and a database
 session) of its own, and writes what it read with `save` once it holds the write lock.
 """
 
@@ -17,10 +17,11 @@ from sqlalchemy import select
 
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError
-from semestra.modules.lms import service
+from semestra.modules.lms import rules, service
 from semestra.modules.lms.answers import (
     AREA_HIDDEN,
     AREA_OF,
+    BUG,
     OFF_NAV,
     STOPPING,
     AreaResult,
@@ -52,6 +53,7 @@ class _Read:
     result: str
     reason: str | None
     at: datetime
+    params: dict[str, Any] = field(default_factory=lambda: {})
 
 
 @dataclass(frozen=True)
@@ -81,7 +83,7 @@ ReadItems = Callable[[str, list[str]], Awaitable[Sequence[Any]]]
 
 def one_by_one(read: Callable[[str, str], Awaitable[Any]]) -> ReadItems:
     """Reads items one at a time with `read(kind, external_id)`, for kinds without a batch read.
-    An item's error is its answer; one about the connection or the platform stops the stage."""
+    An item's error is its answer; one about the account or the connection stops the stage."""
 
     async def items(kind: str, external_ids: list[str]) -> list[Any]:
         out: list[Any] = []
@@ -110,8 +112,15 @@ class SyncRound:
     _nav: Any = _UNREAD
     _checks: dict[Key, Check] | None = None
     _new: dict[Key, _Read] = field(default_factory=lambda: {})
-    # Why an area was unavailable this round (an error code).
-    _reasons: dict[str, str] = field(default_factory=lambda: {})
+    # Why a part was unavailable this round (an error code, with its params).
+    _reasons: dict[str, tuple[str, dict[str, Any]]] = field(default_factory=lambda: {})
+    # Parts whose record is forgotten (`drop`).
+    _dropped: set[str] = field(default_factory=lambda: set[str]())
+    # Reads that failed on a bug of Semestra's in the provider (M09 table 2, row 20), the parts
+    # and the items read on their own: about that read only, and the stage they were read in
+    # reports them (`sync.sync_course`, `sync_problems`), as every round will hit them again.
+    bug_reads: list[str] = field(default_factory=lambda: [])
+    bug_items: list[Key] = field(default_factory=lambda: [])
 
     def begin(self, now: datetime) -> None:
         if self.started is None:
@@ -133,7 +142,7 @@ class SyncRound:
                 except AppError as exc:
                     if exc.code in STOPPING:
                         raise  # about the connection: the stage stops and changes nothing
-                    self._nav = None
+                    self._nav = None  # a bug is logged (`service.provider_failure`)
         return nav_closed(self._nav, area)
 
     async def area[T](
@@ -148,8 +157,9 @@ class SyncRound:
         part: bool = False,
     ) -> T | None:
         """Reads one area's list and records its result (table 2): None when it gave nothing
-        (closed, refused, not offered). An answer about the connection or the platform as a whole
-        (throttled, down, the token) is raised: the stage stops and changes nothing. `part`: one
+        (closed, refused, not offered, not answered). An answer about the account or the
+        connection (`STOPPING`: throttled, the token) is raised: the stage stops and changes
+        nothing. `part`: one
         more read of the same area (a module's items): the area is whole only if every part is."""
         result: AreaResult
         got: T | None = None
@@ -158,6 +168,7 @@ class SyncRound:
         except AppError as exc:
             if exc.code in STOPPING:
                 raise
+            self._note(exc, part=area)
             if exc.code == "lms.feature_unsupported":
                 result = "unsupported"
             elif exc.code == AREA_HIDDEN:  # told apart by the read itself (`reads._read`)
@@ -166,18 +177,39 @@ class SyncRound:
                 closed = None if area in OFF_NAV else await self._nav_closed(ctx, link, b, area)
                 result = b.provider.area_answer(exc, nav_closed=closed)
                 if result == "unavailable":
-                    self._reasons[area] = exc.code
+                    self._reasons[area] = (exc.code, exc.params)
         else:
             result = "partial" if truncated(got) else "whole"
         before = self.areas.get(area)
         if part and before is not None and _WORSE[before] > _WORSE[result]:
             result = before
         self.areas[area] = result
+        self._dropped.discard(area)
         return got
 
     def unsupported(self, area: str) -> None:
         """The provider does not offer the area: it is no place an item can be listed in."""
         self.areas[area] = "unsupported"
+
+    def part(self, name: str, result: AreaResult, error: AppError | None = None) -> None:
+        """Records a part read other than as an area's list (M09 表 5c): the course itself, a
+        read that adds to the assignments list. `error`: why it gave nothing."""
+        self.areas[name] = result
+        self._reasons.pop(name, None)
+        if error is not None:
+            self._note(error, part=name)
+            if result == "unavailable":
+                self._reasons[name] = (error.code, error.params)
+
+    def like(self, name: str, area: str) -> None:
+        """Records part `name` as not read for the reason `area` was not (a read that adds to
+        an area's list, not made as the list gave nothing). A closed list leaves it as it was:
+        the closed area tells for both (M09 表 5c, row 8)."""
+        if self.areas.get(area, "unavailable") != "unavailable":
+            return
+        self.areas[name] = "unavailable"
+        if (reason := self._reasons.get(area)) is not None:
+            self._reasons[name] = reason
 
     def results(self, areas: Iterable[str]) -> list[AreaResult]:
         """This round's results of these areas (one not read this round is not known)."""
@@ -243,13 +275,13 @@ class SyncRound:
         error it got; throttling, the platform down or the token failing is raised (the stage
         stops; the next round reads it again). Not `budgeted`: the contents of items a list
         showed changed (pages), read whatever the budget."""
-        wanted = self._spend(list(external_ids)) if budgeted else list(external_ids)
+        wanted = self.spend(list(external_ids)) if budgeted else list(external_ids)
         if not wanted:
             return {}
         got = await read(wanted)
         return {e: self._record(ctx, b, kind, e, one) for e, one in zip(wanted, got, strict=True)}
 
-    def _spend[K](self, wanted: list[K]) -> list[K]:
+    def spend[K](self, wanted: list[K]) -> list[K]:
         """The round's budget rule, the one place it is applied: the first of `wanted` (in the
         order the budget goes) up to what is left, spent before reading; the rest wait for a
         later round (`out_of_budget`)."""
@@ -259,15 +291,39 @@ class SyncRound:
         self.budget -= len(wanted)
         return wanted
 
+    def _note(self, exc: AppError, *, part: str | None = None, key: Key | None = None) -> None:
+        if exc.code != BUG:
+            return
+        if part is not None and part not in self.bug_reads:
+            self.bug_reads.append(part)
+        if key is not None and key not in self.bug_items:
+            self.bug_items.append(key)
+
     def _record(self, ctx: Ctx, b: Bound, kind: str, external_id: str, got: object) -> ItemAnswer:
         if isinstance(got, AppError):
+            self._note(got, key=(kind, external_id))
             area = self.areas.get(AREA_OF.get(kind, ""))
             answer: ItemAnswer = b.provider.item_answer(got, area=area)
         else:
             answer = Present(got)
         reason = answer.reason if isinstance(answer, Unavailable) else None
-        self._new[(kind, external_id)] = _Read(result_of(answer), reason, ctx.now)
+        params = got.params if isinstance(got, AppError) and reason == got.code else {}
+        self._new[(kind, external_id)] = _Read(
+            result_of(answer), reason, ctx.now, rules.reason_params(params)
+        )
         return answer
+
+    def drop(self, part: str) -> None:
+        """Forgets a part's record: not needed this round (the way to the front page when the
+        pages list was read whole, M09 table 2 row 21), and not to be taken as read or not."""
+        self.areas.pop(part, None)
+        self._reasons.pop(part, None)
+        self._dropped.add(part)
+
+    def read_another_way(self, ctx: Ctx, kind: str, external_id: str) -> None:
+        """Records an item got this round by a read not addressed by it (the front page by the
+        way to it, M09 §4.6): its single read of this round (table 3c, row 4)."""
+        self._new[(kind, external_id)] = _Read("present", None, ctx.now)
 
     async def judge(
         self,
@@ -303,7 +359,7 @@ class SyncRound:
                     wanted.append(key)
                 verdict = "unknown"
             verdicts[key] = verdict
-        ordered = self._spend(await self.oldest_first(ctx, link, wanted))
+        ordered = self.spend(await self.oldest_first(ctx, link, wanted))
         answers: dict[Key, ItemAnswer] = {}
         for kind in dict.fromkeys(k for k, _ in ordered):
             ids = [e for k, e in ordered if k == kind]
@@ -343,9 +399,13 @@ class SyncRound:
                 else:
                     row.unavailable_since = None
                 row.result, row.reason, row.at = r.result, r.reason, r.at
-        if self.areas:
+                row.reason_params = r.params
+        if self.areas or self._dropped:
             merged: dict[str, Any] = dict(link.area_reads or {})
+            for a in self._dropped:
+                merged.pop(a, None)
             for a, r in self.areas.items():
-                merged[a] = area_entry(merged.get(a), r, ctx.now, self._reasons.get(a))
+                code, params = self._reasons.get(a, (None, None))
+                merged[a] = area_entry(merged.get(a), r, ctx.now, code, params=params)
             if merged != link.area_reads:
                 link.area_reads = merged

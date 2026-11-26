@@ -11,12 +11,36 @@ import re
 from dataclasses import dataclass
 from datetime import datetime
 from html.parser import HTMLParser
-from typing import Literal
+from typing import Literal, cast
 
 from semestra.modules.lms.models import LmsMaterial, MaterialChange, MaterialState
 from semestra.modules.lms.schemas.dto import FileMeta
 
-MaterialKind = Literal["file", "page", "link"]
+MaterialKind = Literal["file", "page", "link", "syllabus"]
+# The course's syllabus is one material of its own kind, by this id (M09 §4.6).
+SYLLABUS_ID = "syllabus"
+
+# Names of what the sync makes that the platform names nothing (M09 §4.6, table 4d): the
+# syllabus, and the folders of what only an assignment, announcement or calendar event links
+# to. In the account's language when made; renamed with it, unless the user renamed them.
+NAMES: dict[str, dict[str, str]] = {
+    "en": {
+        "syllabus": "Syllabus",
+        "assignments": "Assignments",
+        "announcements": "Announcements",
+        "calendar": "Calendar",
+    },
+    "zh-CN": {
+        "syllabus": "课程大纲",
+        "assignments": "作业",
+        "announcements": "公告",
+        "calendar": "日历",
+    },
+}
+
+
+def names(locale: str) -> dict[str, str]:
+    return NAMES.get(locale, NAMES["en"])
 
 
 def file_version(meta: FileMeta) -> str:
@@ -26,18 +50,51 @@ def file_version(meta: FileMeta) -> str:
 
 # --- states (table 4a) ----------------------------------------------------------------------
 
-# The states each state may go to; `None` is a row just made. Any other change is a bug.
-NEXT: dict[str | None, frozenset[MaterialState]] = {
-    None: frozenset({"synced", "list"}),
-    # Followed (again, from a file saved anew); a page become a list; deleted by the user; gone
-    # from the platform, or handed over by the user while it could not be read.
-    "synced": frozenset({"synced", "list", "dismissed", "absent"}),
-    "list": frozenset({"synced", "absent"}),
-    # Restored by the user; saved in Semestra from the platform's own view.
-    "dismissed": frozenset({"absent", "synced"}),
-    # Back on the platform; a restored one gone from it meanwhile (told, no longer quiet).
-    "absent": frozenset({"synced", "list", "absent"}),
+MaterialEvent = Literal[
+    "appeared",  # on the platform this round (listed or read on its own), with a body
+    "list",  # on the platform, a page that only lists other things
+    "gone",  # gone from the platform (table 3c)
+    "deleted",  # the user deleted its item in the course files
+    "saved",  # the user saved the platform's file in the course files
+    "restored",  # the user restored one they deleted
+    "released",  # its sync turned off, the user removed what it left
+    "removed",  # the user removed it under "Not syncing for now"
+    "unlinked",  # the course unlinked
+]
+
+# What each event does in each state (table 4a): the state it moves to, or KEEP. A pair left out
+# cannot happen: `enter` refuses it (`Impossible`), and the sync skips that material (table 5b).
+KEEP = "keep"
+NEXT: dict[tuple[MaterialState | None, MaterialEvent], MaterialState | Literal["keep"]] = {
+    (None, "appeared"): "synced",
+    (None, "list"): "list",
+    (None, "saved"): "synced",
+    ("synced", "appeared"): KEEP,
+    ("synced", "list"): "list",
+    ("synced", "gone"): "absent",
+    ("synced", "deleted"): "dismissed",
+    ("synced", "saved"): KEEP,
+    ("synced", "released"): "absent",
+    ("synced", "removed"): "dismissed",
+    ("synced", "unlinked"): "absent",
+    ("list", "appeared"): "synced",
+    ("list", "list"): KEEP,
+    ("list", "gone"): "absent",
+    ("dismissed", "appeared"): KEEP,
+    ("dismissed", "list"): KEEP,
+    ("dismissed", "saved"): "synced",
+    ("dismissed", "restored"): "absent",
+    # Restored, then gone from the platform before it came in: told, no longer quiet. Only a
+    # restored one (`quiet`) is judged, as a dismissed one is not (`material_reads.judge`).
+    ("absent", "gone"): "absent",
+    ("absent", "appeared"): "synced",
+    ("absent", "list"): "list",
+    ("absent", "saved"): "synced",
 }
+
+
+class Impossible(RuntimeError):
+    """An event table 4a says cannot happen in the material's state."""
 
 
 def _forget_applied(mat: LmsMaterial) -> None:
@@ -49,13 +106,13 @@ def _forget_applied(mat: LmsMaterial) -> None:
 
 def enter(
     mat: LmsMaterial,
-    state: MaterialState,
+    event: MaterialEvent,
     now: datetime,
     *,
     item_id: str | None = None,
-    quiet: bool = False,
-) -> None:
-    """The material's next state, and what that state holds:
+) -> bool:
+    """Applies one event of table 4a to the material (a row just made is `None`); whether its
+    state changed. What each state holds:
 
     - `synced`: its item `item_id`, nothing applied yet (the caller applies what it read);
     - `list`: no item, nothing applied yet;
@@ -63,11 +120,20 @@ def enter(
       its version (it was the item's, M09 §4.6: read again once);
     - `absent`: nothing applied; `item_id` the user's own file it left, if any (never
       followed); `quiet` when the user restored it."""
-    if state not in NEXT[mat.state]:
-        raise RuntimeError(f"lms material {mat.id}: {mat.state} -> {state}")
+    before = cast(MaterialState | None, mat.state)
+    if (before, event) not in NEXT:
+        raise Impossible(f"lms material {mat.id}: {before} on {event}")
+    state = NEXT[before, event]
+    if state == KEEP:
+        return False
+    if before == "absent" and event == "gone":  # what it left (`item_id`) stays the user's
+        if not mat.quiet:
+            raise Impossible(f"lms material {mat.id}: absent on gone, not restored")
+        mat.quiet, mat.state_at = False, now
+        return True
     if state == "synced" and item_id is None:
-        raise RuntimeError(f"lms material {mat.id}: synced without an item")
-    mat.state, mat.state_at, mat.quiet = state, now, quiet
+        raise Impossible(f"lms material {mat.id}: synced without an item")
+    mat.state, mat.state_at, mat.quiet = state, now, event == "restored"
     mat.item_id = item_id
     if state == "synced":
         mat.imported_at = now
@@ -76,6 +142,7 @@ def enter(
         _forget_applied(mat)
     else:
         mat.version = None
+    return True
 
 
 def note(mat: LmsMaterial, change: MaterialChange, now: datetime) -> None:

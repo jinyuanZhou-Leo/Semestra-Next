@@ -239,10 +239,11 @@ export const assessmentColumns = column.columns([
     sortFn: by((a) => a.weight),
     cell: ({ row }) => <WeightCell a={row.original} />,
   }),
-  column.display({
+  column.accessor((a) => a.score_percentage ?? '', {
     id: 'score',
-    header: () => <span className="block pr-16 text-right">{m.grading_assessment_score()}</span>,
+    header: () => m.grading_assessment_score(),
+    // By the share of the points, so 9/10 sorts above 15/20; ungraded ones go last.
+    sortFn: by((a) => a.score_percentage),
     cell: ({ row }) => <ScoreCell a={row.original} />,
-    enableSorting: false,
   }),
 ])

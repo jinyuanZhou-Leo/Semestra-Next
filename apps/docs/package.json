@@ -1,7 +1,7 @@
 {
   "name": "@semestra/docs",
   "private": true,
-  "version": "2.7.1",
+  "version": "2.7.4",
   "type": "module",
   "scripts": {
     "dev": "node scripts/generate-api.ts && node scripts/generate-changelog.ts && next dev --port 3001",
@@ -18,7 +18,7 @@
     "fumadocs-openapi": "12.5.8",
     "fumadocs-ui": "npm:@fumadocs/base-ui@16.17.10",
     "lucide-react": "1.66.0",
-    "next": "16.4.4",
+    "next": "16.4.6",
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "shiki": "4.6.0"

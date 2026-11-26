@@ -194,22 +194,31 @@ export function PanelMoreList({
   label,
   count,
   action,
+  tone,
+  defaultOpen = false,
   children,
 }: {
   label: string
   count: number
   action?: ReactNode
+  /** An error list's title is red. */
+  tone?: 'error'
+  /** Open when the panel opens: a list the user should see without looking for it. */
+  defaultOpen?: boolean
   children: ReactNode
 }) {
   return (
-    <Collapsible className="flex flex-col">
+    <Collapsible defaultOpen={defaultOpen} className="flex flex-col">
       <div className="flex items-center gap-1">
         <CollapsibleTrigger
           render={
             <Button
               size="xs"
               variant="ghost"
-              className="flex-1 justify-start text-muted-foreground [&[data-panel-open]>svg:first-child]:rotate-90"
+              className={cn(
+                'flex-1 justify-start text-muted-foreground [&[data-panel-open]>svg:first-child]:rotate-90',
+                tone === 'error' && 'text-destructive hover:text-destructive',
+              )}
             />
           }
         >

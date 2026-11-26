@@ -28,9 +28,14 @@
   others even on a server with a single worker.
 * Due jobs run oldest first, except that kinds of a lower `priority` wait for the others: the
   files a course sync brings (hundreds at first) are stored (`priority=-1`) and read (`-2`)
-  after any sync queued since, however few workers there are. Within a priority users take
+  after any sync queued since, however few workers there are; with several workers, one of a
+  lower priority also waits while one of a higher priority of the same user and lanes still
+  runs (`_behind`), so a file is read only once its copy is stored. Within a priority users take
   turns: the user served least lately goes first, so one user's hundreds of jobs never hold
   back another's (`_first`).
+* `job_handler(at_once=n)`: at most n jobs of the kind run at once on the server, whatever the
+  workers of its lane: a lane's workers say how much of its waiting may overlap, and a kind that
+  works the machine (parsing a file) keeps to what its lane promised the others (`_full`).
 * `async with waiting("ai.rate_limited", until=...)` inside a job tells its owner what the job is
   waiting for (`JobOut.waiting`); kept in memory, as it changes too often to be worth a write.
 """
@@ -61,6 +66,7 @@ from sqlalchemy import (
     and_,
     case,
     delete,
+    false,
     func,
     not_,
     or_,
@@ -71,7 +77,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, aliased, mapped_column
 from sqlalchemy.sql import Subquery
 from starlette.datastructures import State
 
@@ -193,6 +199,7 @@ _waits: dict[str, list[JobWaiting]] = {}
 class _Running:
     job_id: str
     notify: Callable[[], Awaitable[None]]
+    lane: Lane = "default"
 
 
 _running: ContextVar[_Running | None] = ContextVar("semestra_running_job", default=None)
@@ -206,6 +213,13 @@ def _waiting_now(job_id: str) -> JobWaiting | None:
 def in_job() -> bool:
     """Whether this code runs inside a job handler (background work may wait longer)."""
     return _running.get() is not None
+
+
+def in_background() -> bool:
+    """Whether this code runs inside a job of the `background` lane: work nobody waits on, which
+    gives way to work someone does where they share something scarce (M09's request gate)."""
+    running = _running.get()
+    return running is not None and running.lane == "background"
 
 
 @contextlib.asynccontextmanager
@@ -324,6 +338,8 @@ class JobHandler:
     labels: str | None = None
     # Due jobs of a higher priority are taken first, whatever their age (default 0).
     priority: int = 0
+    # At most this many of the kind run at once (None: as many as its lane's workers).
+    at_once: int | None = None
 
 
 OnFailure = Callable[[Ctx, Any, "CoreJob"], Awaitable[None]]
@@ -340,6 +356,7 @@ def job_handler(
     listed: bool = True,
     labels: str | None = None,
     priority: int = 0,
+    at_once: int | None = None,
 ) -> Callable[[Callable[[JobCtx, Any], Awaitable[Any]]], Callable[[JobCtx, Any], Awaitable[Any]]]:
     keys = [k for k, _ in stages]
     if len(set(keys)) != len(keys) or any(w <= 0 for _, w in stages):
@@ -369,6 +386,7 @@ def job_handler(
             listed,
             labels,
             priority,
+            at_once,
         )
         return fn
 
@@ -540,11 +558,54 @@ def _kinds(lanes: Iterable[Lane]) -> list[str]:
     return [kind for kind, handler in _handlers.items() if handler.lane in wanted]
 
 
-def _in_lanes(lanes: frozenset[Lane]) -> ColumnElement[bool]:
+def _in_lanes(lanes: frozenset[Lane], kind: Any = None) -> ColumnElement[bool]:
     """Jobs of these lanes (a kind with no handler counts as `default`, as in `_lane`)."""
     if closed := LANES - lanes:
-        return CoreJob.kind.not_in(_kinds(closed))
+        return (CoreJob.kind if kind is None else kind).not_in(_kinds(closed))
     return true()
+
+
+def _priority(kind: Any) -> Any:
+    ranked = {k: h.priority for k, h in _handlers.items() if h.priority}
+    return case(ranked, value=kind, else_=0) if ranked else None
+
+
+def _behind(lanes: frozenset[Lane], now: datetime) -> ColumnElement[bool]:
+    """A job that a running job of the same user and lanes, of a higher priority, holds back:
+    the files a sync brings are read after their copies are stored, not while (M00 §3.7)."""
+    mine = _priority(CoreJob.kind)
+    if mine is None:
+        return false()
+    other = aliased(CoreJob)
+    return (
+        select(other.id)
+        .where(
+            other.status == "running",
+            other.lease_expires_at >= now,
+            other.user_id == CoreJob.user_id,
+            _in_lanes(lanes, other.kind),
+            _priority(other.kind) > mine,
+        )
+        .exists()
+    )
+
+
+def _full(now: datetime) -> ColumnElement[bool]:
+    """A job of a kind that already runs its `at_once` jobs (checked again as it is taken, in
+    the same statement, so two workers never both take the last place)."""
+    full: list[ColumnElement[bool]] = []
+    for kind, handler in _handlers.items():
+        if handler.at_once is None:
+            continue
+        other = aliased(CoreJob)
+        running = (
+            select(func.count())
+            .select_from(other)
+            .where(other.kind == kind, other.status == "running", other.lease_expires_at >= now)
+            .scalar_subquery()
+        )
+        full.append(and_(CoreJob.kind == kind, running >= handler.at_once))
+    return or_(*full) if full else false()
 
 
 def _first(
@@ -713,6 +774,8 @@ class JobRunner:
         due = and_(
             or_(and_(CoreJob.status == "pending", CoreJob.run_after <= now), lapsed),
             _in_lanes(lanes),
+            not_(_behind(lanes, now)),
+            not_(_full(now)),
         )
         async with self.state.session_factory() as db:
             # Most polls find nothing: check with a read first, so an idle worker does not take
@@ -882,7 +945,7 @@ class JobRunner:
                 progress_hook=report,
             )
             try:
-                token = _running.set(_Running(job.id, notify))
+                token = _running.set(_Running(job.id, notify, handler.lane))
                 try:
                     result = await handler.fn(ctx, payload)
                 finally:

@@ -13,6 +13,7 @@ import { FieldError } from '@/ui/field'
 import { useDeleteTargets } from '../actions'
 import { type Target, folderTree, itemsInside, targetName } from '../folders'
 import { invalidateFiles } from '../queries'
+import { InfoDialog } from './InfoDialog'
 import { MoveDialog } from './MoveDialog'
 import { NameDialog } from './NameDialog'
 
@@ -23,6 +24,7 @@ export type ItemAction =
   | { kind: 'delete'; targets: Target[] }
   | { kind: 'new-folder'; parentId: string | null }
   | { kind: 'new-link'; folderId: string | null }
+  | { kind: 'info'; target: Target }
 
 /** Whether the dialog is open, and the page's hook to forget the action once it has closed. */
 type Shown = { open: boolean; onOpenChangeComplete: (open: boolean) => void }
@@ -134,6 +136,18 @@ export function ItemDialogs({
   }
   if (!action) return null
 
+  if (action.kind === 'info') {
+    // The list refreshes under the dialog (a rename, a file's dates), so it shows the latest.
+    const { target } = action
+    const latest: Target =
+      target.type === 'item'
+        ? { type: 'item', item: items.find((i) => i.id === target.item.id) ?? target.item }
+        : {
+            type: 'folder',
+            folder: folders.find((f) => f.id === target.folder.id) ?? target.folder,
+          }
+    return <InfoDialog target={latest} folders={folders} items={items} onClose={close} {...shown} />
+  }
   if (action.kind === 'move')
     return (
       <MoveDialog

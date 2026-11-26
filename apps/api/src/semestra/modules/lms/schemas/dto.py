@@ -148,6 +148,10 @@ class Attachment(BaseModel):
     # Provider-internal download location (Canvas's carries the file's verifier, so it opens
     # where the course's files are hidden); never sent to clients.
     download_url: str | None = Field(default=None, exclude=True)
+    # When the file last changed, the same fields as a file's (`FileMeta`): the version of the
+    # material it is (M09 §4.6, `materials.file_version`). Kept in the mirror, not sent.
+    updated_at: datetime | None = Field(default=None, exclude=True)
+    content_at: datetime | None = Field(default=None, exclude=True)
 
 
 class Announcement(Dto):

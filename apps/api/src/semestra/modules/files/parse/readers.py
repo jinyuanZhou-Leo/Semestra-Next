@@ -8,7 +8,7 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, cast
 
-from semestra.modules.files.parse.detect import Detected, decode_text
+from semestra.modules.files.parse.detect import KIND_OF_MIME, Detected, decode_text
 
 MAX_PAGES = 500
 OCR_MIN_CHARS = 50
@@ -19,7 +19,35 @@ MAX_TABLE_COLUMNS = 100
 # Office files are zip archives; the readers inflate whole XML parts, so a small file that
 # unpacks to hundreds of megabytes is refused before it is opened.
 MAX_OFFICE_UNPACKED_BYTES = 100_000_000
-PARSER_VERSION = "1"
+# Each reader's version: raised when the text a reader writes changes. A document read by an
+# older version of a reader that needs no model is read again (`outdated`); a document read before
+# versions were recorded counts as version 1.
+READER_VERSIONS: dict[str, int] = {"html": 2}
+# Readers whose documents are read again when their version goes up: they never run OCR, so
+# reading again costs no model use beyond embedding.
+REREAD_KINDS = frozenset({"docx", "pptx", "xlsx", "csv", "text", "markdown", "html"})
+
+
+def reader_version(kind: str) -> int:
+    return READER_VERSIONS.get(kind, 1)
+
+
+def fingerprint_reader(kind: str) -> str:
+    """How a document's `parser_fingerprint` starts: the reader and its version (`pipeline`)."""
+    return f"{kind}:{reader_version(kind)}:"
+
+
+def outdated(mime: str | None, fingerprint: str) -> bool:
+    """A document of a file of type `mime` (the item's, once read) was read by an older version
+    of a reader that needs no model: it is to be read again. Who reads it again: the user's own
+    files `jobs.reread_outdated`, a source's files its sync (`sources.read_again_if_outdated`),
+    which reads its platform within its own limits and retries its failures."""
+    kind = KIND_OF_MIME.get(mime or "")
+    if kind not in REREAD_KINDS or reader_version(kind) == 1:
+        return False
+    parts = fingerprint.split(":")
+    read_with = int(parts[1]) if len(parts) == 3 and parts[1].isdigit() else 1
+    return read_with < reader_version(kind)
 
 
 class ParseError(Exception):
@@ -35,6 +63,9 @@ class ParseError(Exception):
 class ParsedPage:
     markdown: str
     needs_ocr: bool = False
+    # The page writes math as LaTeX between `$` / `$$` and a literal dollar as `\$`; only text
+    # written to that rule is, so the app typesets math on these pages only (M07 §6.1).
+    latex: bool = False
 
 
 @dataclass
@@ -297,17 +328,56 @@ def _csv(data: bytes) -> ParsedDocument:
 _HTML_SKIP = ("script", "style", "noscript", "template", "head", "svg", "iframe", "form")
 
 
+_TEX = "application/x-tex"
+
+
 def _html(data: bytes) -> ParsedDocument:
     """HTML as markdown (headings, lists, links, tables) with markdownify, minus what a reader
-    never sees."""
+    never sees. MathML carrying its TeX source (`<annotation encoding="application/x-tex">`, as
+    KaTeX and MathJax output and M09's LMS pages have) is written as LaTeX; the pages of such a
+    document are `latex` and escape every other dollar sign."""
     from bs4 import BeautifulSoup
     from markdownify import MarkdownConverter
 
     soup = BeautifulSoup(decode_text(data) or "", "html.parser")
     for tag in soup(_HTML_SKIP):
         tag.decompose()
-    text = MarkdownConverter(heading_style="ATX", bullets="-").convert_soup(soup)
-    return ParsedDocument(_text_pages(re.sub(r"\n[ \t]*\n(?:[ \t]*\n)+", "\n\n", text)))
+    latex = False
+    for math in soup.find_all("math"):
+        if _tex(math) is None:
+            continue
+        latex = True
+        # KaTeX's output keeps the formula twice: the MathML, and a drawing of it in text
+        # hidden from screen readers (`.katex-html`), which would be read as a second, garbled
+        # copy.
+        katex = math.find_parent(class_="katex")
+        for drawn in katex.select('[aria-hidden="true"]') if katex is not None else []:
+            drawn.decompose()
+
+    class Converter(MarkdownConverter):
+        def convert_math(self, el: Any, text: str, parent_tags: set[str]) -> str:
+            tex = _tex(el)
+            if tex is None:
+                return text
+            if el.get("display") == "block":
+                return f"\n\n$$\n{tex}\n$$\n\n"
+            return f"${tex}$"
+
+        def escape(self, text: str, parent_tags: set[str]) -> str:
+            escaped = super().escape(text, parent_tags)  # pyright: ignore[reportAttributeAccessIssue]
+            return escaped.replace("$", r"\$") if latex else escaped
+
+    text = Converter(heading_style="ATX", bullets="-").convert_soup(soup)
+    pages = _text_pages(re.sub(r"\n[ \t]*\n(?:[ \t]*\n)+", "\n\n", text))
+    for page in pages:
+        page.latex = latex
+    return ParsedDocument(pages)
+
+
+def _tex(math: Any) -> str | None:
+    annotation = math.find("annotation", attrs={"encoding": _TEX})
+    tex = annotation.get_text().strip() if annotation is not None else ""
+    return tex or None
 
 
 def parse(data: bytes, detected: Detected, *, max_pages: int = MAX_PAGES) -> ParsedDocument:

@@ -7,8 +7,6 @@ import {
   Megaphone,
   RefreshCw,
   School,
-  ShieldCheck,
-  Type,
 } from 'lucide-react'
 import { lmsSyncRequest } from '@semestra/api-client'
 import { defineModule, preloadable } from '@/app/extensions'
@@ -53,10 +51,11 @@ import {
   hasAnnouncements,
 } from './announcements'
 import { assignmentHost } from './assignment/AssignmentHost'
-import { bindAction, unbindAction } from './binding/actions'
+import { bindAction, openAction, unbindAction } from './binding/actions'
 import { OpenInPlatform, PlatformMark } from './components/PlatformMark'
 import { CalendarNote } from './sync/CalendarNote'
 import { assignmentTargetsOptions } from './assignment/queries'
+import { progressOf } from './assignment/status'
 import { AssessmentAssignmentCell } from './components/AssessmentAssignment'
 import { prefetchCourseLink, prefetchCourseTools } from './course-info'
 import { taskAssignmentLink } from './components/TaskAssignment'
@@ -104,19 +103,20 @@ const ofCourse = (data: Readonly<Record<string, unknown>>) => [
 const sections = () => import('./settings/sections')
 
 /**
- * The `lms` namespace shows as five sections: background sync, what follows the platform without
- * asking, to-dos, writes, how platform content is shown. Each hides the fields of the others.
+ * The `lms` namespace shows as two sections: General (how often courses sync, what Semestra may
+ * change on the platform, how its content shows) and Assignments (what follows the platform
+ * without asking, the to-dos it completes). Each hides the fields of the other.
  */
 const LMS_FIELDS = {
-  sync: ['sync_every'],
-  follow: ['follow_title', 'follow_due_at', 'follow_weight', 'follow_score'],
-  todos: ['complete_submitted'],
-  writes: ['allow_writes'],
-  display: ['display'],
+  general: ['sync_every', 'allow_writes', 'display'],
+  assignments: [
+    'follow_title',
+    'follow_due_at',
+    'follow_weight',
+    'follow_score',
+    'complete_submitted',
+  ],
 } as const
-const showOnly = (part: keyof typeof LMS_FIELDS) => ({
-  hidden: Object.entries(LMS_FIELDS).flatMap(([key, fields]) => (key === part ? [] : fields)),
-})
 
 const onboardingSteps: readonly OnboardingStep[] = [
   {
@@ -240,15 +240,15 @@ export default defineModule({
       prefetch: settingsPrefetch.connections,
     },
     {
-      id: 'lms-sync',
+      id: 'lms-general',
       level: 'account',
       group: 'lms',
-      title: m.lms_settings_sync,
-      description: m.lms_settings_sync_description,
+      title: m.lms_settings_general,
       icon: RefreshCw,
       order: 20,
       namespace: 'lms',
-      fields: showOnly('sync'),
+      // How often courses sync, what Semestra may change on the platform, how its content shows.
+      fields: { hidden: [...LMS_FIELDS.assignments] },
     },
     {
       id: 'lms-materials',
@@ -271,7 +271,7 @@ export default defineModule({
       order: 30,
       namespace: 'lms',
       // What follows the platform, then the to-do it completes.
-      fields: { hidden: [...LMS_FIELDS.sync, ...LMS_FIELDS.writes, ...LMS_FIELDS.display] },
+      fields: { hidden: [...LMS_FIELDS.general] },
     },
     {
       id: 'lms-notify',
@@ -283,27 +283,6 @@ export default defineModule({
       // The same setting as in Notifications, where it is one of the activity kinds.
       namespace: 'notifications',
       fields: { hidden: hiddenExcept(['lms']) },
-    },
-    {
-      id: 'lms-writes',
-      level: 'account',
-      group: 'lms',
-      title: m.lms_settings_writes,
-      description: m.lms_settings_writes_description,
-      icon: ShieldCheck,
-      order: 40,
-      namespace: 'lms',
-      fields: showOnly('writes'),
-    },
-    {
-      id: 'lms-display',
-      level: 'account',
-      group: 'lms',
-      title: m.lms_settings_display,
-      icon: Type,
-      order: 45,
-      namespace: 'lms',
-      fields: showOnly('display'),
     },
     {
       id: 'program-lms',
@@ -364,7 +343,7 @@ export default defineModule({
     [ONBOARDING_STEPS]: onboardingSteps,
     [TERM_WIZARD_IMPORT_SOURCES]: [wizardCourseSource],
     [ASSESSMENT_IMPORT_SOURCES]: [assignmentSource, syllabusSource],
-    [ASSESSMENT_ACTIONS]: [bindAction, unbindAction],
+    [ASSESSMENT_ACTIONS]: [openAction, bindAction, unbindAction],
     // Only in a gradebook where some assessment is an assignment of the platform (imported, or
     // kept from when it was): each such row opens the assignment's details, or its feedback.
     [ASSESSMENT_COLUMNS]: [
@@ -375,6 +354,13 @@ export default defineModule({
         query: ({ programId }) => assignmentTargetsOptions(programId),
         shownFor: (assessments, targets) =>
           assessments.some((a) => targets?.items.some((t) => t.assessment_id === a.id)),
+        // How the assignment stands on the platform sorts the row into the filters. Not known
+        // when the sync hasn't read the submission yet, or for one kept after unbinding (it no
+        // longer follows the assignment): its due date decides.
+        progress: (assessment, targets) => {
+          const t = targets?.items.find((x) => x.assessment_id === assessment.id && !x.held)
+          return t && t.state !== null ? progressOf(t.state, t.due_state ?? 'none') : undefined
+        },
       },
     ] satisfies AssessmentColumn<AssignmentTargets>[],
     [FIELD_ORIGINS]: [

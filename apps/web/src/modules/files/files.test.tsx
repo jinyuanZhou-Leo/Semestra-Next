@@ -7,14 +7,15 @@ import { type ReactNode, useEffect, useState } from 'react'
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest'
 import type { Scope } from '@/app/extensions'
 import { API, renderWithRouter, server } from '@/test-utils'
-import { highlightHtml, searchTerms, snippetParts } from './highlight'
+import { searchTerms, snippetParts, textRanges } from './highlight'
 import { Citation } from './components/Citation'
 import { DocumentText } from './components/DocumentText'
 import { type Target, canMoveInto, canMoveIntoNewFolder, folderTree } from './folders'
-import { course } from '@/modules/academics/test-data'
+import { academicsHandlers, course, defaultWorld } from '@/modules/academics/test-data'
 import CourseFilesPage from './pages/CourseFilesPage'
 import TermFilesPage from './pages/TermFilesPage'
 import { pageTarget } from './page-target'
+import { PreviewHereContext } from './preview-here'
 import { Toaster } from '@/ui/sonner'
 import { planUpload } from './upload'
 
@@ -197,7 +198,15 @@ beforeEach(() => {
         item_id: params.id,
         display_name: 'syllabus.pdf',
         page_count: 9,
-        pages: [{ page_no: 1, markdown: 'Read from page one', ocr_used: false, citation_id: 'x' }],
+        pages: [
+          {
+            page_no: 1,
+            markdown: 'Read from page one',
+            ocr_used: false,
+            latex: false,
+            citation_id: 'x',
+          },
+        ],
         next_page: null,
         citations: [],
       }),
@@ -555,10 +564,24 @@ test('uploads that cannot fit are refused before sending', () => {
   expect(planUpload([big], { ...usage, quota_bytes: 0, max_upload_bytes: 100 }).room).toBe(true)
 })
 
-test('highlighting escapes file text and marks every match', () => {
-  expect(highlightHtml('<b>Midterm</b> & midterm', ['midterm'])).toBe(
-    '&lt;b&gt;<mark>Midterm</mark>&lt;/b&gt; &amp; <mark>midterm</mark>',
-  )
+test('search terms are found across the elements a layout cut a word into', () => {
+  const root = document.createElement('div')
+  root.innerHTML = '<span>The Mid</span><span>term</span> and <span>midterm</span>'
+  expect(textRanges(root, ['midterm'], { joined: true }).map(String)).toEqual([
+    'Midterm',
+    'midterm',
+  ])
+  // Cells and paragraphs are separate words, and so are lines of a layout.
+  root.innerHTML = '<p>data</p><p>base</p>'
+  expect(textRanges(root, ['database'])).toEqual([])
+  root.innerHTML = '<span>data</span><br /><span>base</span>'
+  expect(textRanges(root, ['database'], { joined: true })).toEqual([])
+  // A formula's hidden MathML copy is not searched; what KaTeX draws is.
+  root.innerHTML =
+    '<span class="katex"><span class="katex-mathml">sin</span><span class="katex-html">sin</span></span>'
+  expect(textRanges(root, ['sin']).map((r) => r.startContainer.parentElement?.className)).toEqual([
+    'katex-html',
+  ])
   expect(searchTerms('midterm, 期中考试 a')).toEqual(['midterm', '期中考试'])
   expect(snippetParts('a <mark>b</mark> c')).toEqual([
     { text: 'a ', marked: false },
@@ -574,9 +597,21 @@ test('a citation names the file and pages and opens the preview there', async ()
   expect(await screen.findByText('PDF page 4')).toBeInTheDocument()
 })
 
+test('beside the preview of its file, a citation turns that preview to its page', async () => {
+  const open = vi.fn<(page: number, terms?: readonly string[]) => void>()
+  renderWithRouter(
+    <PreviewHereContext value={{ itemId: 'i1', open }}>
+      <Citation id="i1:p4-5" terms={['midterm']} />
+    </PreviewHereContext>,
+  )
+  await userEvent.click(await screen.findByRole('button', { name: /syllabus\.pdf\s*pp\. 4–5/ }))
+  expect(open).toHaveBeenCalledWith(4, ['midterm'])
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+})
+
 const openPreview = async () => {
   renderWithRouter(<Citation id="i1:p1-1" />, undefined, { path: '/p/$programId', at: '/p/p1' })
-  await userEvent.click(await screen.findByRole('button', { name: /syllabus\.pdf/ }))
+  await userEvent.click(await screen.findByRole('button', { name: /syllabus\.(pdf|docx)/ }))
   return screen.findByRole('dialog')
 }
 
@@ -595,6 +630,63 @@ test('the preview goes to a heading of the contents or a match of its search', a
   expect(await within(dialog).findByText('PDF page 3')).toBeInTheDocument()
 })
 
+test('Sem opens beside the file, gives way to search results, and is open for the next file', async () => {
+  server.use(
+    http.get(`${API}/ai/status`, () =>
+      HttpResponse.json({
+        items: [{ purpose: 'chat', available: true, source: 'default', model: 'm' }],
+      }),
+    ),
+    http.get(`${API}/agent/suggestions`, () => HttpResponse.json({ items: [] })),
+    http.get(`${API}/agent/skills`, () => HttpResponse.json({ items: [] })),
+    ...academicsHandlers(defaultWorld()),
+  )
+  // A document read as text (the PDF stand-in of these tests redraws without end).
+  const docx = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  items = [item({ display_name: 'syllabus.docx', mime_type: docx })]
+  const dialog = await openPreview()
+  const ask = within(dialog).getByRole('button', { name: 'Ask Sem about this file' })
+  await userEvent.click(ask)
+  const sem = await within(dialog).findByRole('region', { name: 'Sem' }, { timeout: 5000 })
+  expect(ask).toHaveAttribute('aria-pressed', 'true')
+  // Opened by the user just now: the caret is in its input.
+  const first = await within(sem).findByRole('textbox', { name: 'Message' }, { timeout: 5000 })
+  await waitFor(() => expect(first).toHaveFocus())
+
+  // Search results take the right side while there is a search; Sem stays, only hidden.
+  const search = within(dialog).getByRole('searchbox', { name: 'Search this file' })
+  await userEvent.type(search, 'midterm')
+  expect(await within(dialog).findByRole('button', { name: /^Grading\s*p\. 3/ })).toBeVisible()
+  expect(sem).not.toBeVisible()
+  await userEvent.clear(search)
+  await waitFor(() => expect(sem).toBeVisible())
+
+  // Like the contents, it is open the next time a file is previewed.
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Close' }))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  await userEvent.click(screen.getByRole('button', { name: /syllabus\.docx/ }))
+  const again = await screen.findByRole('dialog')
+  const semAgain = await within(again).findByRole('region', { name: 'Sem' })
+  // Open along with the file, it leaves the focus where it was, for reading with the keyboard.
+  const input = await within(semAgain).findByRole('textbox', { name: 'Message' })
+  await act(() => new Promise((resolve) => setTimeout(resolve, 100)))
+  expect(input).not.toHaveFocus()
+  // The conversation's code loads the first time: slower than one test usually takes.
+}, 15_000)
+
+test('Sem waits until a file has been read, and says why', async () => {
+  items = [item({ doc_status: 'processing', page_count: null })]
+  const dialog = await openPreview()
+  const ask = within(dialog).getByRole('button', { name: 'Ask Sem about this file' })
+  expect(ask).toHaveAttribute('aria-disabled', 'true')
+  await userEvent.hover(ask)
+  expect(
+    await screen.findByText('Sem can answer about this file once it has been read', undefined, {
+      timeout: 3000,
+    }),
+  ).toBeInTheDocument()
+})
+
 test("a link in a PDF asks before leaving, like the course's other links", async () => {
   const open = vi.spyOn(window, 'open').mockReturnValue(null)
   const dialog = await openPreview()
@@ -606,41 +698,116 @@ test("a link in a PDF asks before leaving, like the course's other links", async
   open.mockRestore()
 })
 
-test('a PDF can be read as the text Semestra recognized in it', async () => {
+test('a PDF can be read as the text Semestra recognized in it, formulas typeset', async () => {
+  server.use(
+    http.get(`${API}/files/:id/document`, ({ params }) =>
+      HttpResponse.json({
+        item_id: params.id,
+        display_name: 'syllabus.pdf',
+        page_count: 2,
+        pages: [
+          {
+            page_no: 1,
+            markdown: 'Read from page one, where $V = IR$:\n\n$$P = I^2 R$$\n\n```\n$$a$$\n```',
+            ocr_used: true,
+            latex: true,
+            citation_id: 'x',
+          },
+          // Not written to the LaTeX rule: a dollar is a dollar.
+          {
+            page_no: 2,
+            markdown: 'Late fee is $5 and the kit costs $10.',
+            ocr_used: false,
+            latex: false,
+            citation_id: 'y',
+          },
+        ],
+        next_page: null,
+        citations: [],
+      }),
+    ),
+  )
   const dialog = await openPreview()
   await userEvent.click(await within(dialog).findByRole('button', { name: 'Recognized text' }))
-  expect(await within(dialog).findByText('Read from page one')).toBeInTheDocument()
+  expect(await within(dialog).findByText(/Read from page one/)).toBeInTheDocument()
+  // A formula on a line of its own is shown on its own, one in a sentence inline; code stays code.
+  const formulas = within(dialog).getAllByRole('math')
+  expect(formulas.map((f) => [f.textContent, f.closest('.katex-display') !== null])).toEqual([
+    [expect.stringContaining('V=IR'), false],
+    [expect.stringContaining('P=I2R'), true],
+  ])
+  expect(within(dialog).getByText('$$a$$')).toBeInTheDocument()
+  expect(
+    await within(dialog).findByText('Late fee is $5 and the kit costs $10.'),
+  ).toBeInTheDocument()
 })
 
-test('earlier pages of the recognized text stay in view once loaded', async () => {
+/** jsdom has no scrolling or layout; the virtualizer scrolls with `scrollTo` and measures. */
+function scrollable() {
+  const tops = new WeakMap<Element, number>()
+  const original = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop')
+  Object.defineProperty(Element.prototype, 'scrollTop', {
+    get(this: Element) {
+      return tops.get(this) ?? 0
+    },
+    set(this: Element, top: number) {
+      tops.set(this, top)
+    },
+    configurable: true,
+  })
+  Object.defineProperty(Element.prototype, 'scrollTo', {
+    value(this: Element, options: ScrollToOptions) {
+      this.scrollTop = options.top ?? 0
+      this.dispatchEvent(new Event('scroll'))
+    },
+    configurable: true,
+  })
+  // Pages are measured, and every one is as tall as a page is estimated to be.
+  const rect = Element.prototype.getBoundingClientRect
+  Element.prototype.getBoundingClientRect = function (this: Element) {
+    const tall = this.hasAttribute('data-index')
+    return { ...rect.call(this), height: tall ? 360 : 0, width: 700 }
+  }
+  return () => {
+    Element.prototype.getBoundingClientRect = rect
+    Reflect.deleteProperty(Element.prototype, 'scrollTo')
+    if (original) Object.defineProperty(Element.prototype, 'scrollTop', original)
+  }
+}
+
+function serveDocumentText(pageCount: number, fail?: (from: number) => boolean) {
+  const reads: number[] = []
   server.use(
     http.get(`${API}/files/:id/document`, ({ request }) => {
       const url = new URL(request.url)
       const from = Number(url.searchParams.get('page_from'))
-      const to = Math.min(Number(url.searchParams.get('page_to')), 40)
+      reads.push(from)
+      if (fail?.(from)) return HttpResponse.json({ error: { code: 'boom' } }, { status: 500 })
+      const to = Math.min(Number(url.searchParams.get('page_to')), pageCount)
       return HttpResponse.json({
         item_id: 'i1',
         display_name: 'syllabus.pdf',
-        page_count: 40,
+        page_count: pageCount,
         pages: Array.from({ length: to - from + 1 }, (_, n) => ({
           page_no: from + n,
           markdown: `Text of page ${from + n}`,
           ocr_used: false,
+          latex: false,
           citation_id: 'x',
         })),
-        next_page: to < 40 ? to + 1 : null,
+        next_page: to < pageCount ? to + 1 : null,
         citations: [],
       })
     }),
   )
-  const scrolled: string[] = []
-  const spy = vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(function (
-    this: Element,
-  ) {
-    scrolled.push(this.getAttribute('data-page') ?? '')
-  })
+  return reads
+}
+
+test('the recognized text lays out every page and reads only the run being reached', async () => {
+  const reads = serveDocumentText(100)
+  const restore = scrollable()
   function Reader() {
-    const [target, setTarget] = useState(pageTarget(10))
+    const [target, setTarget] = useState(pageTarget(40))
     return (
       <DocumentText
         itemId="i1"
@@ -651,14 +818,32 @@ test('earlier pages of the recognized text stay in view once loaded', async () =
     )
   }
   renderWithRouter(<Reader />)
-  expect(await screen.findByText('Text of page 10')).toBeInTheDocument()
-  await waitFor(() => expect(scrolled).toEqual(['10']))
+  // The run page 40 is in is read, the runs far from the pages shown are not; the page bar knows
+  // all 100 pages, and no button asks for more.
+  expect(await screen.findByText('of 100')).toBeInTheDocument()
+  expect(reads).toContain(31)
+  expect(reads).not.toContain(61)
+  expect(reads).not.toContain(91)
+  expect(screen.getByText('of 100')).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /earlier|later/i })).not.toBeInTheDocument()
+  restore()
+})
 
-  await userEvent.click(screen.getByRole('button', { name: 'Show earlier pages' }))
-  expect(await screen.findByText('Text of page 1')).toBeInTheDocument()
-  await waitFor(() => expect(scrolled.at(-1)).toBe('1'))
-  expect(scrolled).toEqual(['10', '1'])
-  spy.mockRestore()
+test('a run that fails to read shows on its own pages and can be read again', async () => {
+  let broken = true
+  serveDocumentText(100, (from) => broken && from === 31)
+  const restore = scrollable()
+  // Page 30 ends the first run, so the pages shown reach into the next one, which fails.
+  renderWithRouter(
+    <DocumentText itemId="i1" target={pageTarget(30)} terms={[]} onNavigate={() => {}} />,
+  )
+  expect(await screen.findByText('Text of page 30')).toBeInTheDocument()
+  const retry = (await screen.findAllByRole('button', { name: 'Retry' }))[0] as HTMLElement
+  broken = false
+  await userEvent.click(retry)
+  expect(await screen.findByText('Text of page 31')).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
+  restore()
 })
 
 test('the grid shows page images only for PDFs and images, and falls back to the icon', async () => {

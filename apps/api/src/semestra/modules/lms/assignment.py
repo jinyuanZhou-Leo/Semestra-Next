@@ -17,7 +17,7 @@ from semestra.core.context import Ctx
 from semestra.modules.academics import service as academics
 from semestra.modules.academics.models import AcademicsCourse
 from semestra.modules.grading import service as grading
-from semestra.modules.lms import announcements, reads, rules, service
+from semestra.modules.lms import announcements, reads, rules, service, sync_state
 from semestra.modules.lms import assignment_facts as facts
 from semestra.modules.lms.assignment_facts import Facts
 from semestra.modules.lms.errors import lms_error
@@ -197,6 +197,11 @@ async def detail(ctx: Ctx, f: Facts, link: LmsCourseLink | None) -> AssignmentDe
     assessment, task = await _places(ctx, link, f)
     st = state(f)
     mirror = f.source.kind == "mirror" and f.held_for is None
+    stale, submission_as_of = (
+        await sync_state.assignment_behind(ctx, link, f.external_id)
+        if mirror and link is not None
+        else (False, None)
+    )
     return AssignmentDetail.model_validate(
         {
             "provider": f.provider,
@@ -206,7 +211,8 @@ async def detail(ctx: Ctx, f: Facts, link: LmsCourseLink | None) -> AssignmentDe
             "source": f.source.kind,
             "as_of": f.source.as_of,
             "held": f.held_for is not None,
-            "sync_failed": bool(mirror and link and "assignments" in link.sync_errors),
+            "stale": stale,
+            "submission_as_of": submission_as_of,
             "area_hidden": bool(mirror and link and rules.area_closed(link.area_reads, facts.AREA)),
             "assessment": assessment,
             "task": task,
@@ -261,8 +267,9 @@ async def get(
 # --- the gradebook ---------------------------------------------------------------------------
 
 
-def _target(f: Facts, course_id: str, kind: str, target_id: str) -> AssignmentTarget:
+def _target(f: Facts, course_id: str, kind: str, target_id: str, now: datetime) -> AssignmentTarget:
     s = f.submission
+    a = f.assignment
     graded = kind == "assessment"
     return AssignmentTarget(
         course_id=course_id,
@@ -274,7 +281,13 @@ def _target(f: Facts, course_id: str, kind: str, target_id: str) -> AssignmentTa
         missing=bool(s and s.get("missing")),
         late=bool(s and s.get("late")),
         submitted_at=s.get("submitted_at") if s else None,
-        online=rules.submits_online(list(f.assignment.get("submission_types") or [])),
+        online=rules.submits_online(list(a.get("submission_types") or [])),
+        due_state=rules.facts_due_state(a, rules.facts_state(a, s), now),
+        submission_types=list(a.get("submission_types") or []),
+        is_quiz=a.get("quiz_id") is not None,
+        locked=bool(a.get("locked")),
+        lock_explanation=a.get("lock_explanation"),
+        web_url=a.get("web_url"),
     )
 
 
@@ -311,7 +324,13 @@ async def targets(ctx: Ctx, program_id: str) -> AssignmentTargets:
         row = mirror.get((link.id, ref.external_id))
         if row is not None:
             found.append(
-                _target(facts.from_row(row, link), link.course_id, ref.target_kind, ref.target_id)
+                _target(
+                    facts.from_row(row, link),
+                    link.course_id,
+                    ref.target_kind,
+                    ref.target_id,
+                    ctx.now,
+                )
             )
         else:
             # Never read by the sync yet: it opens all the same (the platform is read then).
@@ -327,7 +346,11 @@ async def targets(ctx: Ctx, program_id: str) -> AssignmentTargets:
     for row in rows:
         if row.held_for_kind is not None and row.held_for_id is not None:
             held = _target(
-                facts.from_row(row, None), row.course_id, row.held_for_kind, row.held_for_id
+                facts.from_row(row, None),
+                row.course_id,
+                row.held_for_kind,
+                row.held_for_id,
+                ctx.now,
             )
             held.held = True
             found.append(held)

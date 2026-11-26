@@ -11,6 +11,7 @@ from html import escape
 
 from sqlalchemy import select
 
+from semestra.core import jobs
 from semestra.core.context import Ctx
 from semestra.core.errors import not_found
 from semestra.core.events import Event, events
@@ -18,12 +19,13 @@ from semestra.modules.academics import service as academics
 from semestra.modules.files import register_content_source, sources
 from semestra.modules.files.models import FilesItem
 from semestra.modules.files.source_folders import SourceFolders
-from semestra.modules.lms import reads, rules, service
-from semestra.modules.lms.answers import AREA_HIDDEN, AREA_OF
+from semestra.modules.lms import announcements, reads, service, sync_state
 from semestra.modules.lms.errors import lms_error
+from semestra.modules.lms.html import with_math
 from semestra.modules.lms.materials import enter
-from semestra.modules.lms.models import LmsConnection, LmsCourseLink, LmsItemCheck, LmsMaterial
+from semestra.modules.lms.models import LmsConnection, LmsCourseLink, LmsMaterial
 from semestra.modules.lms.providers.base import get_provider
+from semestra.modules.lms.schemas.dto import FileMeta
 from semestra.modules.lms.schemas.io import HeldMaterials
 from semestra.modules.lms.settings import materials as material_settings
 from semestra.modules.lms.sync import UPDATED, hold
@@ -129,7 +131,8 @@ async def _once(data: bytes) -> AsyncIterator[bytes]:
 
 def page_document(title: str, html: str | None) -> bytes:
     head = f'<!doctype html><html><head><meta charset="utf-8"><title>{escape(title)}</title>'
-    return f"{head}</head><body><h1>{escape(title)}</h1>{html or ''}</body></html>".encode()
+    body = with_math(html) if html else ""
+    return f"{head}</head><body><h1>{escape(title)}</h1>{body}</body></html>".encode()
 
 
 async def open_source(ctx: Ctx, item: FilesItem) -> AsyncIterator[bytes]:
@@ -137,11 +140,26 @@ async def open_source(ctx: Ctx, item: FilesItem) -> AsyncIterator[bytes]:
     document (read fresh, so a changed page is read as it is now)."""
     mat, link = await _material_of(ctx, item)
     if mat.kind == "file":
-        _, stream = await reads.open_file(ctx, link.course_id, mat.external_id)
+        # An announcement carrying it gives the way that opens it where the files are hidden
+        # (M09 §4.6, "公告附件"); else it is read by its id.
+        meta = await announcements.attachment_meta(ctx, link.course_id, mat.external_id)
+        if meta is None and mat.download_url and jobs.in_background():
+            # The sync's own downloads, right after this round listed it: by the address the
+            # listing gave, not read on its own again first. What the user opens is read first
+            # (the platform may have locked it since), as before.
+            meta = FileMeta(
+                external_id=mat.external_id,
+                name=mat.name or mat.title or "",
+                download_url=mat.download_url,
+            )
+        _, stream = await reads.open_file(ctx, link.course_id, mat.external_id, meta=meta)
         return stream
     if mat.kind == "page":
         page = await reads.page(ctx, link.course_id, mat.external_id, refresh=True)
         return _once(page_document(page.title, page.html))
+    if mat.kind == "syllabus":
+        text = await reads.syllabus(ctx, link.course_id, refresh=True)
+        return _once(page_document(mat.title or item.display_name, text.html))
     raise lms_error("lms.not_found")
 
 
@@ -176,7 +194,7 @@ async def on_unlinking(ctx: Ctx, event: Event) -> None:
     # Moved on before the items go, so `on_item_deleting` does not take them as the user's
     # deletes; the rows go with the link right after.
     for mat in mats:
-        enter(mat, "absent", ctx.now)
+        enter(mat, "unlinked", ctx.now)
     await sources.purge_items(ctx, [r for r in rows if not has_copy(r)])
     await sources.detach_from_source(ctx, [r for r in rows if has_copy(r)])
 
@@ -204,7 +222,7 @@ async def on_item_deleting(ctx: Ctx, event: Event) -> None:
     if found is None:
         return
     mat, link = found
-    enter(mat, "dismissed", ctx.now)
+    enter(mat, "deleted", ctx.now)
     await events.publish(ctx, UPDATED, {"program_id": link.program_id})
 
 
@@ -225,7 +243,7 @@ async def restore(ctx: Ctx, material_id: str) -> str:
     await ctx.db.refresh(mat)
     if mat.state != "dismissed" or not await _restorable(ctx, link):
         raise lms_error("lms.sync_nothing_to_resolve")
-    enter(mat, "absent", ctx.now, quiet=True)
+    enter(mat, "restored", ctx.now)
     await sync_queue(ctx, [link], manual=True)
     return link.program_id
 
@@ -251,64 +269,28 @@ async def restore_all(ctx: Ctx, program_id: str) -> None:
         )
         .execution_options(populate_existing=True)
     ):
-        enter(mat, "absent", ctx.now, quiet=True)
+        enter(mat, "restored", ctx.now)
         restored[mat.link_id] = by_id[mat.link_id]
     if restored:
         await sync_queue(ctx, list(restored.values()), manual=True)
 
 
-async def unreadable(
-    ctx: Ctx, links: list[LmsCourseLink]
-) -> list[tuple[LmsMaterial, FilesItem | None]]:
-    """The materials listed under "Not syncing for now" (M09 table 3c, note): of courses whose
-    materials sync, followed (`synced`) or restored and waiting (`absent` with `quiet`), whose
-    last single read was refused since their area is closed, while it still is. With their
-    course file, if any."""
-    links = [li for li in links if (await material_settings(ctx, li.course_id)).sync]
-    by_id = {li.id: li for li in links}
-    if not links:
-        return []
-    ids = [li.id for li in links]
-    held = {
-        (c.link_id, c.kind, c.external_id)
-        for c in await ctx.db.scalars(
-            select(LmsItemCheck).where(
-                LmsItemCheck.user_id == ctx.user_id,
-                LmsItemCheck.link_id.in_(ids),
-                LmsItemCheck.result == "unavailable",
-                LmsItemCheck.reason == AREA_HIDDEN,
-            )
-        )
-    }
-    mats = [
-        m
-        for m in await ctx.db.scalars(
-            select(LmsMaterial)
-            .where(
-                LmsMaterial.user_id == ctx.user_id,
-                LmsMaterial.link_id.in_(ids),
-                (LmsMaterial.state == "synced")
-                | ((LmsMaterial.state == "absent") & LmsMaterial.quiet),
-            )
-            .execution_options(populate_existing=True)
-        )
-        if (m.link_id, m.kind, m.external_id) in held
-        and rules.area_closed(by_id[m.link_id].area_reads, AREA_OF.get(m.kind, "files"))
+async def removable(ctx: Ctx, links: list[LmsCourseLink]) -> list[tuple[LmsMaterial, FilesItem]]:
+    """The materials "Not syncing for now" offers to remove (M09 表 5c, row 9): followed, read
+    from the platform (no copy), refused or hidden by it (`sync_state.Item.removable`)."""
+    syncs = await sync_state.course_syncs(ctx, links)
+    return [
+        (i.material, i.file)
+        for c in syncs.values()
+        for i in c.items
+        if i.removable and i.material is not None and i.file is not None
     ]
-    rows = {r.id: r for r in await sources.find_items(ctx, [m.item_id for m in mats if m.item_id])}
-    return [(m, rows.get(m.item_id or "")) for m in mats]
-
-
-def removable(mat: LmsMaterial, row: FilesItem | None) -> bool:
-    """Only a followed material read from the platform: a saved copy may be the user's only
-    one, so it is never removed from this list (M09 table 3c, note)."""
-    return mat.state == "synced" and row is not None and not has_copy(row)
 
 
 async def _remove(ctx: Ctx, mat: LmsMaterial, row: FilesItem) -> None:
     """Table 4a, "remove in Not syncing for now": dismissed first, so `on_item_deleting` finds
     nothing left to dismiss; then the course file goes."""
-    enter(mat, "dismissed", ctx.now)
+    enter(mat, "removed", ctx.now)
     await sources.purge_items(ctx, [row])
 
 
@@ -321,9 +303,8 @@ async def remove_unreadable(ctx: Ctx, material_id: str) -> str:
     link = await ctx.db.get(LmsCourseLink, mat.link_id)
     assert link is not None
     await hold(ctx, link)
-    found = dict((m.id, row) for m, row in await unreadable(ctx, [link]))
-    row = found.get(mat.id)
-    if mat.id not in found or row is None or not removable(mat, row):
+    row = dict((m.id, row) for m, row in await removable(ctx, [link])).get(mat.id)
+    if row is None:
         raise lms_error("lms.sync_nothing_to_resolve")
     await _remove(ctx, mat, row)
     await events.publish(ctx, UPDATED, {"program_id": link.program_id})
@@ -336,11 +317,10 @@ async def remove_all_unreadable(ctx: Ctx, program_id: str) -> None:
     links = await service.program_links(ctx, program_id)
     if links:
         await hold(ctx, links[0])  # the database's write lock: one for every course
-    found = [(m, row) for m, row in await unreadable(ctx, links) if removable(m, row)]
+    found = await removable(ctx, links)
     if not found:
         raise lms_error("lms.sync_nothing_to_resolve")
     for mat, row in found:
-        assert row is not None
         await _remove(ctx, mat, row)
     await events.publish(ctx, UPDATED, {"program_id": program_id})
 
@@ -416,7 +396,7 @@ async def remove_held(ctx: Ctx, course_id: str | None) -> HeldMaterials:
             continue
         # Before the items go, so `on_item_deleting` does not take them as the user's deletes.
         for mat in mats:
-            enter(mat, "absent", ctx.now)
+            enter(mat, "released", ctx.now)
         await sources.purge_items(ctx, rows)
         await events.publish(ctx, UPDATED, {"program_id": link.program_id})
     return await held(ctx, course_id)
@@ -454,6 +434,12 @@ async def on_store_changing(ctx: Ctx, event: Event) -> None:
         await sources.reset_copy_choices(ctx, await synced_items(ctx, link.id))
 
 
+# The settings that change what the course's materials bring in (M09 §4.6, "设置").
+WAYS_IN = frozenset({"announcement_attachments", "entry_folders", "calendar_links"})
+# Those of them that bring materials in when turned on.
+BRINGING = frozenset({"announcement_attachments", "calendar_links"})
+
+
 @events.subscribe("settings.values.updated")
 async def on_settings_changed(ctx: Ctx, event: Event) -> None:
     """The materials settings of the account or a course changed: turned on, the courses sync
@@ -482,6 +468,13 @@ async def on_settings_changed(ctx: Ctx, event: Event) -> None:
             # What the platform added while off is not news: the next run is quiet again.
             link.materials_settled_at = None
             turned_on.append(link)
+        if changed & WAYS_IN and cfg.sync and link not in turned_on:
+            # What the course's materials bring in changed: the course syncs now, so what it
+            # turns on is there this round (M09 §4.6, "设置"). What a way in turned on brings is
+            # what the platform had all along, not news: that run is quiet, as at first.
+            if any(getattr(cfg, name) for name in changed & BRINGING):
+                link.materials_settled_at = None
+            again.append(link)
         if "store" in changed and cfg.store == "local":
             await sources.apply_copies(
                 ctx,

@@ -1,5 +1,45 @@
 # @semestra/api
 
+## 2.7.4
+
+No changes in this release.
+
+## 2.7.3
+
+### Patch Changes
+
+- 8a9ac7b: <!-- area: canvas -->
+  <!-- en -->
+  Course materials linked only from a course's front page now sync, even when the instructor hides Files and Pages.
+  <!-- zh -->
+  老师隐藏了文件和页面栏目时，只从课程首页链接的资料现在也会同步。
+- 18fb36a: <!-- area: canvas -->
+  <!-- en -->
+  The course syllabus and announcement attachments now sync into course files, along with course files linked from assignments, announcements and calendar events. You can choose which of these come in under Course materials settings.
+  <!-- zh -->
+  课程大纲和公告附件现在会同步到课程文件，作业、公告和日历事件中链接的课程文件也会一并带入。可在课程资料设置中选择要带入哪些。
+
+## 2.7.2
+
+### Patch Changes
+
+- eaed8fe: <!-- area: canvas -->
+  <!-- en -->
+  Courses whose instructor hid the quizzes no longer show their assignments as failing to sync.
+  <!-- zh -->
+  老师关闭了测验栏目的课程，作业同步不再显示失败。
+- 4e67cbb: <!-- area: canvas -->
+  <!-- en -->
+  A problem with one item no longer stops the rest of a course from syncing.
+  <!-- zh -->
+  单项内容出错时，课程的其余内容照常同步。
+- 0f74533: <!-- area: canvas -->
+  <!-- improved -->
+  <!-- en -->
+  The sync status now lists everything not updated from Canvas with the reason and when it was last updated, and shows sync errors separately with an error ID to report. Canvas values Semestra can't hold no longer stop the sync.
+  <!-- zh -->
+  同步状态会列出没能从 Canvas 更新的内容，注明原因和上次更新的时间；同步出错单独列出，可复制错误编号反馈。Canvas 上超出 Semestra 范围的值不再导致同步出错。
+
 ## 2.7.1
 
 ### Patch Changes

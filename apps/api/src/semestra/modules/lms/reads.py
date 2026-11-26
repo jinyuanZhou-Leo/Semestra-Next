@@ -13,7 +13,7 @@ from sqlalchemy import select
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError
 from semestra.modules.academics import service as academics
-from semestra.modules.lms import answers, cache, html, rules, service
+from semestra.modules.lms import answers, cache, html, rules, service, sync_state
 from semestra.modules.lms.answers import STOPPING
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.models import LmsCourseLink, LmsImportedRef
@@ -152,7 +152,9 @@ async def overview(ctx: Ctx, course_id: str, refresh: bool) -> CourseOverview:
     )
     return CourseOverview.model_validate(
         {
-            "link": service.link_out(link, b.row.provider),
+            "link": service.link_out(
+                link, b.row.provider, (await sync_state.states(ctx, [link]))[link.id]
+            ),
             "provider": b.row.provider,
             "provider_name": b.provider.display_name,
             "features": sorted(b.provider.features),
@@ -398,6 +400,8 @@ async def read_many(
                 if exc.code in STOPPING:
                     raise
                 return exc  # about this item only
+            except Exception as exc:
+                return service.provider_failure(b, exc)  # about this item only too
 
     async def run(i: Any) -> list[Any]:
         return await asyncio.gather(*(one(i, n) for n in missing))
@@ -458,13 +462,21 @@ async def quizzes(ctx: Ctx, course_id: str, refresh: bool) -> QuizList:
     return QuizList.model_validate({"items": data, "truncated": truncated})
 
 
-async def syllabus(ctx: Ctx, course_id: str, refresh: bool) -> RichText:
+async def syllabus(
+    ctx: Ctx,
+    course_id: str,
+    refresh: bool,
+    *,
+    linked: tuple[LmsCourseLink, Bound] | None = None,
+) -> RichText:
     async def fetch(b: Bound, i: Any, ext: str) -> Any:
         text = await b.provider.syllabus(i, b.cfg, b.creds, ext)
         text.html = b.clean(text.html, text.web_url, ext)
         return text
 
-    data, *_ = await _read(ctx, course_id, "syllabus", "syllabus", {}, fetch, refresh=refresh)
+    data, *_ = await _read(
+        ctx, course_id, "syllabus", "syllabus", {}, fetch, refresh=refresh, linked=linked
+    )
     return RichText.model_validate(data)
 
 
@@ -535,7 +547,11 @@ async def open_file(
 
     async def begin() -> tuple[AsyncIterator[bytes], bytes]:
         opened = b.provider.open_file(
-            Io(client=client, settings=ctx.settings), b.cfg, b.creds, ext, meta
+            Io(client=client, settings=ctx.settings, gate=service.gate(ctx, b)),
+            b.cfg,
+            b.creds,
+            ext,
+            meta,
         )
         try:
             return opened, await anext(opened)
