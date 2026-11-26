@@ -1,5 +1,32 @@
 # @semestra/web
 
+## 2.7.5
+
+### Patch Changes
+
+- 031c181: <!-- area: files -->
+
+  <!-- en -->
+
+  Ask Sem about a file right beside its preview, with citations that turn to the cited page.
+
+  <!-- zh -->
+
+  预览文件时可以在旁边直接就这份文件向 Sem 提问，点回答里的出处即可翻到对应页面。
+
+- f9cf3ad: <!-- area: grades -->
+  <!-- en -->
+  The gradebook now shows each Canvas assignment's submission status, filters by To do, Awaiting grade and Graded like the Canvas tab, sorts by score, and opens assignments in Canvas; excused assignments no longer count.
+  <!-- zh -->
+  成绩册新增 Canvas 作业的提交状态，可按待完成、待出分、已出分筛选（与 Canvas 页签一致）、按得分排序并在 Canvas 中打开作业；免交的作业不再计入成绩。
+- 3acc5eb: <!-- area: general -->
+  <!-- en -->
+  Clearer, more consistent wording across the app in English and Chinese.
+  <!-- zh -->
+  统一并优化了多处界面文案，中英文表述更清晰一致。
+- Updated dependencies [f9cf3ad]
+  - @semestra/api-client@2.7.5
+
 ## 2.7.4
 
 ### Patch Changes
