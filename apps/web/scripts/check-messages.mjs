@@ -35,14 +35,40 @@ if (unused.length) {
   bad = true
   console.error(`Not used in src: ${unused.join(', ')}`)
 }
-// The Chinese UI keeps these names as they are in English.
-const replaced = { 学业项目: 'Program', 教学班: 'Section', 学习平台: 'LMS' }
+// The Chinese UI keeps these names as they are in English, and uses consistent wording.
+const replaced = {
+  学业项目: 'Program',
+  教学班: 'Section',
+  学习平台: 'LMS',
+  删掉: '删除',
+}
+const en = JSON.parse(readFileSync(new URL('en.json', dir), 'utf8'))
 const zh = JSON.parse(readFileSync(new URL('zh-CN.json', dir), 'utf8'))
+const placeholders = (text) =>
+  [...new Set([...String(text).matchAll(/\{([a-zA-Z0-9_]+)(?:,[^}]*)?\}/g)].map((m) => m[1]))].sort()
+
 for (const [key, text] of Object.entries(zh)) {
+  if (key.startsWith('$') || typeof text !== 'string') continue
   for (const [term, name] of Object.entries(replaced)) {
-    if (typeof text === 'string' && text.includes(term)) {
+    if (text.includes(term)) {
       bad = true
       console.error(`zh-CN.json ${key}: write "${name}", not "${term}"`)
+    }
+  }
+  if (key.startsWith('error_lms_') && text.includes('平台')) {
+    bad = true
+    console.error(`zh-CN.json ${key}: write "LMS", not "平台"`)
+  }
+  if (/[\u4e00-\u9fff]\{|\}[\u4e00-\u9fff]/.test(text)) {
+    bad = true
+    console.error(`zh-CN.json ${key}: add a space between Chinese characters and {placeholder}`)
+  }
+  if (typeof en[key] === 'string') {
+    const enVars = placeholders(en[key])
+    const zhVars = placeholders(text)
+    if (enVars.join(',') !== zhVars.join(',')) {
+      bad = true
+      console.error(`${key}: placeholder mismatch (en: [${enVars}], zh-CN: [${zhVars}])`)
     }
   }
 }

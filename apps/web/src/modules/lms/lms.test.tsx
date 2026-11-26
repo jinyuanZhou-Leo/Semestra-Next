@@ -127,9 +127,7 @@ test('adding a connection sends the form; a rejected token shows and saves nothi
   ).toHaveAttribute('href', 'https://q.utoronto.ca/profile/settings')
   await userEvent.type(within(dialog).getByLabelText('Access token'), 'wrong-token')
   await userEvent.click(save)
-  expect(
-    await within(dialog).findByText("The platform credentials aren't valid"),
-  ).toBeInTheDocument()
+  expect(await within(dialog).findByText("The LMS credentials aren't valid")).toBeInTheDocument()
 
   await userEvent.clear(within(dialog).getByLabelText('Access token'))
   await userEvent.type(within(dialog).getByLabelText('Access token'), '7~abcdefghxy')
@@ -182,7 +180,7 @@ test('school-page sign-in links to Canvas and pastes the callback address', asyn
   await userEvent.click(within(dialog).getByRole('button', { name: 'I understand, continue' }))
   await userEvent.type(within(dialog).getByLabelText('Canvas address'), 'q.utoronto.ca')
   await userEvent.click(within(dialog).getByRole('button', { name: 'Continue' }))
-  const login = await within(dialog).findByRole('button', { name: 'Open Canvas login' })
+  const login = await within(dialog).findByRole('button', { name: 'Open Canvas sign-in' })
   expect(login).toHaveAttribute('href', 'https://q.utoronto.ca/login/oauth2/auth?client_id=1')
   expect(login).toHaveAttribute('target', '_blank')
   await userEvent.click(within(dialog).getByRole('button', { name: 'Continue' }))
@@ -238,7 +236,7 @@ test('school sign-in errors mark the field they are about', async () => {
   await userEvent.type(address, 'q.utoronto.ca')
   expect(address).not.toHaveAttribute('aria-invalid')
   await userEvent.click(within(dialog).getByRole('button', { name: 'Continue' }))
-  await within(dialog).findByRole('button', { name: 'Open Canvas login' })
+  await within(dialog).findByRole('button', { name: 'Open Canvas sign-in' })
   await userEvent.click(within(dialog).getByRole('button', { name: 'Continue' }))
   const pasted = within(dialog).getByLabelText('Address after sign-in')
   await userEvent.type(pasted, 'https://sso.canvaslms.com/canvas/login?code=old')
@@ -288,7 +286,7 @@ test('a failed check that keeps the connection usable still shows on its row', a
   renderWithRouter(<ConnectionsSection />)
   // A short badge, like the AI providers'; the sentence is on hover.
   await userEvent.hover(await screen.findByText('Unreachable'))
-  expect(await screen.findByText("The platform can't be reached right now")).toBeInTheDocument()
+  expect(await screen.findByText("The LMS can't be reached right now")).toBeInTheDocument()
   expect(screen.queryByText('Working')).not.toBeInTheDocument()
 })
 

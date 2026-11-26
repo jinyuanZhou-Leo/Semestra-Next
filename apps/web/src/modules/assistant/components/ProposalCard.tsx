@@ -171,7 +171,7 @@ function changeText(
   const text = formatValue(value, change.field)
   const count = change.count
   if (Array.isArray(value) && count !== undefined && count > value.length) {
-    return m.assistant_value_more({ items: text, more: count - value.length, total: count })
+    return m.assistant_value_more({ items: text, more: count - value.length })
   }
   return text
 }
