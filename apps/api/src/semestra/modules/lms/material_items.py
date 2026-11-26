@@ -11,6 +11,7 @@ from html import escape
 
 from sqlalchemy import select
 
+from semestra.core import jobs
 from semestra.core.context import Ctx
 from semestra.core.errors import not_found
 from semestra.core.events import Event, events
@@ -142,8 +143,10 @@ async def open_source(ctx: Ctx, item: FilesItem) -> AsyncIterator[bytes]:
         # An announcement carrying it gives the way that opens it where the files are hidden
         # (M09 §4.6, "公告附件"); else it is read by its id.
         meta = await announcements.attachment_meta(ctx, link.course_id, mat.external_id)
-        if meta is None and mat.download_url:
-            # The address its listing gave: not read on its own again first.
+        if meta is None and mat.download_url and jobs.in_background():
+            # The sync's own downloads, right after this round listed it: by the address the
+            # listing gave, not read on its own again first. What the user opens is read first
+            # (the platform may have locked it since), as before.
             meta = FileMeta(
                 external_id=mat.external_id,
                 name=mat.name or mat.title or "",

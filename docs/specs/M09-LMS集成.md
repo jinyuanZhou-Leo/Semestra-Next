@@ -163,7 +163,7 @@ lms_imported_refs                    # 平台上的作业与它在 Semestra 里�
   conflicts {字段: {value, raw}}, removed_at?, dismissed_at?, submitted_at?
   UNIQUE(link_id, external_id)   # 一个作业只对应一个 Semestra 对象
 
-lms_materials                        # 课程资料与它在课程文件里的项（§4.6、表 4a）；项对应哪份资料只记在 item_id（#426）；download_url：文件最近一次列出时给的下载地址（2026-11-26，迁移 0076；Canvas 的带文件自己的 verifier、不过期），同步带来的下载（存本地副本、文件处理）直接用它，不再先单独读 files/{id}；为空（升级后第一轮同步之前、从备份恢复后）时照旧先读。不发给客户端、不进备份
+lms_materials                        # 课程资料与它在课程文件里的项（§4.6、表 4a）；项对应哪份资料只记在 item_id（#426）；download_url：同步最近一次读到这个文件时给的下载地址（2026-11-26，迁移 0076；Canvas 的带文件自己的 verifier、不过期），平台上锁定时清空（平台不给地址），只作为公告附件出现时为空（用公告自己的地址）；只有同步带来的下载（background 车道的存本地副本、文件处理，紧跟在列出它的那一轮之后）直接用它，不再先单独读 files/{id}；用户自己打开、预览仍先读文件信息（期间可能被锁定），与以前相同；为空（升级后第一轮同步之前、从备份恢复后）时照旧先读。不发给客户端、不进备份
   id, user_id, link_id, kind ('file'|'page'|'link'), external_id,
   item_id?, title?, version?,        # version 只给没有跟随项的资料（list、dismissed 的页面），跟随中的版本在项的 source_version（§4.6，#426）
   name?, path?, placed_folder_id?,

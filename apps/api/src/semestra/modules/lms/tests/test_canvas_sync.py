@@ -6,9 +6,12 @@ from collections import Counter
 from collections.abc import Awaitable, Callable
 
 import respx
+from fastapi import FastAPI
 from httpx import Request, Response
+from sqlalchemy import select
 
 from semestra.modules.lms.gate import Gate
+from semestra.modules.lms.models import LmsMaterial
 from semestra.modules.lms.tests.conftest import CANVAS, TOKEN, Api, canvas_api
 
 API = f"{CANVAS}/api/v1"
@@ -152,3 +155,28 @@ async def test_reads_someone_waits_for_go_before_background_ones():
     release.set()
     await asyncio.gather(*background, user, second)
     assert order.index("user2") == 3
+
+
+async def test_a_locked_file_keeps_no_download_address(
+    api: Api, mock: respx.MockRouter, app: FastAPI
+):
+    canvas_api(mock)
+    program, course = await _linked(api)
+    await api.sync(program, course)
+
+    async def address() -> str | None:
+        async with app.state.session_factory() as db:
+            return await db.scalar(
+                select(LmsMaterial.download_url).where(LmsMaterial.external_id == "77")
+            )
+
+    assert await address() == f"{CANVAS}/files/77/download?verifier=v"
+    # Locked by the teacher: Canvas lists it without an address.
+    mock.get(f"{API}/courses/101/files").mock(
+        return_value=Response(200, json=[
+            {"id": 77, "display_name": "slides.pdf", "folder_id": 51, "size": 4,
+             "locked_for_user": True},
+        ])
+    )  # fmt: skip
+    await api.sync(program, course)
+    assert await address() is None

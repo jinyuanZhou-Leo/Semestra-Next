@@ -157,7 +157,9 @@ def _seen(mat: LmsMaterial, m: Material) -> None:
         mat.links = m.links
     if m.attached is not None:  # else this run did not read every way in whole: as it was
         mat.attached = m.attached
-    if m.download_url is not None:
+    if m.kind == "file":
+        # As this round gave it: none when it came only as an attachment (opened by the
+        # announcement's own address).
         mat.download_url = m.download_url
 
 
@@ -274,6 +276,10 @@ async def _write(ctx: Ctx, r: _Run) -> bool:
     there = {
         item_id for item_id, key in keys.items() if key in found.given and key not in found.locked
     }
+    # A locked file has no download address on the platform: nor here (it stays as it was).
+    for key in found.locked:
+        if (mat := known.get(key)) is not None:
+            mat.download_url = None
 
     added = 0
     left: set[str] = set()  # items no longer followed: gone, or the page became a list
