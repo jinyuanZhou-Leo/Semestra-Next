@@ -1,5 +1,27 @@
 # @semestra/api
 
+## 2.7.5
+
+### Patch Changes
+
+- 031c181: <!-- area: files -->
+  
+  <!-- en -->
+  Ask Sem about a file right beside its preview, with citations that turn to the cited page.
+  
+  <!-- zh -->
+  预览文件时可以在旁边直接就这份文件向 Sem 提问，点回答里的出处即可翻到对应页面。
+- 6424b46: <!-- area: canvas -->
+  <!-- en -->
+  LMS sync is faster: several courses sync side by side and each course needs fewer requests.
+  <!-- zh -->
+  LMS 同步更快：多门课程可同时同步，每门课需要的请求也更少。
+- f9cf3ad: <!-- area: grades -->
+  <!-- en -->
+  The gradebook now shows each Canvas assignment's submission status, filters by To do, Awaiting grade and Graded like the Canvas tab, sorts by score, and opens assignments in Canvas; excused assignments no longer count.
+  <!-- zh -->
+  成绩册新增 Canvas 作业的提交状态，可按待完成、待出分、已出分筛选（与 Canvas 页签一致）、按得分排序并在 Canvas 中打开作业；免交的作业不再计入成绩。
+
 ## 2.7.4
 
 No changes in this release.

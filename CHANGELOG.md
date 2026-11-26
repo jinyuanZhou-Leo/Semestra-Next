@@ -3,6 +3,15 @@
 Generated from `release-notes/*.json` by `scripts/release.mjs`; do not edit by hand.
 The same notes in Chinese are in the JSON files and on the docs site.
 
+## 2.7.5 (2026-11-26)
+
+### Fixed
+
+- **General:** Clearer, more consistent wording across the app in English and Chinese.
+- **Grades:** The gradebook now shows each Canvas assignment's submission status, filters by To do, Awaiting grade and Graded like the Canvas tab, sorts by score, and opens assignments in Canvas; excused assignments no longer count.
+- **Files:** Ask Sem about a file right beside its preview, with citations that turn to the cited page.
+- **Canvas:** LMS sync is faster: several courses sync side by side and each course needs fewer requests.
+
 ## 2.7.4 (2026-11-24)
 
 ### Fixed
