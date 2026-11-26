@@ -251,6 +251,26 @@ async def test_a_file_picked_again_is_stored_once_and_counted(
     assert [b["attachment_id"] for b in blocks] == [kept["id"], kept["id"]]
 
 
+async def test_conversations_about_a_file_are_listed_by_it(agent: Agent, model: FakeModel):
+    _, course, _ = await agent.course_with_lab()
+    r = await agent.client.post(
+        f"/courses/{course['id']}/files",
+        files=[("files", ("notes.pdf", make_pdf(["x"]), "application/pdf"))],
+    )
+    item = r.json()["items"][0]
+    about, other = await agent.session(), await agent.session()
+    model.then(say("Sure."))
+    await agent.send(
+        about["id"],
+        "read @notes.pdf",
+        references=[{"kind": "file", "id": item["id"], "label": "notes.pdf"}],
+    )
+    model.then(say("Hi."))
+    await agent.send(other["id"], "hello")
+    found = await agent.call("GET", "/agent/sessions", params={"file_id": item["id"]})
+    assert [s["id"] for s in found["items"]] == [about["id"]]
+
+
 async def test_a_file_without_text_says_why(agent: Agent, model: FakeModel):
     _, course, _ = await agent.course_with_lab()
     r = await agent.client.post(

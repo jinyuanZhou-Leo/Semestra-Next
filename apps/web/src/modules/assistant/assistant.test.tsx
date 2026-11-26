@@ -791,7 +791,19 @@ test('/ picks skills and @ refers to a course or file, which works in its term',
 
 const syllabus = { id: 'f1', course_id: 'c2', display_name: 'Syllabus.pdf' } as ItemOut
 
+/** The conversations about a file: the server lists those that referenced it. */
+function aboutFile(sessions: AgentSessionOut[]) {
+  server.use(
+    http.get(`${API}/agent/sessions`, ({ request }) =>
+      HttpResponse.json({
+        items: new URL(request.url).searchParams.get('file_id') === 'f1' ? sessions : [],
+      }),
+    ),
+  )
+}
+
 test('asked about a file, the input starts with it and its question works in its term', async () => {
+  aboutFile([])
   renderWithRouter(<FilePanel item={syllabus} programId="p1" onClose={() => {}} />)
   const input = await messageInput()
   expect(input).toHaveTextContent(/^Syllabus.pdf\s*$/)
@@ -804,14 +816,9 @@ test('asked about a file, the input starts with it and its question works in its
   })
 })
 
-test('a starting point asks about the file and empties the input; reopening shows the conversation', async () => {
-  srv.reply = () => {
-    srv.detail.messages = [
-      msg('u1', 'user', [{ type: 'text', text: 'Summarize the key points of @Syllabus.pdf.' }]),
-      msg('a1', 'assistant', [{ type: 'text', text: 'Three points.' }]),
-    ]
-    return sse([])
-  }
+test('a starting point asks about the file and empties the input only if nothing was added', async () => {
+  aboutFile([])
+  srv.reply = () => sse([])
   const view = renderWithRouter(<FilePanel item={syllabus} programId="p1" onClose={() => {}} />)
   await messageInput()
   await userEvent.click(screen.getByRole('button', { name: 'Summarize' }))
@@ -820,10 +827,25 @@ test('a starting point asks about the file and empties the input; reopening show
     text: 'Summarize the key points of @Syllabus.pdf.',
     references: [{ kind: 'file', id: 'f1', label: 'Syllabus.pdf' }],
   })
-  expect(await screen.findByText('Three points.')).toBeInTheDocument()
-  expect((await messageInput()).textContent).toBe('')
+  await waitFor(async () => expect((await messageInput()).textContent).toBe(''))
   view.unmount()
 
+  // What the user wrote stays for them to send.
+  panel.reset()
+  renderWithRouter(<FilePanel item={syllabus} programId="p1" onClose={() => {}} />)
+  const input = await messageInput()
+  await userEvent.type(input, 'and the labs')
+  await userEvent.click(screen.getByRole('button', { name: 'Practice questions' }))
+  await waitFor(() => expect(srv.sent).toHaveLength(2))
+  expect(input).toHaveTextContent(/^Syllabus.pdf\s*and the labs$/)
+})
+
+test('opened again, the panel shows the latest conversation about the file', async () => {
+  aboutFile([session()])
+  srv.detail.messages = [
+    msg('u1', 'user', [{ type: 'text', text: 'Summarize @Syllabus.pdf' }]),
+    msg('a1', 'assistant', [{ type: 'text', text: 'Three points.' }]),
+  ]
   renderWithRouter(<FilePanel item={syllabus} programId="p1" onClose={() => {}} />)
   expect(await screen.findByText('Three points.')).toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'New conversation' }))

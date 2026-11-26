@@ -22,15 +22,19 @@ export const FILE_ITEM_ACTIONS = 'files.itemActions'
 
 /**
  * Extension point `files.previewPanels` (M07 §6.1): a panel on the right of the file preview,
- * opened by an icon button in its title bar, e.g. M12's "Ask Sem" about the file. The preview
- * remembers, per file, which one was open, so reopening the file brings it back.
+ * opened by an icon button in its title bar, e.g. M12's "Ask Sem" about the file. Like the
+ * contents on the left, whether it is open is remembered (`files.preview_panel`), so the next
+ * file opens with it too.
  */
 export type FilePreviewPanel = {
   id: string
   /** The button's tooltip and the panel's name. */
   label: Message
   icon: LucideIcon
+  /** The files it is offered for at all; others have no button. */
   accepts?: (item: ItemOut) => boolean
+  /** Why it cannot be used for this file now (the button is disabled and says so), or null. */
+  unavailable?: (item: ItemOut) => Message | null
   Panel: ComponentType<{ item: ItemOut; programId: string; onClose: () => void }>
 }
 

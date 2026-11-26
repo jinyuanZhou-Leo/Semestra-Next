@@ -74,7 +74,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { Switch } from '@/ui/switch'
 import { Trace, TraceIcon, TraceLine, TraceTitle } from '@/ui/trace'
 import { conversationDrafts, newConversationKey } from '../drafts'
-import { type MessageReference, type PromptValue, promptDoc, segments } from '../prompt'
+import { type MessageReference, type PromptValue, promptDoc, readPrompt, segments } from '../prompt'
 import { useProgramEntities } from '../scope'
 import {
   buildItems,
@@ -86,7 +86,12 @@ import {
 import type { PauseReason } from '../stream'
 import { useChat } from '../use-chat'
 import { AttachmentSaveMenu } from './AttachmentSaveMenu'
-import { Composer, type ComposerSubmit, type PendingAttachment } from './Composer'
+import {
+  Composer,
+  type ComposerHandle,
+  type ComposerSubmit,
+  type PendingAttachment,
+} from './Composer'
 import { Markdown, preloadMarkdown } from './Markdown'
 import { PromptEditor, type PromptEditorHandle } from './PromptEditor'
 import { ChipCourses, FileRefChip, RefChip } from './RefChip'
@@ -100,7 +105,12 @@ import { Thinking } from './Steps'
 import { IconAction } from '@/components/IconAction'
 
 const MAX_ATTACHMENTS = 10
-const EMPTY_DOC: JSONContent = { type: 'doc', content: [{ type: 'paragraph' }] }
+
+/** The same words and references, whatever spaces are around them. */
+function samePrompt(a: PromptValue, b: PromptValue): boolean {
+  const refs = (p: PromptValue) => p.references.map((r) => `${r.kind}:${r.id}`).join(' ')
+  return a.text.trim() === b.text.trim() && refs(a) === refs(b) && a.compact === b.compact
+}
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
 
 function CopyAction({ text }: { text: string }) {
@@ -481,10 +491,7 @@ export function Conversation({
   const [chosenScope, setChosenScope] = useState<AgentScope | null>(draft.scope ?? null)
   const newScope = chosenScope ?? pageScope
   const [temporaryChoice, setTemporaryChoice] = useState(draft.temporary ?? false)
-  // What the input holds now (read when a starting point is picked, so typing does not render
-  // the conversation), and whether it was emptied after a starting point.
-  const inputDoc = useRef<JSONContent | null>(draft.doc ?? null)
-  const [emptied, setEmptied] = useState(false)
+  const composer = useRef<ComposerHandle>(null)
   const [attachments, setAttachments] = useState<readonly PendingAttachment[]>(
     draft.attachments ?? [],
   )
@@ -821,13 +828,9 @@ export function Conversation({
             onPick={(prompt) => {
               // The input still holds only what it started with (the file): the starting point
               // asks about it already, so the input empties rather than repeating it.
-              const untouched =
-                initialDoc !== undefined &&
-                JSON.stringify(inputDoc.current ?? initialDoc) === JSON.stringify(initialDoc)
-              if (untouched) {
-                inputDoc.current = null
-                conversationDrafts.update(draftKey, { doc: EMPTY_DOC })
-                setEmptied(true)
+              const written = composer.current?.read()
+              if (initialDoc && written && samePrompt(written, readPrompt(initialDoc))) {
+                composer.current?.clear()
               }
               setSent((n) => n + 1)
               void chat.send({ ...prompt, scope: sessionId ? null : newScope, temporary })
@@ -896,7 +899,7 @@ export function Conversation({
           {/* Hidden, not unmounted, while the panel is up: a draft typed meanwhile is kept. */}
           <Reveal shown={waiting.length === 0}>
             <Composer
-              key={emptied ? 'emptied' : 'input'}
+              ref={composer}
               programId={programId}
               generating={chat.generating}
               disabled={!ai.available}
@@ -907,13 +910,8 @@ export function Conversation({
               onStop={() => void chat.stop()}
               onScope={(next) => void changeScope(next)}
               focusInput={focusInput}
-              initialContent={
-                emptied ? null : (draft.doc ?? (sessionId ? null : (initialDoc ?? null)))
-              }
-              onContentChange={(doc) => {
-                inputDoc.current = doc
-                conversationDrafts.update(draftKey, { doc })
-              }}
+              initialContent={draft.doc ?? (sessionId ? null : (initialDoc ?? null))}
+              onContentChange={(doc) => conversationDrafts.update(draftKey, { doc })}
               context={sessionId ? (detail?.context ?? null) : null}
               canCompact={canCompact}
               compacting={chat.compacting}

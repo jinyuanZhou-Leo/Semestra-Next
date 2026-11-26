@@ -1,5 +1,6 @@
 ---
 "@semestra/web": patch
+"@semestra/api": patch
 ---
 
 <!-- area: files -->

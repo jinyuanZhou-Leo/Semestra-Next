@@ -17,6 +17,7 @@ import {
   X,
 } from 'lucide-react'
 import { Suspense, useEffect, useRef, useState } from 'react'
+import { type Message, preload } from '@/app/extensions'
 import { formatHotkey, useHotkey } from '@/app/hotkeys'
 import { useExtensions } from '@/app/registry'
 import { useUiPref } from '@/app/ui-pref'
@@ -67,9 +68,6 @@ import { useContentSearch } from './SearchResults'
 
 /** What to show: a file, optionally a page in it and words to highlight (a search hit). */
 export type PreviewTarget = { itemId: string; page?: number; terms?: readonly string[] }
-
-/** The right panel each file had open when it was last closed (`files.previewPanels`). */
-const openPanels = new Map<string, string>()
 
 function TextPreview({ item, markdown }: { item: ItemOut; markdown: boolean }) {
   const query = useQuery({
@@ -308,6 +306,8 @@ export function PreviewDialog({
     if (unseen) markSeen({ path: { item_id: unseen } })
   }, [unseen, markSeen])
   const [contentsOpen, setContentsOpen] = useUiPref('files.preview_contents', true)
+  // The panel on the right (`files.previewPanels`), open or not like the contents.
+  const [panelId, setPanelId] = useUiPref<string | null>('files.preview_panel', null)
 
   // What the reader is doing in this file; a new target starts over.
   const [view, setView] = useState<View>('original')
@@ -317,9 +317,6 @@ export function PreviewDialog({
   const [selected, setSelected] = useState<string | null>(null)
   // Words a source chip in the panel beside the file points at.
   const [cited, setCited] = useState<readonly string[] | null>(null)
-  const [panelId, setPanelId] = useState(() =>
-    target ? (openPanels.get(target.itemId) ?? null) : null,
-  )
   const [shown, setShown] = useState(target)
   if (target !== shown) {
     setShown(target)
@@ -330,7 +327,6 @@ export function PreviewDialog({
       setPage(target.page ?? 1)
       setSelected(null)
       setCited(null)
-      setPanelId(openPanels.get(target.itemId) ?? null)
     }
   }
   const query = useDebounced(search, 300).trim()
@@ -359,15 +355,21 @@ export function PreviewDialog({
   const panels = useExtensions<FilePreviewPanel>(FILE_PREVIEW_PANELS).filter(
     (p) => data && data.kind === 'file' && programId && (p.accepts?.(data) ?? true),
   )
-  const panel = panels.find((p) => p.id === panelId)
-  const togglePanel = (id: string) => {
-    const next = panelId === id ? null : id
-    if (data) {
-      if (next) openPanels.set(data.id, next)
-      else openPanels.delete(data.id)
+  const panel = panels.find((p) => p.id === panelId && data && !p.unavailable?.(data))
+  const togglePanel = (id: string) => setPanelId(panelId === id ? null : id)
+  // The panel's code loads before it is shown (`preload`), the first time it is opened.
+  const [loaded, setLoaded] = useState<string | null>(null)
+  const shownPanel = panel ?? null
+  useEffect(() => {
+    if (!shownPanel) return
+    let live = true
+    void preload(shownPanel.Panel).then(() => {
+      if (live) setLoaded(shownPanel.id)
+    })
+    return () => {
+      live = false
     }
-    setPanelId(next)
-  }
+  }, [shownPanel])
 
   return (
     <PreviewShell
@@ -400,6 +402,7 @@ export function PreviewDialog({
                 key={p.id}
                 panel={p}
                 open={p === panel}
+                unavailable={data ? (p.unavailable?.(data) ?? null) : null}
                 onClick={() => togglePanel(p.id)}
               />
             ))}
@@ -461,7 +464,7 @@ export function PreviewDialog({
             ) : null}
             {/* Kept, not unmounted, while search results take its place: a reply keeps coming. */}
             {panel && data ? (
-              <div className={cn('flex min-h-0 flex-1 flex-col', searching && 'hidden')}>
+              <div hidden={searching} className="flex min-h-0 flex-1 flex-col">
                 <PreviewHereContext
                   value={{
                     itemId: data.id,
@@ -471,18 +474,23 @@ export function PreviewDialog({
                     },
                   }}
                 >
-                  <panel.Panel
-                    item={data}
-                    programId={programId ?? ''}
-                    onClose={() => togglePanel(panel.id)}
-                  />
+                  {loaded === panel.id ? (
+                    <panel.Panel
+                      // Another file is another conversation: what the panel holds starts over.
+                      key={data.id}
+                      item={data}
+                      programId={programId ?? ''}
+                      onClose={() => togglePanel(panel.id)}
+                    />
+                  ) : null}
                 </PreviewHereContext>
               </div>
             ) : null}
           </>
         ) : null
       }
-      asideClassName={panel ? 'w-[26rem]' : undefined}
+      // Narrower windows narrow the panel down to 20rem; the file scales to what is left.
+      asideClassName={panel ? 'w-[clamp(20rem,32%,26rem)]' : undefined}
     >
       {target ? (
         <AsyncBoundary query={item}>
@@ -508,17 +516,24 @@ export function PreviewDialog({
 function PanelButton({
   panel,
   open,
+  unavailable,
   onClick,
 }: {
   panel: FilePreviewPanel
   open: boolean
+  /** Why it cannot be used for this file now; the tooltip says so. */
+  unavailable: Message | null
   onClick: () => void
 }) {
   return (
     <IconAction
       label={panel.label()}
+      tooltip={unavailable?.()}
       aria-pressed={open}
-      className="aria-pressed:bg-muted"
+      // Focusable while disabled, so the reason stays reachable from the keyboard.
+      disabled={unavailable !== null}
+      focusableWhenDisabled
+      className="aria-pressed:bg-muted aria-disabled:opacity-50"
       onClick={onClick}
     >
       <panel.icon aria-hidden />

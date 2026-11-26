@@ -53,6 +53,16 @@ export default defineModule({
         id: 'assistant',
         label: m.assistant_ask_about_file,
         icon: MessageCircle,
+        // Files Semestra does not read (archives, videos) have nothing for Sem to read.
+        accepts: (item) => item.doc_status !== 'unsupported',
+        // Sem reads a file's text: it has some once a version of the file has been read (its
+        // page count comes from that), also while a newer one is read again.
+        unavailable: (item) =>
+          item.page_count !== null
+            ? null
+            : item.doc_status === 'failed'
+              ? m.assistant_file_unreadable
+              : m.assistant_file_not_read,
         Panel: preloadable(() => import('./components/FilePanel')),
       } satisfies FilePreviewPanel,
     ],

@@ -30,13 +30,6 @@ let pageOpen = false
 let returnTo: string | null = null
 const listeners = new Set<() => void>()
 
-/**
- * The conversation each file was last asked about in its preview (`FilePanel`), so reopening the
- * file picks it up again. Like drafts, it lasts while the app is open; the conversation itself
- * is in the history like any other.
- */
-export const fileSessions = new Map<string, string>()
-
 function notify() {
   for (const listener of listeners) listener()
 }
@@ -98,7 +91,6 @@ export const panel = {
   /** A conversation was deleted: nothing goes back to it, and its draft is dropped. */
   forget(sessionId: string) {
     conversationDrafts.forget(sessionId)
-    for (const [item, id] of fileSessions) if (id === sessionId) fileSessions.delete(item)
     if (pageSession === sessionId) assistantPage.show(null)
     if (state.sessionId === sessionId) panel.show(null)
   },
@@ -108,7 +100,6 @@ export const panel = {
     pageSession = null
     pageOpen = false
     returnTo = null
-    fileSessions.clear()
     conversationDrafts.reset()
   },
 }
