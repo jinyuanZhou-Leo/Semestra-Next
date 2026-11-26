@@ -29,7 +29,8 @@ import { useProviderName } from '../providers'
 /**
  * "Import assignments from LMS" (M09 §7.2): tick assignments and import them, the ones worth
  * points into the gradebook (with their to-dos), the others as to-dos; one already a to-do and
- * worth points goes into the gradebook too. Saved at once unless
+ * worth points can be added to the gradebook (`lms.assignment.add_to_gradebook`, in the same
+ * review). Saved at once unless
  * something needs a decision; then the dialog shows the review.
  */
 export function AssignmentPicker({
@@ -88,7 +89,17 @@ function AssignmentList({
   const start = () => {
     setStarting(true)
     setStartError(null)
-    startAssignmentImport(courseId, [...picked])
+    // Ones already to-dos go into the gradebook; the rest are imported.
+    const asTasks = new Set(
+      (assignments.data?.items ?? [])
+        .filter((a) => a.imported_as?.kind === 'task')
+        .map((a) => a.external_id),
+    )
+    startAssignmentImport(
+      courseId,
+      [...picked].filter((x) => !asTasks.has(x)),
+      [...picked].filter((x) => asTasks.has(x)),
+    )
       .then(startedSession)
       .then(onStarted, (error: unknown) => {
         setStartError(errorMessage(error))

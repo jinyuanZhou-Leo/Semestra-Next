@@ -24,9 +24,11 @@ export function filterLabel(filter: AssessmentFilter): string {
 }
 
 /**
- * Where the user is with an assessment: graded once it has a score; else as the platform it
- * comes from says (`platform`, undefined when it comes from none; null: in no filter, e.g.
- * excused); else by its due date: to do until then (or without one), waiting for a grade after.
+ * Where the user is with an assessment: graded once it has a score, and only then; else as the
+ * platform it comes from says (`platform`, undefined when it is not known; null: in no filter,
+ * e.g. excused), where a grade the gradebook doesn't have yet (not followed, or waiting for the
+ * user's answer) is still awaited; else by its due date: to do until then (or without one),
+ * waiting for a grade after.
  */
 export function progressOf(
   a: Assessment,
@@ -34,6 +36,7 @@ export function progressOf(
   now: number,
 ): Progress | null {
   if (a.status === 'graded') return 'graded'
+  if (platform === 'graded') return 'awaiting'
   if (platform !== undefined) return platform
   return a.due_at === null || Date.parse(a.due_at) > now ? 'todo' : 'awaiting'
 }

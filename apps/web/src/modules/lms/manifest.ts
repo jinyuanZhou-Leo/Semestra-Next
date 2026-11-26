@@ -354,11 +354,12 @@ export default defineModule({
         query: ({ programId }) => assignmentTargetsOptions(programId),
         shownFor: (assessments, targets) =>
           assessments.some((a) => targets?.items.some((t) => t.assessment_id === a.id)),
-        // How the assignment stands on the platform sorts the row into the filters; one kept
-        // after unbinding no longer follows it, so its score and due date do.
+        // How the assignment stands on the platform sorts the row into the filters. Not known
+        // when the sync hasn't read the submission yet, or for one kept after unbinding (it no
+        // longer follows the assignment): its due date decides.
         progress: (assessment, targets) => {
           const t = targets?.items.find((x) => x.assessment_id === assessment.id && !x.held)
-          return t ? progressOf(t.state, t.due_state ?? 'none') : undefined
+          return t && t.state !== null ? progressOf(t.state, t.due_state ?? 'none') : undefined
         },
       },
     ] satisfies AssessmentColumn<AssignmentTargets>[],

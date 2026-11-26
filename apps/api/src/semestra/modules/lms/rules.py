@@ -114,11 +114,18 @@ def merge(name: str, base: Any, ours: Any, theirs: Any, follows: bool) -> Action
     return Action.APPLY if follows else Action.ASK
 
 
+def given(name: str, theirs: Any) -> bool:
+    """Whether the platform gives the field a value. No due date, weight or grade gives none;
+    nor does not excusing: whether an assessment counts is then the user's to decide (a group
+    that drops its lowest scores excuses nothing on the platform)."""
+    return theirs is not None and not (name == "dropped" and not theirs)
+
+
 def diverged(name: str, base: Any, ours: Any, theirs: Any) -> bool:
     """Whether the user set the field apart from the platform value `theirs` and can take that
-    value back. An empty platform value (no due date, weight or grade) is the user's to fill in,
-    so it is never offered (owner 2026-11-12)."""
-    return theirs is not None and merge(name, base, ours, theirs, False) in (
+    value back. A field the platform gives no value is the user's to fill in, so it is never
+    offered (owner 2026-11-12)."""
+    return given(name, theirs) and merge(name, base, ours, theirs, False) in (
         Action.KEEP,
         Action.CONFLICT,
     )

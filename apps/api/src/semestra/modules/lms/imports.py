@@ -217,21 +217,8 @@ def new_assignments(
     listed: dict[str, dict[str, Any]], external_ids: list[str], done: Collection[str]
 ) -> list[dict[str, Any]]:
     """The requested assignments an import creates: still on the LMS and not imported before
-    (M09 §11: importing twice creates one)."""
+    (M09 §11: importing twice creates one). The assistant's card counts the same ones."""
     return [listed[i] for i in dict.fromkeys(external_ids) if i in listed and i not in done]
-
-
-def importable(
-    listed: dict[str, dict[str, Any]], external_ids: list[str], done: dict[str, dict[str, str]]
-) -> list[tuple[dict[str, Any], str]]:
-    """What an import of these assignments creates, with the kind of each: the new ones (an
-    assessment when worth points, else a to-do), and the ones imported as a to-do only that are
-    worth points (an assessment, which takes the to-do over). The assistant's card counts the
-    same ones."""
-    return [
-        (a, "assessment" if worth_points(a) else "task")
-        for a in new_assignments(listed, external_ids, done)
-    ] + [(a, "assessment") for a in to_gradebook(listed, external_ids, done) if worth_points(a)]
 
 
 def to_gradebook(
@@ -248,8 +235,7 @@ def to_gradebook(
 
 async def import_assignments(ctx: Ctx, inp: AssignmentsImportInput) -> ImportStarted:
     """The one import of assignments (M09 §4): those worth points become assessments (each with
-    its to-do, M05), the others to-dos; one imported as a to-do only that is worth points goes
-    into the gradebook (as `add_to_gradebook`). The user reviews it before anything is written."""
+    its to-do, M05), the others to-dos. The user reviews it before anything is written."""
     return await _import(ctx, inp.course_id, inp.external_ids, gradebook=False)
 
 
@@ -270,7 +256,10 @@ async def _import(
     picked = (
         [(a, "assessment") for a in to_gradebook(by_id, external_ids, done)]
         if gradebook
-        else importable(by_id, external_ids, done)
+        else [
+            (a, "assessment" if worth_points(a) else "task")
+            for a in new_assignments(by_id, external_ids, done)
+        ]
     )
     if not picked:
         raise AppError("import.no_content", 422)

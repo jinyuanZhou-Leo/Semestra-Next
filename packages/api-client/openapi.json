@@ -12171,7 +12171,7 @@
           "lms"
         ],
         "summary": "Import a linked course's assignments: worth points into the gradebook, else as tasks.",
-        "description": "Assignments from lms.assignment.list (`ref`s). With `into` auto (default),\nthose worth points become assessments (each gets its task), the others tasks; ones imported\nbefore are left out, except one imported as a task only and worth points, which becomes an\nassessment and keeps its to-do. With `into` gradebook, assignments imported as tasks\n(`imported_as.kind` task) become assessments and keep their to-do. The user reviews it, then\ncommit it like any import (imports.session.commit).",
+        "description": "Assignments from lms.assignment.list (`ref`s). With `into` auto (default),\nthose worth points become assessments (each gets its task), the others tasks; ones imported\nbefore are left out. With `into` gradebook, assignments imported as tasks (`imported_as.kind`\ntask) become assessments and keep their to-do. The user reviews it, then commit it like any import\n(imports.session.commit).",
         "operationId": "lmsAssignmentImport",
         "security": [
           {

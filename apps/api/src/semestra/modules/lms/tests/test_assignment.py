@@ -388,7 +388,7 @@ def test_migration_moves_what_was_kept_into_the_mirror(tmp_path: Path):
     assert rows["a2"][3] is not None
 
 
-async def test_importing_a_to_do_worth_points_again_adds_it_to_the_gradebook(
+async def test_new_assignments_and_to_dos_added_to_the_gradebook_are_reviewed_together(
     api: Api, fake: FakeProvider
 ):
     fake.course_assignments["101"].append(
@@ -396,15 +396,19 @@ async def test_importing_a_to_do_worth_points_again_adds_it_to_the_gradebook(
     )
     program_id, course = await _course(api, "a9")
     [reading] = (await api.call("GET", f"/programs/{program_id}/tasks"))["items"]
-    # The teacher gives it points; the gradebook's import takes it like a new one.
     fake.course_assignments["101"][-1] = fake.course_assignments["101"][-1].model_copy(
         update={"points": 5}
     )
+    # The import leaves an imported to-do out; adding it to the gradebook is its own step.
     started = await api.call(
-        "POST", f"/courses/{course}/lms/imports:assignments", json={"external_ids": ["a9"]}
+        "POST", f"/courses/{course}/lms/imports:assignments", json={"external_ids": ["a2", "a9"]}
     )
+    added = await api.call(
+        "POST", f"/courses/{course}/lms/imports:gradebook", json={"external_ids": ["a9"]}
+    )
+    assert added["session_id"] == started["session_id"]
     await api.commit(started["session_id"])
-    graded = (await _assessments(api, course))["a9"]
-    # The same to-do, now the assessment's.
+    graded = await _assessments(api, course)
+    assert {"a2", "a9"} <= graded.keys()
     tasks = (await api.call("GET", f"/programs/{program_id}/tasks"))["items"]
-    assert [(t["id"], t["assessment_id"]) for t in tasks] == [(reading["id"], graded["id"])]
+    assert (reading["id"], graded["a9"]["id"]) in [(t["id"], t["assessment_id"]) for t in tasks]

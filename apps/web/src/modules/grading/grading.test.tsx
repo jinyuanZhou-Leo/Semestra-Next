@@ -531,6 +531,17 @@ test('the submission column and the filters follow the platform, else the due da
       lms('a1', 'Lab 1', '91'),
       lms('a2', 'Lab 2', '92'),
       lms('a3', 'Lab 3', '93'),
+      // Graded on the platform, but the score isn't in the gradebook yet.
+      lms('a7', 'Lab 4', '94'),
+      // The sync hasn't read the submission yet: its due date decides.
+      assessment({
+        id: 'a8',
+        title: 'Lab 5',
+        weight: 10,
+        source_kind: 'lms',
+        source_ref: '95',
+        due_at: new Date(Date.now() + 3 * day).toISOString(),
+      }),
       assessment({
         id: 'a4',
         title: 'Essay',
@@ -566,6 +577,8 @@ test('the submission column and the filters follow the platform, else the due da
           },
           { ...target, assignment_id: '92', assessment_id: 'a2', state: 'missing', marks: [] },
           { ...target, assignment_id: '93', assessment_id: 'a3', state: 'excused', marks: [] },
+          { ...target, assignment_id: '94', assessment_id: 'a7', state: 'graded', marks: [] },
+          { ...target, assignment_id: '95', assessment_id: 'a8', state: null, marks: [] },
         ],
       }),
     ),
@@ -578,18 +591,18 @@ test('the submission column and the filters follow the platform, else the due da
   expect(within(screen.getByText('Lab 2').closest('tr')!).getByText('Missing')).toBeInTheDocument()
 
   const shown = () =>
-    ['Lab 1', 'Lab 2', 'Lab 3', 'Essay', 'Midterm', 'Final exam'].filter((t) =>
+    ['Lab 1', 'Lab 2', 'Lab 3', 'Lab 4', 'Lab 5', 'Essay', 'Midterm', 'Final exam'].filter((t) =>
       screen.queryByText(t),
     )
   await userEvent.click(screen.getByRole('button', { name: 'To do' }))
-  expect(shown()).toEqual(['Lab 2', 'Essay'])
+  expect(shown()).toEqual(['Lab 2', 'Lab 5', 'Essay'])
   await userEvent.click(screen.getByRole('button', { name: 'Awaiting grade' }))
-  expect(shown()).toEqual(['Lab 1', 'Midterm'])
+  expect(shown()).toEqual(['Lab 1', 'Lab 4', 'Midterm'])
   await userEvent.click(screen.getByRole('button', { name: 'Graded' }))
   expect(shown()).toEqual(['Final exam'])
   // Excused is in no filter but All.
   await userEvent.click(screen.getByRole('button', { name: 'All' }))
-  expect(shown()).toHaveLength(6)
+  expect(shown()).toHaveLength(8)
 })
 
 // Like the other number columns, highest first.
