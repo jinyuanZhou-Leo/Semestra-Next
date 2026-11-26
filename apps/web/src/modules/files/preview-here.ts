@@ -5,7 +5,10 @@ import { createContext, use } from 'react'
  * (`Citation`) of that file inside the preview (e.g. in Sem's answer beside it) turns its page
  * instead of opening a second preview.
  */
-export type PreviewHere = { itemId: string; open: (page: number, terms?: readonly string[]) => void }
+export type PreviewHere = {
+  itemId: string
+  open: (page: number, terms?: readonly string[]) => void
+}
 
 export const PreviewHereContext = createContext<PreviewHere | null>(null)
 

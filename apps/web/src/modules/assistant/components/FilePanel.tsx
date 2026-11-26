@@ -8,17 +8,11 @@ import { m } from '@/paraglide/messages'
 import { conversationDrafts } from '../drafts'
 import { chipNode, type MessageReference } from '../prompt'
 import { usePageScope } from '../scope'
+import { fileSessions } from '../store'
 import { sessionQueryOptions } from '../use-chat'
 import { Conversation } from './Conversation'
 import { sessionTitle } from './SessionList'
 import type { PromptStarter } from './SuggestionChips'
-
-/**
- * The conversation each file was last asked about, so reopening the file picks it up again.
- * Like drafts (`drafts.ts`), it lasts while the app is open; the conversation itself is in the
- * history like any other.
- */
-const fileSessions = new Map<string, string>()
 
 const draftKey = (itemId: string) => `file:${itemId}`
 

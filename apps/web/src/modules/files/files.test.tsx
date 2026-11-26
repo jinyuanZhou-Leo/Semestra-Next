@@ -15,6 +15,7 @@ import { course } from '@/modules/academics/test-data'
 import CourseFilesPage from './pages/CourseFilesPage'
 import TermFilesPage from './pages/TermFilesPage'
 import { pageTarget } from './page-target'
+import { PreviewHereContext } from './preview-here'
 import { Toaster } from '@/ui/sonner'
 import { planUpload } from './upload'
 
@@ -594,6 +595,18 @@ test('a citation names the file and pages and opens the preview there', async ()
   const chip = await screen.findByRole('button', { name: /syllabus\.pdf\s*pp\. 4–5/ })
   await userEvent.click(chip)
   expect(await screen.findByText('PDF page 4')).toBeInTheDocument()
+})
+
+test('beside the preview of its file, a citation turns that preview to its page', async () => {
+  const open = vi.fn<(page: number, terms?: readonly string[]) => void>()
+  renderWithRouter(
+    <PreviewHereContext value={{ itemId: 'i1', open }}>
+      <Citation id="i1:p4-5" terms={['midterm']} />
+    </PreviewHereContext>,
+  )
+  await userEvent.click(await screen.findByRole('button', { name: /syllabus\.pdf\s*pp\. 4–5/ }))
+  expect(open).toHaveBeenCalledWith(4, ['midterm'])
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 })
 
 const openPreview = async () => {

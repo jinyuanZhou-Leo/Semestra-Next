@@ -100,6 +100,7 @@ import { Thinking } from './Steps'
 import { IconAction } from '@/components/IconAction'
 
 const MAX_ATTACHMENTS = 10
+const EMPTY_DOC: JSONContent = { type: 'doc', content: [{ type: 'paragraph' }] }
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
 
 function CopyAction({ text }: { text: string }) {
@@ -480,6 +481,10 @@ export function Conversation({
   const [chosenScope, setChosenScope] = useState<AgentScope | null>(draft.scope ?? null)
   const newScope = chosenScope ?? pageScope
   const [temporaryChoice, setTemporaryChoice] = useState(draft.temporary ?? false)
+  // What the input holds now (read when a starting point is picked, so typing does not render
+  // the conversation), and whether it was emptied after a starting point.
+  const inputDoc = useRef<JSONContent | null>(draft.doc ?? null)
+  const [emptied, setEmptied] = useState(false)
   const [attachments, setAttachments] = useState<readonly PendingAttachment[]>(
     draft.attachments ?? [],
   )
@@ -814,6 +819,16 @@ export function Conversation({
             starters={starters}
             disabled={chat.generating || !ai.available}
             onPick={(prompt) => {
+              // The input still holds only what it started with (the file): the starting point
+              // asks about it already, so the input empties rather than repeating it.
+              const untouched =
+                initialDoc !== undefined &&
+                JSON.stringify(inputDoc.current ?? initialDoc) === JSON.stringify(initialDoc)
+              if (untouched) {
+                inputDoc.current = null
+                conversationDrafts.update(draftKey, { doc: EMPTY_DOC })
+                setEmptied(true)
+              }
               setSent((n) => n + 1)
               void chat.send({ ...prompt, scope: sessionId ? null : newScope, temporary })
             }}
@@ -881,6 +896,7 @@ export function Conversation({
           {/* Hidden, not unmounted, while the panel is up: a draft typed meanwhile is kept. */}
           <Reveal shown={waiting.length === 0}>
             <Composer
+              key={emptied ? 'emptied' : 'input'}
               programId={programId}
               generating={chat.generating}
               disabled={!ai.available}
@@ -891,8 +907,13 @@ export function Conversation({
               onStop={() => void chat.stop()}
               onScope={(next) => void changeScope(next)}
               focusInput={focusInput}
-              initialContent={draft.doc ?? (sessionId ? null : (initialDoc ?? null))}
-              onContentChange={(doc) => conversationDrafts.update(draftKey, { doc })}
+              initialContent={
+                emptied ? null : (draft.doc ?? (sessionId ? null : (initialDoc ?? null)))
+              }
+              onContentChange={(doc) => {
+                inputDoc.current = doc
+                conversationDrafts.update(draftKey, { doc })
+              }}
               context={sessionId ? (detail?.context ?? null) : null}
               canCompact={canCompact}
               compacting={chat.compacting}

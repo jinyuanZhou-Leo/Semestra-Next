@@ -1,4 +1,5 @@
 import type {
+  ItemOut,
   AgentMessageOut,
   AgentScope,
   AgentProposalOut,
@@ -25,6 +26,7 @@ import { API, newQueryClient, renderWithRouter, server } from '@/test-utils'
 import { SidebarProvider } from '@/ui/sidebar'
 import { AssistantPage } from './components/AssistantPage'
 import { Conversation } from './components/Conversation'
+import FilePanel from './components/FilePanel'
 import manifest from './manifest'
 import { panel } from './store'
 import { preloadMarkdown } from './components/Markdown'
@@ -785,6 +787,48 @@ test('/ picks skills and @ refers to a course or file, which works in its term',
     ],
     scope: { program_id: 'p1', term_id: 't2' },
   })
+})
+
+const syllabus = { id: 'f1', course_id: 'c2', display_name: 'Syllabus.pdf' } as ItemOut
+
+test('asked about a file, the input starts with it and its question works in its term', async () => {
+  renderWithRouter(<FilePanel item={syllabus} programId="p1" onClose={() => {}} />)
+  const input = await messageInput()
+  expect(input).toHaveTextContent(/^Syllabus.pdf\s*$/)
+  await userEvent.type(input, 'What is due?{Enter}')
+  await waitFor(() => expect(srv.sent).toHaveLength(1))
+  expect(srv.sent[0]?.body).toMatchObject({
+    text: '@Syllabus.pdf What is due?',
+    references: [{ kind: 'file', id: 'f1', label: 'Syllabus.pdf' }],
+    scope: { program_id: 'p1', term_id: 't2' },
+  })
+})
+
+test('a starting point asks about the file and empties the input; reopening shows the conversation', async () => {
+  srv.reply = () => {
+    srv.detail.messages = [
+      msg('u1', 'user', [{ type: 'text', text: 'Summarize the key points of @Syllabus.pdf.' }]),
+      msg('a1', 'assistant', [{ type: 'text', text: 'Three points.' }]),
+    ]
+    return sse([])
+  }
+  const view = renderWithRouter(<FilePanel item={syllabus} programId="p1" onClose={() => {}} />)
+  await messageInput()
+  await userEvent.click(screen.getByRole('button', { name: 'Summarize' }))
+  await waitFor(() => expect(srv.sent).toHaveLength(1))
+  expect(srv.sent[0]?.body).toMatchObject({
+    text: 'Summarize the key points of @Syllabus.pdf.',
+    references: [{ kind: 'file', id: 'f1', label: 'Syllabus.pdf' }],
+  })
+  expect(await screen.findByText('Three points.')).toBeInTheDocument()
+  expect((await messageInput()).textContent).toBe('')
+  view.unmount()
+
+  renderWithRouter(<FilePanel item={syllabus} programId="p1" onClose={() => {}} />)
+  expect(await screen.findByText('Three points.')).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: 'New conversation' }))
+  expect(await messageInput()).toHaveTextContent(/^Syllabus.pdf\s*$/)
+  expect(screen.queryByText('Three points.')).not.toBeInTheDocument()
 })
 
 test('Chinese punctuation opens the menus, and @ works right after Chinese text', async () => {
