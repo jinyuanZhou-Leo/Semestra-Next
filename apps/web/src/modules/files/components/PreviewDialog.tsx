@@ -17,9 +17,12 @@ import {
   X,
 } from 'lucide-react'
 import { Suspense, useEffect, useRef, useState } from 'react'
+import { type Message, preload } from '@/app/extensions'
 import { formatHotkey, useHotkey } from '@/app/hotkeys'
+import { useExtensions } from '@/app/registry'
 import { useUiPref } from '@/app/ui-pref'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
+import { IconAction } from '@/components/IconAction'
 import { useDebounced } from '@/hooks/use-debounced'
 import { formatBytes } from '@/lib/format'
 import { SEGMENT, SEGMENTED } from '@/lib/segmented'
@@ -49,8 +52,9 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { searchTerms } from '../highlight'
 import { fileKindName, opensInBrowser, previewKind } from '../kinds'
 import { type PageTarget, pageTarget } from '../page-target'
+import { PreviewHereContext } from '../preview-here'
 import { contentUrl, useFileItem } from '../queries'
-import type { FileItemAction } from '../types'
+import { FILE_PREVIEW_PANELS, type FileItemAction, type FilePreviewPanel } from '../types'
 import { DocumentText } from './DocumentText'
 import { FileIcon } from './FileIcon'
 import { ItemActionButton, useItemActions } from './ItemActions'
@@ -302,6 +306,8 @@ export function PreviewDialog({
     if (unseen) markSeen({ path: { item_id: unseen } })
   }, [unseen, markSeen])
   const [contentsOpen, setContentsOpen] = useUiPref('files.preview_contents', true)
+  // The panel on the right (`files.previewPanels`), open or not like the contents.
+  const [panelId, setPanelId] = useUiPref<string | null>('files.preview_panel', null)
 
   // What the reader is doing in this file; a new target starts over.
   const [view, setView] = useState<View>('original')
@@ -309,6 +315,11 @@ export function PreviewDialog({
   const [nav, setNav] = useState<PageTarget>(pageTarget(target?.page ?? 1))
   const [page, setPage] = useState(target?.page ?? 1)
   const [selected, setSelected] = useState<string | null>(null)
+  // Words a source chip in the panel beside the file points at.
+  const [cited, setCited] = useState<readonly string[] | null>(null)
+  // Opened with its button in this preview (not along with the file, because it was open
+  // before): only then does it take the focus, so reading with the keyboard is not interrupted.
+  const [openedHere, setOpenedHere] = useState(false)
   const [shown, setShown] = useState(target)
   if (target !== shown) {
     setShown(target)
@@ -318,6 +329,8 @@ export function PreviewDialog({
       setNav(pageTarget(target.page ?? 1))
       setPage(target.page ?? 1)
       setSelected(null)
+      setCited(null)
+      setOpenedHere(false)
     }
   }
   const query = useDebounced(search, 300).trim()
@@ -336,12 +349,34 @@ export function PreviewDialog({
   const hits = useContentSearch(programId ?? '', searching ? query : '', {
     itemIds: data ? [data.id] : [],
   })
-  const terms = searching ? searchTerms(query) : (target?.terms ?? [])
+  const terms = searching ? searchTerms(query) : (cited ?? target?.terms ?? [])
   const go = (to: number) => setNav(pageTarget(to))
   const openHit = (hit: SearchHit) => {
     setSelected(hit.citation_id)
     go(hit.page_from)
   }
+
+  const panels = useExtensions<FilePreviewPanel>(FILE_PREVIEW_PANELS).filter(
+    (p) => data && data.kind === 'file' && programId && (p.accepts?.(data) ?? true),
+  )
+  const panel = panels.find((p) => p.id === panelId && data && !p.unavailable?.(data))
+  const togglePanel = (id: string) => {
+    setOpenedHere(panelId !== id)
+    setPanelId(panelId === id ? null : id)
+  }
+  // The panel's code loads before it is shown (`preload`), the first time it is opened.
+  const [loaded, setLoaded] = useState<string | null>(null)
+  const shownPanel = panel ?? null
+  useEffect(() => {
+    if (!shownPanel) return
+    let live = true
+    void preload(shownPanel.Panel).then(() => {
+      if (live) setLoaded(shownPanel.id)
+    })
+    return () => {
+      live = false
+    }
+  }, [shownPanel])
 
   return (
     <PreviewShell
@@ -369,6 +404,15 @@ export function PreviewDialog({
               programId={programId ?? ''}
               inBrowser={opensInBrowser(kind)}
             />
+            {panels.map((p) => (
+              <PanelButton
+                key={p.id}
+                panel={p}
+                open={p === panel}
+                unavailable={data ? (p.unavailable?.(data) ?? null) : null}
+                onClick={() => togglePanel(p.id)}
+              />
+            ))}
             <Button
               size="sm"
               nativeButton={false}
@@ -415,15 +459,46 @@ export function PreviewDialog({
       sidebarOpen={contentsOpen}
       onSidebarOpenChange={setContentsOpen}
       aside={
-        searching ? (
-          <PreviewSearchHits
-            hits={hits.data?.results ?? []}
-            loading={hits.isFetching}
-            selected={selected}
-            onOpen={openHit}
-          />
+        searching || (panel && data) ? (
+          <>
+            {searching ? (
+              <PreviewSearchHits
+                hits={hits.data?.results ?? []}
+                loading={hits.isFetching}
+                selected={selected}
+                onOpen={openHit}
+              />
+            ) : null}
+            {/* Kept, not unmounted, while search results take its place: a reply keeps coming. */}
+            {panel && data ? (
+              <div hidden={searching} className="flex min-h-0 flex-1 flex-col">
+                <PreviewHereContext
+                  value={{
+                    itemId: data.id,
+                    open: (to, words) => {
+                      setCited(words ?? null)
+                      go(to)
+                    },
+                  }}
+                >
+                  {loaded === panel.id ? (
+                    <panel.Panel
+                      // Another file is another conversation: what the panel holds starts over.
+                      key={data.id}
+                      item={data}
+                      programId={programId ?? ''}
+                      focusInput={openedHere}
+                      onClose={() => togglePanel(panel.id)}
+                    />
+                  ) : null}
+                </PreviewHereContext>
+              </div>
+            ) : null}
+          </>
         ) : null
       }
+      // Narrower windows narrow the panel down to 20rem; the file scales to what is left.
+      asideClassName={panel ? 'w-[clamp(20rem,32%,26rem)]' : undefined}
     >
       {target ? (
         <AsyncBoundary query={item}>
@@ -442,6 +517,35 @@ export function PreviewDialog({
         </AsyncBoundary>
       ) : null}
     </PreviewShell>
+  )
+}
+
+/** Shows or hides a panel beside the file (`files.previewPanels`), like the contents button. */
+function PanelButton({
+  panel,
+  open,
+  unavailable,
+  onClick,
+}: {
+  panel: FilePreviewPanel
+  open: boolean
+  /** Why it cannot be used for this file now; the tooltip says so. */
+  unavailable: Message | null
+  onClick: () => void
+}) {
+  return (
+    <IconAction
+      label={panel.label()}
+      tooltip={unavailable?.()}
+      aria-pressed={open}
+      // Focusable while disabled, so the reason stays reachable from the keyboard.
+      disabled={unavailable !== null}
+      focusableWhenDisabled
+      className="aria-pressed:bg-muted aria-disabled:opacity-50"
+      onClick={onClick}
+    >
+      <panel.icon aria-hidden />
+    </IconAction>
   )
 }
 

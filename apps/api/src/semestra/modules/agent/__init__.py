@@ -13,6 +13,7 @@ from semestra.modules.agent import (  # noqa: F401  (registers on import)
     attachments,
     capabilities,
     chats,
+    file_sessions,
     labels,
     mcp_changes,
     memory,

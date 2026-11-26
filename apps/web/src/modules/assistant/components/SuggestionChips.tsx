@@ -75,29 +75,56 @@ export function SuggestionChips({
   // Holds the row's height while loading, so the input does not jump.
   if (!data) return <div className="h-8" aria-hidden />
   return (
-    <div className="flex scroll-fade-x scrollbar-none gap-2 overflow-x-auto overscroll-x-contain">
-      {data.items.map((s) => {
+    <PromptStarters
+      starters={data.items.map((s) => {
         const text = wording(s)
-        return (
-          <Button
-            key={s.key}
-            variant="outline"
-            size="sm"
-            className="shrink-0"
-            disabled={disabled}
-            onClick={() =>
-              onPick(
-                asPrompt(
-                  text,
-                  courses.find((c) => c.id === s.course_id),
-                ),
-              )
-            }
-          >
-            {text}
-          </Button>
-        )
+        return {
+          key: s.key,
+          label: text,
+          ...asPrompt(
+            text,
+            courses.find((c) => c.id === s.course_id),
+          ),
+        }
       })}
+      disabled={disabled}
+      onPick={onPick}
+    />
+  )
+}
+
+/** A starting point: its button's words, and the question it sends. */
+export type PromptStarter = {
+  key: string
+  label: string
+  text: string
+  references: MessageReference[]
+}
+
+/** One row of starting points above the input of a new conversation, scrolled sideways. */
+export function PromptStarters({
+  starters,
+  disabled,
+  onPick,
+}: {
+  starters: readonly PromptStarter[]
+  disabled: boolean
+  onPick: (prompt: { text: string; references: MessageReference[] }) => void
+}) {
+  return (
+    <div className="flex scroll-fade-x scrollbar-none gap-2 overflow-x-auto overscroll-x-contain">
+      {starters.map((s) => (
+        <Button
+          key={s.key}
+          variant="outline"
+          size="sm"
+          className="shrink-0"
+          disabled={disabled}
+          onClick={() => onPick({ text: s.text, references: s.references })}
+        >
+          {s.label}
+        </Button>
+      ))}
     </div>
   )
 }

@@ -11,10 +11,11 @@ import { searchTerms, snippetParts, textRanges } from './highlight'
 import { Citation } from './components/Citation'
 import { DocumentText } from './components/DocumentText'
 import { type Target, canMoveInto, canMoveIntoNewFolder, folderTree } from './folders'
-import { course } from '@/modules/academics/test-data'
+import { academicsHandlers, course, defaultWorld } from '@/modules/academics/test-data'
 import CourseFilesPage from './pages/CourseFilesPage'
 import TermFilesPage from './pages/TermFilesPage'
 import { pageTarget } from './page-target'
+import { PreviewHereContext } from './preview-here'
 import { Toaster } from '@/ui/sonner'
 import { planUpload } from './upload'
 
@@ -596,9 +597,21 @@ test('a citation names the file and pages and opens the preview there', async ()
   expect(await screen.findByText('PDF page 4')).toBeInTheDocument()
 })
 
+test('beside the preview of its file, a citation turns that preview to its page', async () => {
+  const open = vi.fn<(page: number, terms?: readonly string[]) => void>()
+  renderWithRouter(
+    <PreviewHereContext value={{ itemId: 'i1', open }}>
+      <Citation id="i1:p4-5" terms={['midterm']} />
+    </PreviewHereContext>,
+  )
+  await userEvent.click(await screen.findByRole('button', { name: /syllabus\.pdf\s*pp\. 4–5/ }))
+  expect(open).toHaveBeenCalledWith(4, ['midterm'])
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+})
+
 const openPreview = async () => {
   renderWithRouter(<Citation id="i1:p1-1" />, undefined, { path: '/p/$programId', at: '/p/p1' })
-  await userEvent.click(await screen.findByRole('button', { name: /syllabus\.pdf/ }))
+  await userEvent.click(await screen.findByRole('button', { name: /syllabus\.(pdf|docx)/ }))
   return screen.findByRole('dialog')
 }
 
@@ -615,6 +628,63 @@ test('the preview goes to a heading of the contents or a match of its search', a
   expect(searches.at(-1)).toMatchObject({ query: 'midterm', item_ids: ['i1'] })
   await userEvent.click(hit)
   expect(await within(dialog).findByText('PDF page 3')).toBeInTheDocument()
+})
+
+test('Sem opens beside the file, gives way to search results, and is open for the next file', async () => {
+  server.use(
+    http.get(`${API}/ai/status`, () =>
+      HttpResponse.json({
+        items: [{ purpose: 'chat', available: true, source: 'default', model: 'm' }],
+      }),
+    ),
+    http.get(`${API}/agent/suggestions`, () => HttpResponse.json({ items: [] })),
+    http.get(`${API}/agent/skills`, () => HttpResponse.json({ items: [] })),
+    ...academicsHandlers(defaultWorld()),
+  )
+  // A document read as text (the PDF stand-in of these tests redraws without end).
+  const docx = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  items = [item({ display_name: 'syllabus.docx', mime_type: docx })]
+  const dialog = await openPreview()
+  const ask = within(dialog).getByRole('button', { name: 'Ask Sem about this file' })
+  await userEvent.click(ask)
+  const sem = await within(dialog).findByRole('region', { name: 'Sem' }, { timeout: 5000 })
+  expect(ask).toHaveAttribute('aria-pressed', 'true')
+  // Opened by the user just now: the caret is in its input.
+  const first = await within(sem).findByRole('textbox', { name: 'Message' }, { timeout: 5000 })
+  await waitFor(() => expect(first).toHaveFocus())
+
+  // Search results take the right side while there is a search; Sem stays, only hidden.
+  const search = within(dialog).getByRole('searchbox', { name: 'Search this file' })
+  await userEvent.type(search, 'midterm')
+  expect(await within(dialog).findByRole('button', { name: /^Grading\s*p\. 3/ })).toBeVisible()
+  expect(sem).not.toBeVisible()
+  await userEvent.clear(search)
+  await waitFor(() => expect(sem).toBeVisible())
+
+  // Like the contents, it is open the next time a file is previewed.
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Close' }))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  await userEvent.click(screen.getByRole('button', { name: /syllabus\.docx/ }))
+  const again = await screen.findByRole('dialog')
+  const semAgain = await within(again).findByRole('region', { name: 'Sem' })
+  // Open along with the file, it leaves the focus where it was, for reading with the keyboard.
+  const input = await within(semAgain).findByRole('textbox', { name: 'Message' })
+  await act(() => new Promise((resolve) => setTimeout(resolve, 100)))
+  expect(input).not.toHaveFocus()
+  // The conversation's code loads the first time: slower than one test usually takes.
+}, 15_000)
+
+test('Sem waits until a file has been read, and says why', async () => {
+  items = [item({ doc_status: 'processing', page_count: null })]
+  const dialog = await openPreview()
+  const ask = within(dialog).getByRole('button', { name: 'Ask Sem about this file' })
+  expect(ask).toHaveAttribute('aria-disabled', 'true')
+  await userEvent.hover(ask)
+  expect(
+    await screen.findByText('Sem can answer about this file once it has been read', undefined, {
+      timeout: 3000,
+    }),
+  ).toBeInTheDocument()
 })
 
 test("a link in a PDF asks before leaving, like the course's other links", async () => {

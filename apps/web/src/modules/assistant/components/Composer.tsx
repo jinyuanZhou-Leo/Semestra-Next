@@ -1,7 +1,14 @@
 import type { AgentScope, ContextUsage } from '@semestra/api-client'
 import type { JSONContent } from '@tiptap/core'
 import { ArrowUp, FileText, Plus, Square, X } from 'lucide-react'
-import { type ReactNode, useDeferredValue, useRef, useState } from 'react'
+import {
+  type ReactNode,
+  type Ref,
+  useDeferredValue,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from 'react'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import {
@@ -29,6 +36,14 @@ export type PendingAttachment = {
   id: string | null
   preview: string | null
   error: string | null
+}
+
+/** What the conversation around the input can ask of it. */
+export type ComposerHandle = {
+  /** What is written now. */
+  read: () => PromptValue
+  /** Empties the input. */
+  clear: () => void
 }
 
 export type ComposerSubmit = {
@@ -62,6 +77,7 @@ function IconButton({
  * stopped.
  */
 export function Composer({
+  ref,
   programId,
   generating,
   disabled,
@@ -79,6 +95,7 @@ export function Composer({
   compacting: compactingNow = false,
   onCompact,
 }: {
+  ref?: Ref<ComposerHandle>
   programId: string | undefined
   generating: boolean
   disabled: boolean
@@ -111,6 +128,11 @@ export function Composer({
   const editorDoc = useRef<JSONContent | null>(initialContent)
   const fileInput = useRef<HTMLInputElement>(null)
   const submitting = useRef(false)
+  useImperativeHandle(ref, () => ({
+    // Before the editor exists (it is created a render later), what it starts with.
+    read: () => editor.current?.read() ?? value,
+    clear: () => editor.current?.setContent(null),
+  }))
 
   // Creating and focusing the editor (ProseMirror) is a long task: the conversation draws first,
   // with a stand-in of the same size, and the editor takes its place in the next render.

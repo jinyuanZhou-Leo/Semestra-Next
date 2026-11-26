@@ -1,5 +1,6 @@
 import { PanelLeft, X } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from '@/ui/dialog'
@@ -11,7 +12,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
  * whose top bar has the name and "PDF document · 2.4 MB", then the file's actions (open, download;
  * the last one primary), then the tools for reading it (view switch, search), then close. Below:
  * an optional contents panel on the left, the file, and an optional panel on the right (search
- * results).
+ * results, or a panel another module adds, such as Sem).
  */
 export function PreviewShell({
   open,
@@ -25,6 +26,7 @@ export function PreviewShell({
   sidebarOpen = false,
   onSidebarOpenChange,
   aside,
+  asideClassName,
   children,
 }: {
   open: boolean
@@ -43,6 +45,8 @@ export function PreviewShell({
   onSidebarOpenChange?: (open: boolean) => void
   /** The right panel, shown while there is something in it (search results). */
   aside?: ReactNode
+  /** The right panel's width, when wider than the search results' (a conversation). */
+  asideClassName?: string
   children: ReactNode
 }) {
   const sidebarLabel = sidebarOpen
@@ -109,7 +113,12 @@ export function PreviewShell({
           ) : null}
           <div className="relative flex min-w-0 flex-1 flex-col bg-muted/50">{children}</div>
           {aside ? (
-            <aside className="flex w-80 shrink-0 flex-col border-l animate-in duration-200 fade-in-0 slide-in-from-right-4">
+            <aside
+              className={cn(
+                'flex w-80 shrink-0 flex-col border-l animate-in duration-200 fade-in-0 slide-in-from-right-4',
+                asideClassName,
+              )}
+            >
               {aside}
             </aside>
           ) : null}
