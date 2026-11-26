@@ -24,6 +24,7 @@ from semestra.modules.lms.schemas.dto import (
     Html,
     LmsCourse,
     LmsFeature,
+    LockText,
     Module,
     ModuleItem,
     NavTab,
@@ -703,6 +704,18 @@ class AssignmentTarget(BaseModel):
         default=False,
         description="No longer follows the assignment: kept as last read (open it with `held_for`)",
     )
+    due_state: DueState = Field(
+        default="none",
+        description="Whether the platform's due date still matters (`rules.due_state`, M09 "
+        "table 3d)",
+    )
+    submission_types: list[str] = Field(
+        default_factory=list, description="How it is handed in on the platform"
+    )
+    is_quiz: bool = Field(default=False, description="A graded quiz")
+    locked: bool = False
+    lock_explanation: LockText = None
+    web_url: WebUrl = Field(default=None, description="The assignment on the platform")
 
     @computed_field(description="Where the user is with it (`rules.assignment_state`); None "
                     "until the sync has read it")  # fmt: skip

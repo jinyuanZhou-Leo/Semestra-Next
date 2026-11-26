@@ -12171,7 +12171,7 @@
           "lms"
         ],
         "summary": "Import a linked course's assignments: worth points into the gradebook, else as tasks.",
-        "description": "Assignments from lms.assignment.list (`ref`s). With `into` auto (default),\nthose worth points become assessments (each gets its task), the others tasks; ones imported\nbefore are left out. With `into` gradebook, assignments imported as tasks (`imported_as.kind`\ntask) become assessments and keep their to-do. The user reviews it, then commit it like any import\n(imports.session.commit).",
+        "description": "Assignments from lms.assignment.list (`ref`s). With `into` auto (default),\nthose worth points become assessments (each gets its task), the others tasks; ones imported\nbefore are left out, except one imported as a task only and worth points, which becomes an\nassessment and keeps its to-do. With `into` gradebook, assignments imported as tasks (`imported_as.kind`\ntask) become assessments and keep their to-do. The user reviews it, then commit it like any import\n(imports.session.commit).",
         "operationId": "lmsAssignmentImport",
         "security": [
           {
@@ -15096,7 +15096,8 @@
                 "title",
                 "due_at",
                 "weight",
-                "score"
+                "score",
+                "dropped"
               ],
               "type": "string",
               "description": "A field asked about, or listed in `different`",
@@ -22919,6 +22920,61 @@
             "title": "Held",
             "description": "No longer follows the assignment: kept as last read (open it with `held_for`)",
             "default": false
+          },
+          "due_state": {
+            "type": "string",
+            "enum": [
+              "none",
+              "upcoming",
+              "past",
+              "overdue"
+            ],
+            "title": "Due State",
+            "description": "Whether the platform's due date still matters (`rules.due_state`, M09 table 3d)",
+            "default": "none"
+          },
+          "submission_types": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Submission Types",
+            "description": "How it is handed in on the platform"
+          },
+          "is_quiz": {
+            "type": "boolean",
+            "title": "Is Quiz",
+            "description": "A graded quiz",
+            "default": false
+          },
+          "locked": {
+            "type": "boolean",
+            "title": "Locked",
+            "default": false
+          },
+          "lock_explanation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lock Explanation",
+            "description": "Why it is locked, as the platform says"
+          },
+          "web_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Web Url",
+            "description": "The assignment on the platform"
           },
           "state": {
             "anyOf": [
@@ -40408,7 +40464,8 @@
               "title",
               "due_at",
               "weight",
-              "score"
+              "score",
+              "dropped"
             ],
             "title": "Field"
           },
@@ -40461,7 +40518,8 @@
               "title",
               "due_at",
               "weight",
-              "score"
+              "score",
+              "dropped"
             ],
             "title": "Field"
           },

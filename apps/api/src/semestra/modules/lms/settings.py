@@ -61,9 +61,9 @@ async def account(ctx: Ctx) -> LmsSettings:
 
 def followed(cfg: LmsSettings) -> frozenset[str]:
     """The fields the sync applies without asking when the user has not changed them."""
-    return frozenset(
-        name for name in ("title", "due_at", "weight", "score") if getattr(cfg, f"follow_{name}")
-    )
+    names = {n for n in ("title", "due_at", "weight", "score") if getattr(cfg, f"follow_{n}")}
+    # Excused or not is part of the grade (M09 §4.1).
+    return frozenset(names | ({"dropped"} if cfg.follow_score else set()))
 
 
 def floor(ctx: Ctx) -> timedelta:

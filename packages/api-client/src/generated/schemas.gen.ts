@@ -2912,6 +2912,61 @@ export const AssignmentTargetSchema = {
             description: 'No longer follows the assignment: kept as last read (open it with `held_for`)',
             default: false
         },
+        due_state: {
+            type: 'string',
+            enum: [
+                'none',
+                'upcoming',
+                'past',
+                'overdue'
+            ],
+            title: 'Due State',
+            description: 'Whether the platform\'s due date still matters (`rules.due_state`, M09 table 3d)',
+            default: 'none'
+        },
+        submission_types: {
+            items: {
+                type: 'string'
+            },
+            type: 'array',
+            title: 'Submission Types',
+            description: 'How it is handed in on the platform'
+        },
+        is_quiz: {
+            type: 'boolean',
+            title: 'Is Quiz',
+            description: 'A graded quiz',
+            default: false
+        },
+        locked: {
+            type: 'boolean',
+            title: 'Locked',
+            default: false
+        },
+        lock_explanation: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Lock Explanation',
+            description: 'Why it is locked, as the platform says'
+        },
+        web_url: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Web Url',
+            description: 'The assignment on the platform'
+        },
         state: {
             anyOf: [
                 {
@@ -20710,7 +20765,8 @@ export const SyncConflictSchema = {
                 'title',
                 'due_at',
                 'weight',
-                'score'
+                'score',
+                'dropped'
             ],
             title: 'Field'
         },
@@ -20764,7 +20820,8 @@ export const SyncDifferenceSchema = {
                 'title',
                 'due_at',
                 'weight',
-                'score'
+                'score',
+                'dropped'
             ],
             title: 'Field'
         },
@@ -25696,6 +25753,61 @@ export const AssignmentTargetWritableSchema = {
             title: 'Held',
             description: 'No longer follows the assignment: kept as last read (open it with `held_for`)',
             default: false
+        },
+        due_state: {
+            type: 'string',
+            enum: [
+                'none',
+                'upcoming',
+                'past',
+                'overdue'
+            ],
+            title: 'Due State',
+            description: 'Whether the platform\'s due date still matters (`rules.due_state`, M09 table 3d)',
+            default: 'none'
+        },
+        submission_types: {
+            items: {
+                type: 'string'
+            },
+            type: 'array',
+            title: 'Submission Types',
+            description: 'How it is handed in on the platform'
+        },
+        is_quiz: {
+            type: 'boolean',
+            title: 'Is Quiz',
+            description: 'A graded quiz',
+            default: false
+        },
+        locked: {
+            type: 'boolean',
+            title: 'Locked',
+            default: false
+        },
+        lock_explanation: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Lock Explanation',
+            description: 'Why it is locked, as the platform says'
+        },
+        web_url: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Web Url',
+            description: 'The assignment on the platform'
         }
     },
     type: 'object',

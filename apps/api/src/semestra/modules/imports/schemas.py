@@ -206,6 +206,10 @@ class AssessmentData(BaseModel):
     points_possible: Annotated[float, Field(gt=0, le=100000)] | None = Field(
         default=None, description="Points possible, with points_earned"
     )
+    dropped: bool = Field(
+        default=False,
+        description="Not counted in the grade (the source excused it)",
+    )
     existing_assessment_id: Id | None = Field(
         default=None,
         description="An assessment of the course made by hand that this item is bound to "

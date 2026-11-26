@@ -75,7 +75,7 @@ from semestra.modules.lms.sync_round import Asked, SyncRound, one_by_one
 from semestra.modules.tasks.models import TasksItem
 
 FIELDS: dict[str, tuple[SyncField, ...]] = {
-    "assessment": ("title", "due_at", "weight", "score"),
+    "assessment": ("title", "due_at", "weight", "score", "dropped"),
     "task": ("title", "due_at"),
 }
 
@@ -100,7 +100,13 @@ def _assessment_values(row: GradingAssessment, tz: ZoneInfo) -> dict[str, Any]:
         score = {"score_percentage": row.score_percentage}
     else:
         score = None
-    return {"title": row.title, "due_at": due, "weight": row.weight, "score": score}
+    return {
+        "title": row.title,
+        "due_at": due,
+        "weight": row.weight,
+        "score": score,
+        "dropped": row.dropped,
+    }
 
 
 def _task_values(row: TasksItem) -> dict[str, Any]:
@@ -487,6 +493,7 @@ async def _one(
                 platform = snapshot(a, (await s.weights.get()).get(ext))
                 if ref.target_kind != "assessment":
                     platform.pop("score", None)
+                    platform.pop("dropped", None)
                 follow = await s.follow.get()
                 out.applied += await _follow(ctx, ref, platform, local, tz, str(a["name"]), follow)
                 out.pending += len(ref.conflicts)

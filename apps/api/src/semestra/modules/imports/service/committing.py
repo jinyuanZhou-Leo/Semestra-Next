@@ -236,6 +236,7 @@ async def _write_assessment(c: _Commit, item: ImportsItem) -> dict[str, Any]:
         "note": data.get("note"),
         "points_earned": data.get("points_earned"),
         "points_possible": data.get("points_possible"),
+        "dropped": bool(data.get("dropped")),
         "source_kind": _assessment_source(c),
         "source_ref": data.get("source_ref") or f"import:{item.id}",
     }

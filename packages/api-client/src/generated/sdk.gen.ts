@@ -4844,7 +4844,8 @@ export const lmsAssignmentGet = <ThrowOnError extends boolean = false>(options: 
  *
  * Assignments from lms.assignment.list (`ref`s). With `into` auto (default),
  * those worth points become assessments (each gets its task), the others tasks; ones imported
- * before are left out. With `into` gradebook, assignments imported as tasks (`imported_as.kind`
+ * before are left out, except one imported as a task only and worth points, which becomes an
+ * assessment and keeps its to-do. With `into` gradebook, assignments imported as tasks (`imported_as.kind`
  * task) become assessments and keep their to-do. The user reviews it, then commit it like any import
  * (imports.session.commit).
  */

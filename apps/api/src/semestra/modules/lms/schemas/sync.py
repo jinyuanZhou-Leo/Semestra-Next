@@ -37,7 +37,7 @@ class SyncQueued(BaseModel):
     queued: int = Field(description="How many courses were queued")
 
 
-SyncField = Literal["title", "due_at", "weight", "score"]
+SyncField = Literal["title", "due_at", "weight", "score", "dropped"]
 
 
 class SyncConflict(BaseModel):

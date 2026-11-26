@@ -151,7 +151,7 @@ async def preview_assignment_import(
     if listed is None:
         names, total = [], sum(1 for i in ids if i not in done)
     else:
-        names = [str(a["name"]) for a in imports.new_assignments(listed, ids, done)]
+        names = [str(a["name"]) for a, _ in imports.importable(listed, ids, done)]
         total = len(names)
     return {"target": target, "changes": [_counted("lms_assignments", names, total)]}
 

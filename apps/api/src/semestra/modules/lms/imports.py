@@ -217,8 +217,21 @@ def new_assignments(
     listed: dict[str, dict[str, Any]], external_ids: list[str], done: Collection[str]
 ) -> list[dict[str, Any]]:
     """The requested assignments an import creates: still on the LMS and not imported before
-    (M09 §11: importing twice creates one). The assistant's card counts the same ones."""
+    (M09 §11: importing twice creates one)."""
     return [listed[i] for i in dict.fromkeys(external_ids) if i in listed and i not in done]
+
+
+def importable(
+    listed: dict[str, dict[str, Any]], external_ids: list[str], done: dict[str, dict[str, str]]
+) -> list[tuple[dict[str, Any], str]]:
+    """What an import of these assignments creates, with the kind of each: the new ones (an
+    assessment when worth points, else a to-do), and the ones imported as a to-do only that are
+    worth points (an assessment, which takes the to-do over). The assistant's card counts the
+    same ones."""
+    return [
+        (a, "assessment" if worth_points(a) else "task")
+        for a in new_assignments(listed, external_ids, done)
+    ] + [(a, "assessment") for a in to_gradebook(listed, external_ids, done) if worth_points(a)]
 
 
 def to_gradebook(
@@ -235,7 +248,8 @@ def to_gradebook(
 
 async def import_assignments(ctx: Ctx, inp: AssignmentsImportInput) -> ImportStarted:
     """The one import of assignments (M09 §4): those worth points become assessments (each with
-    its to-do, M05), the others to-dos. The user reviews it before anything is written."""
+    its to-do, M05), the others to-dos; one imported as a to-do only that is worth points goes
+    into the gradebook (as `add_to_gradebook`). The user reviews it before anything is written."""
     return await _import(ctx, inp.course_id, inp.external_ids, gradebook=False)
 
 
@@ -256,10 +270,7 @@ async def _import(
     picked = (
         [(a, "assessment") for a in to_gradebook(by_id, external_ids, done)]
         if gradebook
-        else [
-            (a, "assessment" if worth_points(a) else "task")
-            for a in new_assignments(by_id, external_ids, done)
-        ]
+        else importable(by_id, external_ids, done)
     )
     if not picked:
         raise AppError("import.no_content", 422)
@@ -348,6 +359,8 @@ async def _import(
             # A grade already on the platform comes along, so it needs no second review (one
             # out of what an assessment takes stays out, as the weight).
             item.update(fit_or_default("assessment", "score", platform_score(a)) or {})
+            if platform_excused(a):
+                item["dropped"] = True
             new.append(NewItem(key=key, type="assessment", data=item, confidence=confidence))
         else:
             item = {
@@ -417,6 +430,7 @@ def snapshot(a: dict[str, Any], weight: float | None = None) -> dict[str, Any]:
         "points": a.get("points"),
         "weight": weight,
         "score": platform_score(a),
+        "dropped": platform_excused(a),
     }
 
 
@@ -447,7 +461,13 @@ def bound_snapshot(platform: dict[str, Any]) -> dict[str, Any]:
     changes nothing. Due date, weight and grade count as never set from the platform, so the
     sync fills in what the assessment lacks and asks where both have a value that differs; the
     title stays the platform's, so a name the user chose is kept until the platform renames it."""
-    return {**platform, "due_at": None, "weight": None, "score": None}
+    return {**platform, "due_at": None, "weight": None, "score": None, "dropped": None}
+
+
+def platform_excused(a: dict[str, Any]) -> bool:
+    """Whether the platform excused the user from the assignment: it does not count in the grade
+    there, so the assessment is not counted either (followed with the grade, M09 §4.1)."""
+    return bool((a.get("submission") or {}).get("excused"))
 
 
 def platform_score(a: dict[str, Any]) -> dict[str, float] | None:
@@ -637,7 +657,10 @@ async def on_commit(ctx: Ctx, row: ImportsSession, created: dict[str, str]) -> N
             continue
         # What the sync compares later: a to-do has no grade to follow (an item may have been
         # switched in the review).
-        snap = {**info["snapshot"], **({} if item.type == "assessment" else {"score": None})}
+        snap = {
+            **info["snapshot"],
+            **({} if item.type == "assessment" else {"score": None, "dropped": None}),
+        }
         if item.type == "task":
             snap[ZONE] = zones[link.program_id].key
         if str(item.data.get("existing_assessment_id")) in bound:

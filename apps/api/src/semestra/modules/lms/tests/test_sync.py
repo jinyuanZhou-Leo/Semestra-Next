@@ -219,6 +219,32 @@ async def test_a_new_grade_is_applied_and_announced(api: Api, app: FastAPI, fake
     assert synced["applied"] == []
 
 
+async def test_an_excused_assignment_is_not_counted(api: Api, fake: FakeProvider):
+    labs = fake.course_assignments["101"]
+    labs[0] = labs[0].model_copy(update={"submission": Submission(excused=True)})
+    # Excused when it is imported: it comes in not counted.
+    program_id, course = await _course(api, "a1", "a2")
+    assert (await _assessments(api, course))["a1"]["dropped"] is True
+    # Excused later: followed with the grade.
+    labs[1] = labs[1].model_copy(update={"submission": Submission(excused=True)})
+    await api.sync(program_id)
+    assert (await _assessments(api, course))["a2"]["dropped"] is True
+    # The excuse taken back, and the user counted Lab 1 again themselves: Lab 2 counts again,
+    # Lab 1 stays as the user set it.
+    lab1 = (await _assessments(api, course))["a1"]
+    await api.call("PATCH", f"/assessments/{lab1['id']}", json={"dropped": False})
+    labs[1] = labs[1].model_copy(update={"submission": None})
+    await api.sync(program_id)
+    found = await _assessments(api, course)
+    assert (found["a1"]["dropped"], found["a2"]["dropped"]) == (False, False)
+    # Not following grades: asked about instead.
+    await api.call("PATCH", "/me/settings/lms", json={"values": {"follow_score": False}})
+    labs[1] = labs[1].model_copy(update={"submission": Submission(excused=True)})
+    [asked] = [i for i in (await api.sync(program_id))["pending"] if i["kind"] == "conflict"]
+    assert [c["field"] for c in asked["conflicts"]] == ["dropped"]
+    assert (await _assessments(api, course))["a2"]["dropped"] is False
+
+
 async def test_a_new_course_total_refreshes_the_assignments(
     api: Api, app: FastAPI, fake: FakeProvider, clock: Clock
 ):

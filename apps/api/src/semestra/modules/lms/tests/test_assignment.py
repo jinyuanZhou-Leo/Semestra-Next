@@ -141,6 +141,12 @@ async def test_an_assignment_opens_from_the_platform_then_from_the_mirror(
             "submitted_at": "2026-02-05T20:00:00Z",
             "online": True,
             "held": True,
+            "due_state": "none",
+            "submission_types": [],
+            "is_quiz": False,
+            "locked": False,
+            "lock_explanation": None,
+            "web_url": None,
             "state": "graded",
             "marks": [],
         }
@@ -380,3 +386,25 @@ def test_migration_moves_what_was_kept_into_the_mirror(tmp_path: Path):
     assert json.loads(quiz) == {"question_count": 3}
     assert rows["a2"][:3] == (None, "task", "t2")
     assert rows["a2"][3] is not None
+
+
+async def test_importing_a_to_do_worth_points_again_adds_it_to_the_gradebook(
+    api: Api, fake: FakeProvider
+):
+    fake.course_assignments["101"].append(
+        Assignment(external_id="a9", name="Reading", due_at=datetime(2026, 2, 9, 17, tzinfo=UTC))
+    )
+    program_id, course = await _course(api, "a9")
+    [reading] = (await api.call("GET", f"/programs/{program_id}/tasks"))["items"]
+    # The teacher gives it points; the gradebook's import takes it like a new one.
+    fake.course_assignments["101"][-1] = fake.course_assignments["101"][-1].model_copy(
+        update={"points": 5}
+    )
+    started = await api.call(
+        "POST", f"/courses/{course}/lms/imports:assignments", json={"external_ids": ["a9"]}
+    )
+    await api.commit(started["session_id"])
+    graded = (await _assessments(api, course))["a9"]
+    # The same to-do, now the assessment's.
+    tasks = (await api.call("GET", f"/programs/{program_id}/tasks"))["items"]
+    assert [(t["id"], t["assessment_id"]) for t in tasks] == [(reading["id"], graded["id"])]

@@ -1542,6 +1542,40 @@ export type AssignmentTarget = {
      */
     held?: boolean;
     /**
+     * Due State
+     *
+     * Whether the platform's due date still matters (`rules.due_state`, M09 table 3d)
+     */
+    due_state?: 'none' | 'upcoming' | 'past' | 'overdue';
+    /**
+     * Submission Types
+     *
+     * How it is handed in on the platform
+     */
+    submission_types?: Array<string>;
+    /**
+     * Is Quiz
+     *
+     * A graded quiz
+     */
+    is_quiz?: boolean;
+    /**
+     * Locked
+     */
+    locked?: boolean;
+    /**
+     * Lock Explanation
+     *
+     * Why it is locked, as the platform says
+     */
+    lock_explanation?: string | null;
+    /**
+     * Web Url
+     *
+     * The assignment on the platform
+     */
+    web_url?: string | null;
+    /**
      * State
      *
      * Where the user is with it (`rules.assignment_state`); None until the sync has read it
@@ -11759,7 +11793,7 @@ export type SyncConflict = {
     /**
      * Field
      */
-    field: 'title' | 'due_at' | 'weight' | 'score';
+    field: 'title' | 'due_at' | 'weight' | 'score' | 'dropped';
     /**
      * Mine
      *
@@ -11810,7 +11844,7 @@ export type SyncDifference = {
     /**
      * Field
      */
-    field: 'title' | 'due_at' | 'weight' | 'score';
+    field: 'title' | 'due_at' | 'weight' | 'score' | 'dropped';
     /**
      * Mine
      *
@@ -14658,6 +14692,40 @@ export type AssignmentTargetWritable = {
      * No longer follows the assignment: kept as last read (open it with `held_for`)
      */
     held?: boolean;
+    /**
+     * Due State
+     *
+     * Whether the platform's due date still matters (`rules.due_state`, M09 table 3d)
+     */
+    due_state?: 'none' | 'upcoming' | 'past' | 'overdue';
+    /**
+     * Submission Types
+     *
+     * How it is handed in on the platform
+     */
+    submission_types?: Array<string>;
+    /**
+     * Is Quiz
+     *
+     * A graded quiz
+     */
+    is_quiz?: boolean;
+    /**
+     * Locked
+     */
+    locked?: boolean;
+    /**
+     * Lock Explanation
+     *
+     * Why it is locked, as the platform says
+     */
+    lock_explanation?: string | null;
+    /**
+     * Web Url
+     *
+     * The assignment on the platform
+     */
+    web_url?: string | null;
 };
 
 /**
@@ -23076,7 +23144,7 @@ export type LmsSyncFieldResolveData = {
          *
          * A field asked about, or listed in `different`
          */
-        field: 'title' | 'due_at' | 'weight' | 'score';
+        field: 'title' | 'due_at' | 'weight' | 'score' | 'dropped';
     };
     query?: never;
     url: '/lms/sync/items/{item_id}/fields/{field}:resolve';

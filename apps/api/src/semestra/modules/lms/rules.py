@@ -59,6 +59,9 @@ def platform_value(name: str, raw: Any, tz: ZoneInfo, kind: str | None = None) -
     minute (Semestra keeps no seconds; Canvas's default is 23:59:59)."""
     if name == "due_at":
         return _due(raw, tz)
+    if name == "dropped":
+        # Not excused until the platform says so (a snapshot from before it was followed).
+        return bool(raw)
     return fit(kind, name, raw)
 
 
