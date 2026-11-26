@@ -125,6 +125,8 @@ class Material:
     is_list: bool = False
     # What a page links to (None: not read this round).
     links: list[list[str]] | None = None
+    # A file's download address, from the listing that found it (`LmsMaterial.download_url`).
+    download_url: str | None = None
     # Seen this round only as an announcement's attachment (M09 §4.6, "公告附件"); None: this
     # round did not read every way in whole, so it does not tell (`attached` stays as it was).
     attached: bool | None = None
@@ -465,6 +467,7 @@ async def _files(r: _Reader) -> None:
                 folder_path=meta.folder_path,
                 folder_ids=meta.folder_ids,
                 modified_at=meta.content_at or meta.updated_at,
+                download_url=meta.download_url,
             )
         )
 

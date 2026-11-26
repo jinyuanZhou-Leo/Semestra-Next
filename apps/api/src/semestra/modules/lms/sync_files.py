@@ -47,6 +47,7 @@ from semestra.modules.lms.material_items import has_copy
 from semestra.modules.lms.material_reads import Found, Key, Material
 from semestra.modules.lms.materials import Impossible, enter, note
 from semestra.modules.lms.models import LmsCourseLink, LmsMaterial
+from semestra.modules.lms.providers import Call
 from semestra.modules.lms.rules import Presence
 from semestra.modules.lms.service import Bound
 from semestra.modules.lms.settings import materials as material_settings
@@ -156,6 +157,10 @@ def _seen(mat: LmsMaterial, m: Material) -> None:
         mat.links = m.links
     if m.attached is not None:  # else this run did not read every way in whole: as it was
         mat.attached = m.attached
+    if m.kind == "file":
+        # As this round gave it: none when it came only as an attachment (opened by the
+        # announcement's own address).
+        mat.download_url = m.download_url
 
 
 def _retry_due(row: FilesItem, now: datetime) -> bool:
@@ -271,6 +276,10 @@ async def _write(ctx: Ctx, r: _Run) -> bool:
     there = {
         item_id for item_id, key in keys.items() if key in found.given and key not in found.locked
     }
+    # A locked file has no download address on the platform: nor here (it stays as it was).
+    for key in found.locked:
+        if (mat := known.get(key)) is not None:
+            mat.download_url = None
 
     added = 0
     left: set[str] = set()  # items no longer followed: gone, or the page became a list
@@ -419,4 +428,16 @@ async def _enabled(ctx: Ctx, link: LmsCourseLink, b: Bound) -> bool:
     return (await material_settings(ctx, link.course_id)).sync
 
 
-register_sync_stage("files", run, order=60, enabled=_enabled, parts=material_reads.PARTS)
+def _reads(link: LmsCourseLink, b: Bound, sync_round: SyncRound) -> list[Call]:
+    """The lists `material_reads.read` reads of every course (the syllabus comes with the
+    course itself)."""
+    del sync_round
+    ext = link.external_course_id
+    features = b.provider.features
+    wanted = {"modules": "modules", "pages": "pages", "folders": "course_files"}
+    return [Call(method, (ext,)) for feature, method in wanted.items() if feature in features]
+
+
+register_sync_stage(
+    "files", run, order=60, enabled=_enabled, parts=material_reads.PARTS, reads=_reads
+)

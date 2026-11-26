@@ -547,7 +547,11 @@ async def open_file(
 
     async def begin() -> tuple[AsyncIterator[bytes], bytes]:
         opened = b.provider.open_file(
-            Io(client=client, settings=ctx.settings), b.cfg, b.creds, ext, meta
+            Io(client=client, settings=ctx.settings, gate=service.gate(ctx, b)),
+            b.cfg,
+            b.creds,
+            ext,
+            meta,
         )
         try:
             return opened, await anext(opened)

@@ -87,6 +87,10 @@ async def process(ctx: JobCtx, payload: ProcessPayload) -> ProcessResult:
     lane="background",
     listed=False,
     labels="files.process",
+    # Parsing works the machine, not the network: the files a sync brings take one of the
+    # parse children (`parse.isolated.MAX_CHILDREN`) at a time, as with one background worker,
+    # and never crowd out the user's own uploads, imports and attachments (M00 §3.7).
+    at_once=1,
     priority=-2,
 )
 async def process_synced(ctx: JobCtx, payload: ProcessPayload) -> ProcessResult:

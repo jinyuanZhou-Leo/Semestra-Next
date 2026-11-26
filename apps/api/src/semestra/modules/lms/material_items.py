@@ -11,6 +11,7 @@ from html import escape
 
 from sqlalchemy import select
 
+from semestra.core import jobs
 from semestra.core.context import Ctx
 from semestra.core.errors import not_found
 from semestra.core.events import Event, events
@@ -24,6 +25,7 @@ from semestra.modules.lms.html import with_math
 from semestra.modules.lms.materials import enter
 from semestra.modules.lms.models import LmsConnection, LmsCourseLink, LmsMaterial
 from semestra.modules.lms.providers.base import get_provider
+from semestra.modules.lms.schemas.dto import FileMeta
 from semestra.modules.lms.schemas.io import HeldMaterials
 from semestra.modules.lms.settings import materials as material_settings
 from semestra.modules.lms.sync import UPDATED, hold
@@ -141,6 +143,15 @@ async def open_source(ctx: Ctx, item: FilesItem) -> AsyncIterator[bytes]:
         # An announcement carrying it gives the way that opens it where the files are hidden
         # (M09 §4.6, "公告附件"); else it is read by its id.
         meta = await announcements.attachment_meta(ctx, link.course_id, mat.external_id)
+        if meta is None and mat.download_url and jobs.in_background():
+            # The sync's own downloads, right after this round listed it: by the address the
+            # listing gave, not read on its own again first. What the user opens is read first
+            # (the platform may have locked it since), as before.
+            meta = FileMeta(
+                external_id=mat.external_id,
+                name=mat.name or mat.title or "",
+                download_url=mat.download_url,
+            )
         _, stream = await reads.open_file(ctx, link.course_id, mat.external_id, meta=meta)
         return stream
     if mat.kind == "page":
