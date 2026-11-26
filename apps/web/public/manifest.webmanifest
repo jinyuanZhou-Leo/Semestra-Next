@@ -1,7 +1,7 @@
 {
   "name": "Semestra",
   "short_name": "Semestra",
-  "description": "Terms, courses, grades, schedule and tasks in one place.",
+  "description": "Grades, schedule and tasks for every course, in one place.",
   "start_url": "/login",
   "scope": "/",
   "display": "standalone",
