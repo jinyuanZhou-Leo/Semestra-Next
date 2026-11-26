@@ -165,6 +165,8 @@ export default defineModule({
       prefetch: preferences,
     },
   ],
+  // The conversation each file's preview panel shows (`assistant.file_session.<item_id>`).
+  uiPrefPrefixes: ['assistant.'],
   realtimeInvalidations: {
     // A new title. During a turn the chat already has it from the turn's events, and reading
     // the conversation again then would overwrite what is streaming in.
