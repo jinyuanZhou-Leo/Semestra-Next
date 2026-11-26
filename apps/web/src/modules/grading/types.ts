@@ -67,7 +67,19 @@ export type AssessmentColumn<TData = any> = {
    * the course is linked to the LMS and some assessments follow an assignment there.
    */
   shownFor?: (assessments: readonly Assessment[], data: TData | undefined) => boolean
+  /**
+   * Where the user is with an assessment, when this module knows better than its score and due
+   * date (M09: how the assignment stands on the platform), given `query`'s data; undefined for
+   * the assessments it knows nothing about. The gradebook's filters sort rows by it.
+   */
+  progress?: (assessment: Assessment, data: TData | undefined) => Progress | null | undefined
 }
+
+/**
+ * Where the user is with a piece of work, as the gradebook's and the Canvas tab's filters group
+ * it (M03 §5.1): still to do, handed in and waiting for a grade, or graded.
+ */
+export type Progress = 'todo' | 'awaiting' | 'graded'
 
 export const ASSESSMENT_COLUMNS = 'grading.assessmentColumns'
 

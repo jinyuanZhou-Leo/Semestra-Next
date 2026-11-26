@@ -1,4 +1,4 @@
-import type { Gradebook } from '@semestra/api-client'
+import type { Assessment, Gradebook } from '@semestra/api-client'
 import { HideGrades } from '../components/GradeValue'
 import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
@@ -19,7 +19,8 @@ import { ForecastCard } from '../components/ForecastCard'
 import { GradeComposition } from '../components/GradeComposition'
 import { ManualGrade } from '../components/ManualGrade'
 import { CourseTarget } from '../components/CourseTarget'
-import { type AssessmentFilter, matchesFilter } from '../filter'
+import { type AssessmentFilter, matchesSearch, progressOf } from '../filter'
+import { useContributedColumns } from '../components/contributed'
 import { useGradebook } from '../queries'
 import { groupByCategory, isFolded } from '../sort'
 import { usePlanSimulation } from '../use-plan'
@@ -49,6 +50,13 @@ function CourseGrades({ gradebook, programId }: { gradebook: Gradebook; programI
   const [filter, setFilter] = useState<AssessmentFilter>('all')
   const [search, setSearch] = useState('')
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set())
+  // Read once, so "due in 3 days" and the filters don't change between renders.
+  const [now] = useState(Date.now)
+  const { contributed, platformProgress } = useContributedColumns(
+    programId,
+    courseId,
+    gradebook.assessments,
+  )
   const highlighted = useHighlightedAssessment()
   const batch = useDialogTarget<BatchTarget>()
   const queryClient = useQueryClient()
@@ -60,7 +68,10 @@ function CourseGrades({ gradebook, programId }: { gradebook: Gradebook; programI
 
   // Only rows on screen are checked: a filter or a collapsed group hides a row from the batch,
   // plan mode all of them.
-  const matching = gradebook.assessments.filter((a) => matchesFilter(a, filter, search))
+  const visible = (a: Assessment) =>
+    matchesSearch(a, search) &&
+    (filter === 'all' || progressOf(a, platformProgress(a), now) === filter)
+  const matching = gradebook.assessments.filter(visible)
   const shown = planning
     ? []
     : grouped
@@ -125,8 +136,8 @@ function CourseGrades({ gradebook, programId }: { gradebook: Gradebook; programI
             })
           }
           highlighted={highlighted}
-          filter={filter}
-          search={search}
+          visible={visible}
+          contributed={contributed}
           onClearFilter={() => {
             setFilter('all')
             setSearch('')

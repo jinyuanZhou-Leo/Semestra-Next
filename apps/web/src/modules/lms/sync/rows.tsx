@@ -10,6 +10,7 @@ import {
   type LucideIcon,
   PencilLine,
   Percent,
+  SquareSlash,
   SquareCheck,
 } from 'lucide-react'
 import { m } from '@/paraglide/messages'
@@ -25,6 +26,7 @@ const FIELD_ICON: Record<string, LucideIcon> = {
   due_at: CalendarClock,
   weight: Percent,
   score: SquareCheck,
+  dropped: SquareSlash,
 }
 
 export const fieldIcon = (field: string): LucideIcon => FIELD_ICON[field] ?? PencilLine

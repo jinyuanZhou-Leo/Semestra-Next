@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
-import { afterAll, afterEach, beforeAll, beforeEach, expect, test } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest'
 import type { Scope } from '@/app/extensions'
 import { API, renderWithRouter, server } from '@/test-utils'
 import { Toaster } from '@/ui/sonner'
@@ -439,7 +439,7 @@ test("an assessment from the LMS opens the assignment's details, or the teacher'
       assessment({ id: 'a2', title: 'Final exam', weight: 60 }),
     ],
   })
-  const target = { course_id: 'c1', task_id: null }
+  const target = { course_id: 'c1', task_id: null, state: null, marks: [] }
   server.use(
     // Read from Semestra (kept by the sync), never from the platform.
     http.get(`${API}/programs/p1/lms/assignment-targets`, () =>
@@ -462,10 +462,10 @@ test("an assessment from the LMS opens the assignment's details, or the teacher'
   expect(within(exam).queryByRole('button', { name: /^View / })).toBeNull()
 })
 
-test('a gradebook without assignments of the LMS has no assignment column', async () => {
+test('a gradebook without assignments of the LMS has no submission column', async () => {
   mount()
   await screen.findByRole('textbox', { name: 'Score: Final exam' })
-  expect(screen.queryByRole('columnheader', { name: 'Assignment' })).toBeNull()
+  expect(screen.queryByRole('columnheader', { name: 'Submission' })).toBeNull()
 })
 
 test('checked assessments are changed and deleted together, only the ones on screen', async () => {
@@ -520,4 +520,131 @@ test('checked assessments are changed and deleted together, only the ones on scr
   await userEvent.click(within(confirm).getByRole('button', { name: 'Delete' }))
   await waitFor(() => expect(deletes).toEqual([{ assessment_ids: ['a1', 'a2'] }]))
   await waitFor(() => expect(toolbar).toHaveAttribute('inert'))
+})
+
+test('the submission column and the filters follow the platform, else the due date', async () => {
+  const day = 86_400_000
+  const lms = (id: string, title: string, ref: string) =>
+    assessment({ id, title, weight: 10, source_kind: 'lms', source_ref: ref })
+  book = gradebook({
+    assessments: [
+      lms('a1', 'Lab 1', '91'),
+      lms('a2', 'Lab 2', '92'),
+      lms('a3', 'Lab 3', '93'),
+      assessment({
+        id: 'a4',
+        title: 'Essay',
+        weight: 10,
+        due_at: new Date(Date.now() + 3 * day).toISOString(),
+      }),
+      assessment({
+        id: 'a5',
+        title: 'Midterm',
+        weight: 30,
+        due_at: new Date(Date.now() - 3 * day).toISOString(),
+      }),
+      assessment({ id: 'a6', title: 'Final exam', weight: 30, status: 'graded', score: 80 }),
+    ],
+  })
+  const target = { course_id: 'c1', task_id: null, feedback: false, due_state: 'none' }
+  server.use(
+    http.get(`${API}/programs/p1/lms/assignment-targets`, () =>
+      HttpResponse.json({
+        items: [
+          {
+            ...target,
+            assignment_id: '91',
+            assessment_id: 'a1',
+            state: 'submitted',
+            marks: ['late'],
+          },
+          { ...target, assignment_id: '92', assessment_id: 'a2', state: 'missing', marks: [] },
+          { ...target, assignment_id: '93', assessment_id: 'a3', state: 'excused', marks: [] },
+        ],
+      }),
+    ),
+  )
+  mount()
+  const lab1 = (await screen.findByText('Lab 1')).closest('tr')!
+  expect(await screen.findByRole('columnheader', { name: 'Submission' })).toBeInTheDocument()
+  expect(await within(lab1).findByText('Submitted')).toBeInTheDocument()
+  expect(within(lab1).getByText('Late')).toBeInTheDocument()
+  expect(within(screen.getByText('Lab 2').closest('tr')!).getByText('Missing')).toBeInTheDocument()
+
+  const shown = () =>
+    ['Lab 1', 'Lab 2', 'Lab 3', 'Essay', 'Midterm', 'Final exam'].filter((t) =>
+      screen.queryByText(t),
+    )
+  await userEvent.click(screen.getByRole('button', { name: 'To do' }))
+  expect(shown()).toEqual(['Lab 2', 'Essay'])
+  await userEvent.click(screen.getByRole('button', { name: 'Awaiting grade' }))
+  expect(shown()).toEqual(['Lab 1', 'Midterm'])
+  await userEvent.click(screen.getByRole('button', { name: 'Graded' }))
+  expect(shown()).toEqual(['Final exam'])
+  // Excused is in no filter but All.
+  await userEvent.click(screen.getByRole('button', { name: 'All' }))
+  expect(shown()).toHaveLength(6)
+})
+
+// Like the other number columns, highest first.
+test('the score column sorts by score', async () => {
+  book = gradebook({
+    assessments: [
+      assessment({ id: 'a1', title: 'Lab 1', status: 'graded', score: 80, score_percentage: 80 }),
+      assessment({ id: 'a2', title: 'Lab 2', status: 'graded', score: 60, score_percentage: 60 }),
+      assessment({ id: 'a3', title: 'Lab 3', status: 'graded', score: 95, score_percentage: 95 }),
+    ],
+  })
+  mount()
+  await screen.findByText('Lab 1')
+  const order = () =>
+    screen
+      .getAllByRole('row')
+      .map((row) => within(row).queryByText(/^Lab \d$/)?.textContent)
+      .filter(Boolean)
+  await userEvent.click(screen.getByRole('button', { name: 'Score' }))
+  expect(order()).toEqual(['Lab 3', 'Lab 1', 'Lab 2'])
+  await userEvent.click(screen.getByRole('button', { name: 'Score' }))
+  expect(order()).toEqual(['Lab 2', 'Lab 1', 'Lab 3'])
+})
+
+test('an assessment from the LMS opens its assignment on the platform from the row menu', async () => {
+  const open = vi.spyOn(window, 'open').mockReturnValue(null)
+  book = gradebook({
+    assessments: [
+      assessment({ id: 'a1', title: 'Lab 1', source_kind: 'lms', source_ref: '91' }),
+      assessment({ id: 'a2', title: 'Final exam' }),
+    ],
+  })
+  server.use(
+    http.get(`${API}/programs/p1/lms/assignment-targets`, () =>
+      HttpResponse.json({
+        items: [
+          {
+            course_id: 'c1',
+            task_id: null,
+            assignment_id: '91',
+            assessment_id: 'a1',
+            feedback: false,
+            state: 'unsubmitted',
+            marks: [],
+            web_url: 'https://canvas.example.edu/courses/1/assignments/91',
+          },
+        ],
+      }),
+    ),
+  )
+  mount()
+  await userEvent.click(await screen.findByRole('button', { name: 'Actions: Lab 1' }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: 'Open in LMS' }))
+  expect(open).toHaveBeenCalledWith(
+    'https://canvas.example.edu/courses/1/assignments/91',
+    '_blank',
+    'noopener,noreferrer',
+  )
+  await userEvent.keyboard('{Escape}')
+  await userEvent.click(screen.getByRole('button', { name: 'Actions: Final exam' }))
+  await screen.findAllByRole('menuitem')
+  expect(screen.queryByRole('menuitem', { name: 'Open in LMS' })).toBeNull()
+  open.mockRestore()
 })

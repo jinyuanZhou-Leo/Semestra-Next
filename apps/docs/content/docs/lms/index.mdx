@@ -77,7 +77,7 @@ settings → **LMS → General**, or choose **Sync now** at any time. All sync s
 settings → **LMS**; a course can set its own course material settings in course settings → **LMS**.
 
 - **Imported assignments follow Canvas**: when a name, due date, weight or grade changes on Canvas,
-  Semestra updates it. Values you changed yourself aren't overwritten; if both sides changed, you
+  Semestra updates it, and an assignment excused on Canvas no longer counts. Values you changed yourself aren't overwritten; if both sides changed, you
   choose which to keep. To review a kind of change first, turn it off in global settings → **LMS →
   Assignments**.
 - **New assignments wait for you**: new assignments on Canvas aren't added on their own; import or
@@ -115,7 +115,7 @@ such as an expired access token or too many requests.
 ## Assignment details
 
 Wherever an assignment shows up in Semestra, you can open its details right there: a row in the
-Canvas tab, the button in the gradebook's **Assignment** column, the **Assignment
+Canvas tab, the button in the gradebook's **Submission** column, the **Assignment
 details** button on a task, a calendar item, a link in an announcement, an update in the sync
 status, or a notification.
 
@@ -126,12 +126,12 @@ both if you haven't imported it yet. Submitting still happens on Canvas: **Submi
 takes you there.
 
 An assignment stands the same way everywhere it appears: in its details, on its task, in the
-Canvas tab and in Sem's answers. A graded assignment counts as graded; whatever Canvas marks
+Canvas tab, in the gradebook and in Sem's answers. A graded assignment counts as graded; whatever Canvas marks
 **Missing** or **Late** shows that mark beside its status; an excused one says so, without marks;
 and one handed in on paper or not at all says "No online submission". An assignment is missing only when Canvas marks it so; one past its due
 date that Canvas hasn't marked is still to do and shows **Overdue**. For work handed in on paper,
-Semestra can't tell whether you did it: it stays under **To do** in the Canvas tab with your other
-work until its due date, then leaves it and only says **Past due**.
+Semestra can't tell whether you did it: it stays under **To do** with your other work until its due
+date, then moves to **Awaiting grade** and only says **Past due**.
 
 Assignments are saved in Semestra and updated with each sync, so they open quickly, even when
 Canvas can't be reached. When an assignment couldn't be updated in the last sync, or the teacher
@@ -149,7 +149,7 @@ no longer there.
 - **Course links**: the course info card on a course's overview lists the tools the course uses on
   other sites, such as Piazza or Gradescope, as they appear in the course's Canvas menu.
 - **Assignments and feedback in the gradebook**: each assessment from Canvas has a button in
-  the **Assignment** column that opens the assignment's details; where your instructor left
+  the **Submission** column that opens the assignment's details; where your instructor left
   comments or rubric scores, it's the **View feedback** button and opens them. In the Canvas tab,
   an assignment's name underlines when you point at its row, and clicking the row opens it. They're saved in Semestra, so they stay readable after the course closes on
   Canvas. New comments appear under **Recent updates** in the sync status, and you get a

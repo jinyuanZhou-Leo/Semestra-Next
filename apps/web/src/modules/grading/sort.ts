@@ -1,7 +1,7 @@
 import type { AssessmentCategory } from '@semestra/api-client'
 
 /** `manual` keeps the order the user gave the items (their `position`). */
-export type SortKey = 'manual' | 'due' | 'category' | 'weight' | 'title'
+export type SortKey = 'manual' | 'due' | 'category' | 'weight' | 'title' | 'score'
 export type SortPref = { key: SortKey; dir: 'asc' | 'desc' }
 export const DEFAULT_SORT: SortPref = { key: 'manual', dir: 'asc' }
 

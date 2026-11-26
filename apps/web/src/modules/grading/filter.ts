@@ -1,27 +1,44 @@
 import type { Assessment } from '@semestra/api-client'
 import { m } from '@/paraglide/messages'
+import type { Progress } from './types'
 
 /**
- * Which assessments the gradebook lists: all, the scored ones, or the ones without a score yet.
- * A past one without a score is waiting for its grade; a missed deadline is the to-do's to show.
+ * Which assessments the gradebook lists (M03 §5.1): all, the ones still to do, the ones handed in
+ * and waiting for a grade, or the graded ones; the same four as the Canvas tab's (M16 §4).
  */
-export type AssessmentFilter = 'all' | 'graded' | 'pending'
+export type AssessmentFilter = 'all' | Progress
 
-export const FILTERS: readonly AssessmentFilter[] = ['all', 'graded', 'pending']
+export const FILTERS: readonly AssessmentFilter[] = ['all', 'todo', 'awaiting', 'graded']
 
 export function filterLabel(filter: AssessmentFilter): string {
   switch (filter) {
     case 'all':
       return m.grading_filter_all()
+    case 'todo':
+      return m.grading_filter_todo()
+    case 'awaiting':
+      return m.grading_filter_awaiting()
     case 'graded':
       return m.grading_filter_graded()
-    case 'pending':
-      return m.grading_filter_pending()
   }
 }
 
-export function matchesFilter(a: Assessment, filter: AssessmentFilter, search: string): boolean {
+/**
+ * Where the user is with an assessment: graded once it has a score; else as the platform it
+ * comes from says (`platform`, undefined when it comes from none; null: in no filter, e.g.
+ * excused); else by its due date: to do until then (or without one), waiting for a grade after.
+ */
+export function progressOf(
+  a: Assessment,
+  platform: Progress | null | undefined,
+  now: number,
+): Progress | null {
+  if (a.status === 'graded') return 'graded'
+  if (platform !== undefined) return platform
+  return a.due_at === null || Date.parse(a.due_at) > now ? 'todo' : 'awaiting'
+}
+
+export function matchesSearch(a: Assessment, search: string): boolean {
   const query = search.trim().toLocaleLowerCase()
-  if (query && !a.title.toLocaleLowerCase().includes(query)) return false
-  return filter === 'all' || a.status === filter
+  return !query || a.title.toLocaleLowerCase().includes(query)
 }
