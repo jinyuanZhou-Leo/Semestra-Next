@@ -126,3 +126,29 @@ async def test_the_gate_lets_wide_through_and_narrows_on_a_low_limit():
     most = 0
     await asyncio.gather(*(one() for _ in range(8)))
     assert most == 3
+
+
+async def test_reads_someone_waits_for_go_before_background_ones():
+    gate = Gate(wide=3, low=300)
+    order: list[str] = []
+    release = asyncio.Event()
+
+    async def one(name: str, background: bool) -> None:
+        async with gate.slot(background=background):
+            order.append(name)
+            await release.wait()
+
+    # While wide, background reads leave one place free.
+    background = [asyncio.create_task(one(f"b{i}", True)) for i in range(4)]
+    await asyncio.sleep(0)
+    assert order == ["b0", "b1"]
+    user = asyncio.create_task(one("user", False))
+    await asyncio.sleep(0)
+    assert order == ["b0", "b1", "user"]
+
+    # One at a time: a waiting user read goes next, ahead of background ones queued before it.
+    await gate.left(100)
+    second = asyncio.create_task(one("user2", False))
+    release.set()
+    await asyncio.gather(*background, user, second)
+    assert order.index("user2") == 3

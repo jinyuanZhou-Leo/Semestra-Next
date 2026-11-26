@@ -157,6 +157,8 @@ def _seen(mat: LmsMaterial, m: Material) -> None:
         mat.links = m.links
     if m.attached is not None:  # else this run did not read every way in whole: as it was
         mat.attached = m.attached
+    if m.download_url is not None:
+        mat.download_url = m.download_url
 
 
 def _retry_due(row: FilesItem, now: datetime) -> bool:

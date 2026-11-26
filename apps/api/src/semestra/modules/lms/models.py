@@ -262,6 +262,10 @@ class LmsMaterial(Base, OwnedMixin):
     # announcements are the one place it may be in, and it leaves when none carries it. Changed
     # only by a round that read every way in whole.
     attached: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    # A file's download address as the platform last listed it (Canvas: carries the file's own
+    # verifier, which does not expire): the sync's downloads use it rather than reading the file
+    # on its own first. Never sent to clients, not in backups (read again after a restore).
+    download_url: Mapped[str | None] = mapped_column(String, default=None)
     imported_at: Mapped[datetime | None] = mapped_column(default=None)
     # What the platform last did to it, for the status panel's recent updates (`CHANGES_KEPT`);
     # none for what came in before the course settled (`materials_settled_at`).

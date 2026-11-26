@@ -71,13 +71,13 @@ class LmsProvider(Protocol):
 - 配置 `base_url` 的规范化与旧版一致：没有协议时补 `https://`；只允许 http/https（托管版只允许 https）；拒绝查询串和片段；拒绝 `/api/v1` 路径；去掉末尾斜杠。访问令牌校验：不含空白和 `@`，长度至少 8。
 - **凭证两种形态**：① 手填个人访问令牌（`access_token`，默认，托管版与自托管都可用）；② 自托管开启 `SEMESTRA_LMS_CANVAS_SIGN_IN` 后，可在学校登录页完成 SSO/MFA，把回调地址粘回应用（`sign_in.py`）。后者借用 Canvas 官方移动端 OAuth 客户端（`sso.canvaslms.com/api/v1/mobile_verify.json`），换到的 refresh token 长期有效，access token 临近过期或 401 时自动续期；续期后的凭证在请求提交后用单独短事务写回（与读缓存一样，不在读请求事务里写库）。关闭开关后不再续期：已有连接在 access token 过期后变为 `lms.invalid_credentials`，用户改填令牌；删除或更换这类连接时仍会尽力撤销（必要时用 refresh token 换一次 access token）。文件预览和下载与其它读取一样，遇 401 续期后重试一次。`credentials_hint` 为 `{method: "sign_in"}` 或令牌掩码。只允许 https（`lms.sign_in_https_required`）：换码和续期都会发送 client secret 与 refresh token。删除或更换凭证时，提交后尽力向 Canvas 撤销旧令牌：撤销需要有效的 access token，所以过期时先续期，遇 401 再续期重试一次；refresh token 已失效说明用户已在 Canvas 上移除，不算失败；其它失败只记日志。未验证：按 Canvas 开源代码，开发者密钥开了 `force_token_reuse` 时重新登录不返回 refresh token，换码以 `lms.sign_in_failed`（`no_token`）失败，旧连接不受影响（可删除后重连）；开了 `replace_tokens` 时登录会废掉同一密钥下的其它令牌，包括手机 App 的。移动端密钥是否开启这两项无法从外部确认。
 - 所有请求都通过 `core.http.safe_client()`。文件下载跟随的重定向只允许同源或 Canvas 文件 CDN，每一跳都要在解析后检查不是私网地址。
-- **并发上限**（2026-11-26，`gate.py`）：同一连接的所有请求（同步、文件下载、用户打开的页面）经同一个闸门，同时最多 6 个在途；Canvas 每个回应带 `X-Rate-Limit-Remaining`（700 单位的漏桶，持续回填，每个请求在途时先扣约 50），剩余低于 300 时降到一次一个，回到 300 以上再放宽。仍然被限流时照常是 `lms.rate_limited`（表 2 第 11 行），这一轮结束，下一轮再读。
+- **并发上限**（2026-11-26，`gate.py`）：同一连接的所有请求（同步、文件下载、用户打开的页面）经同一个闸门，同时最多 6 个在途；Canvas 每个回应带 `X-Rate-Limit-Remaining`（700 单位的漏桶，持续回填，每个请求在途时先扣约 50），剩余低于 300 时降到一次一个，回到 300 以上再放宽。仍然被限流时照常是 `lms.rate_limited`（表 2 第 11 行），这一轮结束，下一轮再读。有人在等的读取先走（M00 §3.7 落到请求这一层）：`background` 车道任务（同步、同步带来的文件）发的请求在有其它请求等着时让它们先进，闸门放宽时也只用到上限减一个，给用户打开的页面、预览和 Sem 的读取留一个位置；同一类里先到先得。
 - `navigation` 映射 Canvas tabs：`home`、`announcements`、`assignments`、`grades`、`modules`、`pages`、`quizzes`、`syllabus`、`files`、`discussions` 映射为对应的内置类型，`type=external` 映射为 `external`，其它映射为 `unknown`。
 - `calendar_events` 用 `context_codes[]=course_<id>` 批量请求，只取 `type=event`（作业不进日历叠加）。
 - 错误映射（归一结果见 §4.1 表 2）：带 `WWW-Authenticate` 的 401 → `lms.invalid_credentials`；不带的 401（已登录但某个页面或文件被锁）和普通 403 → `lms.forbidden`；403 且正文含 `Rate Limit Exceeded` 或 `X-Rate-Limit-Remaining` 已降到 0 → `lms.rate_limited`（Canvas 默认用 403 限流，站点开启后才用 429；没有 `Retry-After`，按 60 秒）；429 → `lms.rate_limited`（带 `retry_after`）；404 → `common.not_found`；网络错误或超时 → `lms.unreachable`；私网地址 → `lms.blocked_address`；学校登录未开启 → `lms.sign_in_disabled`；Canvas 不认识该校 → `lms.sign_in_unavailable`；学校登录用了 http 地址 → `lms.sign_in_https_required`；粘贴的回调无授权码/已过期 → `lms.sign_in_failed`。
 
 ### 2.4 读缓存
-只有实时读取（表 1 里“读的时候从哪读”是“平台”的那几类）经过缓存：进程内 LRU（按字节限 64 MB），TTL 5 分钟（唯一的例外是 Sem 搜索读的页面正文，见 §8：带版本的键保留 14 天，只从单元得知的 1 小时；它们也只在这个进程内，重启后重新读），键为 `(user_id, connection_id, 方法, 参数)`，每条带范围 `course:<外部课程 id>`；凭证更新时清除该连接的全部缓存。缓存里只放 provider 交出的事实（DTO），不放派生值（§4.2），所以规则改了不会读到按旧规则算好的值。请求带 `?refresh=true` 时绕过缓存。另一个例外是同步读到的文件元数据（文件列表或单独读取给的下载地址，2026-11-26）：按 `(连接, 课程, 文件)` 保留 1 天，同步随后的下载（存本地副本、文件处理）直接用它，不再单独读一次 `files/{id}`；没留下（进程重启、过期）时照旧先读元数据。下载地址不发给客户端、不进库也不进备份。没有数据库层（`lms_cache` 表删除，#427）：同步保存的数据本来就在库里，实时读的内容 5 分钟后过期，跨进程留着没有意义。
+只有实时读取（表 1 里“读的时候从哪读”是“平台”的那几类）经过缓存：进程内 LRU（按字节限 64 MB），TTL 5 分钟（唯一的例外是 Sem 搜索读的页面正文，见 §8：带版本的键保留 14 天，只从单元得知的 1 小时；它们也只在这个进程内，重启后重新读），键为 `(user_id, connection_id, 方法, 参数)`，每条带范围 `course:<外部课程 id>`；凭证更新时清除该连接的全部缓存。缓存里只放 provider 交出的事实（DTO），不放派生值（§4.2），所以规则改了不会读到按旧规则算好的值。请求带 `?refresh=true` 时绕过缓存。没有数据库层（`lms_cache` 表删除，#427）：同步保存的数据本来就在库里，实时读的内容 5 分钟后过期，跨进程留着没有意义。
 
 ## 3. 数据：存在哪里，从哪里读
 平台数据进入 Semestra 只有一条流水线：**provider 交出归一后的事实 → 同步把事实存进镜像表 → 读取一律读镜像，派生值在读取时由 `rules.py` 算出、跟着对象返回**。镜像里只存事实。只有表 1 里明确写“平台”的几类实时读取，它们不存，只在内存里缓存 5 分钟（§2.4），每一类都写了不存的理由。
@@ -163,7 +163,7 @@ lms_imported_refs                    # 平台上的作业与它在 Semestra 里�
   conflicts {字段: {value, raw}}, removed_at?, dismissed_at?, submitted_at?
   UNIQUE(link_id, external_id)   # 一个作业只对应一个 Semestra 对象
 
-lms_materials                        # 课程资料与它在课程文件里的项（§4.6、表 4a）；项对应哪份资料只记在 item_id（#426）
+lms_materials                        # 课程资料与它在课程文件里的项（§4.6、表 4a）；项对应哪份资料只记在 item_id（#426）；download_url：文件最近一次列出时给的下载地址（2026-11-26，迁移 0076；Canvas 的带文件自己的 verifier、不过期），同步带来的下载（存本地副本、文件处理）直接用它，不再先单独读 files/{id}；为空（升级后第一轮同步之前、从备份恢复后）时照旧先读。不发给客户端、不进备份
   id, user_id, link_id, kind ('file'|'page'|'link'), external_id,
   item_id?, title?, version?,        # version 只给没有跟随项的资料（list、dismissed 的页面），跟随中的版本在项的 source_version（§4.6，#426）
   name?, path?, placed_folder_id?,

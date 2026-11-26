@@ -520,34 +520,6 @@ async def files_many(
     return [r if isinstance(r, AppError) else FileMeta.model_validate(r) for r in found]
 
 
-# How long the sync keeps a listed file's metadata for its download: the files a first sync
-# brings are read one by one after it, hundreds of them taking a while.
-DOWNLOAD_TTL = timedelta(days=1)
-
-
-def _download_key(ctx: Ctx, b: Bound, ext: str, file_id: str) -> str:
-    return cache.cache_key(ctx.user_id, b.row.id, "download", {"course": ext, "file": file_id})
-
-
-def keep_downloads(
-    ctx: Ctx, linked: tuple[LmsCourseLink, Bound], metas: Sequence[FileMeta]
-) -> None:
-    """Keeps what a files list read by the sync gave of each file, for its download
-    (`open_file`), so the file is not read again on its own before it is."""
-    link, b = linked
-    ext = link.external_course_id
-    for meta in metas:
-        if meta.download_url:
-            cache.put(
-                ctx,
-                _download_key(ctx, b, ext, meta.external_id),
-                b.row.id,
-                service.dump(meta),
-                scope=cache.course_scope(ext),
-                ttl=DOWNLOAD_TTL,
-            )
-
-
 async def open_file(
     ctx: Ctx,
     course_id: str,
@@ -565,13 +537,8 @@ async def open_file(
     if meta is None:
         service.require_feature(b, "files")
         # A cached address is fine: Canvas's download URL carries the file's own verifier, which
-        # does not expire, and the request is sent with the user's token anyway. The sync keeps
-        # the one its files list gave (`keep_downloads`): the files it brings are not read again.
-        kept = cache.get(ctx, _download_key(ctx, b, ext, file_id))
-        if kept is not None:
-            meta = FileMeta.model_validate(kept)
-        else:
-            meta = await file(ctx, course_id, file_id, refresh=False, linked=linked)
+        # does not expire, and the request is sent with the user's token anyway.
+        meta = await file(ctx, course_id, file_id, refresh=False, linked=linked)
 
     from semestra.core.http import safe_client
     from semestra.modules.lms.providers import Io

@@ -95,6 +95,11 @@ async def background(ctx: JobCtx, payload: Payload) -> Result:
     return Result()
 
 
+@job_handler("test.one_at_a_time", at_once=1)
+async def one_at_a_time(ctx: JobCtx, payload: Payload) -> Result:
+    return Result()
+
+
 @job_handler("test.low", priority=-1)
 async def low(ctx: JobCtx, payload: Payload) -> Result:
     return Result()
@@ -606,6 +611,19 @@ async def test_a_lower_priority_waits_while_a_higher_one_of_the_same_user_runs(
     await start(app, second.id, "test.low", name="b-low")
     # Another worker leaves the first user's job of a lower priority until a1 ends.
     assert await claimed_names(app, clock, 1) == ["b-low"]
+    assert await JobRunner(app.state)._claim() is None  # pyright: ignore[reportPrivateUsage]
+
+
+async def test_a_kind_runs_no_more_than_its_at_once(
+    app: FastAPI, make_user: MakeUser, clock: Clock
+):
+    first, second = await make_user(), await make_user(email="b@example.com")
+    await start(app, first.id, "test.one_at_a_time", name="a1")
+    await start(app, second.id, "test.one_at_a_time", name="b1")
+    await start(app, second.id, "test.ok", name="b-ok")
+    assert await claimed_names(app, clock, 1) == ["a1"]  # still running
+    # Other workers take other kinds, not a second of this one.
+    assert await claimed_names(app, clock, 1) == ["b-ok"]
     assert await JobRunner(app.state)._claim() is None  # pyright: ignore[reportPrivateUsage]
 
 
