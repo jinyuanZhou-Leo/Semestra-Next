@@ -95,7 +95,7 @@ import { Reveal, SmoothHeight, Swap } from './motion'
 import { PendingDock } from './PendingDock'
 import { Remembered } from './Remembered'
 import { ScopeChip } from './ScopeChip'
-import { SuggestionChips } from './SuggestionChips'
+import { type PromptStarter, PromptStarters, SuggestionChips } from './SuggestionChips'
 import { Thinking } from './Steps'
 import { IconAction } from '@/components/IconAction'
 
@@ -433,12 +433,24 @@ export function Conversation({
   question,
   onQuestionTaken,
   focusInput,
+  draftKey: newDraftKey,
+  initialDoc,
+  starters,
   className,
   contentClassName,
 }: {
   sessionId: string | null
   pageScope: AgentScope | null
   onCreated: (id: string) => void
+  /**
+   * Where a new conversation's draft is kept, when not the Program's (`newConversationKey`):
+   * one asked about a file is that file's.
+   */
+  draftKey?: string
+  /** What the input of a new conversation starts with when nothing was typed in it yet. */
+  initialDoc?: JSONContent
+  /** Starting points in place of the suggestions from what is due (`SuggestionChips`). */
+  starters?: readonly PromptStarter[]
   /** Sent once as soon as the conversation shows (the palette's "Ask AI"). */
   question?: { text: string; key: number } | null
   onQuestionTaken?: () => void
@@ -453,7 +465,7 @@ export function Conversation({
   const ai = useAiStatus('chat')
   // What was prepared here before (another page, a closed panel, the other view): drafts belong
   // to the conversation, not to this component. A new one is the Program's it opened in.
-  const [newKey] = useState(() => newConversationKey(pageScope?.program_id))
+  const [newKey] = useState(() => newDraftKey ?? newConversationKey(pageScope?.program_id))
   const chat = useChat(sessionId, (id) => {
     conversationDrafts.created(newKey, id)
     onCreated(id)
@@ -797,7 +809,16 @@ export function Conversation({
             </AlertAction>
           </Alert>
         ) : null}
-        {!chat.loading && items.length === 0 && scope ? (
+        {!chat.loading && items.length === 0 && starters ? (
+          <PromptStarters
+            starters={starters}
+            disabled={chat.generating || !ai.available}
+            onPick={(prompt) => {
+              setSent((n) => n + 1)
+              void chat.send({ ...prompt, scope: sessionId ? null : newScope, temporary })
+            }}
+          />
+        ) : !chat.loading && items.length === 0 && scope ? (
           <SuggestionChips
             scope={scope}
             courses={courses}
@@ -870,7 +891,7 @@ export function Conversation({
               onStop={() => void chat.stop()}
               onScope={(next) => void changeScope(next)}
               focusInput={focusInput}
-              initialContent={draft.doc ?? null}
+              initialContent={draft.doc ?? (sessionId ? null : (initialDoc ?? null))}
               onContentChange={(doc) => conversationDrafts.update(draftKey, { doc })}
               context={sessionId ? (detail?.context ?? null) : null}
               canCompact={canCompact}

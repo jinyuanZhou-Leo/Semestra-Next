@@ -8,6 +8,7 @@ import {
 } from '@semestra/api-client/react-query'
 import type { QueryClient } from '@tanstack/react-query'
 import { defineModule, scopePath, preloadable } from '@/app/extensions'
+import { FILE_PREVIEW_PANELS, type FilePreviewPanel } from '@/modules/files/types'
 import { m } from '@/paraglide/messages'
 import { assistantPage, panel } from './store'
 
@@ -44,6 +45,17 @@ export default defineModule({
       import('./components/AssistantDock').then((mod) => ({ default: mod.AssistantDock })),
     ),
     mobile: preloadable(() => import('./mobile/AssistantMobilePage')),
+  },
+  extensions: {
+    // Ask Sem about the file being read, beside it (M12 §6.1).
+    [FILE_PREVIEW_PANELS]: [
+      {
+        id: 'assistant',
+        label: m.assistant_ask_about_file,
+        icon: MessageCircle,
+        Panel: preloadable(() => import('./components/FilePanel')),
+      } satisfies FilePreviewPanel,
+    ],
   },
   settingsSections: [
     {

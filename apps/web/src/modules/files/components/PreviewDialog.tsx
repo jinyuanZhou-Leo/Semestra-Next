@@ -18,8 +18,10 @@ import {
 } from 'lucide-react'
 import { Suspense, useEffect, useRef, useState } from 'react'
 import { formatHotkey, useHotkey } from '@/app/hotkeys'
+import { useExtensions } from '@/app/registry'
 import { useUiPref } from '@/app/ui-pref'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
+import { IconAction } from '@/components/IconAction'
 import { useDebounced } from '@/hooks/use-debounced'
 import { formatBytes } from '@/lib/format'
 import { SEGMENT, SEGMENTED } from '@/lib/segmented'
@@ -49,8 +51,9 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { searchTerms } from '../highlight'
 import { fileKindName, opensInBrowser, previewKind } from '../kinds'
 import { type PageTarget, pageTarget } from '../page-target'
+import { PreviewHereContext } from '../preview-here'
 import { contentUrl, useFileItem } from '../queries'
-import type { FileItemAction } from '../types'
+import { FILE_PREVIEW_PANELS, type FileItemAction, type FilePreviewPanel } from '../types'
 import { DocumentText } from './DocumentText'
 import { FileIcon } from './FileIcon'
 import { ItemActionButton, useItemActions } from './ItemActions'
@@ -64,6 +67,9 @@ import { useContentSearch } from './SearchResults'
 
 /** What to show: a file, optionally a page in it and words to highlight (a search hit). */
 export type PreviewTarget = { itemId: string; page?: number; terms?: readonly string[] }
+
+/** The right panel each file had open when it was last closed (`files.previewPanels`). */
+const openPanels = new Map<string, string>()
 
 function TextPreview({ item, markdown }: { item: ItemOut; markdown: boolean }) {
   const query = useQuery({
@@ -309,6 +315,11 @@ export function PreviewDialog({
   const [nav, setNav] = useState<PageTarget>(pageTarget(target?.page ?? 1))
   const [page, setPage] = useState(target?.page ?? 1)
   const [selected, setSelected] = useState<string | null>(null)
+  // Words a source chip in the panel beside the file points at.
+  const [cited, setCited] = useState<readonly string[] | null>(null)
+  const [panelId, setPanelId] = useState(() =>
+    target ? (openPanels.get(target.itemId) ?? null) : null,
+  )
   const [shown, setShown] = useState(target)
   if (target !== shown) {
     setShown(target)
@@ -318,6 +329,8 @@ export function PreviewDialog({
       setNav(pageTarget(target.page ?? 1))
       setPage(target.page ?? 1)
       setSelected(null)
+      setCited(null)
+      setPanelId(openPanels.get(target.itemId) ?? null)
     }
   }
   const query = useDebounced(search, 300).trim()
@@ -336,11 +349,24 @@ export function PreviewDialog({
   const hits = useContentSearch(programId ?? '', searching ? query : '', {
     itemIds: data ? [data.id] : [],
   })
-  const terms = searching ? searchTerms(query) : (target?.terms ?? [])
+  const terms = searching ? searchTerms(query) : (cited ?? target?.terms ?? [])
   const go = (to: number) => setNav(pageTarget(to))
   const openHit = (hit: SearchHit) => {
     setSelected(hit.citation_id)
     go(hit.page_from)
+  }
+
+  const panels = useExtensions<FilePreviewPanel>(FILE_PREVIEW_PANELS).filter(
+    (p) => data && data.kind === 'file' && programId && (p.accepts?.(data) ?? true),
+  )
+  const panel = panels.find((p) => p.id === panelId)
+  const togglePanel = (id: string) => {
+    const next = panelId === id ? null : id
+    if (data) {
+      if (next) openPanels.set(data.id, next)
+      else openPanels.delete(data.id)
+    }
+    setPanelId(next)
   }
 
   return (
@@ -369,6 +395,14 @@ export function PreviewDialog({
               programId={programId ?? ''}
               inBrowser={opensInBrowser(kind)}
             />
+            {panels.map((p) => (
+              <PanelButton
+                key={p.id}
+                panel={p}
+                open={p === panel}
+                onClick={() => togglePanel(p.id)}
+              />
+            ))}
             <Button
               size="sm"
               nativeButton={false}
@@ -415,15 +449,40 @@ export function PreviewDialog({
       sidebarOpen={contentsOpen}
       onSidebarOpenChange={setContentsOpen}
       aside={
-        searching ? (
-          <PreviewSearchHits
-            hits={hits.data?.results ?? []}
-            loading={hits.isFetching}
-            selected={selected}
-            onOpen={openHit}
-          />
+        searching || (panel && data) ? (
+          <>
+            {searching ? (
+              <PreviewSearchHits
+                hits={hits.data?.results ?? []}
+                loading={hits.isFetching}
+                selected={selected}
+                onOpen={openHit}
+              />
+            ) : null}
+            {/* Kept, not unmounted, while search results take its place: a reply keeps coming. */}
+            {panel && data ? (
+              <div className={cn('flex min-h-0 flex-1 flex-col', searching && 'hidden')}>
+                <PreviewHereContext
+                  value={{
+                    itemId: data.id,
+                    open: (to, words) => {
+                      setCited(words ?? null)
+                      go(to)
+                    },
+                  }}
+                >
+                  <panel.Panel
+                    item={data}
+                    programId={programId ?? ''}
+                    onClose={() => togglePanel(panel.id)}
+                  />
+                </PreviewHereContext>
+              </div>
+            ) : null}
+          </>
         ) : null
       }
+      asideClassName={panel ? 'w-[26rem]' : undefined}
     >
       {target ? (
         <AsyncBoundary query={item}>
@@ -442,6 +501,28 @@ export function PreviewDialog({
         </AsyncBoundary>
       ) : null}
     </PreviewShell>
+  )
+}
+
+/** Shows or hides a panel beside the file (`files.previewPanels`), like the contents button. */
+function PanelButton({
+  panel,
+  open,
+  onClick,
+}: {
+  panel: FilePreviewPanel
+  open: boolean
+  onClick: () => void
+}) {
+  return (
+    <IconAction
+      label={panel.label()}
+      aria-pressed={open}
+      className="aria-pressed:bg-muted"
+      onClick={onClick}
+    >
+      <panel.icon aria-hidden />
+    </IconAction>
   )
 }
 
