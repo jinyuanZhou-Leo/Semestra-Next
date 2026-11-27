@@ -21,7 +21,7 @@ import { toast } from 'sonner'
 import { invalidateOperations } from '@/app/api'
 import type { ModuleManifest } from '@/app/extensions'
 import { useAllModules } from '@/app/registry'
-import { useReducedMotion } from '@/app/theme'
+import { useMotionPreference } from '@/app/theme'
 import { PluginSettingsSections, RowMenu, SettingsBlock, SettingsGroup } from '@/app/settings'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { useDialogTarget } from '@/lib/dialog-target'
@@ -298,7 +298,7 @@ export default function PluginCatalog() {
   const details = useDialogTarget<string>()
   const removing = useDialogTarget<Entry>()
   const [purge, setPurge] = useState(false)
-  const reduced = useReducedMotion()
+  const motionPreference = useMotionPreference()
 
   const entries = data.items.map((plugin) => toEntry(plugin, modules))
   const query = search.trim().toLocaleLowerCase()
@@ -397,7 +397,10 @@ export default function PluginCatalog() {
           </InputGroupAddon>
         </InputGroup>
         <LazyMotion features={domMax} strict>
-          <MotionConfig transition={{ duration: reduced ? 0 : 0.24, ease: EASE }}>
+          <MotionConfig
+            reducedMotion={motionPreference}
+            transition={{ duration: 0.24, ease: EASE }}
+          >
             <LayoutGroup>
               {/* A group that appears later fades in; one whose last card leaves goes at once
                   (that card is already gliding to the other group). */}

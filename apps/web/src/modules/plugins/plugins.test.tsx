@@ -98,6 +98,32 @@ test('the marketplace groups plugins by whether they are installed and searches 
   expect(screen.getByText('abacus')).toBeInTheDocument()
 })
 
+test('installing and uninstalling move a plugin between the groups', async () => {
+  catalog({ abacus: true })
+  renderCatalog()
+  const user = userEvent.setup()
+  const available = await screen.findByRole('region', { name: 'Not installed' })
+  await user.click(within(available).getByRole('button', { name: 'Install' }))
+  // The last plugin left "Not installed": the group goes, and the plugin is under "Installed".
+  await waitFor(() =>
+    expect(screen.queryByRole('region', { name: 'Not installed' })).not.toBeInTheDocument(),
+  )
+  const installed = within(screen.getByRole('region', { name: 'Installed' }))
+  expect(installed.getByText('Module template')).toBeInTheDocument()
+  expect(installed.getByText('abacus')).toBeInTheDocument()
+
+  await user.click(installed.getByRole('button', { name: 'More actions for abacus' }))
+  await user.click(await screen.findByRole('menuitem', { name: 'Uninstall' }))
+  await user.click(
+    within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Uninstall' }),
+  )
+  const back = within(await screen.findByRole('region', { name: 'Not installed' }))
+  expect(back.getByText('abacus')).toBeInTheDocument()
+  expect(
+    within(screen.getByRole('region', { name: 'Installed' })).queryByText('abacus'),
+  ).not.toBeInTheDocument()
+})
+
 test('a card opens a details dialog that lists what the plugin adds and installs it', async () => {
   const calls = catalog({})
   // Once installed, the dialog shows the plugin's settings.
