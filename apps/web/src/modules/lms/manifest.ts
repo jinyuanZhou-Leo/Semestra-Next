@@ -296,6 +296,17 @@ export default defineModule({
       prefetch: settingsPrefetch.program,
     },
     {
+      id: 'program-lms-courses',
+      level: 'program',
+      group: 'lms',
+      title: m.lms_settings_program_courses,
+      description: m.lms_settings_program_courses_description,
+      icon: Link2,
+      order: 20,
+      component: preloadable(() => sections().then((s) => ({ default: s.ProgramCoursesSection }))),
+      prefetch: settingsPrefetch.programCourses,
+    },
+    {
       id: 'course-lms',
       level: 'course',
       group: 'lms',

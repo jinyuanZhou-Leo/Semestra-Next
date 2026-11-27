@@ -7,7 +7,7 @@ import type {
 } from '@semestra/api-client'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { http, HttpResponse } from 'msw'
+import { delay, http, HttpResponse } from 'msw'
 import { afterAll, afterEach, beforeAll, expect, test, vi } from 'vitest'
 import { API, apiError, renderWithRouter, server } from '@/test-utils'
 import AnnouncementsCard from './cards/AnnouncementsCard'
@@ -19,6 +19,8 @@ import { CoursePicker } from './import/CoursePicker'
 import { SyllabusPicker } from './import/SyllabusPicker'
 import { ConnectionsSection } from './settings/ConnectionsSection'
 import { CourseLmsSection, pickerGroups } from './settings/CourseLmsSection'
+import { ProgramCoursesSection } from './settings/ProgramCoursesSection'
+import { suggestLinks } from './settings/suggest'
 import { ProgramLmsSection } from './settings/ProgramLmsSection'
 import { MaterialsSection } from './settings/MaterialsSection'
 import ConnectLmsStep from './onboarding/ConnectLmsStep'
@@ -422,9 +424,13 @@ test('materials left after turning the sync off can be removed', async () => {
   await waitFor(() => expect(screen.queryByText('Synced materials')).toBeNull())
 })
 
-test("a program's connection is locked while courses are linked through it", async () => {
+test("a program's connection waits to change until no course is linked through it", async () => {
   server.use(
-    http.get(`${API}/lms/connections`, () => HttpResponse.json({ items: [connection()] })),
+    http.get(`${API}/lms/connections`, () =>
+      HttpResponse.json({
+        items: [connection(), connection({ id: 'k2', display_name: 'Other Canvas' })],
+      }),
+    ),
     http.get(`${API}/programs/p1/lms-binding`, () =>
       HttpResponse.json({
         program_id: 'p1',
@@ -433,12 +439,132 @@ test("a program's connection is locked while courses are linked through it", asy
         link_count: 2,
       }),
     ),
+    http.get(`${API}/programs/p1/lms/sync`, () => HttpResponse.json({ synced_at: null })),
   )
   renderWithRouter(<ProgramLmsSection scope={{ kind: 'program', programId: 'p1' }} />)
+  expect(await screen.findByText('U of T Quercus')).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: 'Actions for U of T Quercus' }))
+  const change = await screen.findByRole('menuitem', { name: /Change connection…/ })
+  expect(change).toHaveAttribute('aria-disabled', 'true')
+  expect(change).toHaveTextContent('Unlink its courses first (2)')
+  expect(screen.getByRole('menuitem', { name: /Stop using for this program…/ })).toHaveAttribute(
+    'aria-disabled',
+    'true',
+  )
+})
+
+test('program course links: matches by code are linked at once, the rest each pick one', async () => {
+  const linked = vi.fn<(course: string, body: unknown) => void>()
+  const links: CourseLink[] = [link({ course_id: 'c3', external_course_id: '103' })]
+  server.use(
+    http.get(`${API}/programs/p1/lms-binding`, () =>
+      HttpResponse.json({
+        program_id: 'p1',
+        connection_id: 'k1',
+        connection: connection(),
+        link_count: 1,
+      }),
+    ),
+    http.get(`${API}/programs/p1/courses`, () =>
+      HttpResponse.json({
+        items: [
+          academicsCourse({
+            term_ids: [],
+            id: 'c1',
+            code: 'APS105H1',
+            title: 'Computer Fundamentals',
+          }),
+          academicsCourse({ term_ids: [], id: 'c2', code: 'MAT188H1', title: 'Linear Algebra' }),
+          academicsCourse({
+            term_ids: [],
+            id: 'c3',
+            code: 'ECE110H1',
+            title: 'Electrical Fundamentals',
+          }),
+        ],
+      }),
+    ),
+    http.get(`${API}/programs/p1/lms-links`, () => HttpResponse.json({ items: links })),
+    // The platform answers last: the suggestions are there when the list first shows.
+    http.get(`${API}/programs/p1/lms/courses`, async () => {
+      await delay(50)
+      return HttpResponse.json({
+        connection_id: 'k1',
+        provider: 'canvas',
+        truncated: false,
+        items: [
+          // Next term's: still suggested.
+          external({
+            external_id: '101',
+            code: 'APS105H1 S',
+            name: 'Computer Fundamentals',
+            is_current: false,
+            term: '2027 Winter',
+          }),
+          external({
+            external_id: '103',
+            code: 'ECE110H1',
+            name: 'Electrical Fundamentals',
+            linked_course_id: 'c3',
+            linked_course_name: 'ECE110H1',
+          }),
+        ],
+      })
+    }),
+    http.put(`${API}/courses/:id/lms-link`, async ({ params, request }) => {
+      linked(String(params.id), await request.json())
+      return HttpResponse.json({ course_id: params.id, link: null, program_connection_id: 'k1' })
+    }),
+  )
+  renderWithRouter(<ProgramCoursesSection scope={{ kind: 'program', programId: 'p1' }} />)
+  const unlinked = await screen.findByRole('region', { name: 'Not linked · 2' })
   expect(
-    await screen.findByText(/2 courses are linked through this connection/),
+    within(unlinked).getByText('Courses with a matching code on Canvas: 1'),
   ).toBeInTheDocument()
-  expect(screen.getByRole('combobox', { name: 'Connection' })).toBeDisabled()
+  expect(
+    within(unlinked).getByText(/APS105H1 S · Computer Fundamentals · 2027 Winter/),
+  ).toBeInTheDocument()
+  // The linked course is in the table, not offered again.
+  const table = screen.getByRole('region', { name: 'Linked · 1' })
+  expect(within(table).getByText('Electrical Fundamentals')).toBeInTheDocument()
+  await userEvent.click(within(unlinked).getByRole('button', { name: 'Link all' }))
+  await waitFor(() =>
+    expect(linked).toHaveBeenCalledWith('c1', { external_course_id: '101', replace: false }),
+  )
+  expect(linked).toHaveBeenCalledOnce()
+})
+
+test('program course links: a failed read says so and can be retried', async () => {
+  let fail = true
+  server.use(
+    http.get(`${API}/programs/p1/lms-binding`, () =>
+      HttpResponse.json({
+        program_id: 'p1',
+        connection_id: 'k1',
+        connection: connection(),
+        link_count: 0,
+      }),
+    ),
+    http.get(`${API}/programs/p1/courses`, () =>
+      fail
+        ? HttpResponse.json(
+            { error: { code: 'common.internal', params: {}, request_id: 'r' } },
+            { status: 500 },
+          )
+        : HttpResponse.json({
+            items: [academicsCourse({ term_ids: [], id: 'c1', code: 'APS105H1' })],
+          }),
+    ),
+    http.get(`${API}/programs/p1/lms-links`, () => HttpResponse.json({ items: [] })),
+    http.get(`${API}/programs/p1/lms/courses`, () =>
+      HttpResponse.json({ connection_id: 'k1', provider: 'canvas', truncated: false, items: [] }),
+    ),
+  )
+  renderWithRouter(<ProgramCoursesSection scope={{ kind: 'program', programId: 'p1' }} />)
+  const retry = await screen.findByRole('button', { name: 'Retry' })
+  fail = false
+  await userEvent.click(retry)
+  expect(await screen.findByRole('region', { name: 'Not linked · 1' })).toBeInTheDocument()
 })
 
 test('course settings: guidance without a binding, then the switches, materials and unlink', async () => {
@@ -452,8 +578,23 @@ test('course settings: guidance without a binding, then the switches, materials 
       HttpResponse.json({ program_id: 'p1', connection_id: null, connection: null, link_count: 0 }),
     ),
   )
+  const bound = vi.fn<(body: unknown) => void>()
+  server.use(
+    http.put(`${API}/programs/p1/lms-binding`, async ({ request }) => {
+      bound(await request.json())
+      return HttpResponse.json({
+        program_id: 'p1',
+        connection_id: 'k1',
+        connection: connection(),
+        link_count: 0,
+      })
+    }),
+  )
   const first = renderWithRouter(<CourseLmsSection scope={scope} />)
-  expect(await screen.findByText('No LMS connection for this program')).toBeInTheDocument()
+  // The account's connection can be chosen for the program right here.
+  expect(await screen.findByText('Choose a connection for this program')).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: 'Use for this program' }))
+  await waitFor(() => expect(bound).toHaveBeenCalledWith({ connection_id: 'k1' }))
   first.unmount()
 
   const patched = vi.fn<(body: unknown) => void>()
@@ -681,6 +822,53 @@ test('the course picker suggests the course with the same code', () => {
   expect(groups.map((g) => [g.label, g.items.map((c) => c.external_id)])).toEqual([
     ['Suggested', ['1']],
     ['2026 Fall', ['2']],
+  ])
+})
+
+test('the picker suggests a match from any term and lists courses linked elsewhere last', () => {
+  const next = external({
+    external_id: '3',
+    code: 'APS105H1',
+    name: 'Computer Fundamentals',
+    term: '2027 Winter',
+    is_current: false,
+  })
+  const taken = external({
+    external_id: '4',
+    code: 'ECE110H1',
+    name: 'Electrical',
+    linked_course_id: 'c9',
+    linked_course_name: 'ECE110H1',
+  })
+  const shown = [external({ external_id: '2', code: 'MAT188H1', name: 'Linear Algebra' }), taken]
+  const groups = pickerGroups(shown, 'APS105H1', 'c1', undefined, [...shown, next])
+  expect(groups.map((g) => [g.label, g.items.map((c) => c.external_id)])).toEqual([
+    ['Suggested', ['3']],
+    ['2026 Fall', ['2']],
+    ['Linked to other courses', ['4']],
+  ])
+})
+
+test('each platform course is suggested to one course, current terms first', () => {
+  const old = external({
+    external_id: '1',
+    code: 'APS105H1',
+    name: 'A',
+    is_current: false,
+    start_at: '2025-09-01',
+  })
+  const now = external({ external_id: '2', code: 'APS105H1', name: 'A', start_at: '2026-09-01' })
+  const suggested = suggestLinks(
+    [
+      { id: 'c1', code: 'APS105H1' },
+      { id: 'c2', code: 'APS105' },
+      { id: 'c3', code: 'XY' },
+    ],
+    [old, now],
+  )
+  expect([...suggested].map(([id, c]) => [id, c.external_id])).toEqual([
+    ['c2', '2'],
+    ['c1', '1'],
   ])
 })
 

@@ -1,7 +1,9 @@
 import {
   academicsCourseGetOptions,
+  academicsCourseListOptions,
   lmsConnectionListOptions,
   lmsCourseLinkGetOptions,
+  lmsCourseLinkListOptions,
   lmsCourseListOptions,
   lmsProgramBindingGetOptions,
   lmsProviderListOptions,
@@ -190,6 +192,22 @@ export const settingsPrefetch = {
       queryClient.ensureQueryData(lmsConnectionListOptions()),
       bindingOf(scope, queryClient),
     ]),
+  // The Program's courses, their links and every term's platform courses (the suggestions above
+  // the list). The platform may not answer: the section then shows without suggestions.
+  programCourses: async (scope: Scope | undefined, queryClient: QueryClient) => {
+    const programId = scope?.programId ?? ''
+    const path = { path: { program_id: programId } }
+    const [binding] = await Promise.all([
+      bindingOf(scope, queryClient),
+      queryClient.ensureQueryData(academicsCourseListOptions({ ...path, query: { limit: 500 } })),
+    ])
+    if (binding?.connection_id) {
+      await Promise.all([
+        queryClient.ensureQueryData(lmsCourseLinkListOptions(path)),
+        queryClient.prefetchQuery(lmsCourseListOptions({ ...path, query: { include_past: true } })),
+      ])
+    }
+  },
   // A linked course shows its link; an unlinked one the platform's courses to pick from; one in an
   // unbound Program a way to connect.
   course: async (scope: Scope | undefined, queryClient: QueryClient) => {
@@ -217,6 +235,13 @@ export const settingsPrefetch = {
         lmsCourseListOptions({
           path: { program_id: scope?.programId ?? '' },
           query: { include_past: false },
+        }),
+      ),
+      // Every term's, for the suggestion under the picker.
+      queryClient.prefetchQuery(
+        lmsCourseListOptions({
+          path: { program_id: scope?.programId ?? '' },
+          query: { include_past: true },
         }),
       ),
     ])

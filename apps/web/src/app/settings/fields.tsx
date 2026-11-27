@@ -166,6 +166,7 @@ export function FieldControlView(props: ControlProps) {
         selected: inherit.following,
         short: m.settings_follow(),
         full: m.settings_follow_option({ level: inherit.from, value: inherit.valueText }),
+        value: inherit.valueText,
         onSelect: inherit.follow,
       }}
     />

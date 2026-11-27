@@ -1,5 +1,6 @@
 import type { LucideIcon } from 'lucide-react'
 import { SEGMENT, SEGMENTED } from '@/lib/segmented'
+import { m } from '@/paraglide/messages'
 import { cn } from '@/lib/utils'
 import {
   Select,
@@ -33,6 +34,8 @@ export type FollowChoice = {
   short: string
   /** Where the value comes from and what it is: the segment's tooltip and the select item. */
   full: string
+  /** The followed value, shown in a select's trigger without the level (which can cut it off). */
+  value: string
   onSelect: () => void
 }
 
@@ -126,7 +129,11 @@ export function ChoiceControl<T extends string>({
         <SelectValue>
           {(selected: string) => {
             const option = options.find((o) => o.value === selected)
-            if (!option) return follow && selected === FOLLOW ? follow.full : null
+            if (!option) {
+              return follow && selected === FOLLOW
+                ? m.settings_follow_value({ value: follow.value })
+                : null
+            }
             return (
               <>
                 {option.icon ? <option.icon aria-hidden /> : null}
