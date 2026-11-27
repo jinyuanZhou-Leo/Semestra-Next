@@ -3648,5 +3648,20 @@
   "lms_link_failed": "同步出错",
   "lms_link_stale": "部分未更新",
   "lms_assignment_source_stale": "这份作业暂未从 {provider} 更新。",
-  "lms_assignment_submission_as_of": "提交状态更新于 {time}"
+  "lms_assignment_submission_as_of": "提交状态更新于 {time}",
+  "canvas_tab_card_title": "Canvas 快速入口",
+  "canvas_tab_card_description": "一键打开 Canvas 标签页里的公告、单元、作业与成绩等",
+  "canvas_tab_card_unlinked": "这门课还没有关联 Canvas",
+  "canvas_tab_card_unlinked_term": "本学期还没有关联 Canvas 的课程",
+  "canvas_tab_shortcut_title": "Canvas 单项入口",
+  "canvas_tab_shortcut_description": "一键打开 Canvas 标签页里的某一项",
+  "settings_card_canvas_tab_shortcut_place_label": "打开",
+  "settings_card_canvas_tab_shortcut_place_option_last": "上次看到的位置",
+  "settings_card_canvas_tab_shortcut_place_option_home": "首页",
+  "settings_card_canvas_tab_shortcut_place_option_announcements": "公告",
+  "settings_card_canvas_tab_shortcut_place_option_syllabus": "大纲",
+  "settings_card_canvas_tab_shortcut_place_option_modules": "单元",
+  "settings_card_canvas_tab_shortcut_place_option_assignments": "作业与成绩",
+  "settings_card_canvas_tab_shortcut_place_option_pages": "页面",
+  "settings_card_canvas_tab_shortcut_place_option_files": "文件"
 }
