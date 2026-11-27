@@ -26,12 +26,26 @@ In global settings → **AI → Models**, choose a model for each purpose:
 | Sem               | Conversations with Sem                                     |
 | Reading documents | Course details, deadlines and grade breakdowns from syllabi |
 | Reading images    | Timetable screenshots                                      |
-| OCR               | Text in scanned PDFs and photos                            |
+| OCR               | Text in scans, handwritten notes and photos                |
 | Search            | Finding passages in your course files by meaning           |
 | Light tasks       | Conversation titles, suggested questions and tidying Sem's memory |
 
 Leave a purpose on **Auto** to use the recommended model of a provider you added. When no model can
 serve a purpose, the features that need it ask you to add a provider.
+
+## Text recognition
+
+The OCR row takes one of two kinds of model:
+
+- **Vision models**: a provider's models. They read handwriting, formulas and figures, and use
+  credits. Recommended for handwritten notes.
+- **Classic OCR**: included with some self-hosted servers. It runs on the server at no cost and
+  suits printed text, but reads handwriting poorly.
+
+Handwritten notes on typed slides are recognized too and added after the slide's text.
+
+PDFs read before are not recognized again on their own. The OCR row shows how many PDFs were read
+by an earlier version; click **Read again** to update them.
 
 ## File indexing
 

@@ -13,7 +13,7 @@ from semestra.core.errors import AppError
 from semestra.modules import ai as m06
 from semestra.modules.ai.adapters import convert
 from semestra.modules.ai.adapters.base import ModelParams
-from semestra.modules.ai.llm import Message
+from semestra.modules.ai.llm import Image, Message
 from semestra.modules.ai.tests.conftest import Ai
 from semestra.modules.ai.tests.test_calls import anthropic_reply, usage_rows
 
@@ -366,3 +366,41 @@ async def test_responses_other_rejections_are_not_blamed_on_the_summary(
         await m06.complete(ctx, "chat", [Message.user("hi")], source_module="t")
     # Still asked for the summary next time: dropping it did not help.
     assert json.loads(route.calls.last.request.content)["reasoning"]["summary"] == "auto"
+
+
+async def test_a_transcription_does_not_think_and_a_cut_off_one_fails(
+    ai: Ai, mock: respx.MockRouter
+):
+    # OCR copies a page: compatible models that think by default (DeepSeek) are asked not to,
+    # and a page cut off at the output limit is not taken for the whole page.
+    mock.get(f"{ANTHROPIC_COMPAT}/v1/models").mock(return_value=Response(200, json={"data": []}))
+    provider = await ai.provider(
+        "anthropic_compatible", base_url=ANTHROPIC_COMPAT, capabilities=["chat", "vision"]
+    )
+    await ai.call(
+        "PUT",
+        "/ai/assignments",
+        json={"purpose": "ocr", "provider_id": provider["id"], "model": "deepseek-vision"},
+    )
+    page = [Message.user("Transcribe this page.", Image(b"png", "image/png"))]
+
+    def reply(stop: str) -> Response:
+        return Response(
+            200,
+            json={
+                "content": [{"type": "text", "text": "Lecture 3"}],
+                "stop_reason": stop,
+                "usage": {"input_tokens": 3, "output_tokens": 2},
+            },
+        )
+
+    route = mock.post(f"{ANTHROPIC_COMPAT}/v1/messages").mock(return_value=reply("end_turn"))
+    async with ai.ctx() as ctx:
+        resolved = await m06.resolve_provider(ctx, "ocr")
+        done = await m06.complete_with(ctx, resolved, page, source_module="files", transcribe=True)
+        assert done.text == "Lecture 3"
+        assert json.loads(route.calls.last.request.content)["thinking"] == {"type": "disabled"}
+        route.mock(return_value=reply("max_tokens"))
+        with pytest.raises(AppError) as exc:
+            await m06.complete_with(ctx, resolved, page, source_module="files", transcribe=True)
+    assert exc.value.code == "ai.output_truncated"

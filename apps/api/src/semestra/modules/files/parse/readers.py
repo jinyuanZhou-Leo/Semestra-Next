@@ -8,10 +8,10 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, cast
 
+from semestra.modules.files.parse.classify import PageKind, classify
 from semestra.modules.files.parse.detect import KIND_OF_MIME, Detected, decode_text
 
 MAX_PAGES = 500
-OCR_MIN_CHARS = 50
 LOGICAL_PAGE_CHARS = 3000
 TABLE_ROWS_PER_PAGE = 100
 MAX_TABLE_ROWS = 20_000
@@ -22,7 +22,7 @@ MAX_OFFICE_UNPACKED_BYTES = 100_000_000
 # Each reader's version: raised when the text a reader writes changes. A document read by an
 # older version of a reader that needs no model is read again (`outdated`); a document read before
 # versions were recorded counts as version 1.
-READER_VERSIONS: dict[str, int] = {"html": 2}
+READER_VERSIONS: dict[str, int] = {"html": 2, "pdf": 2}
 # Readers whose documents are read again when their version goes up: they never run OCR, so
 # reading again costs no model use beyond embedding.
 REREAD_KINDS = frozenset({"docx", "pptx", "xlsx", "csv", "text", "markdown", "html"})
@@ -37,17 +37,37 @@ def fingerprint_reader(kind: str) -> str:
     return f"{kind}:{reader_version(kind)}:"
 
 
+def read_with(fingerprint: str) -> int:
+    """The version of the reader a document was read by, from its `parser_fingerprint`."""
+    parts = fingerprint.split(":")
+    return int(parts[1]) if len(parts) == 3 and parts[1].isdigit() else 1
+
+
+def _older(kind: str | None, fingerprint: str) -> bool:
+    return kind is not None and read_with(fingerprint) < reader_version(kind)
+
+
 def outdated(mime: str | None, fingerprint: str) -> bool:
     """A document of a file of type `mime` (the item's, once read) was read by an older version
     of a reader that needs no model: it is to be read again. Who reads it again: the user's own
     files `jobs.reread_outdated`, a source's files its sync (`sources.read_again_if_outdated`),
     which reads its platform within its own limits and retries its failures."""
     kind = KIND_OF_MIME.get(mime or "")
-    if kind not in REREAD_KINDS or reader_version(kind) == 1:
-        return False
-    parts = fingerprint.split(":")
-    read_with = int(parts[1]) if len(parts) == 3 and parts[1].isdigit() else 1
-    return read_with < reader_version(kind)
+    return kind in REREAD_KINDS and _older(kind, fingerprint)
+
+
+# The readers that may run OCR and so use a model, by the MIME types they read: their documents
+# are read again only when the user asks (`files.outdated.reread`), never in the background.
+OCR_KIND_OF_MIME = {
+    "application/pdf": "pdf", "image/png": "image", "image/jpeg": "image",
+    "image/webp": "image", "image/heic": "image",
+}  # fmt: skip
+
+
+def read_again_when_asked(mime: str | None, fingerprint: str) -> bool:
+    """A document read by an older version of a reader that may use a model (a PDF's): the user
+    can have it read again (`files.outdated.reread`)."""
+    return _older(OCR_KIND_OF_MIME.get(mime or ""), fingerprint)
 
 
 class ParseError(Exception):
@@ -62,10 +82,21 @@ class ParseError(Exception):
 @dataclass
 class ParsedPage:
     markdown: str
-    needs_ocr: bool = False
+    # What OCR does with the page (`classify`): nothing for text and blank pages; an image page
+    # is read whole, a mixed page (text with handwriting or drawings) has what its text layer
+    # lacks read and added after its text.
+    kind: PageKind = "text"
+    # A PDF page's visible text and where it is (page points): what a mixed page already has,
+    # which OCR leaves out (`markdown` may also hold text an app recognized in handwriting).
+    printed: str = ""
+    text_rects: tuple[tuple[float, float, float, float], ...] = ()
     # The page writes math as LaTeX between `$` / `$$` and a literal dollar as `\$`; only text
     # written to that rule is, so the app typesets math on these pages only (M07 §6.1).
     latex: bool = False
+
+    @property
+    def needs_ocr(self) -> bool:
+        return self.kind in ("image", "mixed")
 
 
 @dataclass
@@ -195,8 +226,8 @@ def _pdf(data: bytes, max_pages: int) -> ParsedDocument:
                     doc, pages=[index], hdr_info=headers, show_progress=False
                 )
                 markdown = result.strip() if isinstance(result, str) else ""
-                sparse = len(re.sub(r"\s+", "", markdown)) < OCR_MIN_CHARS
-                pages.append(ParsedPage(markdown, sparse and bool(doc[index].get_images())))
+                seen = classify(doc[index])
+                pages.append(ParsedPage(markdown, seen.kind, seen.printed, seen.text_rects))
         except ParseError:
             raise
         except Exception as exc:
@@ -421,7 +452,7 @@ def _dispatch(data: bytes, detected: Detected, max_pages: int) -> ParsedDocument
         case "text" | "markdown":
             return ParsedDocument(_text_pages(decode_text(data) or ""))
         case "image":
-            return ParsedDocument([ParsedPage("", needs_ocr=True)])
+            return ParsedDocument([ParsedPage("", kind="image")])
         case _:
             raise ParseError("files.unsupported_type")
 

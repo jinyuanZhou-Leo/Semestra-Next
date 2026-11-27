@@ -15,7 +15,8 @@ from semestra.core.jobs import CoreJob, JobOut, JobRef, job_cancel
 from semestra.modules.academics import service as academics
 from semestra.modules.academics.models import AcademicsCourse
 from semestra.modules.files import content, service
-from semestra.modules.files.models import FilesItem
+from semestra.modules.files.models import FilesDocument, FilesItem
+from semestra.modules.files.parse.readers import OCR_KIND_OF_MIME, read_again_when_asked
 from semestra.modules.files.schemas import Id
 from semestra.modules.files.service import PROCESS_KINDS
 
@@ -73,6 +74,12 @@ class RetryInput(BaseModel):
 
 class Retried(BaseModel):
     retried: int
+
+
+class Outdated(BaseModel):
+    count: int = Field(
+        description="Files (PDFs) read by an older reader, which may have missed handwriting"
+    )
 
 
 def _mine(ctx: Ctx):
@@ -254,3 +261,41 @@ async def retry(ctx: Ctx, inp: RetryInput) -> Retried:
         retried += 1
     await ctx.db.flush()
     return Retried(retried=retried)
+
+
+async def _outdated(ctx: Ctx) -> list[FilesItem]:
+    """The user's files read by an older version of a reader that may use a model
+    (`readers.read_again_when_asked`): not read again in the background, as reading them may
+    cost model use, but when the user asks (`reread_outdated`)."""
+    found = await ctx.db.execute(
+        select(FilesItem, FilesDocument.parser_fingerprint)
+        .join(FilesDocument, FilesDocument.id == FilesItem.active_document_id)
+        .where(
+            FilesItem.user_id == ctx.user_id,
+            FilesItem.doc_status == "ready",
+            FilesItem.mime_type.in_(OCR_KIND_OF_MIME),
+        )
+    )
+    return [
+        row
+        for row, fingerprint in found.all()
+        if content.has_content(row) and read_again_when_asked(row.mime_type, fingerprint)
+    ]
+
+
+async def count_outdated(ctx: Ctx) -> Outdated:
+    return Outdated(count=len(await _outdated(ctx)))
+
+
+async def reread_outdated(ctx: Ctx) -> Retried:
+    """Each file read by an older reader is read again, as the user's own read (the "Reading
+    files" line shows them); a course material is fetched from its source again as with
+    `files.item.reprocess`."""
+    rows = await _outdated(ctx)
+    for row in rows:
+        await service.request_read(ctx, row, "user")
+        await events.publish(
+            ctx, "files.item.updated", {"item_id": row.id, "course_id": row.course_id}
+        )
+    await ctx.db.flush()
+    return Retried(retried=len(rows))

@@ -104,9 +104,14 @@ def _engine(model: str) -> Any:
         return _ENGINES[model]
 
 
-def recognize(model: str, png: bytes) -> str:
-    """The page's text, one detected line per line in reading order. Blocking: call it in a
-    worker thread."""
+# A line the engine read: its text, how sure the engine is (0 to 1) and its box in the image's
+# pixels (left, top, right, bottom).
+Line = tuple[str, float, tuple[float, float, float, float]]
+
+
+def recognize(model: str, png: bytes) -> list[Line]:
+    """The image's lines in the order the engine reads them. Blocking: call it in a worker
+    thread."""
     import numpy as np  # pyright: ignore[reportMissingImports]
     from PIL import Image
 
@@ -115,10 +120,24 @@ def recognize(model: str, png: bytes) -> str:
     engine = _engine(model)
     with _LOCK:  # one page at a time: the engine is not thread-safe and uses every core
         results = list(engine.predict(input=image))
-    lines: list[str] = []
+    lines: list[Line] = []
     for result in results:
-        lines += [str(t).strip() for t in result.get("rec_texts", []) if str(t).strip()]
-    return "\n".join(lines)
+        texts = list(result.get("rec_texts", []))
+        scores = list(result.get("rec_scores", []))
+        boxes = [_box(b) for b in result.get("rec_boxes", [])]
+        for index, text in enumerate(texts):
+            text = str(text).strip()
+            if not text:
+                continue
+            score = float(scores[index]) if index < len(scores) else 1.0
+            box = boxes[index] if index < len(boxes) else (0.0, 0.0, 0.0, 0.0)
+            lines.append((text, score, box))
+    return lines
+
+
+def _box(raw: Any) -> tuple[float, float, float, float]:
+    x0, y0, x1, y1 = (float(v) for v in list(raw)[:4])
+    return x0, y0, x1, y1
 
 
 # --- downloads --------------------------------------------------------------------------------

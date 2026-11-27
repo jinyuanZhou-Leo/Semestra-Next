@@ -161,6 +161,7 @@ async def available(ctx, purpose) -> bool            # 前端/其它模块判断
 - **推理评审修复**（2026-11-05，见项目文件 `discussions/2026-11-05-AI推理架构与性能评审.md`）：
   - 超时按单次请求计算，重试和退避等待不计入（去掉了包住整个调用的 120 s）；结构化输出的请求超时为 `answer_timeout(max_tokens)`（120 s 加上输出上限按每秒 25 token 生成所需的时间，未设上限按 16384 计），长的抽取不再因为固定 120 s 失败。`extract` 遇到 `ai.timeout` 时把这一段对半分开重读一次（第二次超时就报错），导入（M08）不再把超时当作瞬时错误整份重读。
   - 结构化抽取默认不推理：Anthropic 类仍显式关闭 thinking，其余用 Pydantic AI 的 `thinking=False`（OpenAI 推理模型用最低强度、Gemini 关闭或最低思考）；用户为该用途设置了推理强度时（OpenAI 类）以用户为准。
+  - 转写（`complete_with(..., transcribe=True)`，2026-11-27，M07 的视觉模型 OCR 用）同样默认不推理（`_no_reasoning`），并要求完整回答：回答因长度上限被截断时抛 `ai.output_truncated`，不把半页当作结果。
   - 服务商 embedding 按 `defaults.toml` 的 `[embedding_profiles]`（按模型名前缀，去掉 `vendor/` 与 Ollama `:tag`）区分查询和文档：nomic-embed-text、E5、Qwen3 Embedding、EmbeddingGemma 等加前缀，Gemini 传 `task_type` 并取 768 维。带前缀的模型在向量空间名里加 `+prefixed`（`embedding_model()` 与 `EmbeddingResult.model`），所以已有向量会重建（M07 在搜索时发现旧空间后排重建）。
   - 批量 embedding 只在被拒原因和批大小有关时缩小：报错里有条数上限（如百炼“不大于 10”，解析进 `ai.request_rejected` 的 `batch_limit`）就按它重试，成功后按端点记在 `AiRuntime.embed_batch`；`ai.context_too_long`（含 413）只在这次调用里减半，不记住。其它 400（模型名错、参数不支持、某一段被拒）直接报错。Gemini 429 的 `retryDelay`（响应体）也当作 Retry-After。
   - 按端点限并发（`adapters/limits.py`，Pydantic AI 的 `ConcurrencyLimiter`，每个 app 一组，存在 `AiRuntime`）：每次请求（含 embedding，流式请求占到流结束）先取一个名额，上限是服务商的 `max_concurrency`（`ai_providers` 新列，编辑服务商对话框“高级”里设置，1–32），没设为 4；任务里的请求最多用上限减一个名额（上限为 1 时不留），给 Sem、搜索等交互请求留一个。全实例服务商只在设了 `SEMESTRA_INSTANCE_AI_MAX_CONCURRENCY` 时限制（所有用户共用，默认不限）。等名额时任务显示 `ai.provider_busy`。重试的退避期间让出名额。

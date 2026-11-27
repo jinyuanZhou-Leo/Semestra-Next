@@ -365,6 +365,9 @@ course_ids or term_id. Quote results with their citation_id. If pending_items is
 files are still being processed; if unindexed_items is not empty, those files are not indexed yet
 (tell the user they can index them with "Index" in the file list); if unreadable_items is not
 empty, those files could not be read at all. In all these cases tell the user the answer may be
+incomplete. Pages in visual_pages have handwriting, figures or a scan, and their text may miss
+some of it: if you can view pages (view_pages), look at the ones the answer depends on; if you
+cannot, tell the user once that those pages are handwritten or drawn and the answer may be
 incomplete. Do not use to find a file by its name; use files.item.list.""",
     effect="read",
     http=Http("POST", "/programs/{program_id}/files:search"),
@@ -380,7 +383,10 @@ async def files_search(ctx: Ctx, inp: SearchInput) -> SearchResult:
     summary="Read the text of a processed file, page by page.",
     description="""Returns the markdown of the pages from page_from (a few pages per call, each with
 its citation_id). When next_page is set, call again from there to continue. Use it to summarise or
-extract from a whole document; to find something specific use files.document.search first.""",
+extract from a whole document; to find something specific use files.document.search first.
+Pages with visual set have handwriting, figures or a scan, and their text may miss some of it:
+if you can view pages (view_pages), look at the ones the answer depends on; if you cannot, tell the
+user once that those pages are handwritten or drawn and the answer may be incomplete.""",
     effect="read",
     http=Http("GET", "/files/{item_id}/document"),
     tags=TAGS,
@@ -578,3 +584,31 @@ files.item.reprocess.""",
 )
 async def processing_retry(ctx: Ctx, inp: processing.RetryInput) -> processing.Retried:
     return await processing.retry(ctx, inp)
+
+
+@capability(
+    name="files.outdated.count",
+    summary="Count the files read by an older reader.",
+    description="""PDFs read before handwriting and notes on slides were recognized; the user
+can have them read again with files.outdated.reread.""",
+    effect="read",
+    http=Http("GET", "/me/files/outdated"),
+    expose=("http",),
+    tags=TAGS,
+)
+async def outdated_count(ctx: Ctx, inp: NoInput) -> processing.Outdated:
+    return await processing.count_outdated(ctx)
+
+
+@capability(
+    name="files.outdated.reread",
+    summary="Read again the files read by an older reader.",
+    description="""Each is read again as with files.item.reprocess; reading may use the OCR
+model.""",
+    effect="write",
+    http=Http("POST", "/me/files/outdated:reread"),
+    expose=("http",),
+    tags=TAGS,
+)
+async def outdated_reread(ctx: Ctx, inp: NoInput) -> processing.Retried:
+    return await processing.reread_outdated(ctx)

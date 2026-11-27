@@ -9,6 +9,7 @@ and `skill://` resources, for clients that support it). The server's instruction
 Sem works by (`prompts/rules.md`) plus what differs here (`prompts/mcp.md`).
 """
 
+import base64
 import hashlib
 import json
 from collections.abc import Callable
@@ -20,6 +21,7 @@ from mcp.server.lowlevel import Server
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from mcp.shared.exceptions import MCPError
 from mcp_types._types import MCPModel
+from pydantic_ai.messages import BinaryContent
 from starlette.datastructures import State
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
@@ -29,7 +31,7 @@ from semestra.core.capability import Capability, registry
 from semestra.core.config import Settings
 from semestra.core.context import AuthInfo, Ctx, Identity
 from semestra.core.errors import AppError
-from semestra.modules.agent import outcome, service, skills, tools
+from semestra.modules.agent import outcome, service, skills, tools, view
 from semestra.modules.agent.context import instructions, prompt
 from semestra.modules.agent.runtime import agent_ctx
 
@@ -63,6 +65,11 @@ async def _with_ctx(state: State, ident: McpIdentity, fn: Callable[[Ctx], Any]) 
     async with agent_ctx(state, ident.user_id, scope=None, actor="mcp") as ctx:
         ctx.auth = AuthInfo(kind="pat", token_id=ident.token_id, scopes=ident.scopes)
         return await fn(ctx)
+
+
+# `view_pages` reads what `files.document.read` reads, as images: a token that may call one may
+# call the other.
+VIEW_NEEDS = "files.document.read"
 
 
 async def _tools_for(ctx: Ctx, ident: McpIdentity) -> list[Capability]:
@@ -127,9 +134,46 @@ async def _list_tools(ctx: Any, params: Any) -> types.ListToolsResult:
 
     caps: list[Capability] = await _with_ctx(state, ident, run)
     found = skills.visible_skills(caps)
+    extra = [_view_tool()] if any(c.name == VIEW_NEEDS for c in caps) else []
     return types.ListToolsResult(
-        tools=[_tool(c) for c in caps] + ([_load_skill_tool(found)] if found else [])
+        tools=[_tool(c) for c in caps] + extra + ([_load_skill_tool(found)] if found else [])
     )
+
+
+def _view_tool() -> types.Tool:
+    """Sem's `view_pages` (`view.py`): pages of a course file as images, for clients whose model
+    can see them; there are no conversation attachments here."""
+    properties = {k: v for k, v in view.SCHEMA["properties"].items() if k != "attachment_id"}
+    return types.Tool(
+        name=tools.VIEW_PAGES,
+        description=view.DESCRIPTION.replace(
+            "attachment_id (a file attached to the conversation), ", ""
+        ),
+        input_schema={**view.SCHEMA, "properties": properties},
+        annotations=types.ToolAnnotations(read_only_hint=True),
+    )
+
+
+async def _view(state: State, ident: McpIdentity, args: dict[str, Any]) -> types.CallToolResult:
+    async def allowed(c: Ctx) -> bool:
+        return any(cap.name == VIEW_NEEDS for cap in await _tools_for(c, ident))
+
+    if "attachment_id" in args or not await _with_ctx(state, ident, allowed):
+        return _text({"error": f"Unknown tool {tools.VIEW_PAGES!r}"}, error=True)
+    result = await view.view_pages(state, ident.user_id, None, args, actor="mcp")
+    if not (result.metadata or {}).get("ok"):
+        return types.CallToolResult(
+            content=[types.TextContent(type="text", text=str(result.return_value))], is_error=True
+        )
+    content: list[types.ContentBlock] = []
+    parts: list[object] = result.return_value if isinstance(result.return_value, list) else []
+    for part in parts:
+        if isinstance(part, BinaryContent):
+            data = base64.b64encode(part.data).decode()
+            content.append(types.ImageContent(type="image", data=data, mime_type=part.media_type))
+        else:
+            content.append(types.TextContent(type="text", text=str(part)))
+    return types.CallToolResult(content=content)
 
 
 def _load_skill_tool(found: list[skills.Skill]) -> types.Tool:
@@ -187,6 +231,8 @@ async def _call_tool(ctx: Any, params: types.CallToolRequestParams) -> types.Cal
             names = ", ".join(s.name for s in found)
             return _text({"error": f"No skill named {wanted!r}. Skills: {names}"}, error=True)
         return types.CallToolResult(content=[types.TextContent(type="text", text=_workflow(skill))])
+    if params.name == tools.VIEW_PAGES:
+        return await _view(state, ident, dict(params.arguments or {}))
     name = tools.capability_name(params.name)
     # `Registry.invoke` enforces what a token may call (scope, plugins, the delete preference),
     # the same as on REST routes; `_tools_for` only decides which tools to show.

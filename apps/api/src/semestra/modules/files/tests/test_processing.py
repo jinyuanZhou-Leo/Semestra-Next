@@ -84,3 +84,35 @@ async def test_files_stopped_together_can_be_read_again_together(fx: Fx):
     await fx.run_jobs()
     for item in (first, second):
         assert (await fx.call("GET", f"/files/{item['id']}"))["doc_status"] == "ready"
+
+
+async def test_pdfs_read_by_an_older_reader_are_read_again_when_the_user_asks(fx: Fx):
+    from semestra.core.jobs import run_periodic
+    from semestra.modules.files.models import FilesDocument, FilesItem
+    from semestra.modules.files.tests.conftest import make_pdf
+
+    slides = await fx.upload_ready("slides.pdf", make_pdf(["Week 1 " * 20]))
+    page = await fx.upload_ready("page.html", b"<html><body><p>Week 1</p></body></html>")
+    await fx.upload_ready("current.pdf", make_pdf(["Week 2 " * 20]))
+    async with fx.app.state.session_factory() as db:
+        # Read before reader versions were recorded: version 1, older than both readers.
+        for item_id in (slides["id"], page["id"]):
+            item = await db.get(FilesItem, item_id)
+            assert item is not None
+            assert item.active_document_id is not None
+            document = await db.get(FilesDocument, item.active_document_id)
+            assert document is not None
+            document.parser_fingerprint = "0123456789abcdef"
+        await db.commit()
+
+    # Reading a PDF may use the OCR model: only the HTML page is read again on its own.
+    assert await fx.call("GET", "/me/files/outdated") == {"count": 1}
+    await run_periodic(fx.app.state, "files.reread_outdated")
+    await fx.run_jobs()
+    assert await fx.call("GET", "/me/files/outdated") == {"count": 1}
+
+    assert await fx.call("POST", "/me/files/outdated:reread") == {"retried": 1}
+    assert (await fx.call("GET", f"/files/{slides['id']}"))["doc_status"] == "pending"
+    await fx.run_jobs()
+    assert (await fx.call("GET", f"/files/{slides['id']}"))["doc_status"] == "ready"
+    assert await fx.call("GET", "/me/files/outdated") == {"count": 0}

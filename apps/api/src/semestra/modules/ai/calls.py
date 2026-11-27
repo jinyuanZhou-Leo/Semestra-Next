@@ -327,12 +327,21 @@ async def complete_with(
     source_module: str,
     source_ref: str | None = None,
     rasterize: Rasterize | None = None,
+    transcribe: bool = False,
 ) -> Completion:
-    """`complete` with the provider already resolved (many calls in a row, e.g. OCR pages)."""
+    """`complete` with the provider already resolved (many calls in a row, e.g. OCR pages).
+    With `transcribe` (copying what an image says), the model does not reason first
+    (`_no_reasoning`), and a reply cut off at the output limit raises `ai.output_truncated`
+    instead of passing for the whole answer."""
     prepared = await _prepare_messages(resolved, messages, rasterize)
     call = _Call(ctx, resolved, source_module, source_ref, time.monotonic(), prepared)
     history = convert.to_messages(prepared)
-    response = await _run(call, lambda model: model_request(model, history, instrument=False))
+
+    async def work(model: SemestraModel) -> ModelResponse:
+        settings = _no_reasoning(resolved, model) if transcribe else None
+        return await model_request(model, history, model_settings=settings, instrument=False)
+
+    response = await _run(call, work, whole_answer=transcribe)
     return Completion(
         text="".join(p.content for p in response.parts if isinstance(p, TextPart)),
         usage=convert.usage(response.usage),
@@ -391,14 +400,14 @@ def _output_spec[T: BaseModel](resolved: Resolved, model: Model, schema: type[T]
     return NativeOutput(schema, name=name, strict=None if kind in ANTHROPIC_KINDS else False)
 
 
-def _structured_settings(resolved: Resolved, model: Model) -> ModelSettings:
-    """Reading a document into a schema needs no reasoning: it only makes the answer slower and
-    dearer, and spends the output budget before the answer. Turned off (or down to the least the
-    model allows) unless the user set an effort for the purpose. On the Messages API it is turned
-    off explicitly where the model allows it: compatible models (DeepSeek) think by default
-    without Pydantic AI knowing they can, and thinking does not go with a forced output tool
-    call. Elsewhere Pydantic AI's `thinking=False` does it for the models it knows reason
-    (OpenAI's `reasoning_effort`, Gemini's thinking budget)."""
+def _no_reasoning(resolved: Resolved, model: Model) -> ModelSettings:
+    """Reading a document into a schema, or copying a page's text, needs no reasoning: it only
+    makes the answer slower and dearer, and spends the output budget before the answer. Turned
+    off (or down to the least the model allows) unless the user set an effort for the purpose.
+    On the Messages API it is turned off explicitly where the model allows it: compatible
+    models (DeepSeek) think by default without Pydantic AI knowing they can, and thinking does
+    not go with a forced output tool call. Elsewhere Pydantic AI's `thinking=False` does it for
+    the models it knows reason (OpenAI's `reasoning_effort`, Gemini's thinking budget)."""
     if resolved.params.reasoning_effort is not None and resolved.endpoint.kind in REASONING_KINDS:
         return ModelSettings()  # the effort the user picked (`convert.settings_for` sends it)
     if resolved.endpoint.kind not in ANTHROPIC_KINDS:
@@ -428,7 +437,7 @@ async def structured_with[T: BaseModel](
         output = _output_spec(resolved, model, schema)
         agent = Agent(model, output_type=output, retries={"output": max_retries})
         result = await agent.run(
-            None, message_history=history, model_settings=_structured_settings(resolved, model)
+            None, message_history=history, model_settings=_no_reasoning(resolved, model)
         )
         return result.output, convert.usage(result.usage)
 

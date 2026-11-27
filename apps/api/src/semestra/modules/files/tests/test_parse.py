@@ -1,6 +1,7 @@
 """Type detection and the per-format readers (M07 §3.1, §9 snapshot-style checks)."""
 
 import io
+import itertools
 import os
 import signal
 import sys
@@ -11,7 +12,13 @@ import pytest
 
 from semestra.modules.files.parse import ParseError, detect, parse
 from semestra.modules.files.parse.readers import LOGICAL_PAGE_CHARS, guess_language
-from semestra.modules.files.tests.conftest import SYLLABUS, make_docx, make_pdf, make_png
+from semestra.modules.files.tests.conftest import (
+    SYLLABUS,
+    make_docx,
+    make_notes_pdf,
+    make_pdf,
+    make_png,
+)
 
 
 def test_detection_uses_the_content_not_the_name():
@@ -44,6 +51,56 @@ def test_scanned_pdf_pages_are_marked_for_ocr():
     )
     doc = parse(data, detect(data))
     assert [p.needs_ocr for p in doc.pages] == [False, True]
+
+
+def test_pdf_pages_are_classified_by_what_is_drawn_on_them():
+    # Handwriting exported as vector paths has no picture in it, and a typed page with notes
+    # written on it has plenty of text: both are read by OCR. Ruled lines, boxes (rounded,
+    # dashed, or as large as the page), a colored background and a slide's figure are not
+    # handwriting. Text an app recognized in the strokes is invisible and hides none of them;
+    # text whose characters are not the ones shown is no text.
+    kinds = [
+        "handwritten", "tall", "typed", "table", "background", "figure", "slide", "annotated",
+        "inked", "noted", "unmapped", "blank",
+    ]  # fmt: skip
+    data = make_notes_pdf(kinds)
+    doc = parse(data, detect(data))
+    assert [p.kind for p in doc.pages] == [
+        "image", "image", "text", "text", "text", "text", "text", "mixed", "mixed", "mixed",
+        "image", "blank",
+    ]  # fmt: skip
+    assert [p.needs_ocr for p in doc.pages[:3]] == [True, True, False]
+    # A mixed page knows its visible text and where it is, for OCR to leave it out.
+    annotated = doc.pages[kinds.index("annotated")]
+    assert annotated.text_rects
+    assert "Typed lecture line 0" in annotated.markdown
+    noted = doc.pages[kinds.index("noted")]
+    assert "Spherical coordinates" in noted.printed
+    assert "recognized note" not in noted.printed
+
+
+def test_a_tall_pdf_page_is_read_in_parts():
+    from PIL import Image
+
+    from semestra.modules.files.parse.render import MODEL_IMAGE_MAX_SIDE, PageRenderer
+
+    renderer = PageRenderer(make_notes_pdf(["tall", "typed"]), pdf=True)
+    parts = renderer.model_parts(0)
+    assert len(parts) > 1
+    sizes = [Image.open(io.BytesIO(p.data)).size for p in parts]
+    # Each part is drawn like a page of its own; the whole page in one image would be 200 px
+    # wide, too small to read.
+    assert all(max(size) <= MODEL_IMAGE_MAX_SIDE for size in sizes)
+    assert all(width > 1000 for width, _ in sizes)
+    local = renderer.local_ocr_parts(0)
+    assert len(local) == len(parts)
+    # The parts overlap, but each owns its own band of the page, together all of it.
+    assert local[0].owns[0] == 0
+    assert local[-1].owns[1] == 4800
+    assert all(a.owns[1] == b.owns[0] for a, b in itertools.pairwise(local))
+    assert all(b.top < a.owns[1] for a, b in itertools.pairwise(local))
+    assert len(renderer.model_parts(1)) == 1
+    renderer.close()
 
 
 def test_encrypted_and_oversized_pdfs_are_refused():
@@ -377,7 +434,7 @@ async def test_page_images_render_in_a_child_process():
     chosen = await render_isolated(data, pdf=True, pages=[1], **limits)
     first = await render_isolated(data, pdf=True, pages=5, **limits)
     assert list(chosen.images) == [1]
-    assert chosen.images[1].data.startswith(b"\x89PNG")
+    assert chosen.images[1][0].data.startswith(b"\x89PNG")
     assert chosen.page_count == 3
     assert list(first.images) == [0, 1, 2]  # at most the pages there are
     beyond = await render_isolated(data, pdf=True, pages=[2, 3, 4], **limits)
