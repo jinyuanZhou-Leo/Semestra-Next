@@ -40,6 +40,7 @@ import {
   SelectValue,
 } from '@/ui/select'
 import { Skeleton } from '@/ui/skeleton'
+import { NAV_ICONS } from './icons'
 import { CanvasBoundary, ListSkeleton } from './CanvasBoundary'
 import { type CanvasPage, CanvasPageContext, useCanvasPage } from './context'
 import { useCanvasLocation } from './location'
@@ -234,16 +235,6 @@ function View({ overview, resolved }: { overview: CourseOverview; resolved: Reso
     case 'syllabus':
       return <SyllabusView />
   }
-}
-
-const NAV_ICONS: Record<NativeView, LucideIcon> = {
-  home: House,
-  announcements: Megaphone,
-  syllabus: ScrollText,
-  modules: Layers,
-  assignments: GraduationCap,
-  pages: FileText,
-  files: Folder,
 }
 
 /** When the course was read from Canvas: "Updated just now", "Updated 3 minutes ago". */

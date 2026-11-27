@@ -42,6 +42,31 @@ export default defineModule({
       prefetch: prefetchCanvasPage,
     },
   ],
+  cards: [
+    {
+      id: 'canvas-tab.shortcuts',
+      scopes: ['course', 'term'],
+      title: m.canvas_tab_card_title,
+      description: m.canvas_tab_card_description,
+      icon: School,
+      sizes: ['m', 'l'],
+      defaultSize: 'm',
+      component: preloadable(() => import('./cards/ShortcutsCard')),
+      multiple: false,
+    },
+    {
+      id: 'canvas-tab.shortcut',
+      scopes: ['course'],
+      title: m.canvas_tab_shortcut_title,
+      description: m.canvas_tab_shortcut_description,
+      icon: School,
+      sizes: ['s'],
+      defaultSize: 's',
+      component: preloadable(() => import('./cards/ShortcutCard')),
+      settings: () => import('./cards/shortcut'),
+      multiple: true,
+    },
+  ],
   commands: [
     {
       id: 'canvas-tab.open-in-canvas',

@@ -3656,5 +3656,20 @@
   "lms_link_failed": "Sync error",
   "lms_link_stale": "Partly out of date",
   "lms_assignment_source_stale": "This assignment hasn't been updated from {provider} yet.",
-  "lms_assignment_submission_as_of": "Submission status as of {time}"
+  "lms_assignment_submission_as_of": "Submission status as of {time}",
+  "canvas_tab_card_title": "Canvas shortcuts",
+  "canvas_tab_card_description": "Open announcements, modules, assignments and more in the Canvas tab",
+  "canvas_tab_card_unlinked": "Not linked to Canvas",
+  "canvas_tab_card_unlinked_term": "No courses linked to Canvas",
+  "canvas_tab_shortcut_title": "Canvas shortcut",
+  "canvas_tab_shortcut_description": "Open one place in the Canvas tab",
+  "settings_card_canvas_tab_shortcut_place_label": "Opens",
+  "settings_card_canvas_tab_shortcut_place_option_last": "Where you left off",
+  "settings_card_canvas_tab_shortcut_place_option_home": "Home",
+  "settings_card_canvas_tab_shortcut_place_option_announcements": "Announcements",
+  "settings_card_canvas_tab_shortcut_place_option_syllabus": "Syllabus",
+  "settings_card_canvas_tab_shortcut_place_option_modules": "Modules",
+  "settings_card_canvas_tab_shortcut_place_option_assignments": "Assignments & grades",
+  "settings_card_canvas_tab_shortcut_place_option_pages": "Pages",
+  "settings_card_canvas_tab_shortcut_place_option_files": "Files"
 }
