@@ -1,6 +1,6 @@
 // SAMPLE ONLY (not for merge): visual samples of the LMS settings redesign with fixed data.
 import { createColumnHelper } from '@tanstack/react-table'
-import { ExternalLink, Lightbulb, Link2, Link2Off, RefreshCw, Settings2, Unplug } from 'lucide-react'
+import { ChevronDown, ExternalLink, Lightbulb, Link2, Link2Off, RefreshCw, Settings2, Unplug } from 'lucide-react'
 import type { SettingsSectionProps } from '@/app/extensions'
 import {
   RowMenu,
@@ -246,33 +246,85 @@ function LmsCell({ row: r }: { row: Row }) {
   return <span className="text-muted-foreground">未关联</span>
 }
 
-export function ProgramCoursesSample(_: SettingsSectionProps) {
-  return (
-    <>
-      <SectionAction>
-        <div className="flex items-center gap-2">
-          <Select defaultValue="all" items={[{ value: 'all', label: '全部学期' }]}>
-            <SelectTrigger size="sm" className="w-32">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">全部学期</SelectItem>
-              <SelectItem value="fall">Fall term</SelectItem>
-              <SelectItem value="winter">Winter term</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button size="sm">关联建议的课程（2）</Button>
+const LINKED_COLUMNS = [
+  COLUMNS[0],
+  col.display({
+    id: 'lms',
+    header: 'Canvas 课程',
+    cell: ({ row: { original: r } }) => (
+      <div className="min-w-0">
+        <div className="truncate">{r.linked?.name}</div>
+        <div className="truncate text-xs text-muted-foreground">
+          {r.linked?.code} · Fall term
         </div>
-      </SectionAction>
-      <SettingsTable
-        label="课程关联"
-        data={[...ROWS.filter((r) => !r.linked), ...ROWS.filter((r) => r.linked)]}
-        columns={COLUMNS}
-        getRowId={(r) => r.id}
-        fill="lms"
-        columnClassName={{ course: 'w-64 max-w-64', action: 'w-24 text-right', menu: 'w-10' }}
-      />
-    </>
+      </div>
+    ),
+  }),
+  col.display({
+    id: 'status',
+    header: '同步',
+    cell: ({ row: { original: r } }) =>
+      r.linked?.problem ? (
+        <Badge variant="destructive">{r.linked.problem}</Badge>
+      ) : (
+        <span className="text-xs text-muted-foreground">3 分钟前</span>
+      ),
+  }),
+  COLUMNS[COLUMNS.length - 1],
+]
+
+export function ProgramCoursesSample(_: SettingsSectionProps) {
+  const unlinked = ROWS.filter((r) => !r.linked)
+  return (
+    <div className="space-y-6">
+      <SettingsBlock
+        title={`未关联 · ${unlinked.length}`}
+        action={<Button size="sm">关联全部建议（2）</Button>}
+      >
+        <SettingsGroup>
+          {unlinked.map((r) => (
+            <Item key={r.id}>
+              <ItemMedia>
+                <span className="size-2.5 rounded-full" style={{ background: r.color }} />
+              </ItemMedia>
+              <ItemContent className="min-w-0">
+                <ItemTitle>
+                  {r.code}
+                  <span className="truncate font-normal text-muted-foreground">{r.name}</span>
+                </ItemTitle>
+                {r.suggested ? (
+                  <ItemDescription className="flex items-center gap-1.5 text-primary">
+                    <Lightbulb aria-hidden className="size-3.5 shrink-0" />
+                    <span className="truncate">
+                      可能是 {r.suggested.code} · {r.suggested.term}
+                    </span>
+                    <Button variant="link" size="xs" className="h-auto px-1">
+                      关联
+                    </Button>
+                  </ItemDescription>
+                ) : null}
+              </ItemContent>
+              <ItemActions>
+                <Button variant="outline" className="w-56 justify-between font-normal">
+                  <span className="text-muted-foreground">选择课程</span>
+                  <ChevronDown aria-hidden className="text-muted-foreground" />
+                </Button>
+              </ItemActions>
+            </Item>
+          ))}
+        </SettingsGroup>
+      </SettingsBlock>
+      <SettingsBlock title="已关联 · 5">
+        <SettingsTable
+          label="已关联的课程"
+          data={ROWS.filter((r) => r.linked)}
+          columns={LINKED_COLUMNS}
+          getRowId={(r) => r.id}
+          fill="lms"
+          columnClassName={{ course: 'w-56 max-w-56', status: 'w-28', menu: 'w-10' }}
+        />
+      </SettingsBlock>
+    </div>
   )
 }
 
