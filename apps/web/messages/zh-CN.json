@@ -3656,5 +3656,7 @@
   "lms_assignment_submission_as_of": "提交状态更新于 {time}",
   "files_picker_search": "搜索文件或文件夹",
   "files_picker_no_match": "没有匹配的文件",
-  "files_picker_chosen": "已选 {count}"
+  "files_picker_chosen": "已选 {count}",
+  "files_picker_failed": "没有读取到这门课程的文件。",
+  "files_picker_failed_some": "有些课程的文件没有读取到。"
 }

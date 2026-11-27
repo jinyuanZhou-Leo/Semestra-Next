@@ -49,7 +49,7 @@ function file(id: string, name: string, folder_id: string | null): ItemOut {
 }
 
 /** A course with more files than open by default: one folder per week, two files each. */
-function bigCourse(courseId: string) {
+function bigCourse(courseId: string, extra: ItemOut[] = []) {
   const folders = Array.from({ length: 9 }, (_, i) =>
     folder(`${courseId}-w${i + 1}`, `Week ${i + 1}`),
   )
@@ -57,7 +57,7 @@ function bigCourse(courseId: string) {
     file(`${f.id}-a`, `Lecture ${i + 1}.pdf`, f.id),
     file(`${f.id}-b`, `Problem set ${i + 1}.pdf`, f.id),
   ])
-  items.push(file(`${courseId}-outline`, 'Course outline.pdf', null))
+  items.push(file(`${courseId}-outline`, 'Course outline.pdf', null), ...extra)
   server.use(
     http.get(`${API}/courses/${courseId}/files`, () =>
       HttpResponse.json({ folders, items, next_cursor: null }),
@@ -65,8 +65,16 @@ function bigCourse(courseId: string) {
   )
 }
 
-function Picker(props: { courseId?: string; courses?: ReturnType<typeof course>[]; max?: number }) {
-  const [selected, setSelected] = useState<string[]>(['c1-w2-a'])
+function Picker({
+  picked = ['c1-w2-a'],
+  ...props
+}: {
+  courseId?: string
+  courses?: ReturnType<typeof course>[]
+  max?: number
+  picked?: string[]
+}) {
+  const [selected, setSelected] = useState<string[]>(picked)
   return (
     <>
       <FilePicker {...props} selected={selected} onChange={setSelected} emptyTitle="Nothing" />
@@ -120,10 +128,13 @@ test("a term's courses are at the top, and no more files can be ticked once the 
     course({ id: 'c2', code: 'CSC110Y1', term_ids: ['t1'] }),
   ]
   renderWithQuery(<Picker courses={courses} max={2} />)
+  // The course holding the pick opens; the other stays closed.
   const mat = await screen.findByRole('button', { name: /MAT137Y1/ })
-  expect(mat).toHaveTextContent('1 selected')
+  expect(mat).toHaveAttribute('aria-expanded', 'true')
   const csc = screen.getByRole('button', { name: /CSC110Y1/ })
   expect(csc).toHaveAttribute('aria-expanded', 'false')
+  await userEvent.click(mat)
+  expect(mat).toHaveTextContent('1 selected')
 
   await userEvent.click(csc)
   const list = screen.getByRole('button', { name: /CSC110Y1/ }).parentElement as HTMLElement
@@ -135,4 +146,52 @@ test("a term's courses are at the top, and no more files can be ticked once the 
     'aria-disabled',
     'true',
   )
+})
+
+test('unticking the last picked file in a folder leaves the folder open', async () => {
+  bigCourse('c1')
+  renderWithQuery(<Picker courseId="c1" />)
+  await userEvent.click(await screen.findByRole('checkbox', { name: 'Lecture 2.pdf' }))
+  expect(screen.getByRole('status')).toHaveTextContent('')
+  expect(screen.getByRole('button', { name: /^Week 2/ })).toHaveAttribute('aria-expanded', 'true')
+  expect(screen.getByRole('checkbox', { name: 'Lecture 2.pdf' })).not.toBeChecked()
+})
+
+test('a folder can be closed while searching, and opens again with the next search', async () => {
+  bigCourse('c1')
+  renderWithQuery(<Picker courseId="c1" />)
+  const search = await screen.findByRole('searchbox', { name: 'Search files or folders' })
+  await userEvent.type(search, 'lecture')
+  const week4 = screen.getByRole('button', { name: /^Week 4/ })
+  expect(week4).toHaveAttribute('aria-expanded', 'true')
+  await userEvent.click(week4)
+  expect(week4).toHaveAttribute('aria-expanded', 'false')
+  await userEvent.type(search, ' 4')
+  expect(screen.getByRole('button', { name: /^Week 4/ })).toHaveAttribute('aria-expanded', 'true')
+  // Clearing the search goes back to the folders as they were.
+  await userEvent.clear(search)
+  expect(screen.getByRole('button', { name: /^Week 4/ })).toHaveAttribute('aria-expanded', 'false')
+})
+
+test('links can be picked and unpicked where the site allows them', async () => {
+  const link = {
+    ...file('c1-piazza', 'Piazza', null),
+    kind: 'link',
+    url: 'https://piazza.com',
+  } as ItemOut
+  bigCourse('c1', [link])
+  renderWithQuery(<Picker courseId="c1" picked={['c1-piazza']} />)
+  await userEvent.click(await screen.findByRole('checkbox', { name: 'Piazza' }))
+  expect(screen.getByRole('status')).toHaveTextContent('')
+})
+
+test('a course whose files could not be loaded says so instead of looking empty', async () => {
+  server.use(
+    http.get(`${API}/courses/c1/files`, () =>
+      HttpResponse.json({ error: { code: 'internal', params: {} } }, { status: 500 }),
+    ),
+  )
+  renderWithQuery(<Picker courseId="c1" />)
+  expect(await screen.findByText("Couldn't load this course's files.")).toBeInTheDocument()
+  expect(screen.queryByText('Nothing')).toBeNull()
 })

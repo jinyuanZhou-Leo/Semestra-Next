@@ -1,6 +1,6 @@
 import type { Course, FolderOut, ItemOut } from '@semestra/api-client'
 import { useQueries } from '@tanstack/react-query'
-import { ChevronRight, Folder, Search, X } from 'lucide-react'
+import { ChevronRight, CircleAlert, Folder, Search, X } from 'lucide-react'
 import { type ReactNode, useId, useState } from 'react'
 import { courseColor, courseLabel } from '@/modules/academics/color'
 import { COLLAPSE } from '@/lib/collapse'
@@ -8,6 +8,8 @@ import { clearOnEscape, clearSearch } from '@/lib/search-input'
 import { FRAMED_SCROLLBAR } from '@/lib/scroll-area'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
+import { Alert, AlertAction, AlertTitle } from '@/ui/alert'
+import { Button } from '@/ui/button'
 import { Checkbox } from '@/ui/checkbox'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/ui/collapsible'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
@@ -72,9 +74,8 @@ function buildBranch(
 
 type TreeState = {
   mode: 'multiple' | 'single'
-  searching: boolean
-  expanded: ReadonlySet<string>
-  setExpanded: (key: string, open: boolean) => void
+  isOpen: (key: string) => boolean
+  setOpen: (key: string, open: boolean) => void
   selected: ReadonlySet<string>
   full: boolean
   disabled: boolean
@@ -85,11 +86,11 @@ type TreeState = {
 }
 
 function BranchRow({ node, depth, state }: { node: Branch; depth: number; state: TreeState }) {
-  const open = state.searching || state.expanded.has(node.key)
+  const open = state.isOpen(node.key)
   const chosen = node.files.filter((id) => state.selected.has(id)).length
   const name = node.kind === 'course' ? courseLabel(node.course) : node.folder.name
   return (
-    <Collapsible open={open} onOpenChange={(next) => state.setExpanded(node.key, next)}>
+    <Collapsible open={open} onOpenChange={(next) => state.setOpen(node.key, next)}>
       <CollapsibleTrigger
         className={cn(
           ROW,
@@ -117,7 +118,8 @@ function BranchRow({ node, depth, state }: { node: Branch; depth: number; state:
         <span className="min-w-0 flex-1 truncate" title={name}>
           {name}
         </span>
-        {state.mode === 'multiple' && chosen > 0 ? (
+        {/* Open, its ticked rows are in sight; closed, this keeps them from being forgotten. */}
+        {state.mode === 'multiple' && !open && chosen > 0 ? (
           <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
             {m.files_picker_chosen({ count: chosen })}
           </span>
@@ -212,7 +214,7 @@ export function FilePicker({
   /** Single mode: the file clicked. */
   onPick?: (item: ItemOut) => void
   max?: number
-  /** Which files can be picked; others are not shown. */
+  /** Which files and links can be picked; others are not shown. */
   filter?: (item: ItemOut) => boolean
   /** Short text at the end of a file's row (its date, "Processing"). */
   meta?: (item: ItemOut) => ReactNode
@@ -228,43 +230,62 @@ export function FilePicker({
   const lists = useQueries({ queries: ids.map((id) => courseFilesOptions(id)) })
   const needle = search.trim().toLowerCase()
   const pending = lists.some((list) => list.isPending)
-  const branches = ids.map((id, index) => {
-    const data = lists[index]?.data
-    const items = (data?.items ?? []).filter((i) => i.kind === 'file' && (filter?.(i) ?? true))
-    return { id, ...buildBranch(data?.folders ?? [], items, null, [], needle) }
-  })
+  const failed = lists.filter((list) => list.isError)
+  const pickable = (index: number) =>
+    (lists[index]?.data?.items ?? []).filter((i) => filter?.(i) ?? true)
+  const branches = ids.map((id, index) => ({
+    id,
+    ...buildBranch(lists[index]?.data?.folders ?? [], pickable(index), null, [], needle),
+  }))
   const total = branches.reduce((sum, b) => sum + b.files.length, 0)
-  const [expanded, setExpandedKeys] = useState<Set<string> | null>(null)
-  // Until the user opens or closes anything: everything in a small course, otherwise only the
-  // folders holding picked files.
+  // What starts open is worked out from the files as they are and the picks the picker opened
+  // with: a small course opens whole, a large one only where picked files are. Ticking or
+  // unticking later never opens or closes anything; once the user opens or closes a folder, the
+  // tree is theirs.
+  const [openedWith] = useState(() => new Set(selected))
+  const [expanded, setExpandedKeys] = useState<ReadonlySet<string> | null>(null)
   const initial = (): Set<string> => {
     const open = new Set<string>()
-    const visit = (nodes: Node[]): boolean => {
-      let holds = false
-      for (const node of nodes) {
-        if (node.kind === 'file') {
-          if (selected.includes(node.item.id)) holds = true
-          continue
+    ids.forEach((id, index) => {
+      const whole = buildBranch(lists[index]?.data?.folders ?? [], pickable(index), null, [], '')
+      const small = whole.files.length <= EXPAND_ALL_UP_TO
+      const visit = (nodes: Node[]): boolean => {
+        let holds = false
+        for (const node of nodes) {
+          if (node.kind === 'file') {
+            if (openedWith.has(node.item.id)) holds = true
+            continue
+          }
+          const inner = visit(node.children)
+          if (inner || small) open.add(node.key)
+          if (inner) holds = true
         }
-        const inner = visit(node.children)
-        if (inner || total <= EXPAND_ALL_UP_TO) open.add(node.key)
-        if (inner) holds = true
+        return holds
       }
-      return holds
-    }
-    for (const b of branches) {
-      const inner = visit(b.nodes)
-      if (inner || total <= EXPAND_ALL_UP_TO) open.add(`course:${b.id}`)
-    }
+      if (visit(whole.nodes) || small) open.add(`course:${id}`)
+    })
     return open
   }
   const openKeys = expanded ?? initial()
+  // While searching every match shows with the folders above it; one closed during the search
+  // stays closed until the search changes.
+  const [closedInSearch, setClosedInSearch] = useState<ReadonlySet<string>>(new Set())
+  const changeSearch = (value: string) => {
+    setSearch(value)
+    setClosedInSearch(new Set())
+  }
   const chosen = new Set(selected)
   const state: TreeState = {
     mode,
-    searching: Boolean(needle),
-    expanded: openKeys,
-    setExpanded: (key, open) => {
+    isOpen: (key) => (needle ? !closedInSearch.has(key) : openKeys.has(key)),
+    setOpen: (key, open) => {
+      if (needle) {
+        const next = new Set(closedInSearch)
+        if (open) next.delete(key)
+        else next.add(key)
+        setClosedInSearch(next)
+        return
+      }
       const next = new Set(openKeys)
       if (open) next.add(key)
       else next.delete(key)
@@ -279,8 +300,24 @@ export function FilePicker({
     meta,
     baseId,
   }
+  const problem =
+    failed.length > 0 ? (
+      <Alert variant="destructive" className="shrink-0">
+        <CircleAlert aria-hidden />
+        <AlertTitle>{courseId ? m.files_picker_failed() : m.files_picker_failed_some()}</AlertTitle>
+        <AlertAction>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => failed.forEach((list) => void list.refetch())}
+          >
+            {m.common_retry()}
+          </Button>
+        </AlertAction>
+      </Alert>
+    ) : null
 
-  if (!pending && total === 0 && !needle) {
+  if (!pending && failed.length === 0 && total === 0 && !needle) {
     return (
       <Empty className={cn('rounded-2xl border border-solid border-border p-6', className)}>
         <EmptyHeader>
@@ -295,14 +332,15 @@ export function FilePicker({
 
   return (
     <div className={cn('flex min-h-0 flex-col gap-2', className)}>
+      {problem}
       <InputGroup className="shrink-0">
         <InputGroupInput
           type="search"
           aria-label={m.files_picker_search()}
           placeholder={m.files_picker_search()}
           value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          onKeyDown={clearOnEscape(search, () => setSearch(''))}
+          onChange={(event) => changeSearch(event.target.value)}
+          onKeyDown={clearOnEscape(search, () => changeSearch(''))}
         />
         <InputGroupAddon>
           <Search aria-hidden />
@@ -312,7 +350,7 @@ export function FilePicker({
             <InputGroupButton
               size="icon-xs"
               aria-label={m.common_search_clear()}
-              onClick={(event) => clearSearch(event, () => setSearch(''))}
+              onClick={(event) => clearSearch(event, () => changeSearch(''))}
             >
               <X aria-hidden />
             </InputGroupButton>
@@ -330,7 +368,7 @@ export function FilePicker({
                 <Skeleton className="h-7 rounded-lg" />
                 <Skeleton className="h-7 rounded-lg" />
               </div>
-            ) : total === 0 ? (
+            ) : total === 0 && (needle || failed.length === 0) ? (
               <p className="px-2.5 py-2 text-xs text-muted-foreground">
                 {m.files_picker_no_match()}
               </p>

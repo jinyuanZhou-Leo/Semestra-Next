@@ -3656,5 +3656,7 @@
   "lms_assignment_submission_as_of": "Submission status as of {time}",
   "files_picker_search": "Search files or folders",
   "files_picker_no_match": "No matching files",
-  "files_picker_chosen": "{count} selected"
+  "files_picker_chosen": "{count} selected",
+  "files_picker_failed": "Couldn't load this course's files.",
+  "files_picker_failed_some": "Couldn't load the files of some courses."
 }

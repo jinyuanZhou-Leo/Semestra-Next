@@ -2,6 +2,7 @@ import { academicsCourseListOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
 import { coursesOfTerm } from '@/modules/academics/queries'
+import { formatDate } from '@/lib/format'
 import { m } from '@/paraglide/messages'
 import type { QuickOpenSettings } from './quick-open'
 import { FilePicker } from '../components/FilePicker'
@@ -44,6 +45,7 @@ export function QuickOpenPicker({
         courses={courses}
         selected={selected}
         max={MAX}
+        meta={(item) => formatDate(item.created_at, { short: true })}
         onChange={(item_ids) => onChange({ ...value, item_ids })}
         emptyTitle={m.files_quick_open_no_files()}
         className="h-80"
