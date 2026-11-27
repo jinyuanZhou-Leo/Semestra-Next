@@ -3,6 +3,24 @@
 Generated from `release-notes/*.json` by `scripts/release.mjs`; do not edit by hand.
 The same notes in Chinese are in the JSON files and on the docs site.
 
+## 2.8.0 (2026-11-27)
+
+### New
+
+- **Files:** Handwritten notes and notes written on slides are now recognized and searchable; PDFs read before can be read again from AI settings.
+- **Canvas:** New Canvas shortcut cards open the Canvas tab's announcements, modules, assignments and more straight from a course or term overview.
+- **API & MCP:** MCP clients that can see images can now view the pages of course files.
+
+### Improved
+
+- **Files:** Picking course files now shows the course's folders and has a search box.
+- **Canvas:** Link all of a program's courses to the LMS in one place, with suggested matches you can accept at once.
+- **Plugins:** Plugins are grouped into installed and not installed, with full descriptions and a simpler way to uninstall.
+
+### Fixed
+
+- **Sem:** Fixed math in answers that was shown as raw LaTeX.
+
 ## 2.7.5 (2026-11-26)
 
 ### Fixed

@@ -1,5 +1,28 @@
 # @semestra/api
 
+## 2.8.0
+
+### Minor Changes
+
+- 6b8cb10: <!-- area: files -->
+  <!-- en -->
+  Handwritten notes and notes written on slides are now recognized and searchable; PDFs read before can be read again from AI settings.
+  <!-- zh -->
+  手写笔记和课件上的手写批注现在也能识别和搜索，之前读取过的 PDF 可在 AI 设置中重新识别。
+- 6b8cb10: <!-- area: api -->
+  <!-- en -->
+  MCP clients that can see images can now view the pages of course files.
+  <!-- zh -->
+  能看图的 MCP 客户端现在可以查看课程文件的原页面。
+
+### Patch Changes
+
+- 7b892d2: <!-- area: sem -->
+  <!-- en -->
+  Fixed math in answers that was shown as raw LaTeX.
+  <!-- zh -->
+  修复回答中的数学公式显示为 LaTeX 源码的问题。
+
 ## 2.7.5
 
 ### Patch Changes
