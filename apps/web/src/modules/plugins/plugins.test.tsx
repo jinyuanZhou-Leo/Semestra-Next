@@ -76,20 +76,16 @@ function renderCatalog() {
   )
 }
 
-test('the marketplace searches plugins and filters to installed ones', async () => {
+test('the marketplace groups plugins by whether they are installed and searches them', async () => {
   catalog({ abacus: true })
   renderCatalog()
-  const grid = within((await screen.findByText('Module template')).closest('ul')!)
-  expect(grid.getByRole('button', { name: 'Install' })).toBeInTheDocument()
-  expect(grid.getByRole('button', { name: 'Installed (abacus), more options' })).toBeInTheDocument()
-  // Core features are listed apart, without install controls.
-  expect(screen.getByText('Core features')).toBeInTheDocument()
+  const installed = within(await screen.findByRole('region', { name: 'Installed' }))
+  expect(installed.getByText('Counts beads')).toBeInTheDocument()
+  expect(installed.getByRole('button', { name: 'More actions for abacus' })).toBeInTheDocument()
+  const available = within(screen.getByRole('region', { name: 'Not installed' }))
+  expect(available.getByRole('button', { name: 'Install' })).toBeInTheDocument()
 
   const user = userEvent.setup()
-  await user.click(screen.getByRole('button', { name: 'Installed' }))
-  expect(screen.queryByText('Module template')).not.toBeInTheDocument()
-  expect(screen.getByText('abacus')).toBeInTheDocument()
-
   await user.type(screen.getByRole('searchbox', { name: 'Search plugins' }), 'zzz')
   expect(screen.getByText('No matching plugins')).toBeInTheDocument()
   await user.click(screen.getByRole('button', { name: 'Clear filters' }))
@@ -98,6 +94,7 @@ test('the marketplace searches plugins and filters to installed ones', async () 
 
   await user.type(screen.getByRole('searchbox', { name: 'Search plugins' }), 'beads')
   expect(screen.queryByText('Module template')).not.toBeInTheDocument()
+  expect(screen.queryByRole('region', { name: 'Not installed' })).not.toBeInTheDocument()
   expect(screen.getByText('abacus')).toBeInTheDocument()
 })
 
@@ -114,9 +111,7 @@ test('a card opens a details dialog that lists what the plugin adds and installs
   await user.click(within(dialog).getByRole('button', { name: 'Install' }))
   await waitFor(() => expect(calls).toEqual(['install template']))
   expect(
-    await within(dialog).findByRole('button', {
-      name: 'Installed (Module template), more options',
-    }),
+    await within(dialog).findByRole('button', { name: 'More actions for Module template' }),
   ).toBeInTheDocument()
 })
 
@@ -124,7 +119,7 @@ test('uninstalling from a card asks first and can delete the data', async () => 
   const calls = catalog({ abacus: true })
   renderCatalog()
   const user = userEvent.setup()
-  await user.click(await screen.findByRole('button', { name: 'Installed (abacus), more options' }))
+  await user.click(await screen.findByRole('button', { name: 'More actions for abacus' }))
   await user.click(await screen.findByRole('menuitem', { name: 'Uninstall' }))
   const confirm = await screen.findByRole('alertdialog')
   expect(within(confirm).getByText('Uninstall abacus?')).toBeInTheDocument()
@@ -175,11 +170,7 @@ test('uninstalling from the details dialog keeps it open and drops the plugin se
   await user.click(await screen.findByRole('button', { name: 'Module template' }))
   const dialog = await screen.findByRole('dialog')
   expect(await within(dialog).findByText('Compact task list')).toBeInTheDocument()
-  // In the dialog the installed menu has no "Details": it only uninstalls.
-  await user.click(
-    within(dialog).getByRole('button', { name: 'Installed (Module template), more options' }),
-  )
-  expect(screen.queryByRole('menuitem', { name: 'Details' })).not.toBeInTheDocument()
+  await user.click(within(dialog).getByRole('button', { name: 'More actions for Module template' }))
   await user.click(await screen.findByRole('menuitem', { name: 'Uninstall' }))
   const confirm = await screen.findByRole('alertdialog')
   await user.click(within(confirm).getByRole('button', { name: 'Uninstall' }))
@@ -193,7 +184,7 @@ test('a failed uninstall keeps the confirmation open', async () => {
   const calls = catalog({ abacus: true }, { failUninstall: true })
   renderCatalog()
   const user = userEvent.setup()
-  await user.click(await screen.findByRole('button', { name: 'Installed (abacus), more options' }))
+  await user.click(await screen.findByRole('button', { name: 'More actions for abacus' }))
   await user.click(await screen.findByRole('menuitem', { name: 'Uninstall' }))
   const confirm = await screen.findByRole('alertdialog')
   await user.click(within(confirm).getByRole('button', { name: 'Uninstall' }))
@@ -204,31 +195,20 @@ test('a failed uninstall keeps the confirmation open', async () => {
   expect(screen.getByRole('alertdialog')).toBe(confirm)
 })
 
-test('"Installed" with nothing installed says so and leads back to all plugins', async () => {
-  catalog({})
-  renderCatalog()
-  const user = userEvent.setup()
-  await screen.findByText('Module template')
-  await user.click(screen.getByRole('button', { name: 'Installed' }))
-  expect(screen.getByText('No plugins installed yet')).toBeInTheDocument()
-  expect(screen.queryByText('No matching plugins')).not.toBeInTheDocument()
-  await user.click(screen.getByRole('button', { name: 'Browse all' }))
-  expect(screen.getByText('Module template')).toBeInTheDocument()
-})
-
 test('Esc on the uninstall confirmation closes only the confirmation', async () => {
   catalog({ abacus: true })
   renderCatalog()
   const user = userEvent.setup()
   await user.click(await screen.findByRole('button', { name: 'abacus' }))
   const dialog = await screen.findByRole('dialog')
-  await user.click(within(dialog).getByRole('button', { name: 'Installed (abacus), more options' }))
+  await user.click(within(dialog).getByRole('button', { name: 'More actions for abacus' }))
   await user.click(await screen.findByRole('menuitem', { name: 'Uninstall' }))
   await screen.findByRole('alertdialog')
   // Esc before focus has moved into the confirmation (it moves a frame later; CI is often slower).
-  within(dialog)
-    .getByRole('button', { name: 'Installed (abacus), more options', hidden: true })
-    .focus()
+  // Focus on the menu button shows its tooltip, which the first Esc closes; the second closes the
+  // confirmation. Neither closes the details dialog.
+  within(dialog).getByRole('button', { name: 'More actions for abacus', hidden: true }).focus()
+  await user.keyboard('{Escape}')
   await user.keyboard('{Escape}')
   await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
   expect(screen.getByRole('dialog')).toBe(dialog)

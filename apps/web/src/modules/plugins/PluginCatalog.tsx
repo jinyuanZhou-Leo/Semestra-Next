@@ -8,18 +8,20 @@ import {
   Download,
   LayoutGrid,
   PanelTop,
-  Plus,
   Search,
   SearchX,
   Trash2,
   type LucideIcon,
   X,
 } from 'lucide-react'
-import { type ReactNode, useId, useState } from 'react'
+import { LayoutGroup, LazyMotion, MotionConfig, domMax } from 'motion/react'
+import * as motionM from 'motion/react-m'
+import { useId, useState } from 'react'
 import { toast } from 'sonner'
 import { invalidateOperations } from '@/app/api'
 import type { ModuleManifest } from '@/app/extensions'
 import { useAllModules } from '@/app/registry'
+import { useReducedMotion } from '@/app/theme'
 import { PluginSettingsSections, RowMenu, SettingsBlock, SettingsGroup } from '@/app/settings'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { useDialogTarget } from '@/lib/dialog-target'
@@ -29,13 +31,7 @@ import { Button } from '@/ui/button'
 import { Checkbox } from '@/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/ui/dialog'
 import { DropdownMenuItem } from '@/ui/dropdown-menu'
-import {
-  Empty,
-  EmptyContent,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from '@/ui/empty'
+import { Empty, EmptyContent, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { Field, FieldContent, FieldDescription, FieldLabel } from '@/ui/field'
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/ui/input-group'
 import { Item, ItemContent, ItemDescription, ItemMedia, ItemTitle } from '@/ui/item'
@@ -43,6 +39,8 @@ import { Separator } from '@/ui/separator'
 import { Spinner } from '@/ui/spinner'
 
 /** What the user sees of a catalog entry: the frontend manifest when the module has one. */
+const EASE = [0.32, 0.72, 0, 1] as const
+
 type Entry = {
   plugin: PluginOut
   module: ModuleManifest | undefined
@@ -182,7 +180,8 @@ function PluginCard(props: ActionProps & { onOpen: () => void }) {
   return (
     <Item
       variant="outline"
-      render={<li />}
+      // Installing or uninstalling moves the card to the other group: it glides there.
+      render={<motionM.li layout="position" layoutId={entry.plugin.id} />}
       className="relative h-full min-w-0 flex-nowrap items-start gap-3 p-4 transition-colors hover:bg-muted/50"
     >
       <PluginIcon icon={entry.icon} />
@@ -209,12 +208,10 @@ function ProvidesList({
   icon: Icon,
   title,
   items,
-  action,
 }: {
   icon: LucideIcon
   title: string
   items: readonly { id: string; title: string; description?: string }[]
-  action?: ReactNode
 }) {
   if (items.length === 0) return null
   return (
@@ -231,7 +228,6 @@ function ProvidesList({
                 <ItemDescription className="text-xs">{item.description}</ItemDescription>
               ) : null}
             </ItemContent>
-            {action}
           </Item>
         ))}
       </SettingsGroup>
@@ -276,19 +272,7 @@ function PluginDetails(props: ActionProps) {
           </section>
         ) : null}
         <ProvidesList icon={PanelTop} title={m.plugins_provides_pages()} items={pages} />
-        <ProvidesList
-          icon={LayoutGrid}
-          title={m.plugins_provides_cards()}
-          items={cards}
-          action={
-            plugin.installed ? (
-              <Button size="sm" variant="outline">
-                <Plus aria-hidden />
-                {m.plugins_add_to_today()}
-              </Button>
-            ) : null
-          }
-        />
+        <ProvidesList icon={LayoutGrid} title={m.plugins_provides_cards()} items={cards} />
         {plugin.installed && hasSettings ? (
           <>
             <Separator />
@@ -301,8 +285,9 @@ function PluginDetails(props: ActionProps) {
 }
 
 /**
- * The "Plugins" settings section (M10 §5.3): a marketplace grid of plugins to install or
- * uninstall, and the core features, which cannot be uninstalled but whose pages can be hidden.
+ * The "Plugins" settings section (M10 §5.3): the plugins in two groups, installed and not
+ * installed, each a grid of cards with the whole description. Core features are not listed: they
+ * cannot be uninstalled, and the settings sidebar already shows them.
  */
 export default function PluginCatalog() {
   const { data } = useSuspenseQuery(pluginsCatalogListOptions())
@@ -313,6 +298,7 @@ export default function PluginCatalog() {
   const details = useDialogTarget<string>()
   const removing = useDialogTarget<Entry>()
   const [purge, setPurge] = useState(false)
+  const reduced = useReducedMotion()
 
   const entries = data.items.map((plugin) => toEntry(plugin, modules))
   const query = search.trim().toLocaleLowerCase()
@@ -368,8 +354,19 @@ export default function PluginCatalog() {
       onOpen={() => details.show(entry.plugin.id)}
     />
   )
-  const installed = visible.filter((e) => e.plugin.installed)
-  const available = visible.filter((e) => !e.plugin.installed)
+  const groups = [
+    {
+      id: 'installed',
+      title: m.plugins_installed(),
+      entries: visible.filter((e) => e.plugin.installed),
+    },
+    {
+      id: 'available',
+      title: m.plugins_group_available(),
+      entries: visible.filter((e) => !e.plugin.installed),
+    },
+  ].filter((group) => group.entries.length > 0)
+  const [shownAtOpen] = useState(() => new Set(groups.map((group) => group.id)))
 
   return (
     <div className="space-y-8">
@@ -399,16 +396,26 @@ export default function PluginCatalog() {
             ) : null}
           </InputGroupAddon>
         </InputGroup>
-        {installed.length > 0 ? (
-          <SettingsBlock title={m.plugins_installed()}>
-            <ul className="grid gap-3 @2xl:grid-cols-2">{installed.map(card)}</ul>
-          </SettingsBlock>
-        ) : null}
-        {available.length > 0 ? (
-          <SettingsBlock title={m.plugins_group_available()}>
-            <ul className="grid gap-3 @2xl:grid-cols-2">{available.map(card)}</ul>
-          </SettingsBlock>
-        ) : null}
+        <LazyMotion features={domMax} strict>
+          <MotionConfig transition={{ duration: reduced ? 0 : 0.24, ease: EASE }}>
+            <LayoutGroup>
+              {/* A group that appears later fades in; one whose last card leaves goes at once
+                  (that card is already gliding to the other group). */}
+              {groups.map((group) => (
+                <motionM.div
+                  key={group.id}
+                  layout="position"
+                  initial={shownAtOpen.has(group.id) ? false : { opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                >
+                  <SettingsBlock title={group.title}>
+                    <ul className="grid gap-3 @2xl:grid-cols-2">{group.entries.map(card)}</ul>
+                  </SettingsBlock>
+                </motionM.div>
+              ))}
+            </LayoutGroup>
+          </MotionConfig>
+        </LazyMotion>
         {visible.length > 0 ? null : plugins.length === 0 ? (
           <Empty className="border-0">
             <EmptyHeader>
