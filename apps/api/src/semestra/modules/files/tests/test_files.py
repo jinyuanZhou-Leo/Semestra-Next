@@ -14,6 +14,7 @@ from semestra.modules.files.tests.conftest import (
     Fx,
     LoginAs,
     make_docx,
+    make_notes_pdf,
     make_pdf,
     make_png,
 )
@@ -153,6 +154,94 @@ async def test_a_page_the_ocr_model_fails_on_is_skipped(fx: Fx, fake_ai: FakeAi)
     assert (await fx.search("photosynthesis"))["results"]
 
 
+async def test_handwritten_and_annotated_pages_are_read_by_the_vision_model(
+    fx: Fx, fake_ai: FakeAi
+):
+    from semestra.modules import ai
+
+    fake_ai.enabled.add("ocr")
+    fake_ai.ocr_text = "<think>a circuit</think>Handwritten: the carry costs $2t$ per bit"
+    data = make_notes_pdf(["handwritten", "typed", "annotated"])
+    item = await fx.upload_ready("L27.pdf", data)
+    assert item["ocr_skipped_pages"] == 0
+    # The typed page is not sent; the others are, without the model thinking first.
+    assert fake_ai.ocr_calls == 2
+    assert all(options["transcribe"] for _, options in fake_ai.ocr_requests)
+    prompts = [messages[0].content[0].text for messages, _ in fake_ai.ocr_requests]
+    mixed = next(p for p in prompts if "printed text" in p)
+    assert "Typed lecture line 0" in mixed  # it is told what the page's text already has
+    assert all(isinstance(m[0].content[1], ai.Image) for m, _ in fake_ai.ocr_requests)
+
+    read = await fx.call("GET", f"/files/{item['id']}/document")
+    pages = read["pages"]
+    assert [p["visual"] for p in pages] == [True, False, True]
+    assert [p["ocr_used"] for p in pages] == [True, False, True]
+    assert pages[0]["markdown"] == "Handwritten: the carry costs $2t$ per bit"
+    # The annotated page keeps its text and gets the handwriting after it.
+    assert pages[2]["markdown"].startswith("Typed lecture line 0")
+    assert pages[2]["markdown"].endswith("Handwritten: the carry costs $2t$ per bit")
+    assert pages[2]["latex"]
+    hits = (await fx.search("carry"))["results"]
+    assert hits[0]["visual_pages"]
+
+
+async def test_a_page_the_model_reads_nothing_on_stays_unread(fx: Fx, fake_ai: FakeAi):
+    fake_ai.enabled.add("ocr")
+    fake_ai.ocr_text = "```markdown\n```"
+    item = await fx.upload_ready("notes.pdf", make_notes_pdf(["handwritten", "annotated"]))
+    # An empty answer is no reading of a handwritten page; on an annotated page it says the
+    # page has nothing more than its text.
+    assert item["ocr_skipped_pages"] == 1
+    read = await fx.call("GET", f"/files/{item['id']}/document")
+    assert [p["ocr_used"] for p in read["pages"]] == [False, True]
+    assert read["pages"][1]["markdown"].startswith("Typed lecture line 0")
+
+
+async def test_local_ocr_adds_only_what_it_is_sure_of_and_the_text_lacks(
+    fx: Fx, fake_ai: FakeAi, monkeypatch: pytest.MonkeyPatch
+):
+    from semestra.modules.ai import local_ocr
+    from semestra.modules.files import pipeline
+    from semestra.modules.files.parse.isolated import Recognized
+    from semestra.modules.files.parse.render import OcrLine
+
+    read: list[int] = []
+
+    class Session:
+        async def read(self, numbers: list[int], **limits: float):
+            for index, number in enumerate(numbers):
+                read.append(number)
+                yield Recognized(
+                    index,
+                    [
+                        # The typed line the text layer already has.
+                        OcrLine("Typed lecture line 0 about logic gates", 0.99, (60, 70, 360, 84)),
+                        OcrLine("carry = a AND b", 0.93, (420, 300, 540, 316)),
+                        OcrLine("c@rr# 4ND", 0.31, (420, 400, 540, 416)),  # handwriting misread
+                    ],
+                )
+
+    @asynccontextmanager
+    async def ocr_session(model: str, data: bytes, **options: Any):
+        yield Session()
+
+    monkeypatch.setattr(local_ocr, "available", lambda settings: True)
+    monkeypatch.setattr(local_ocr, "downloaded", lambda model: True)
+    monkeypatch.setattr(pipeline, "ocr_session", ocr_session)
+    item = await fx.upload_ready("notes.pdf", make_notes_pdf(["typed", "handwritten", "annotated"]))
+    assert read == [1, 2]
+    assert item["ocr_skipped_pages"] == 0
+    pages = (await fx.call("GET", f"/files/{item['id']}/document"))["pages"]
+    # A handwritten page has no text layer to repeat: everything sure enough is its text.
+    assert pages[1]["markdown"] == "Typed lecture line 0 about logic gates\ncarry = a AND b"
+    assert pages[2]["markdown"].startswith("Typed lecture line 0")
+    assert pages[2]["markdown"].endswith(
+        "line 24 about logic gates and their timing\n\ncarry = a AND b"
+    )
+    assert not any(p["latex"] for p in pages)
+    assert fake_ai.ocr_calls == 0
+
+
 def _local(status: dict[str, Any], purpose: str = "ocr") -> dict[str, Any]:
     return next(entry for entry in status["local"] if entry["purpose"] == purpose)
 
@@ -163,6 +252,7 @@ async def test_local_ocr_reads_scanned_pages_without_a_model(
     from semestra.modules.ai import local_ocr
     from semestra.modules.files import pipeline
     from semestra.modules.files.parse.isolated import Recognized
+    from semestra.modules.files.parse.render import OcrLine
 
     pages: list[tuple[str, int]] = []
     fetched: list[str] = []
@@ -174,7 +264,8 @@ async def test_local_ocr_reads_scanned_pages_without_a_model(
         async def read(self, numbers: list[int], **limits: float):
             for index, number in enumerate(numbers):
                 pages.append((self.model, number))
-                yield Recognized(index, "Photosynthesis\nturns light into sugar")
+                lines = ["Photosynthesis", "turns light into sugar"]
+                yield Recognized(index, [OcrLine(t, 0.95, (0, 0, 10, 10)) for t in lines])
 
     @asynccontextmanager
     async def ocr_session(model: str, data: bytes, **options: Any):
@@ -258,12 +349,13 @@ async def test_local_ocr_reads_scanned_pages_without_a_model(
     assert item["ocr_skipped_pages"] == 1
     assert fake_ai.ocr_calls == 0
 
-    # On Auto, the user's AI model reads the pages when the local model can't be downloaded.
+    # On Auto too: the local engine is the one Auto names here, and another one is not used in
+    # its place.
     monkeypatch.setattr(local_ocr, "default_model", lambda settings: "PP-OCRv6_small")
     await fx.call("PUT", "/ai/assignments", json={"purpose": "ocr", "provider_id": None})
     item = await fx.upload_ready("photo4.png", make_png("fourth"))
-    assert item["ocr_skipped_pages"] == 0
-    assert fake_ai.ocr_calls == 1
+    assert item["ocr_skipped_pages"] == 1
+    assert fake_ai.ocr_calls == 0
 
 
 async def test_ocr_stops_when_the_key_is_rejected(fx: Fx, fake_ai: FakeAi, monkeypatch):

@@ -13,6 +13,8 @@ import {
   aiProviderListModelsOptions,
   aiProviderListOptions,
   aiStatusGetOptions,
+  filesOutdatedCountOptions,
+  filesOutdatedRereadMutation,
   filesUsageGetOptions,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -106,6 +108,13 @@ const HF_REPO = /^[A-Za-z0-9][\w.-]*\/[\w.-]+$/
 
 function localGroupLabel(purpose: AiPurpose): string {
   return purpose === 'ocr' ? m.ai_models_local_group() : m.ai_models_local_group_embedding()
+}
+
+/** A provider's models; for OCR they read pages as images, unlike the classic OCR above them. */
+function providerGroupLabel(purpose: AiPurpose, provider: Provider): string {
+  return purpose === 'ocr'
+    ? m.ai_models_vision_group({ provider: provider.display_name })
+    : provider.display_name
 }
 
 function localOption(purpose: AiPurpose, model: string): ModelOption {
@@ -324,7 +333,7 @@ function PurposeRow({
       }
       return {
         id: provider.id,
-        label: provider.display_name,
+        label: providerGroupLabel(purpose, provider),
         logo: providerLogo(provider),
         items,
       }
@@ -546,6 +555,45 @@ function PurposeRow({
   )
 }
 
+/**
+ * Under OCR: PDFs read before handwriting and notes on slides were recognized, which the user
+ * can have read again (never in the background: reading may use the model).
+ */
+function OutdatedPdfsRow({ count, vision }: { count: number; vision: boolean }) {
+  const queryClient = useQueryClient()
+  const confirm = useDialogTarget<number>()
+  const reread = useMutation({
+    ...filesOutdatedRereadMutation(),
+    onSuccess: () => {
+      confirm.close()
+      queryClient.setQueryData(filesOutdatedCountOptions().queryKey, { count: 0 })
+    },
+    onError: toastError,
+  })
+  return (
+    <SettingRow
+      label={m.ai_models_outdated_pdfs({ count })}
+      description={m.ai_models_outdated_pdfs_hint()}
+    >
+      <Button variant="outline" size="sm" onClick={() => confirm.show(count)}>
+        {m.ai_models_outdated_reread()}
+      </Button>
+      <ConfirmDialog
+        {...confirm.props}
+        title={m.ai_models_outdated_reread_title()}
+        description={
+          vision
+            ? m.ai_models_outdated_reread_description_vision({ count: confirm.target ?? 0 })
+            : m.ai_models_outdated_reread_description({ count: confirm.target ?? 0 })
+        }
+        confirmLabel={m.ai_models_outdated_reread()}
+        pending={reread.isPending}
+        onConfirm={() => reread.mutate({})}
+      />
+    </SettingRow>
+  )
+}
+
 const MAX_OUTPUT_TOKENS = 200_000
 
 /** One task's own output limit, kept whichever model serves it (Auto too). */
@@ -660,6 +708,7 @@ function NoProviders() {
 export function ModelsSection() {
   const assignments = useQuery(aiAssignmentGetOptions())
   const providers = useQuery(aiProviderListOptions())
+  const outdated = useQuery(filesOutdatedCountOptions())
   const status = useQuery({
     ...aiStatusGetOptions(),
     // Only the user whose job it is hears that a download finished: poll while one runs.
@@ -689,9 +738,9 @@ export function ModelsSection() {
       {(data) => (
         <div className="space-y-3">
           <SettingsGroup>
-            {data.items.map((assignment) => {
+            {data.items.flatMap((assignment) => {
               const purposeStatus = status.data?.items.find((s) => s.purpose === assignment.purpose)
-              return (
+              const row = (
                 <PurposeRow
                   key={assignment.purpose}
                   assignment={assignment}
@@ -704,6 +753,18 @@ export function ModelsSection() {
                   }
                 />
               )
+              const stale = outdated.data?.count ?? 0
+              // Only when something can read them: reading again without OCR recognizes nothing.
+              return assignment.purpose === 'ocr' && stale > 0 && purposeStatus?.available
+                ? [
+                    row,
+                    <OutdatedPdfsRow
+                      key="outdated"
+                      count={stale}
+                      vision={purposeStatus.source !== 'local'}
+                    />,
+                  ]
+                : [row]
             })}
           </SettingsGroup>
           <SettingsNote>{m.ai_models_intro()}</SettingsNote>

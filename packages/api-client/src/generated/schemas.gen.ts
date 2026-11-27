@@ -7453,6 +7453,12 @@ export const DocumentPageSchema = {
             type: 'string',
             title: 'Citation Id',
             description: '`<item_id>:p<page_no>-<page_no>`'
+        },
+        visual: {
+            type: 'boolean',
+            title: 'Visual',
+            description: 'The page has handwriting, a large figure or a scan: its text may not have all of it',
+            default: false
         }
     },
     type: 'object',
@@ -15067,6 +15073,21 @@ export const OrganizeStateSchema = {
     description: 'The course\'s organizing: its job (while reading, or when it failed; None once the job\nrecord is gone), and its plan once read. Both None: nothing waits.'
 } as const;
 
+export const OutdatedSchema = {
+    properties: {
+        count: {
+            type: 'integer',
+            title: 'Count',
+            description: 'Files (PDFs) read by an older reader, which may have missed handwriting'
+        }
+    },
+    type: 'object',
+    required: [
+        'count'
+    ],
+    title: 'Outdated'
+} as const;
+
 export const OutlineEntrySchema = {
     properties: {
         level: {
@@ -18414,6 +18435,14 @@ export const SearchHitSchema = {
             type: 'string',
             title: 'Citation Id',
             description: '`<item_id>:p<page_from>-<page_to>`'
+        },
+        visual_pages: {
+            items: {
+                type: 'integer'
+            },
+            type: 'array',
+            title: 'Visual Pages',
+            description: 'Pages of the hit with handwriting, a large figure or a scan: their text may not have all of it'
         }
     },
     type: 'object',

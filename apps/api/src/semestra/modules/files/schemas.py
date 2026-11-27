@@ -316,6 +316,11 @@ class DocumentPage(BaseModel):
         "in other pages a `$` is just a dollar sign"
     )
     citation_id: str = Field(description="`<item_id>:p<page_no>-<page_no>`")
+    visual: bool = Field(
+        default=False,
+        description="The page has handwriting, a large figure or a scan: its text may not have "
+        "all of it",
+    )
 
 
 class DocumentRead(BaseModel):
@@ -371,6 +376,11 @@ class SearchHit(BaseModel):
     snippet: str = Field(description="Matching text; matches are wrapped in <mark></mark>")
     score: float
     citation_id: str = Field(description="`<item_id>:p<page_from>-<page_to>`")
+    visual_pages: list[int] = Field(
+        default_factory=lambda: [],
+        description="Pages of the hit with handwriting, a large figure or a scan: their text may "
+        "not have all of it",
+    )
 
 
 class PendingItem(BaseModel):

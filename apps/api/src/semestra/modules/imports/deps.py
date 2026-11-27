@@ -141,7 +141,7 @@ async def read_upload(
         texts = [
             ai.PageText(i + 1, p.markdown) for i, p in enumerate(parsed.pages) if p.markdown.strip()
         ]
-        scans = [i for i, p in enumerate(parsed.pages) if p.needs_ocr][:SCAN_PAGES]
+        scans = [i for i, p in enumerate(parsed.pages) if p.kind == "image"][:SCAN_PAGES]
         pngs = (
             (
                 await isolated.render_isolated(
@@ -153,7 +153,9 @@ async def read_upload(
         )
     except parse.ParseError as exc:
         raise _unreadable(exc, filename) from exc
-    return texts, [ai.Image(i.data, i.media_type, page=n + 1) for n, i in pngs.items()]
+    return texts, [
+        ai.Image(i.data, i.media_type, page=n + 1) for n, images in pngs.items() for i in images
+    ]
 
 
 async def _image(settings: Settings, data: bytes, filename: str) -> list[ai.Image]:
@@ -166,7 +168,7 @@ async def _image(settings: Settings, data: bytes, filename: str) -> list[ai.Imag
         rendering = await isolated.render_isolated(data, pdf=False, pages=1, **_limits(settings))
     except parse.ParseError as exc:
         raise _unreadable(exc, filename) from exc
-    return [ai.Image(i.data, i.media_type) for i in rendering.images.values()]
+    return [ai.Image(i.data, i.media_type) for images in rendering.images.values() for i in images]
 
 
 async def render_pages(settings: Settings, data: bytes, mime: str, filename: str) -> list[ai.Image]:
@@ -182,7 +184,7 @@ async def render_pages(settings: Settings, data: bytes, mime: str, filename: str
         )
     except parse.ParseError as exc:
         raise _unreadable(exc, filename) from exc
-    return [ai.Image(i.data, i.media_type) for i in rendering.images.values()]
+    return [ai.Image(i.data, i.media_type) for images in rendering.images.values() for i in images]
 
 
 def _unreadable(exc: Exception, filename: str) -> AppError:

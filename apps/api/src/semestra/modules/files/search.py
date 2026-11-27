@@ -18,7 +18,12 @@ from semestra.modules.academics import service as academics
 from semestra.modules.files import service
 from semestra.modules.files.chunking import plain_text
 from semestra.modules.files.embeddings import embed_query
-from semestra.modules.files.models import FilesChunk, FilesIndexState, FilesItem
+from semestra.modules.files.models import (
+    FilesChunk,
+    FilesDocumentPage,
+    FilesIndexState,
+    FilesItem,
+)
 from semestra.modules.files.schemas import (
     Citation,
     PendingItem,
@@ -437,6 +442,7 @@ async def search(ctx: Ctx, inp: SearchInput) -> SearchResult:
     hits = merge_adjacent([(chunk, name, scores[chunk.id]) for chunk, name in rows], terms.needles)
     hits.sort(key=lambda h: -h.score)
     hits = hits[: inp.top_k]
+    await _mark_visual(ctx, hits)
     return SearchResult(
         results=hits,
         pending_items=pending,
@@ -445,6 +451,26 @@ async def search(ctx: Ctx, inp: SearchInput) -> SearchResult:
         mode_used=mode_used,
         citations=[citation(h) for h in hits],
     )
+
+
+async def _mark_visual(ctx: Ctx, hits: list[SearchHit]) -> None:
+    """Fills in each hit's `visual_pages` from its file's active document."""
+    if not hits:
+        return
+    rows = await ctx.db.execute(
+        select(FilesItem.id, FilesDocumentPage.page_no)
+        .join(FilesDocumentPage, FilesDocumentPage.document_id == FilesItem.active_document_id)
+        .where(
+            FilesItem.id.in_({h.item_id for h in hits}),
+            FilesItem.user_id == ctx.user_id,
+            FilesDocumentPage.visual.is_(True),
+        )
+    )
+    visual = {(item_id, page_no) for item_id, page_no in rows.all()}
+    for hit in hits:
+        hit.visual_pages = [
+            n for n in range(hit.page_from, hit.page_to + 1) if (hit.item_id, n) in visual
+        ]
 
 
 def merge_adjacent(

@@ -59,6 +59,7 @@ beforeEach(() => {
     http.post(`${API}/me/ui-state\\:get`, () => HttpResponse.json({ items: {} })),
     // The rest of the account's sections, empty (search renders every one).
     http.get(`${API}/ai/assignments`, () => HttpResponse.json({ items: [] })),
+    http.get(`${API}/me/files/outdated`, () => HttpResponse.json({ count: 0 })),
     http.get(`${API}/ai/usage`, () =>
       HttpResponse.json({
         since: '2026-01-01T00:00:00Z',

@@ -3,6 +3,7 @@ import {
   aiProviderListModelsOptions,
   aiProviderListOptions,
   aiUsageSummarizeOptions,
+  filesOutdatedCountOptions,
 } from '@semestra/api-client/react-query'
 import type { QueryClient } from '@tanstack/react-query'
 import { readUiPref } from '@/app/ui-pref'
@@ -54,6 +55,8 @@ export const settingsPrefetch = {
     Promise.all([
       queryClient.ensureQueryData(aiAssignmentGetOptions()),
       queryClient.ensureQueryData(aiStatusOptions()),
+      // The row under OCR for PDFs read by an earlier version.
+      queryClient.ensureQueryData(filesOutdatedCountOptions()),
       queryClient.ensureQueryData(aiProviderListOptions()).then((providers) =>
         Promise.all(
           providers.items

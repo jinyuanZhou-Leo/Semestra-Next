@@ -3,7 +3,7 @@
 from fastapi import FastAPI
 
 from semestra.core.jobs import LANES
-from semestra.modules.files.tests.conftest import Fx, make_docx
+from semestra.modules.files.tests.conftest import FakeAi, Fx, make_docx
 from semestra.testing import Clock
 
 
@@ -84,3 +84,59 @@ async def test_files_stopped_together_can_be_read_again_together(fx: Fx):
     await fx.run_jobs()
     for item in (first, second):
         assert (await fx.call("GET", f"/files/{item['id']}"))["doc_status"] == "ready"
+
+
+async def test_pdfs_read_by_an_older_reader_are_read_again_when_the_user_asks(
+    fx: Fx, fake_ai: FakeAi
+):
+    from semestra.core.jobs import run_periodic
+    from semestra.modules.files.models import FilesDocument, FilesItem
+    from semestra.modules.files.tests.conftest import make_pdf
+
+    slides = await fx.upload_ready("slides.pdf", make_pdf(["Week 1 " * 20]))
+    page = await fx.upload_ready("page.html", b"<html><body><p>Week 1</p></body></html>")
+    await fx.upload_ready("current.pdf", make_pdf(["Week 2 " * 20]))
+    async with fx.app.state.session_factory() as db:
+        # Read before reader versions were recorded: version 1, older than both readers.
+        for item_id in (slides["id"], page["id"]):
+            item = await db.get(FilesItem, item_id)
+            assert item is not None
+            assert item.active_document_id is not None
+            document = await db.get(FilesDocument, item.active_document_id)
+            assert document is not None
+            document.parser_fingerprint = "0123456789abcdef"
+        await db.commit()
+
+    # Reading a PDF may use the OCR model: only the HTML page is read again on its own.
+    assert await fx.call("GET", "/me/files/outdated") == {"count": 1}
+    await run_periodic(fx.app.state, "files.reread_outdated")
+    await fx.run_jobs()
+    assert await fx.call("GET", "/me/files/outdated") == {"count": 1}
+
+    fake_ai.enabled.add("ocr")
+    assert await fx.call("POST", "/me/files/outdated:reread") == {"retried": 1}
+    assert (await fx.call("GET", f"/files/{slides['id']}"))["doc_status"] == "pending"
+    await fx.run_jobs()
+    assert (await fx.call("GET", f"/files/{slides['id']}"))["doc_status"] == "ready"
+    assert await fx.call("GET", "/me/files/outdated") == {"count": 0}
+
+
+async def test_reading_again_without_an_ocr_engine_keeps_what_ocr_read(fx: Fx, fake_ai: FakeAi):
+    from semestra.modules.files.tests.conftest import make_pdf
+
+    fake_ai.enabled.add("ocr")
+    scanned = make_pdf(["digital page with plenty of real words in it", "scan"], scanned={1})
+    item = await fx.upload_ready("scan.pdf", scanned)
+    before = await fx.call("GET", f"/files/{item['id']}/document")
+    assert before["pages"][1]["ocr_used"]
+
+    # The OCR model is gone: reading the PDFs again would recognize nothing.
+    fake_ai.enabled.discard("ocr")
+    refused = await fx.call("POST", "/me/files/outdated:reread", status=409)
+    assert refused["error"]["code"] == "files.ocr_unavailable"
+    # Read again one by one, the file fails and keeps the text OCR gave it.
+    await fx.call("POST", f"/files/{item['id']}:reprocess")
+    await fx.run_jobs()
+    row = await fx.call("GET", f"/files/{item['id']}")
+    assert (row["doc_status"], row["doc_error_code"]) == ("failed", "files.ocr_unavailable")
+    assert await fx.call("GET", f"/files/{item['id']}/document") == before

@@ -3,6 +3,7 @@
 import hashlib
 import io
 import json
+import math
 import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -49,6 +50,152 @@ def make_pdf(pages: list[str], *, scanned: set[int] | None = None) -> bytes:
                 fontsize=16 if heading else 11,
             )
             y += 34 if heading else 18
+    return doc.tobytes()
+
+
+def _strokes(page: pymupdf.Page, area: pymupdf.Rect, count: int) -> None:
+    """Pen strokes drawn as vector paths, as OneNote, GoodNotes or an iPad export them: each a
+    path of the pen's samples, a point or so apart."""
+    import random
+
+    rng = random.Random(count)  # noqa: S311 - test drawing, not secrets
+    shape = page.new_shape()
+    for _ in range(count):
+        x = rng.uniform(area.x0, area.x1 - 40)
+        y = rng.uniform(area.y0, area.y1 - 20)
+        points = [
+            pymupdf.Point(x + i, y + 6 * math.sin(i / 3) + rng.uniform(-0.3, 0.3))
+            for i in range(30)
+        ]
+        shape.draw_polyline(points)
+        shape.finish(color=(0, 0, 0.6), width=1.5, closePath=False)
+    shape.commit()
+
+
+def _decorated(page: pymupdf.Page, kind: str) -> None:
+    """A typed slide's own drawings: a round logo, a small line chart, a slanted rule, or a
+    diagram that fills most of the slide."""
+    shape = page.new_shape()
+    if kind == "logo":
+        shape.draw_circle((560, 50), 14)
+        shape.finish(color=None, fill=(0.1, 0.2, 0.5))
+    elif kind == "chart":
+        shape.draw_polyline([(380, 700), (410, 660), (440, 680), (470, 630), (500, 650)])
+        shape.finish(color=(0.8, 0.2, 0.2), width=1.5, closePath=False)
+    elif kind == "slanted":
+        shape.draw_line((60, 760), (550, 752))
+        shape.finish(color=(0.5, 0.5, 0.5), width=1)
+    else:  # a diagram
+        for n in range(8):
+            shape.draw_circle((306, 440), 40 + n * 30)
+            shape.draw_line((306, 440), (306 + 250 * math.cos(n), 440 + 250 * math.sin(n)))
+        shape.finish(color=(0.2, 0.2, 0.2), width=1)
+    shape.commit()
+
+
+def _typed(page: pymupdf.Page, lines: int, **options: Any) -> None:
+    for n in range(lines):
+        text = f"Typed lecture line {n} about logic gates and their timing"
+        page.insert_text((60, 80 + n * 20), text, fontsize=11, **options)
+
+
+def _slide(page: pymupdf.Page) -> None:
+    page.draw_rect(page.rect, color=None, fill=(1, 1, 1))
+    page.insert_text((60, 60), "Spherical coordinates", fontsize=20)
+    page.draw_line((60, 70), (550, 70), color=(0.7, 0.7, 0.85), width=1)
+    shape = page.new_shape()
+    shape.draw_rect(pymupdf.Rect(55, 90, 550, 200), radius=0.05)
+    shape.finish(color=(0.69, 0.7, 0.87), fill=(0.91, 0.91, 0.96), width=1)
+    shape.draw_rect(pymupdf.Rect(55, 220, 550, 380), radius=0.05)
+    shape.finish(color=(0.79, 0.79, 0.82), fill=(0.97, 0.97, 0.98), dashes="[4 3] 0", width=1)
+    shape.commit()
+    for n in range(4):
+        text = f"Let D be the part of the solid ball, case {n}; find the volume of D."
+        page.insert_text((70, 115 + n * 20), text, fontsize=11)
+
+
+def make_notes_pdf(kinds: list[str]) -> bytes:
+    """A PDF with one page of each kind of lecture page:
+    - `handwritten`: notes in vector ink with only a page number in its text;
+    - `tall`: the same on a page eight times as tall as wide (a OneNote page);
+    - `typed`: a typed page; `table`: a typed table with ruled lines; `background`: a slide with
+      a colored background; `logo`, `chart`, `slanted`: a typed page with a small drawing on it
+      (`_decorated`); `icon`: one with a small picture;
+    - `figure`: a typed slide with a large picture; `diagram`: one with a large drawing;
+    - `annotated`: a typed page with notes written on it; `inked`: the same as ink annotations
+      (iPad Markup);
+    - `slide`: a typed slide on a white box the size of the page, with a pale rounded callout,
+      a dashed box to write in and a rule under its title; `noted`: the same with one short
+      note written on it, which an app recognized into invisible text over the strokes;
+    - `unmapped`: typed text in a font without a usable character map (other characters than
+      the glyphs show);
+    - `blank`."""
+    doc = pymupdf.open()
+    for kind in kinds:
+        if kind == "tall":
+            page = doc.new_page(width=600, height=4800)
+            _strokes(page, pymupdf.Rect(40, 40, 560, 4760), 900)
+            continue
+        page = doc.new_page()
+        if kind == "handwritten":
+            _strokes(page, pymupdf.Rect(40, 40, 572, 762), 150)
+            page.insert_text((280, 800), "Page 1", fontsize=9)
+        elif kind == "typed":
+            _typed(page, 25)
+        elif kind == "table":
+            _typed(page, 10)
+            shape = page.new_shape()
+            for row in range(11):
+                shape.draw_line((55, 66 + row * 20), (420, 66 + row * 20))
+            for x in (55, 200, 420):
+                shape.draw_line((x, 66), (x, 266))
+            shape.finish(width=0.5)
+            shape.commit()
+        elif kind == "background":
+            page.draw_rect(page.rect, color=None, fill=(0.2, 0.3, 0.6))
+            _typed(page, 20, color=(1, 1, 1))
+        elif kind in ("logo", "chart", "slanted", "diagram"):
+            _typed(page, 6 if kind == "diagram" else 25)
+            _decorated(page, kind)
+        elif kind in ("figure", "icon"):
+            _typed(page, 6 if kind == "figure" else 25)
+            image = Image.new("RGB", (400, 300), "white")
+            draw = ImageDraw.Draw(image)
+            for n in range(12):
+                draw.ellipse((n * 10, n * 8, 380 - n * 6, 290 - n * 5), outline="red", width=3)
+            buffer = io.BytesIO()
+            image.save(buffer, "PNG")
+            box = (
+                pymupdf.Rect(60, 220, 540, 620)
+                if kind == "figure"
+                else pymupdf.Rect(520, 30, 580, 75)
+            )
+            page.insert_image(box, stream=buffer.getvalue())
+        elif kind == "annotated":
+            _typed(page, 25)
+            _strokes(page, pymupdf.Rect(320, 100, 560, 700), 40)
+        elif kind == "inked":
+            _typed(page, 25)
+            strokes = [
+                [(320 + i * 5, top + (i % 3) * 4) for i in range(40)] for top in range(150, 600, 50)
+            ]
+            ink = page.add_ink_annot(strokes)
+            ink.set_border(width=2)
+            ink.update()
+        elif kind in ("slide", "noted"):
+            _slide(page)
+            if kind == "noted":
+                _strokes(page, pymupdf.Rect(80, 400, 260, 440), 2)
+                page.insert_text((90, 425), "recognized note", fontsize=14, render_mode=3)
+        elif kind == "unmapped":
+            page.insert_font(fontname="F0", fontbuffer=pymupdf.Font("cjk").buffer)
+            for n in range(25):
+                page.insert_text(
+                    (60, 80 + n * 20),
+                    "ĂƌŝŶĂǌΖƐ ůĞĐƚƵƌĞ ŶŽƚĞƐ ĂďŽƵƚ ůŽŐŝĐ",
+                    fontsize=11,
+                    fontname="F0",
+                )
     return doc.tobytes()
 
 
@@ -191,6 +338,8 @@ class FakeAi:
         # OCR calls with these numbers (1-based) fail, as a provider error would.
         self.ocr_fail_calls: set[int] = set()
         self.ocr_fail_code = "ai.provider_error"
+        # What each OCR call was asked: its messages and options.
+        self.ocr_requests: list[tuple[Any, dict[str, Any]]] = []
         self.embed_calls: list[list[str]] = []
         self.fail_embedding = False
         # Only requests with a text containing this fail (e.g. a chunk the provider refuses).
@@ -218,6 +367,7 @@ def fake_ai(monkeypatch: pytest.MonkeyPatch) -> FakeAi:
         return ai.Completion(text=fake.ocr_text)
 
     async def complete_with(ctx: Any, resolved: Any, messages: Any, **kwargs: Any) -> Any:
+        fake.ocr_requests.append((messages, kwargs))
         return await complete(ctx, "ocr", messages, **kwargs)
 
     async def embedding_model(ctx: Any) -> tuple[str, str]:

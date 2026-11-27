@@ -27,6 +27,11 @@ LOCAL_OCR_IMAGE_MAX_SIDE = 2400
 # `MAX_PARTS` parts; past that they are taller and scaled.
 TALL_RATIO = 3
 MAX_PARTS = 20
+# A PDF page more than `TALL_RATIO` times as tall as wide (a OneNote page, a long scroll of
+# notes) is cut into parts about this many times as tall as wide, each rendered like a page of
+# its own, overlapping by `PART_OVERLAP` of a part so a line on a cut is whole in one of them.
+PART_RATIO = 1.5
+PART_OVERLAP = 0.04
 THUMB_WIDTH = 480
 THUMB_MAX_HEIGHT = 960
 MAX_IMAGE_PIXELS = 60_000_000
@@ -41,6 +46,30 @@ if TYPE_CHECKING:
 class PageImage:
     data: bytes
     media_type: str
+
+
+@dataclass(frozen=True)
+class OcrLine:
+    """A line local OCR read on a page: its text, how sure the engine is (0 to 1) and its box on
+    the page (left, top, right, bottom; page points for a PDF, pixels for an image)."""
+
+    text: str
+    score: float
+    box: tuple[float, float, float, float]
+
+
+@dataclass(frozen=True)
+class OcrPart:
+    """A part of a page for the local OCR engine: its PNG, where it is on the page (`left`,
+    `top`, in page points, or pixels for an image) and how many pixels a point is, so what the
+    engine finds can be placed on the page; and the band of the page (`owns`) whose lines this
+    part reports, so a line in the overlap of two parts is reported once."""
+
+    png: bytes
+    left: float
+    top: float
+    zoom: float
+    owns: tuple[float, float]
 
 
 def _for_model(image: Image.Image) -> PageImage:
@@ -125,20 +154,87 @@ class PageRenderer:
         `MODEL_IMAGE_MAX_SIDE` a side; or the image (or its part), upright, scaled to that side."""
         return _for_model(self._page(index, MODEL_IMAGE_MAX_SIDE))
 
+    def model_parts(self, index: int) -> list[PageImage]:
+        """The page for a model to read, top to bottom: one image, or for a tall page (a PDF
+        page or an image more than `TALL_RATIO` times as tall as wide) its parts, each as sharp
+        as a page of its own would be."""
+        return [_for_model(image) for image, *_ in self._parts_of(index, MODEL_IMAGE_MAX_SIDE)]
+
     def local_ocr_png(self, index: int) -> bytes:
         """The page for the local OCR engine, which runs here, not at a provider: no side limit
         for PDF pages (150 DPI, `OCR_MAX_PIXELS`), so a large page keeps its small print."""
         return _png(self._page(index, None))
 
+    def local_ocr_parts(self, index: int) -> list[OcrPart]:
+        """`local_ocr_png`, a tall page in parts (`model_parts`)."""
+        return [
+            OcrPart(_png(image), left, top, zoom, owns)
+            for image, left, top, zoom, owns in self._parts_of(index, None)
+        ]
+
+    def _parts_of(
+        self, index: int, max_side: int | None
+    ) -> list[tuple[Image.Image, float, float, float, tuple[float, float]]]:
+        """Each part's image, its top-left corner and zoom, and the band it owns."""
+        if self._pdf is not None:
+            import pymupdf
+
+            rect = self._pdf[index].rect
+            width, height = max(rect.width, 1), max(rect.height, 1)
+            count = 1
+            if height > TALL_RATIO * width:
+                count = min(MAX_PARTS, math.ceil(height / (width * PART_RATIO)))
+            step = height / count
+            overlap = step * PART_OVERLAP if count > 1 else 0
+            out: list[tuple[Image.Image, float, float, float, tuple[float, float]]] = []
+            for part in range(count):
+                top, bottom = (
+                    max(0, part * step - overlap),
+                    min(height, (part + 1) * step + overlap),
+                )
+                clip = pymupdf.Rect(rect.x0, rect.y0 + top, rect.x1, rect.y0 + bottom)
+                image, zoom = self._render_pdf(index, max_side, clip)
+                out.append((image, 0.0, top, zoom, (part * step, (part + 1) * step)))
+            return out
+        assert self._image is not None
+        image = self._image
+        count = 1 if self._parts > 1 else _parts(image)  # split_tall: each part is a page
+        if count == 1:
+            fitted = self._page(index, max_side)
+            return [(fitted, 0.0, 0.0, fitted.width / image.width, (0.0, float(image.height)))]
+        out = []
+        for part in range(count):
+            top, bottom = (image.height * i // count for i in (part, part + 1))
+            fitted = _fit(
+                image.crop((0, top, image.width, bottom)),
+                *(2 * (max_side or LOCAL_OCR_IMAGE_MAX_SIDE,)),
+            )
+            out.append(
+                (fitted, 0.0, float(top), fitted.width / image.width, (float(top), float(bottom)))
+            )
+        return out
+
+    def _render_pdf(
+        self, index: int, max_side: int | None, clip: pymupdf.Rect | None = None
+    ) -> tuple[Image.Image, float]:
+        """The page (or the part of it in `clip`) at most 150 DPI and `OCR_MAX_PIXELS`, and at
+        most `max_side` a side; with the zoom it was drawn at (pixels per point)."""
+        assert self._pdf is not None
+        page = self._pdf[index]
+        area = clip if clip is not None else page.rect
+        width, height = max(area.width, 1), max(area.height, 1)
+        dpi = min(OCR_DPI, 72 * math.sqrt(OCR_MAX_PIXELS / (width * height)))
+        if max_side is not None:
+            dpi = min(dpi, 72 * max_side / max(width, height))
+        pixmap = page.get_pixmap(matrix=_matrix(dpi / 72), clip=clip)
+        image = Image.frombytes("RGB", (pixmap.width, pixmap.height), pixmap.samples)
+        if max_side is not None:  # PyMuPDF rounds the size up: a pixel more than asked
+            image = _fit(image, max_side, max_side)
+        return image, image.width / width
+
     def _page(self, index: int, max_side: int | None) -> Image.Image:
         if self._pdf is not None:
-            page = self._pdf[index]
-            width, height = max(page.rect.width, 1), max(page.rect.height, 1)
-            dpi = min(OCR_DPI, 72 * math.sqrt(OCR_MAX_PIXELS / (width * height)))
-            if max_side is not None:
-                dpi = min(dpi, 72 * max_side / max(width, height))
-            pixmap = page.get_pixmap(matrix=_matrix(dpi / 72))
-            return Image.frombytes("RGB", (pixmap.width, pixmap.height), pixmap.samples)
+            return self._render_pdf(index, max_side)[0]
         assert self._image is not None
         image = self._image
         if self._parts > 1:
