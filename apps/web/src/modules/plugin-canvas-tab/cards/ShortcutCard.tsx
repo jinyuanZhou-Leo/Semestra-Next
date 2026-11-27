@@ -4,7 +4,7 @@ import { CardSkeleton } from '@/app/board/CardSkeleton'
 import type { CardProps } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
 import { NAV_ICONS } from '../icons'
-import { placePath, UnreadBadge, Unlinked, natives, useCourseCanvas } from './shared'
+import { LoadFailed, natives, placePath, UnreadBadge, Unlinked, useCourseCanvas } from './shared'
 import type { ShortcutSettings } from './shortcut'
 
 /**
@@ -14,15 +14,16 @@ import type { ShortcutSettings } from './shortcut'
 export default function ShortcutCard({ scope, settings }: CardProps<ShortcutSettings>) {
   const courseId = scope.kind === 'course' ? scope.courseId : ''
   const place = settings.place ?? 'last'
-  const { loading, overview, unread } = useCourseCanvas(scope.programId, courseId)
-  if (loading) return <CardSkeleton />
-  if (!overview) {
+  const canvas = useCourseCanvas(scope.programId, courseId)
+  if (canvas.state === 'loading') return <CardSkeleton />
+  if (canvas.state !== 'ready') {
     return (
-      <div className="flex flex-1 flex-col p-4">
-        <Unlinked />
+      <div className="flex flex-1 flex-col justify-center p-4">
+        {canvas.state === 'error' ? <LoadFailed /> : <Unlinked />}
       </div>
     )
   }
+  const { overview, unread } = canvas
   const view = place === 'last' ? undefined : place
   const Icon = view ? NAV_ICONS[view] : School
   // The course's own name for the view; one the instructor hid still opens, under its usual name.

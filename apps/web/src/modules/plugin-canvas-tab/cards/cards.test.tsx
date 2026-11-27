@@ -4,6 +4,7 @@ import { http, HttpResponse } from 'msw'
 import { afterAll, afterEach, beforeAll, expect, test } from 'vitest'
 import type { CardProps } from '@/app/extensions'
 import { course } from '@/modules/academics/test-data'
+import { m } from '@/paraglide/messages'
 import { API, renderWithRouter, server } from '@/test-utils'
 import ShortcutCard from './ShortcutCard'
 import ShortcutsCard from './ShortcutsCard'
@@ -137,7 +138,9 @@ test('the term card has a row per linked course, with its views in the same colu
     '/p/p1/c/c2/canvas?tab=pages',
   )
   expect(within(rows[1]!).queryByRole('link', { name: /Modules/ })).toBeNull()
-  expect(within(rows[1]!).getByRole('link', { name: /Announcements/ })).toHaveTextContent('1')
+  // Unread announcements: a dot on the term card.
+  expect(within(rows[1]!).getByRole('link', { name: /Announcements/ })).toHaveTextContent('Unread')
+  expect(within(rows[1]!).getByRole('link', { name: /Announcements/ })).not.toHaveTextContent('1')
   // Each row keeps all six places: the Pages icon is in the same column in both rows.
   const column = (row: HTMLElement) =>
     [...row.lastElementChild!.children].findIndex((el) =>
@@ -145,6 +148,21 @@ test('the term card has a row per linked course, with its views in the same colu
     )
   await within(rows[0]!).findByRole('link', { name: /Modules/ })
   expect(column(rows[1]!)).toBe(4)
+})
+
+test('a menu that cannot be read is an error, not an unlinked course', async () => {
+  serve({ c1: FULL_MENU })
+  server.use(
+    http.get(`${API}/courses/c1/lms`, () =>
+      HttpResponse.json(
+        { error: { code: 'lms.rate_limited', params: {}, request_id: 'r' } },
+        { status: 429 },
+      ),
+    ),
+  )
+  renderWithRouter(<ShortcutsCard {...ON_COURSE} />)
+  expect(await screen.findByText(m.common_load_failed())).toBeInTheDocument()
+  expect(screen.queryByText('Not linked to Canvas')).toBeNull()
 })
 
 test("the single shortcut opens the chosen view under the course's own name", async () => {

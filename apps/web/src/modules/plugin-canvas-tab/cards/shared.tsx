@@ -1,10 +1,11 @@
 import type { CourseOverview, UnreadCounts } from '@semestra/api-client'
 import { useQuery } from '@tanstack/react-query'
-import { School } from 'lucide-react'
+import { CircleAlert, School } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { coursePath } from '@/modules/academics/paths'
 import { courseOverviewOptions } from '@/modules/lms/course-info'
 import { m } from '@/paraglide/messages'
+import { Alert, AlertTitle } from '@/ui/alert'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { type NavEntry, type NativeView, navEntries } from '../navigation'
 import { programLinksOptions } from '../open-in-canvas'
@@ -26,18 +27,37 @@ export function unreadOf(data: UnreadCounts | undefined, courseId: string) {
   return data?.items.find((c) => c.course_id === courseId)?.unread ?? 0
 }
 
-/** A course card's data: whether the course is linked to Canvas, then its menu. */
-export function useCourseCanvas(programId: string, courseId: string) {
+export type CourseCanvas =
+  | { state: 'loading' | 'error' | 'unlinked' }
+  | { state: 'ready'; overview: CourseOverview; unread: number }
+
+/**
+ * A course card's data: whether the course is linked to Canvas, then its menu. A failed read is
+ * an error, never "not linked".
+ */
+export function useCourseCanvas(programId: string, courseId: string): CourseCanvas {
   const links = useQuery(programLinksOptions(programId))
   const linked =
     links.data?.items.some((l) => l.course_id === courseId && l.provider === 'canvas') ?? false
   const overview = useQuery({ ...courseOverviewOptions(courseId), enabled: linked })
   const unread = useQuery(unreadOptions(programId)).data
-  return {
-    loading: links.isPending || (linked && overview.isPending),
-    overview: linked ? overview.data : undefined,
-    unread: unreadOf(unread, courseId),
+  if (links.isPending) return { state: 'loading' }
+  if (!links.data) return { state: 'error' }
+  if (!linked) return { state: 'unlinked' }
+  if (overview.data) {
+    return { state: 'ready', overview: overview.data, unread: unreadOf(unread, courseId) }
   }
+  return { state: overview.isError ? 'error' : 'loading' }
+}
+
+/** A read the card needs failed (the platform's limits, a lost connection…). */
+export function LoadFailed() {
+  return (
+    <Alert variant="destructive">
+      <CircleAlert aria-hidden />
+      <AlertTitle>{m.common_load_failed()}</AlertTitle>
+    </Alert>
+  )
 }
 
 /** The unread announcements on an icon: the count, as the page tabs show it. */

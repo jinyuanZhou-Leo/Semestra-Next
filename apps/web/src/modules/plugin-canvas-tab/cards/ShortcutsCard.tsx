@@ -2,18 +2,29 @@ import type { Course } from '@semestra/api-client'
 import { academicsCourseListOptions } from '@semestra/api-client/react-query'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
+import { CircleAlert } from 'lucide-react'
 import { CardSkeleton } from '@/app/board/CardSkeleton'
 import type { CardProps } from '@/app/extensions'
 import { courseColor, courseLabel } from '@/modules/academics/color'
 import { coursesOfTerm } from '@/modules/academics/queries'
 import { courseOverviewOptions } from '@/modules/lms/course-info'
+import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
+import { Skeleton } from '@/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { NAV_ICONS } from '../icons'
 import type { NativeView } from '../navigation'
-import { programLinksOptions } from '../open-in-canvas'
-import { unreadOptions } from './prefetch'
-import { natives, placePath, UnreadBadge, Unlinked, unreadOf, useCourseCanvas } from './shared'
+import { termLinksOptions, unreadOptions } from './prefetch'
+import {
+  LoadFailed,
+  type Native,
+  natives,
+  placePath,
+  UnreadBadge,
+  Unlinked,
+  unreadOf,
+  useCourseCanvas,
+} from './shared'
 
 /**
  * The term card's columns, the same for every course so they line up (Canvas's dashboard cards do
@@ -38,9 +49,10 @@ export default function ShortcutsCard(props: CardProps) {
 
 function CourseShortcuts({ scope }: CardProps) {
   const courseId = scope.kind === 'course' ? scope.courseId : ''
-  const { loading, overview, unread } = useCourseCanvas(scope.programId, courseId)
-  if (loading) return <CardSkeleton />
-  if (!overview) return <Unlinked />
+  const canvas = useCourseCanvas(scope.programId, courseId)
+  if (canvas.state === 'loading') return <CardSkeleton />
+  if (canvas.state !== 'ready') return canvas.state === 'error' ? <LoadFailed /> : <Unlinked />
+  const { overview, unread } = canvas
   return (
     <ul className="grid flex-1 scroll-fade grid-cols-4 content-center gap-1 overflow-y-auto">
       {natives(overview).map((entry) => {
@@ -69,14 +81,14 @@ function CourseShortcuts({ scope }: CardProps) {
 function TermShortcuts({ scope }: CardProps) {
   const { programId } = scope
   const termId = scope.kind === 'term' ? scope.termId : ''
-  const links = useQuery(programLinksOptions(programId))
+  const links = useQuery(termLinksOptions(programId, termId))
   const courses = useQuery(
     academicsCourseListOptions({
       path: { program_id: programId },
       query: { limit: 500, term_id: termId },
     }),
   )
-  const unread = useQuery(unreadOptions(programId)).data
+  const unreadCounts = useQuery(unreadOptions(programId)).data
   const linked = new Set(
     (links.data?.items ?? []).filter((l) => l.provider === 'canvas').map((l) => l.course_id),
   )
@@ -86,12 +98,14 @@ function TermShortcuts({ scope }: CardProps) {
   const overviews = useQueries({ queries: rows.map((c) => courseOverviewOptions(c.id)) })
 
   if (links.isPending || courses.isPending) return <CardSkeleton />
+  if (!links.data || !courses.data) return <LoadFailed />
   if (rows.length === 0) return <Unlinked term />
   return (
     <ul className="flex min-h-0 flex-1 scroll-fade flex-col gap-0.5 overflow-y-auto">
       {rows.map((course, index) => {
-        const entries = overviews[index]?.data ? natives(overviews[index].data) : []
-        const count = unreadOf(unread, course.id)
+        const menu = overviews[index]
+        const entries = menu?.data ? natives(menu.data) : null
+        const unread = unreadOf(unreadCounts, course.id) > 0
         return (
           <li key={course.id} className="flex h-9 shrink-0 items-center gap-2">
             <Link
@@ -105,40 +119,84 @@ function TermShortcuts({ scope }: CardProps) {
               />
               <span className="min-w-0 truncate">{courseLabel(course)}</span>
             </Link>
-            {/* Every place is kept while the menu loads and when a course lacks one, so the
-                columns never move. */}
-            <span className="flex shrink-0 items-center">
-              {SLOTS.map((key) => {
-                const entry = entries.find((e) => e.key === key)
-                if (!entry) return <span key={key} aria-hidden className="size-8" />
-                const Icon = NAV_ICONS[key]
-                const label = `${courseLabel(course)} · ${entry.label}`
-                return (
-                  <Tooltip key={key}>
-                    <TooltipTrigger
-                      render={
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          className="relative text-muted-foreground"
-                          aria-label={label}
-                          render={<Link to={placePath(programId, course.id, key)} />}
-                        />
-                      }
-                    >
-                      <Icon aria-hidden />
-                      {key === 'announcements' ? (
-                        <UnreadBadge count={count} className="-top-0.5 -right-0.5" />
-                      ) : null}
-                    </TooltipTrigger>
-                    <TooltipContent>{entry.label}</TooltipContent>
-                  </Tooltip>
-                )
-              })}
-            </span>
+            <RowPlaces
+              entries={entries}
+              failed={menu?.isError ?? false}
+              unread={unread}
+              path={(view) => placePath(programId, course.id, view)}
+              label={courseLabel(course)}
+            />
           </li>
         )
       })}
     </ul>
+  )
+}
+
+/**
+ * A term row's six places. They are always there, so the columns never move: a view the course
+ * lacks is an empty place, one still loading a placeholder; when its menu can't be read, the row
+ * says so instead.
+ */
+function RowPlaces({
+  entries,
+  failed,
+  unread,
+  path,
+  label,
+}: {
+  entries: Native[] | null
+  failed: boolean
+  unread: boolean
+  path: (view: NativeView) => string
+  label: string
+}) {
+  if (!entries && failed) {
+    return (
+      <span className="flex w-48 shrink-0 items-center justify-end gap-1.5 pr-2 text-xs text-muted-foreground">
+        <CircleAlert aria-hidden className="size-3.5" />
+        {m.common_load_failed()}
+      </span>
+    )
+  }
+  return (
+    <span className="flex shrink-0 items-center">
+      {SLOTS.map((key) => {
+        if (!entries) {
+          return (
+            <span key={key} className="flex size-8 items-center justify-center">
+              <Skeleton className="size-4 rounded" />
+            </span>
+          )
+        }
+        const entry = entries.find((e) => e.key === key)
+        if (!entry) return <span key={key} aria-hidden className="size-8" />
+        const Icon = NAV_ICONS[key]
+        const dot = key === 'announcements' && unread
+        return (
+          <Tooltip key={key}>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="relative text-muted-foreground"
+                  aria-label={`${label} · ${entry.label}`}
+                  render={<Link to={path(key)} />}
+                />
+              }
+            >
+              <Icon aria-hidden />
+              {dot ? (
+                <span className="absolute top-1 right-1 size-1.5 rounded-full bg-primary">
+                  <span className="sr-only">{m.lms_announcements_unread()}</span>
+                </span>
+              ) : null}
+            </TooltipTrigger>
+            <TooltipContent>{entry.label}</TooltipContent>
+          </Tooltip>
+        )
+      })}
+    </span>
   )
 }
