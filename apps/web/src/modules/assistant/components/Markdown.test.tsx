@@ -68,3 +68,23 @@ test('only images from the app load; others become a link named by their descrip
     'https://evil.example/p.png',
   )
 })
+
+test('math is typeset however the model delimits it; code and escaped dollars stay text', async () => {
+  const { answer } = await show(
+    [
+      'Inline $a^2$ and \\(b^2\\), but `$c$` and \\$5 stay as written.',
+      '$$d^2$$',
+      '\\[\ne^2\n\\]',
+      '$$\nf^2\n$$',
+    ].join('\n\n'),
+  )
+  const formulas = await screen.findAllByRole('math')
+  expect(formulas.map((f) => [f.textContent, f.closest('.katex-display') !== null])).toEqual([
+    ['a2a^2', false],
+    ['b2b^2', false],
+    ['d2d^2', true],
+    ['e2e^2', true],
+    ['f2f^2', true],
+  ])
+  expect(answer).toHaveTextContent('$c$ and $5 stay as written.')
+})

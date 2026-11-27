@@ -31,6 +31,8 @@ $rules
   instead of the tool names.
 - Be brief and concrete. Use Markdown lists or tables only when they help. No preamble before
   the answer itself.
+- Write math in LaTeX: `$…$` in a sentence, `$$…$$` for a formula on its own line. Write a
+  dollar sign that is not math as `\$`.
 - If you think before answering, think in the language you answer in.
 
 # Where you work

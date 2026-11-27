@@ -1,3 +1,7 @@
+import { cjk } from '@streamdown/cjk'
+import { code } from '@streamdown/code'
+import { createMathPlugin } from '@streamdown/math'
+import { mermaid } from '@streamdown/mermaid'
 import { useRouter } from '@tanstack/react-router'
 import 'katex/dist/katex.min.css'
 import { type ComponentProps, createContext, type ReactNode, useContext } from 'react'
@@ -8,6 +12,7 @@ import {
   type StreamdownTranslations,
 } from 'streamdown'
 import { MessageResponse } from '@/components/ai-elements/message'
+import { remarkMathSyntax } from '@/lib/markdown-math'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
@@ -127,6 +132,14 @@ const REHYPE_PLUGINS: StreamdownProps['rehypePlugins'] = [
   defaultRehypePlugins.sanitize!,
   [harden, { ...hardenOptions, linkBlockPolicy: 'text-only', imageBlockPolicy: 'text-only' }],
 ]
+// AI Elements' plugins, with math written the ways models write it (`$…$`, `\(…\)`, `\[…\]` and
+// one-line `$$…$$` too, not only `$$` fences), as in recognized file text.
+const PLUGINS: StreamdownProps['plugins'] = {
+  cjk,
+  code,
+  mermaid,
+  math: { ...createMathPlugin(), remarkPlugin: remarkMathSyntax },
+}
 // Copying code and diagrams is the one tool an answer offers: no table toolbar, downloads, full
 // screen or line numbers, as before Streamdown.
 const CONTROLS = {
@@ -187,6 +200,7 @@ export default function Response({ text, citations, streaming, className }: Mark
           'space-y-2 text-sm leading-relaxed wrap-break-word [&_h1]:mt-3 [&_h1]:mb-1 [&_h1]:text-base [&_h2]:mt-3 [&_h2]:mb-1 [&_h2]:text-sm [&_h3]:mt-2 [&_h3]:mb-1 [&_h3]:text-sm [&_h3]:font-medium [&_li]:py-0.5',
           className,
         )}
+        plugins={PLUGINS}
         components={COMPONENTS}
         rehypePlugins={REHYPE_PLUGINS}
         controls={CONTROLS}

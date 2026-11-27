@@ -3,45 +3,13 @@ import 'katex/dist/katex.min.css'
 import ReactMarkdown, { type Components } from 'react-markdown'
 import rehypeKatex from 'rehype-katex'
 import remarkGfm from 'remark-gfm'
-import remarkMath from 'remark-math'
+import { remarkMathSyntax } from '@/lib/markdown-math'
 import { cn } from '@/lib/utils'
 import { useExternalLink } from '@/components/ExternalLink'
 
 type Plugins = NonNullable<ComponentProps<typeof ReactMarkdown>['remarkPlugins']>
-type MdNode = {
-  type: string
-  children?: MdNode[]
-  position?: { start: { offset?: number } }
-  data?: Record<string, unknown>
-}
-
-/**
- * A paragraph that is only a one-line `$$…$$` is a formula on its own line, as models write it;
- * remark-math takes only a `$$` fence on lines of its own as display math. It works on the parsed
- * tree, so code is left as it is.
- */
-function remarkDisplayLines() {
-  return (tree: MdNode, file: { value: unknown }) => {
-    const source = String(file.value)
-    const visit = (node: MdNode) => {
-      const only = node.children?.[0]
-      if (node.type === 'paragraph' && node.children?.length === 1 && only?.type === 'inlineMath') {
-        const at = only.position?.start.offset
-        if (at !== undefined && source.startsWith('$$', at)) {
-          only.data = {
-            ...only.data,
-            hProperties: { className: ['language-math', 'math-display'] },
-          }
-        }
-      }
-      node.children?.forEach(visit)
-    }
-    visit(tree)
-  }
-}
-
 const REMARK_PLUGINS: Plugins = [remarkGfm]
-const MATH_REMARK_PLUGINS: Plugins = [remarkGfm, remarkMath, remarkDisplayLines]
+const MATH_REMARK_PLUGINS: Plugins = [remarkGfm, remarkMathSyntax]
 // A formula KaTeX cannot parse is shown as its source (in the error colour) instead of failing.
 const MATH_REHYPE_PLUGINS: Plugins = [
   [rehypeKatex, { throwOnError: false, errorColor: 'var(--destructive)' }],
@@ -88,7 +56,7 @@ const COMPONENTS: Components = { img: NoImage, a: MarkdownLink, table: MarkdownT
  * Markdown from a file (a .md upload, or the text the pipeline extracted). Raw HTML in it is not
  * rendered (react-markdown's default), so file content cannot inject markup. Web links open in a
  * new tab after the leaving-Semestra check; other links are shown as text. With `math` (text the
- * pipeline wrote to the LaTeX rule, `DocumentPage.latex`), math between `$` or `$$` is typeset
+ * pipeline wrote to the LaTeX rule, `DocumentPage.latex`), math (`$…$`, `$$…$$`, `\(…\)`, `\[…\]`) is typeset
  * with KaTeX; elsewhere a `$` is just a dollar sign.
  */
 export function Markdown({
