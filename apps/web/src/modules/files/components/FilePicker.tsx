@@ -250,7 +250,8 @@ export function FilePicker({
     }
     for (const b of branches) {
       const inner = visit(b.nodes)
-      if (inner || total <= EXPAND_ALL_UP_TO || courses.length === 1) open.add(`course:${b.course.id}`)
+      if (inner || total <= EXPAND_ALL_UP_TO || courses.length === 1)
+        open.add(`course:${b.course.id}`)
     }
     return open
   }
@@ -315,40 +316,44 @@ export function FilePicker({
           ) : null}
         </InputGroupAddon>
       </InputGroup>
-      <ScrollArea className={cn('min-h-0 flex-1 rounded-2xl border', FRAMED_SCROLLBAR)}>
-        <div className="p-1">
-          {pending ? (
-            <div className="flex flex-col gap-1 p-1">
-              <Skeleton className="h-7 rounded-lg" />
-              <Skeleton className="h-7 rounded-lg" />
-              <Skeleton className="h-7 rounded-lg" />
-            </div>
-          ) : total === 0 ? (
-            <p className="px-2.5 py-2 text-xs text-muted-foreground">
-              {m.files_picker_no_match()}
-            </p>
-          ) : courses.length === 1 ? (
-            <Rows nodes={branches[0]?.nodes ?? []} depth={0} state={state} />
-          ) : (
-            branches
-              .filter((b) => b.files.length > 0)
-              .map((b) => (
-                <BranchRow
-                  key={b.course.id}
-                  node={{
-                    kind: 'course',
-                    key: `course:${b.course.id}`,
-                    course: b.course,
-                    children: b.nodes,
-                    files: b.files,
-                  }}
-                  depth={0}
-                  state={state}
-                />
-              ))
-          )}
-        </div>
-      </ScrollArea>
+      {/* The padding sits outside the scrolling area, so rows scrolled under the frame are cut
+          along the rows' own radius, not the frame's. */}
+      <div className="flex min-h-0 flex-1 flex-col rounded-2xl border p-1">
+        <ScrollArea className={cn('min-h-0 flex-1 rounded-xl', FRAMED_SCROLLBAR)}>
+          <div className="pr-1.5">
+            {pending ? (
+              <div className="flex flex-col gap-1 p-1">
+                <Skeleton className="h-7 rounded-lg" />
+                <Skeleton className="h-7 rounded-lg" />
+                <Skeleton className="h-7 rounded-lg" />
+              </div>
+            ) : total === 0 ? (
+              <p className="px-2.5 py-2 text-xs text-muted-foreground">
+                {m.files_picker_no_match()}
+              </p>
+            ) : courses.length === 1 ? (
+              <Rows nodes={branches[0]?.nodes ?? []} depth={0} state={state} />
+            ) : (
+              branches
+                .filter((b) => b.files.length > 0)
+                .map((b) => (
+                  <BranchRow
+                    key={b.course.id}
+                    node={{
+                      kind: 'course',
+                      key: `course:${b.course.id}`,
+                      course: b.course,
+                      children: b.nodes,
+                      files: b.files,
+                    }}
+                    depth={0}
+                    state={state}
+                  />
+                ))
+            )}
+          </div>
+        </ScrollArea>
+      </div>
     </div>
   )
 }
