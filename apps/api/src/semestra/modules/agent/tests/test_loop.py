@@ -131,11 +131,12 @@ async def test_system_prompt_has_the_scope_and_today(agent: Agent, model: FakeMo
 
 
 def test_the_prompt_files_reach_the_model_as_written():
-    # Only `$name` placeholders are filled in; any other `$` (math such as `$$x^2$$`) is text.
+    # Only the placeholders `instructions` fills in are replaced; any other `$` (math such as
+    # `$$x^2$$`) is text.
+    filled = {"rules", "surface", "about", "untrusted"}
     for name in ("system", "rules"):
-        source = context.prompt(name)
-        for line in source.splitlines():
-            if not re.search(r"\$\{?[a-z_]", line):
+        for line in context.prompt(name).splitlines():
+            if not filled & set(context._Prompt(line).get_identifiers()):
                 assert line in STATIC_PROMPT, line
 
 
