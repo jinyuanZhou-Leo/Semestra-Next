@@ -10,8 +10,10 @@ from pydantic import BaseModel, Field
 from sqlalchemy import or_, select
 
 from semestra.core.context import Ctx
+from semestra.core.errors import AppError
 from semestra.core.events import events
 from semestra.core.jobs import CoreJob, JobOut, JobRef, job_cancel
+from semestra.modules import ai
 from semestra.modules.academics import service as academics
 from semestra.modules.academics.models import AcademicsCourse
 from semestra.modules.files import content, service
@@ -291,6 +293,9 @@ async def reread_outdated(ctx: Ctx) -> Retried:
     """Each file read by an older reader is read again, as the user's own read (the "Reading
     files" line shows them); a course material is fetched from its source again as with
     `files.item.reprocess`."""
+    # Without an engine the pages that need OCR could not be read, so nothing would improve.
+    if await ai.local_ocr.choice(ctx) is None and not await ai.available(ctx, "ocr"):
+        raise AppError("files.ocr_unavailable", 409)
     rows = await _outdated(ctx)
     for row in rows:
         await service.request_read(ctx, row, "user")

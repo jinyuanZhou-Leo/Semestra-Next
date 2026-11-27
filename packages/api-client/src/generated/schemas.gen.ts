@@ -7457,7 +7457,7 @@ export const DocumentPageSchema = {
         visual: {
             type: 'boolean',
             title: 'Visual',
-            description: 'The page has handwriting, figures or a scan: its text may not have all of it',
+            description: 'The page has handwriting, a large figure or a scan: its text may not have all of it',
             default: false
         }
     },
@@ -18442,7 +18442,7 @@ export const SearchHitSchema = {
             },
             type: 'array',
             title: 'Visual Pages',
-            description: 'Pages of the hit with handwriting, figures or a scan: their text may not have all of it'
+            description: 'Pages of the hit with handwriting, a large figure or a scan: their text may not have all of it'
         }
     },
     type: 'object',

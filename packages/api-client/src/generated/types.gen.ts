@@ -4230,7 +4230,7 @@ export type DocumentPage = {
     /**
      * Visual
      *
-     * The page has handwriting, figures or a scan: its text may not have all of it
+     * The page has handwriting, a large figure or a scan: its text may not have all of it
      */
     visual?: boolean;
 };
@@ -10444,7 +10444,7 @@ export type SearchHit = {
     /**
      * Visual Pages
      *
-     * Pages of the hit with handwriting, figures or a scan: their text may not have all of it
+     * Pages of the hit with handwriting, a large figure or a scan: their text may not have all of it
      */
     visual_pages?: Array<number>;
 };

@@ -484,7 +484,7 @@ async def test_a_scanned_page_that_cannot_be_rendered_is_noted(
     pdf = await chat.attach(session_id, "scan.pdf", data, "application/pdf")
     first = await given(chat, pdf["id"])
     assert not [c for c in first if isinstance(c, BinaryContent)]
-    assert "Pages 2 of scan.pdf are scanned too and not shown." in text_of(first)
+    assert "Pages 2 of scan.pdf are not shown as images." in text_of(first)
     assert calls == [[1]]  # rendered once, on upload; sending only reads what was stored
 
 
@@ -560,3 +560,17 @@ def _gif() -> bytes:
     out = io.BytesIO()
     Image.new("P", (40, 20)).save(out, "GIF")
     return out.getvalue()
+
+
+async def test_a_page_with_handwriting_on_its_text_is_not_called_unreadable(chat: Chat):
+    from semestra.modules.files.tests.conftest import make_notes_pdf
+
+    session_id = await session_of(chat, await chat.program())
+    data = make_notes_pdf(["annotated"])
+    pdf = await chat.attach(session_id, "slides.pdf", data, "application/pdf")
+    text = text_of(await given(chat, pdf["id"], vision=False))
+    assert "Typed lecture line 0" in text
+    assert "Pages 1 of slides.pdf have handwriting or a large figure" in text
+    assert "scanned" not in text
+    content = await given(chat, pdf["id"])
+    assert "Page 1 of slides.pdf (handwriting or a large figure):" in content

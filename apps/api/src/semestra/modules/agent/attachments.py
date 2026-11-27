@@ -249,7 +249,7 @@ async def snapshot_file(ctx: Ctx, session_id: str, item_id: str) -> AgentAttachm
                 user_id=row.user_id,
                 page_no=page.page_no,
                 markdown=page.markdown,
-                # Handwriting, figures or a scan: the text may not have all of it.
+                # Handwriting, a large figure or a scan: the text may not have all of it.
                 needs_ocr=page.visual or (not page.markdown.strip() and not page.ocr_used),
             )
         )
@@ -349,7 +349,8 @@ class AttachmentPageOut(BaseModel):
     page_no: int
     markdown: str
     needs_ocr: bool = Field(
-        description="The page has handwriting, figures or a scan: its text may not have all of it"
+        description="The page has handwriting, a large figure or a scan: its text may not have "
+        "all of it"
     )
     truncated: bool = Field(default=False, description="The page was cut; the rest is not shown")
 

@@ -174,8 +174,8 @@ class FilesDocumentPage(Base, OwnedMixin):
     ocr_used: Mapped[bool] = mapped_column(Boolean, default=False)
     # Math in `markdown` is LaTeX between `$` (`ParsedPage.latex`).
     latex: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
-    # The page has handwriting, figures or a scan besides its text (`ParsedPage.needs_ocr`): its
-    # text may not have all of it, so a model that sees pages looks at it before answering.
+    # The page has handwriting, a large figure or a scan besides its text (`ParsedPage.needs_ocr`):
+    # its text may not have all of it, so a model that sees pages looks at it before answering.
     visual: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     image_storage_key: Mapped[str | None] = mapped_column(String, default=None)
 

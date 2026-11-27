@@ -238,6 +238,7 @@ async def test_a_client_can_look_at_the_pages_of_a_course_file(app: FastAPI, age
     async with _connector(app)(token) as mcp:
         tools = {t.name: t for t in (await mcp.list_tools()).tools}
         assert "attachment_id" not in tools["view_pages"].input_schema["properties"]
+        assert "attachment_id" not in (tools["view_pages"].description or "")
         result = await mcp.call_tool("view_pages", {"item_id": item["id"], "page_to": 2})
         assert result.is_error is False
         images = [c for c in result.content if isinstance(c, types.ImageContent)]

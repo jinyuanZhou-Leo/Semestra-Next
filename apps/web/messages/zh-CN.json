@@ -2054,6 +2054,7 @@
   "job_step_files_reindex_vectors_embedding": "准备语义搜索",
   "error_files_download_unavailable": "无法从来源读取这些文件，请稍后重试。",
   "error_files_too_large": "文件超过了上传大小上限。",
+  "error_files_ocr_unavailable": "没有可用的 OCR 模型，已保留之前识别的文字。请在 AI 设置 → 模型中选择后再试。",
   "error_files_source_unread": "还没有从来源读取，来源可以访问后会重新读取。",
   "error_files_not_from_source": "这是你自己的文件，不是来自 LMS 的课程资料，已经保存在 Semestra 中。",
   "error_files_source_unreachable": "暂时无法从 {source} 读取这个文件。Semestra 中的这一份可能是唯一的，所以仍然保存。",

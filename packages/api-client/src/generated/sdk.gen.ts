@@ -2633,9 +2633,9 @@ export const filesDocumentOutline = <ThrowOnError extends boolean = false>(optio
  * Returns the markdown of the pages from page_from (a few pages per call, each with
  * its citation_id). When next_page is set, call again from there to continue. Use it to summarise or
  * extract from a whole document; to find something specific use files.document.search first.
- * Pages with visual set have handwriting, figures or a scan, and their text may miss some of it:
- * if you can view pages (view_pages), look at the ones the answer depends on; if you cannot, tell the
- * user once that those pages are handwritten or drawn and the answer may be incomplete.
+ * Pages with visual set have handwriting, a large figure or a scan, and their text may miss some of
+ * it: if you can view pages (view_pages), look at the ones the answer depends on; if you cannot, tell
+ * the user once that those pages are handwritten or drawn and the answer may be incomplete.
  */
 export const filesDocumentRead = <ThrowOnError extends boolean = false>(options: Options<FilesDocumentReadData, ThrowOnError>): RequestResult<FilesDocumentReadResponses, FilesDocumentReadErrors, ThrowOnError> => (options.client ?? client).get<FilesDocumentReadResponses, FilesDocumentReadErrors, ThrowOnError>({
     security: [
@@ -2668,8 +2668,8 @@ export const filesDocumentRead = <ThrowOnError extends boolean = false>(options:
  * files are still being processed; if unindexed_items is not empty, those files are not indexed yet
  * (tell the user they can index them with "Index" in the file list); if unreadable_items is not
  * empty, those files could not be read at all. In all these cases tell the user the answer may be
- * incomplete. Pages in visual_pages have handwriting, figures or a scan, and their text may miss
- * some of it: if you can view pages (view_pages), look at the ones the answer depends on; if you
+ * incomplete. Pages in visual_pages have handwriting, a large figure or a scan, and their text may
+ * miss some of it: if you can view pages (view_pages), look at the ones the answer depends on; if you
  * cannot, tell the user once that those pages are handwritten or drawn and the answer may be
  * incomplete. Do not use to find a file by its name; use files.item.list.
  */

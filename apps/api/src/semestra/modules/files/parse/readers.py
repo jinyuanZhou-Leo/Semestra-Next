@@ -219,6 +219,8 @@ def _pdf(data: bytes, max_pages: int) -> ParsedDocument:
         if doc.page_count > max_pages:
             raise ParseError("files.too_many_pages", max=max_pages)
         try:
+            # Before the markdown: pymupdf4llm drops the pages' annotations (ink notes).
+            seen = [classify(page) for page in doc]
             headers = pymupdf4llm.IdentifyHeaders(doc)  # pyright: ignore[reportArgumentType]
             pages: list[ParsedPage] = []
             for index in range(doc.page_count):
@@ -226,8 +228,8 @@ def _pdf(data: bytes, max_pages: int) -> ParsedDocument:
                     doc, pages=[index], hdr_info=headers, show_progress=False
                 )
                 markdown = result.strip() if isinstance(result, str) else ""
-                seen = classify(doc[index])
-                pages.append(ParsedPage(markdown, seen.kind, seen.printed, seen.text_rects))
+                kind, printed, rects = seen[index].kind, seen[index].printed, seen[index].text_rects
+                pages.append(ParsedPage(markdown, kind, printed, rects))
         except ParseError:
             raise
         except Exception as exc:

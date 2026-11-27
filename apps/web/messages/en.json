@@ -2054,6 +2054,7 @@
   "job_step_files_reindex_vectors_embedding": "Preparing search by meaning",
   "error_files_download_unavailable": "The files couldn't be read from where they're kept. Try again later.",
   "error_files_too_large": "That file is larger than the upload limit.",
+  "error_files_ocr_unavailable": "No OCR model is available, so the text recognized before is kept. Choose one in AI settings → Models and try again.",
   "error_files_source_unread": "Not read from where it's kept yet. It's read again once that's reachable.",
   "error_files_not_from_source": "This file is your own, not a course material from the LMS, so it’s already stored in Semestra.",
   "error_files_source_unreachable": "{source} can't give this file right now. The copy in Semestra may be the only one, so it stays saved.",

@@ -143,13 +143,10 @@ async def _list_tools(ctx: Any, params: Any) -> types.ListToolsResult:
 def _view_tool() -> types.Tool:
     """Sem's `view_pages` (`view.py`): pages of a course file as images, for clients whose model
     can see them; there are no conversation attachments here."""
-    properties = {k: v for k, v in view.SCHEMA["properties"].items() if k != "attachment_id"}
     return types.Tool(
         name=tools.VIEW_PAGES,
-        description=view.DESCRIPTION.replace(
-            "attachment_id (a file attached to the conversation), ", ""
-        ),
-        input_schema={**view.SCHEMA, "properties": properties},
+        description=view.description(attachments=False),
+        input_schema=view.schema(attachments=False),
         annotations=types.ToolAnnotations(read_only_hint=True),
     )
 

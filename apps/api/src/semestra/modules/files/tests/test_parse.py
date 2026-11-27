@@ -55,20 +55,24 @@ def test_scanned_pdf_pages_are_marked_for_ocr():
 
 def test_pdf_pages_are_classified_by_what_is_drawn_on_them():
     # Handwriting exported as vector paths has no picture in it, and a typed page with notes
-    # written on it has plenty of text: both are read by OCR. Ruled lines, boxes (rounded,
-    # dashed, or as large as the page), a colored background and a slide's figure are not
-    # handwriting. Text an app recognized in the strokes is invisible and hides none of them;
-    # text whose characters are not the ones shown is no text.
+    # written on it has plenty of text: both are read by OCR, as is a slide that is mostly a
+    # figure (a picture or a drawing). Ruled lines, boxes (rounded, dashed, or as large as the
+    # page), a colored background, a logo, a small chart, a slanted rule and a small picture
+    # are not. Text an app recognized in the strokes is invisible and hides none of them; text
+    # whose characters are not the ones shown is no text.
     kinds = [
-        "handwritten", "tall", "typed", "table", "background", "figure", "slide", "annotated",
-        "inked", "noted", "unmapped", "blank",
+        "handwritten", "tall", "typed", "table", "background", "slide", "logo", "chart",
+        "slanted", "icon", "figure", "diagram", "annotated", "inked", "noted", "unmapped", "blank",
     ]  # fmt: skip
     data = make_notes_pdf(kinds)
     doc = parse(data, detect(data))
-    assert [p.kind for p in doc.pages] == [
-        "image", "image", "text", "text", "text", "text", "text", "mixed", "mixed", "mixed",
-        "image", "blank",
-    ]  # fmt: skip
+    assert dict(zip(kinds, (p.kind for p in doc.pages), strict=True)) == {
+        "handwritten": "image", "tall": "image", "typed": "text", "table": "text",
+        "background": "text", "slide": "text", "logo": "text", "chart": "text",
+        "slanted": "text", "icon": "text", "figure": "mixed", "diagram": "mixed",
+        "annotated": "mixed", "inked": "mixed", "noted": "mixed", "unmapped": "image",
+        "blank": "blank",
+    }  # fmt: skip
     assert [p.needs_ocr for p in doc.pages[:3]] == [True, True, False]
     # A mixed page knows its visible text and where it is, for OCR to leave it out.
     annotated = doc.pages[kinds.index("annotated")]

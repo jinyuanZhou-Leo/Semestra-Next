@@ -318,7 +318,8 @@ class DocumentPage(BaseModel):
     citation_id: str = Field(description="`<item_id>:p<page_no>-<page_no>`")
     visual: bool = Field(
         default=False,
-        description="The page has handwriting, figures or a scan: its text may not have all of it",
+        description="The page has handwriting, a large figure or a scan: its text may not have "
+        "all of it",
     )
 
 
@@ -377,8 +378,8 @@ class SearchHit(BaseModel):
     citation_id: str = Field(description="`<item_id>:p<page_from>-<page_to>`")
     visual_pages: list[int] = Field(
         default_factory=lambda: [],
-        description="Pages of the hit with handwriting, figures or a scan: their text may not "
-        "have all of it",
+        description="Pages of the hit with handwriting, a large figure or a scan: their text may "
+        "not have all of it",
     )
 
 

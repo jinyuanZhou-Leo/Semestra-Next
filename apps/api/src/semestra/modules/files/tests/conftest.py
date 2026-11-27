@@ -3,6 +3,7 @@
 import hashlib
 import io
 import json
+import math
 import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -53,16 +54,42 @@ def make_pdf(pages: list[str], *, scanned: set[int] | None = None) -> bytes:
 
 
 def _strokes(page: pymupdf.Page, area: pymupdf.Rect, count: int) -> None:
-    """Pen strokes drawn as vector paths, as OneNote, GoodNotes or an iPad export them."""
+    """Pen strokes drawn as vector paths, as OneNote, GoodNotes or an iPad export them: each a
+    path of the pen's samples, a point or so apart."""
     import random
 
     rng = random.Random(count)  # noqa: S311 - test drawing, not secrets
     shape = page.new_shape()
     for _ in range(count):
-        x = rng.uniform(area.x0, area.x1 - 60)
+        x = rng.uniform(area.x0, area.x1 - 40)
         y = rng.uniform(area.y0, area.y1 - 20)
-        shape.draw_polyline([pymupdf.Point(x + i * 6, y + rng.uniform(-8, 8)) for i in range(10)])
-    shape.finish(color=(0, 0, 0.6), width=1.5)
+        points = [
+            pymupdf.Point(x + i, y + 6 * math.sin(i / 3) + rng.uniform(-0.3, 0.3))
+            for i in range(30)
+        ]
+        shape.draw_polyline(points)
+        shape.finish(color=(0, 0, 0.6), width=1.5, closePath=False)
+    shape.commit()
+
+
+def _decorated(page: pymupdf.Page, kind: str) -> None:
+    """A typed slide's own drawings: a round logo, a small line chart, a slanted rule, or a
+    diagram that fills most of the slide."""
+    shape = page.new_shape()
+    if kind == "logo":
+        shape.draw_circle((560, 50), 14)
+        shape.finish(color=None, fill=(0.1, 0.2, 0.5))
+    elif kind == "chart":
+        shape.draw_polyline([(380, 700), (410, 660), (440, 680), (470, 630), (500, 650)])
+        shape.finish(color=(0.8, 0.2, 0.2), width=1.5, closePath=False)
+    elif kind == "slanted":
+        shape.draw_line((60, 760), (550, 752))
+        shape.finish(color=(0.5, 0.5, 0.5), width=1)
+    else:  # a diagram
+        for n in range(8):
+            shape.draw_circle((306, 440), 40 + n * 30)
+            shape.draw_line((306, 440), (306 + 250 * math.cos(n), 440 + 250 * math.sin(n)))
+        shape.finish(color=(0.2, 0.2, 0.2), width=1)
     shape.commit()
 
 
@@ -92,7 +119,9 @@ def make_notes_pdf(kinds: list[str]) -> bytes:
     - `handwritten`: notes in vector ink with only a page number in its text;
     - `tall`: the same on a page eight times as tall as wide (a OneNote page);
     - `typed`: a typed page; `table`: a typed table with ruled lines; `background`: a slide with
-      a colored background; `figure`: a typed slide with a large picture;
+      a colored background; `logo`, `chart`, `slanted`: a typed page with a small drawing on it
+      (`_decorated`); `icon`: one with a small picture;
+    - `figure`: a typed slide with a large picture; `diagram`: one with a large drawing;
     - `annotated`: a typed page with notes written on it; `inked`: the same as ink annotations
       (iPad Markup);
     - `slide`: a typed slide on a white box the size of the page, with a pale rounded callout,
@@ -125,15 +154,23 @@ def make_notes_pdf(kinds: list[str]) -> bytes:
         elif kind == "background":
             page.draw_rect(page.rect, color=None, fill=(0.2, 0.3, 0.6))
             _typed(page, 20, color=(1, 1, 1))
-        elif kind == "figure":
-            _typed(page, 6)
+        elif kind in ("logo", "chart", "slanted", "diagram"):
+            _typed(page, 6 if kind == "diagram" else 25)
+            _decorated(page, kind)
+        elif kind in ("figure", "icon"):
+            _typed(page, 6 if kind == "figure" else 25)
             image = Image.new("RGB", (400, 300), "white")
             draw = ImageDraw.Draw(image)
             for n in range(12):
                 draw.ellipse((n * 10, n * 8, 380 - n * 6, 290 - n * 5), outline="red", width=3)
             buffer = io.BytesIO()
             image.save(buffer, "PNG")
-            page.insert_image(pymupdf.Rect(60, 220, 540, 620), stream=buffer.getvalue())
+            box = (
+                pymupdf.Rect(60, 220, 540, 620)
+                if kind == "figure"
+                else pymupdf.Rect(520, 30, 580, 75)
+            )
+            page.insert_image(box, stream=buffer.getvalue())
         elif kind == "annotated":
             _typed(page, 25)
             _strokes(page, pymupdf.Rect(320, 100, 560, 700), 40)

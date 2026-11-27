@@ -348,6 +348,22 @@ async def _skip_ocr(ctx: JobCtx) -> None:
     await ctx.skip_stage("ocr")
 
 
+async def _unread(ctx: JobCtx, work: _Work) -> None:
+    """No OCR engine can read the pages that need it. A file read before with OCR fails instead
+    of being read without it: its earlier reading, with the text OCR gave, stays the active one
+    (reading again now would only lose that text); the item says why."""
+    async with ctx.state.session_factory() as db:
+        before = await db.scalar(
+            select(FilesDocumentPage.id)
+            .join(FilesItem, FilesItem.active_document_id == FilesDocumentPage.document_id)
+            .where(FilesItem.id == work.item_id, FilesDocumentPage.ocr_used.is_(True))
+            .limit(1)
+        )
+    if before is not None:
+        raise AppError("files.ocr_unavailable", 409)
+    await _skip_ocr(ctx)
+
+
 async def _ocr(
     ctx: JobCtx, work: _Work, parsed: ParsedDocument, data: bytes, kind: str
 ) -> tuple[str | None, int, set[int]]:
@@ -364,7 +380,7 @@ async def _ocr(
     local = await ai.local_ocr.choice(ctx)
 
     if local is None and not await ai.available(ctx, "ocr"):
-        await _skip_ocr(ctx)
+        await _unread(ctx, work)
         return None, len(needed), done
     if local is not None and not ai.local_ocr.downloaded(local):
         # Fetched before the OCR deadline starts; the job shows megabytes received.
@@ -372,7 +388,7 @@ async def _ocr(
             await ai.local_jobs.download_with_progress(ctx, "ocr", local, "ocr_model")
         except AppError as exc:
             log.warning("files_local_ocr_download_failed", code=exc.code, model=local)
-            await _skip_ocr(ctx)
+            await _unread(ctx, work)
             return None, len(needed), done
     else:
         await ctx.skip_stage("ocr_model")
