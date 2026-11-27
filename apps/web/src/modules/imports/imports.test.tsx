@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest'
 import { API, renderWithRouter, server } from '@/test-utils'
-import { CourseInfoFill, syllabusCandidates } from './components/CourseInfoFill'
+import { CourseInfoFill } from './components/CourseInfoFill'
 import { ImportDialog } from './components/ImportDialog'
 import { ImportHost } from './components/ImportHost'
 import { SessionView } from './components/SessionView'
@@ -777,15 +777,6 @@ function courseFile(id: string, name: string, created: string) {
   } as const
 }
 
-test('likely syllabi are offered first, then the newest files', () => {
-  const files = [
-    courseFile('f1', 'week1.pdf', '2026-09-10T00:00:00Z'),
-    courseFile('f2', 'MAT137 Course Outline.pdf', '2026-09-01T00:00:00Z'),
-    courseFile('f3', 'week2.pdf', '2026-09-17T00:00:00Z'),
-  ]
-  expect(syllabusCandidates(files).map((f) => f.id)).toEqual(['f2', 'f3', 'f1'])
-})
-
 test('reading course info from settings applies only the ticked fields', async () => {
   const patch = item({
     id: 'p1',
@@ -872,7 +863,7 @@ test('reading course info from settings applies only the ticked fields', async (
     </>,
   )
   await userEvent.click(await screen.findByRole('button', { name: 'Choose file…' }))
-  await userEvent.click(await screen.findByRole('option', { name: /syllabus\.pdf/ }))
+  await userEvent.click(await screen.findByRole('button', { name: /syllabus\.pdf/ }))
   await waitFor(() => expect(created).not.toBeNull())
   expect(created).toMatchObject({
     source_kind: 'syllabus',

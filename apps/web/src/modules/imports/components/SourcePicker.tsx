@@ -331,7 +331,7 @@ export function SourcePicker({
             onChange={(event) => setText(event.target.value)}
           />
         ) : fromCourse && courseId && !extracting ? (
-          <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="flex min-h-0 flex-1 flex-col">
             <CourseFilePicker
               courseId={courseId}
               picked={picked}
