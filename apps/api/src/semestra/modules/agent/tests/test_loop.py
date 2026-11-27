@@ -25,6 +25,7 @@ from semestra.core.errors import AppError
 from semestra.core.events import drain
 from semestra.modules.agent import (
     compaction,
+    context,
     decisions,
     history,
     loop,
@@ -127,6 +128,15 @@ async def test_system_prompt_has_the_scope_and_today(agent: Agent, model: FakeMo
     assert "Today: " in work
     assert '- The user\'s name: "Test Student".' in work
     assert work.index("# Context") < work.index("record-grades")
+
+
+def test_the_prompt_files_reach_the_model_as_written():
+    # Only `$name` placeholders are filled in; any other `$` (math such as `$$x^2$$`) is text.
+    for name in ("system", "rules"):
+        source = context.prompt(name)
+        for line in source.splitlines():
+            if not re.search(r"\$\{?[a-z_]", line):
+                assert line in STATIC_PROMPT, line
 
 
 async def test_the_context_gives_the_terms_dates_and_breaks(agent: Agent, model: FakeModel):

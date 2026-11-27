@@ -95,7 +95,7 @@
     "recharts": "3.10.1",
     "rehype-katex": "7.0.1",
     "remark-gfm": "4.0.1",
-    "remark-math-extended": "6.1.1",
+    "remark-math": "6.0.0",
     "semver": "7.8.6",
     "shadcn": "4.23.0",
     "shiki": "4.6.0",
