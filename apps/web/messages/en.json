@@ -3656,5 +3656,8 @@
   "lms_link_failed": "Sync error",
   "lms_link_stale": "Partly out of date",
   "lms_assignment_source_stale": "This assignment hasn't been updated from {provider} yet.",
-  "lms_assignment_submission_as_of": "Submission status as of {time}"
+  "lms_assignment_submission_as_of": "Submission status as of {time}",
+  "files_picker_search": "Search files or folders",
+  "files_picker_no_match": "No matching files",
+  "files_picker_chosen": "{count} selected"
 }

@@ -1,6 +1,9 @@
 import type { ImportSession, ItemOut } from '@semestra/api-client'
-import { importsSessionDiscardMutation } from '@semestra/api-client/react-query'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import {
+  academicsCourseGetOptions,
+  importsSessionDiscardMutation,
+} from '@semestra/api-client/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { FileText, Upload } from 'lucide-react'
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { invalidateOperations } from '@/app/api'
@@ -10,19 +13,10 @@ import { AiRequired, useProviderProblem } from '@/components/AiRequired'
 import { useJob } from '@/hooks/use-job'
 import { errorCode, errorMessage, toastError } from '@/lib/errors'
 import { formatDate } from '@/lib/format'
+import { FilePicker } from '@/modules/files/components/FilePicker'
 import { useCourseFiles } from '@/modules/files/queries'
 import { m } from '@/paraglide/messages'
-import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-  CommandSeparator,
-} from '@/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
 import { openImport } from '../launcher'
 import { storeSession, useImportSession } from '../queries'
@@ -86,7 +80,11 @@ export function CourseInfoFill({
     waiting ?? started
   const job = useJob(isReading(session) ? session?.job_id : null)
   const discard = useMutation({ ...importsSessionDiscardMutation(), onError: toastError })
-  const files = syllabusCandidates(useCourseFiles(courseId).data?.items ?? [])
+  const course = useQuery(academicsCourseGetOptions({ path: { course_id: courseId } })).data
+  // Likely syllabi: their folders start open.
+  const suggested = (useCourseFiles(courseId).data?.items ?? [])
+    .filter((file) => readableCourseFile(file) && SYLLABUS_NAME.test(file.display_name))
+    .map((file) => file.id)
 
   const request: FileImportRequest = {
     programId,
@@ -170,48 +168,33 @@ export function CourseInfoFill({
           {m.imports_course_info_pick()}
         </PopoverTrigger>
       </AiRequired>
-      <PopoverContent align="end" className="w-80 p-0">
-        <Command>
-          <CommandInput placeholder={m.imports_course_info_search()} />
-          <CommandList>
-            <CommandEmpty>{m.imports_course_info_no_files()}</CommandEmpty>
-            {files.length > 0 ? (
-              <CommandGroup heading={m.imports_from_course_files()}>
-                {files.map((file) => (
-                  <CommandItem
-                    key={file.id}
-                    value={`${file.display_name} ${file.id}`}
-                    onSelect={() => start({ fileItemIds: [file.id], upload: [] })}
-                  >
-                    <FileText aria-hidden />
-                    <span className="min-w-0 flex-1 truncate">{file.display_name}</span>
-                    {SYLLABUS_NAME.test(file.display_name) ? (
-                      <Badge variant="secondary">{m.imports_course_info_syllabus()}</Badge>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">
-                        {formatDate(file.created_at)}
-                      </span>
-                    )}
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            ) : null}
-            <CommandSeparator />
-            <CommandGroup>
-              <CommandItem
-                value="__upload__"
-                forceMount
-                onSelect={() => {
-                  setPickerOpen(false)
-                  fileInput.current?.click()
-                }}
-              >
-                <Upload aria-hidden />
-                {m.imports_course_info_upload()}
-              </CommandItem>
-            </CommandGroup>
-          </CommandList>
-        </Command>
+      <PopoverContent align="end" className="w-96 gap-2 p-2">
+        <FilePicker
+          courses={course ? [course] : []}
+          mode="single"
+          autoFocus
+          filter={readableCourseFile}
+          reveal={suggested}
+          onPick={(file) => start({ fileItemIds: [file.id], upload: [] })}
+          meta={(file) =>
+            SYLLABUS_NAME.test(file.display_name)
+              ? m.imports_course_info_syllabus()
+              : formatDate(file.created_at, { short: true })
+          }
+          emptyTitle={m.imports_course_files_empty()}
+          className="h-80"
+        />
+        <Button
+          variant="ghost"
+          className="justify-start"
+          onClick={() => {
+            setPickerOpen(false)
+            fileInput.current?.click()
+          }}
+        >
+          <Upload aria-hidden />
+          {m.imports_course_info_upload()}
+        </Button>
       </PopoverContent>
     </Popover>
   )
