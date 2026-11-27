@@ -1,6 +1,6 @@
 // SAMPLE ONLY (not for merge): visual samples of the LMS settings redesign with fixed data.
 import { createColumnHelper } from '@tanstack/react-table'
-import { ChevronDown, ExternalLink, Lightbulb, Link2, Link2Off, RefreshCw, Settings2, Unplug } from 'lucide-react'
+import { ArrowRight, ChevronDown, ExternalLink, Lightbulb, Link2, Link2Off, RefreshCw, Settings2, Unplug } from 'lucide-react'
 import type { SettingsSectionProps } from '@/app/extensions'
 import {
   RowMenu,
@@ -277,10 +277,29 @@ export function ProgramCoursesSample(_: SettingsSectionProps) {
   const unlinked = ROWS.filter((r) => !r.linked)
   return (
     <div className="space-y-6">
-      <SettingsBlock
-        title={`未关联 · ${unlinked.length}`}
-        action={<Button size="sm">关联全部建议（2）</Button>}
-      >
+      <SettingsBlock title={`未关联 · ${unlinked.length}`}>
+        <Alert>
+          <Lightbulb aria-hidden />
+          <AlertTitle>2 门课程在 Canvas 上有代码相同的课程</AlertTitle>
+          <AlertDescription>
+            <ul className="mt-1 space-y-1">
+              {unlinked
+                .filter((r) => r.suggested)
+                .map((r) => (
+                  <li key={r.id} className="flex items-center gap-2">
+                    <span className="text-foreground">{r.code}</span>
+                    <ArrowRight aria-hidden className="size-3.5" />
+                    <span>
+                      {r.suggested?.code} · {r.name}（{r.suggested?.term}）
+                    </span>
+                  </li>
+                ))}
+            </ul>
+          </AlertDescription>
+          <AlertAction>
+            <Button size="sm">全部关联</Button>
+          </AlertAction>
+        </Alert>
         <SettingsGroup>
           {unlinked.map((r) => (
             <Item key={r.id}>
@@ -292,17 +311,6 @@ export function ProgramCoursesSample(_: SettingsSectionProps) {
                   {r.code}
                   <span className="truncate font-normal text-muted-foreground">{r.name}</span>
                 </ItemTitle>
-                {r.suggested ? (
-                  <ItemDescription className="flex items-center gap-1.5 text-primary">
-                    <Lightbulb aria-hidden className="size-3.5 shrink-0" />
-                    <span className="truncate">
-                      可能是 {r.suggested.code} · {r.suggested.term}
-                    </span>
-                    <Button variant="link" size="xs" className="h-auto px-1">
-                      关联
-                    </Button>
-                  </ItemDescription>
-                ) : null}
               </ItemContent>
               <ItemActions>
                 <Button variant="outline" className="w-56 justify-between font-normal">
