@@ -1,6 +1,6 @@
 // SAMPLE ONLY (not for merge): visual samples of the LMS settings redesign with fixed data.
 import { createColumnHelper } from '@tanstack/react-table'
-import { ExternalLink, Link2, Link2Off, RefreshCw, Settings2, Unplug } from 'lucide-react'
+import { ExternalLink, Lightbulb, Link2, Link2Off, RefreshCw, Settings2, Unplug } from 'lucide-react'
 import type { SettingsSectionProps } from '@/app/extensions'
 import {
   RowMenu,
@@ -11,6 +11,7 @@ import {
   SettingsTable,
   settingsTableFeatures,
 } from '@/app/settings'
+import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/ui/alert'
 import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
 import {
@@ -163,6 +164,16 @@ const COLUMNS = [
     cell: ({ row: { original: r } }) => <LmsCell row={r} />,
   }),
   col.display({
+    id: 'action',
+    header: () => <span className="sr-only">关联</span>,
+    cell: ({ row: { original: r } }) =>
+      r.linked ? null : (
+        <Button size="sm" variant="outline" className="w-20">
+          {r.suggested ? '关联' : '选择…'}
+        </Button>
+      ),
+  }),
+  col.display({
     id: 'menu',
     header: () => <span className="sr-only">操作</span>,
     cell: ({ row: { original: r } }) =>
@@ -190,6 +201,13 @@ const COLUMNS = [
             解除关联…
           </DropdownMenuItem>
         </RowMenu>
+      ) : r.suggested ? (
+        <RowMenu label={`${r.code} 的操作`}>
+          <DropdownMenuItem>
+            <Link2 aria-hidden />
+            选择其他课程…
+          </DropdownMenuItem>
+        </RowMenu>
       ) : null,
   }),
 ]
@@ -214,34 +232,18 @@ function LmsCell({ row: r }: { row: Row }) {
   }
   if (r.suggested) {
     return (
-      <div className="flex min-w-0 items-center justify-between gap-3">
-        <div className="min-w-0 text-muted-foreground">
-          <div className="truncate">{r.suggested.code}</div>
-          <div className="truncate text-xs">建议 · {r.suggested.term}</div>
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="truncate text-muted-foreground">{r.suggested.code}</span>
+          <Badge variant="secondary" className="shrink-0">
+            建议
+          </Badge>
         </div>
-        <div className="flex shrink-0 items-center gap-1">
-          <PickerButton label="其他…" ghost />
-          <Button size="sm" variant="outline">
-            关联
-          </Button>
-        </div>
+        <div className="truncate text-xs text-muted-foreground">{r.suggested.term}</div>
       </div>
     )
   }
-  return (
-    <div className="flex items-center justify-between gap-3">
-      <span className="text-muted-foreground">未关联</span>
-      <PickerButton label="选择课程" />
-    </div>
-  )
-}
-
-function PickerButton({ label, ghost }: { label: string; ghost?: boolean }) {
-  return (
-    <Button size="sm" variant={ghost ? 'ghost' : 'outline'} className="font-normal">
-      {label}
-    </Button>
-  )
+  return <span className="text-muted-foreground">未关联</span>
 }
 
 export function ProgramCoursesSample(_: SettingsSectionProps) {
@@ -259,7 +261,7 @@ export function ProgramCoursesSample(_: SettingsSectionProps) {
               <SelectItem value="winter">Winter term</SelectItem>
             </SelectContent>
           </Select>
-          <Button size="sm">关联 2 门建议的课程</Button>
+          <Button size="sm">关联建议的课程（2）</Button>
         </div>
       </SectionAction>
       <SettingsTable
@@ -268,7 +270,7 @@ export function ProgramCoursesSample(_: SettingsSectionProps) {
         columns={COLUMNS}
         getRowId={(r) => r.id}
         fill="lms"
-        columnClassName={{ course: 'w-64 max-w-64', menu: 'w-10' }}
+        columnClassName={{ course: 'w-64 max-w-64', action: 'w-24 text-right', menu: 'w-10' }}
       />
     </>
   )
@@ -277,28 +279,21 @@ export function ProgramCoursesSample(_: SettingsSectionProps) {
 /* ---------- Course → LMS (not linked yet) ---------- */
 
 export function CourseSuggestionSample({ open = false }: SettingsSectionProps & { open?: boolean }) {
-  const Logo = useCanvasLogo()
   return (
-    <div className="space-y-6">
-      <SettingsBlock title="建议关联" description="代码与本课程一致。">
-        <SettingsGroup>
-          <Item>
-            <ItemMedia>
-              <LogoTile logo={Logo} />
-            </ItemMedia>
-            <ItemContent className="min-w-0">
-              <ItemTitle>ECE110H1 · Electrical Fundamentals</ItemTitle>
-              <ItemDescription>Winter term · Demo Canvas</ItemDescription>
-            </ItemContent>
-            <ItemActions>
-              <Button size="sm">关联</Button>
-            </ItemActions>
-          </Item>
-          <SettingRow label="不是这门课？" description="从“Demo Canvas”里选择其他课程。">
-            <SamplePicker open={open} />
-          </SettingRow>
-        </SettingsGroup>
-      </SettingsBlock>
+    <div className="space-y-3">
+      <SettingsGroup>
+        <SettingRow label="Canvas 课程" description="未关联。从“Demo Canvas”里选择本课程对应的课程。">
+          <SamplePicker open={open} />
+        </SettingRow>
+      </SettingsGroup>
+      <Alert>
+        <Lightbulb aria-hidden />
+        <AlertTitle>可能是 Canvas 上的 ECE110H1 · Electrical Fundamentals</AlertTitle>
+        <AlertDescription>Winter term · 课程代码与本课程一致</AlertDescription>
+        <AlertAction>
+          <Button size="sm">关联</Button>
+        </AlertAction>
+      </Alert>
     </div>
   )
 }
