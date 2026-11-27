@@ -139,9 +139,10 @@ test('the term card has a row per linked course, with its views in the same colu
   expect(within(rows[1]!).queryByRole('link', { name: /Modules/ })).toBeNull()
   expect(within(rows[1]!).getByRole('link', { name: /Announcements/ })).toHaveTextContent('1')
   // Each row keeps all six places: the Pages icon is in the same column in both rows.
-  const column = (row: HTMLElement) => [...row.lastElementChild!.children].findIndex((el) =>
-    el.getAttribute('aria-label')?.endsWith('Pages'),
-  )
+  const column = (row: HTMLElement) =>
+    [...row.lastElementChild!.children].findIndex((el) =>
+      el.getAttribute('aria-label')?.endsWith('Pages'),
+    )
   await within(rows[0]!).findByRole('link', { name: /Modules/ })
   expect(column(rows[1]!)).toBe(4)
 })
