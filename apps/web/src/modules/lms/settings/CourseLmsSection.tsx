@@ -17,50 +17,22 @@ import {
   lmsProgramBindingGetOptions,
   lmsSyncRequestMutation,
 } from '@semestra/api-client/react-query'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-  Cloud,
-  ExternalLink,
-  HardDrive,
-  Link2,
-  Link2Off,
-  RefreshCw,
-  TriangleAlert,
-} from 'lucide-react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { ExternalLink, Lightbulb, Link2, Link2Off, RefreshCw, TriangleAlert } from 'lucide-react'
 import { useId, useState } from 'react'
 import { toast } from 'sonner'
 import type { SettingsSectionProps } from '@/app/extensions'
-import {
-  RowMenu,
-  SettingRow,
-  SettingsBlock,
-  SettingsGroup,
-  useSettingsDialog,
-} from '@/app/settings'
+import { RowMenu, SettingRow, SettingsBlock, SettingsGroup } from '@/app/settings'
 import { NamespaceForm } from '@/app/settings/NamespaceForm'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { useDialogTarget } from '@/lib/dialog-target'
 import { errorMessage, toastError } from '@/lib/errors'
-import { formatTimeAgo } from '@/lib/format'
 import { useNow } from '@/hooks/use-now'
 import { m } from '@/paraglide/messages'
 import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/ui/alert'
 import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
-import {
-  Combobox,
-  ComboboxCollection,
-  ComboboxContent,
-  ComboboxEmpty,
-  ComboboxGroup,
-  ComboboxInput,
-  ComboboxItem,
-  ComboboxLabel,
-  ComboboxList,
-  ComboboxSeparator,
-  ComboboxTrigger,
-} from '@/ui/combobox'
 import { DropdownMenuItem, DropdownMenuSeparator } from '@/ui/dropdown-menu'
 import {
   Empty,
@@ -70,17 +42,23 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/ui/empty'
-import { Field, FieldLabel } from '@/ui/field'
 import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from '@/ui/item'
 import { Switch } from '@/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
-import { externalLabel, groupByTerm } from '../external'
+import { externalLabel } from '../external'
 import { useProviderName, useProviderUis } from '../providers'
 import { MATERIALS } from '../queries'
+import { syncedAgo } from '../sync/status'
+import { ConnectionItem } from './ConnectionItem'
 import { ConnectionStatus, LogoTile } from './ConnectionsSection'
 import { HeldMaterials } from './HeldMaterials'
 import { MATERIAL_FIELDS } from './MaterialsSection'
-import { useOpenConnections } from './ProgramLmsSection'
+import { PlatformCoursePicker } from './PlatformCoursePicker'
+import { useOpenConnections, useProgramBinding } from './ProgramLmsSection'
+import { suggestLinks } from './suggest'
+import { UnlinkMaterials } from './UnlinkMaterials'
+
+export { pickerGroups } from './PlatformCoursePicker'
 
 /**
  * Course settings → LMS (M09 §7.1): which course on the platform this one is and whether its
@@ -99,7 +77,7 @@ export function CourseLmsSection({ scope }: SettingsSectionProps) {
   return (
     <AsyncBoundary query={state}>
       {(data) => {
-        if (!data.program_connection_id) return <ProgramUnbound />
+        if (!data.program_connection_id) return <ProgramUnbound programId={programId} />
         const connection = binding.data?.connection?.display_name ?? null
         if (data.link && !changing) {
           return (
@@ -144,41 +122,55 @@ export function CourseLmsSection({ scope }: SettingsSectionProps) {
   )
 }
 
-/** Without any connection the way out is adding one, not a detour through the Program. */
-function ProgramUnbound() {
-  const settings = useSettingsDialog()
+/**
+ * The Program has no connection yet. With connections in the account, one can be chosen here for
+ * the Program (the way the course links); without any, the way out is adding one.
+ */
+function ProgramUnbound({ programId }: { programId: string }) {
   const openConnections = useOpenConnections()
   const connections = useQuery(lmsConnectionListOptions())
+  const binding = useProgramBinding(programId)
   return (
-    <AsyncBoundary query={connections}>
-      {(data) => {
-        const none = data.items.length === 0
-        return (
-          <Empty>
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <Link2 aria-hidden />
-              </EmptyMedia>
-              <EmptyTitle>
-                {none ? m.lms_connections_empty() : m.lms_course_program_unbound()}
-              </EmptyTitle>
-              <EmptyDescription>
-                {none ? m.lms_course_needs_connection() : m.lms_course_program_unbound_hint()}
-              </EmptyDescription>
-            </EmptyHeader>
-            <EmptyContent>
-              <Button
-                size="sm"
-                onClick={
-                  none ? openConnections : () => settings.open({ level: 'program', group: 'lms' })
-                }
-              >
-                {none ? m.lms_connection_add() : m.lms_course_open_program_settings()}
-              </Button>
-            </EmptyContent>
-          </Empty>
-        )
-      }}
+    <AsyncBoundary
+      query={connections}
+      isEmpty={(data) => data.items.length === 0}
+      empty={
+        <Empty>
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <Link2 aria-hidden />
+            </EmptyMedia>
+            <EmptyTitle>{m.lms_connections_empty()}</EmptyTitle>
+            <EmptyDescription>{m.lms_course_needs_connection()}</EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent>
+            <Button size="sm" onClick={openConnections}>
+              {m.lms_connection_add()}
+            </Button>
+          </EmptyContent>
+        </Empty>
+      }
+    >
+      {(data) => (
+        <SettingsBlock
+          title={m.lms_course_unbound_title()}
+          description={m.lms_course_unbound_hint()}
+        >
+          <SettingsGroup>
+            {data.items.map((connection) => (
+              <ConnectionItem key={connection.id} connection={connection}>
+                <Button
+                  size="sm"
+                  disabled={binding.pending}
+                  onClick={() => binding.bind(connection.id)}
+                >
+                  {m.lms_course_use_connection()}
+                </Button>
+              </ConnectionItem>
+            ))}
+          </SettingsGroup>
+        </SettingsBlock>
+      )}
     </AsyncBoundary>
   )
 }
@@ -270,7 +262,7 @@ function LinkedCourse({
               )}
               {/* When it last synced: next to a problem it would read as when it broke. */}
               {link.synced_at && link.sync_state === 'ok' && !broken
-                ? formatTimeAgo(link.synced_at, now)
+                ? syncedAgo(link.synced_at, now)
                 : null}
             </span>
             {link.web_url ? (
@@ -360,25 +352,7 @@ function LinkedCourse({
         onOpenChange={setUnlinking}
         title={m.lms_course_unlink_title()}
         description={m.lms_course_unlink_desc()}
-        extra={
-          materials && materials.local + materials.online > 0 ? (
-            // What happens to the course's materials, in numbers.
-            <ul className="flex flex-col gap-2 text-sm">
-              {materials.local > 0 ? (
-                <li className="flex items-start gap-2.5">
-                  <HardDrive aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-                  <span>{m.lms_course_unlink_kept({ count: materials.local })}</span>
-                </li>
-              ) : null}
-              {materials.online > 0 ? (
-                <li className="flex items-start gap-2.5">
-                  <Cloud aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-                  <span>{m.lms_course_unlink_removed({ count: materials.online, provider })}</span>
-                </li>
-              ) : null}
-            </ul>
-          ) : undefined
-        }
+        extra={materials ? <UnlinkMaterials counts={materials} provider={provider} /> : undefined}
         confirmLabel={m.lms_course_unlink()}
         pending={remove.isPending}
         onConfirm={() => remove.mutate({ path: { course_id: courseId } })}
@@ -387,44 +361,10 @@ function LinkedCourse({
   )
 }
 
-type PickerGroup = { id: string; label: string; items: ExternalCourse[] }
-
-const normalizeCode = (code: string | null | undefined) =>
-  (code ?? '').replace(/\s+/g, '').toUpperCase()
-
 /**
- * Suggested first (platform courses whose code starts with this course's), then by term.
- * A suggested course is not listed again under its term.
- */
-export function pickerGroups(
-  items: ExternalCourse[],
-  courseCode: string | null | undefined,
-  courseId: string,
-  currentId?: string,
-): PickerGroup[] {
-  const code = normalizeCode(courseCode)
-  const suggested =
-    code.length >= 3
-      ? items.filter(
-          (c) =>
-            normalizeCode(c.code).startsWith(code) &&
-            c.external_id !== currentId &&
-            (!c.linked_course_id || c.linked_course_id === courseId),
-        )
-      : []
-  const shown = new Set(suggested.map((c) => c.external_id))
-  const groups: PickerGroup[] = suggested.length
-    ? [{ id: 'suggested', label: m.lms_course_suggested(), items: suggested }]
-    : []
-  for (const group of groupByTerm(items.filter((c) => !shown.has(c.external_id)))) {
-    groups.push({ id: group.term, label: group.term, items: group.courses })
-  }
-  return groups
-}
-
-/**
- * One searchable list of the platform's courses. Picking a course links it; moving an existing
- * link drops the tracking of what was imported through it, so that is confirmed first.
+ * Links the course to a platform course from one searchable list; a course whose code matches is
+ * suggested under it, apart from the setting so it does not read as one. Moving an existing link
+ * drops the tracking of what was imported through it, so that is confirmed first.
  */
 function CoursePicker({
   programId,
@@ -440,16 +380,13 @@ function CoursePicker({
   onDone: () => void
 }) {
   const queryClient = useQueryClient()
-  const pastId = useId()
-  const [past, setPast] = useState(false)
   const replacing = useDialogTarget<ExternalCourse>()
-  const course = useQuery(academicsCourseGetOptions({ path: { course_id: courseId } }))
-  // Keeps the list while "Show past courses" refetches, so the list does not jump.
-  const courses = useQuery({
-    ...lmsCourseListOptions({ path: { program_id: programId }, query: { include_past: past } }),
-    placeholderData: keepPreviousData,
+  const course = useQuery(academicsCourseGetOptions({ path: { course_id: courseId } })).data
+  const all = useQuery({
+    ...lmsCourseListOptions({ path: { program_id: programId }, query: { include_past: true } }),
+    enabled: current === null,
   })
-  const provider = useProviderName(courses.data?.provider) ?? m.lms_name()
+  const provider = useProviderName(all.data?.provider) ?? m.lms_name()
   const link = useMutation({
     ...lmsCourseLinkSetMutation(),
     onSuccess: (state) => {
@@ -467,144 +404,67 @@ function CoursePicker({
       // Changing an existing link was confirmed in the dialog below.
       body: { external_course_id: chosen.external_id, replace: current !== null },
     })
+  const suggestion =
+    current === null && course ? suggestLinks([course], all.data?.items ?? []).get(courseId) : null
 
   return (
-    <AsyncBoundary query={courses}>
-      {(data) => {
-        const groups = pickerGroups(
-          data.items,
-          course.data?.code,
-          courseId,
-          current?.external_course_id,
-        )
-        return (
-          <>
-            <SettingsGroup>
-              <SettingRow
-                label={current ? m.lms_course_change_to() : m.lms_course_pick({ provider })}
-                description={
-                  connection
-                    ? m.lms_course_pick_from({ connection })
-                    : m.lms_course_pick_description({ provider })
-                }
-              >
-                {(labelId) => (
-                  <div className="flex items-center gap-2">
-                    {current ? (
-                      <Button variant="ghost" size="sm" onClick={onDone}>
-                        {m.common_cancel()}
-                      </Button>
-                    ) : null}
-                    <Combobox
-                      items={groups}
-                      value={null}
-                      onValueChange={(chosen: ExternalCourse | null, details) => {
-                        // Typing on the closed trigger also selects (typeahead): only a press
-                        // on an item (click or Enter) links.
-                        if (!chosen || details.reason !== 'item-press') return
-                        if (current) replacing.show(chosen)
-                        else submit(chosen)
-                      }}
-                      itemToStringLabel={(c: ExternalCourse) => `${c.code ?? ''} ${c.name}`}
-                      isItemEqualToValue={(a: ExternalCourse, b: ExternalCourse) =>
-                        a.external_id === b.external_id
-                      }
-                      disabled={link.isPending}
-                    >
-                      <ComboboxTrigger
-                        aria-labelledby={labelId}
-                        render={
-                          <Button
-                            variant="outline"
-                            className="w-full justify-between font-normal sm:w-72"
-                          />
-                        }
-                      >
-                        <span className="truncate text-muted-foreground">
-                          {m.lms_course_pick_placeholder()}
-                        </span>
-                      </ComboboxTrigger>
-                      <ComboboxContent align="end" className="w-96">
-                        <ComboboxInput showTrigger={false} placeholder={m.lms_course_search()} />
-                        <ComboboxEmpty>
-                          {data.items.length === 0
-                            ? m.lms_courses_empty({ provider })
-                            : m.lms_course_search_empty()}
-                        </ComboboxEmpty>
-                        <ComboboxList>
-                          {(group: PickerGroup) => (
-                            <ComboboxGroup key={group.id} items={group.items}>
-                              {group === groups[0] ? null : <ComboboxSeparator />}
-                              <ComboboxLabel>{group.label}</ComboboxLabel>
-                              <ComboboxCollection>
-                                {(c: ExternalCourse) => (
-                                  <CourseOption
-                                    key={c.external_id}
-                                    course={c}
-                                    courseId={courseId}
-                                    currentId={current?.external_course_id}
-                                  />
-                                )}
-                              </ComboboxCollection>
-                            </ComboboxGroup>
-                          )}
-                        </ComboboxList>
-                        <Field orientation="horizontal" className="border-t px-3 py-2">
-                          <Switch size="sm" id={pastId} checked={past} onCheckedChange={setPast} />
-                          <FieldLabel
-                            htmlFor={pastId}
-                            className="text-xs font-normal text-muted-foreground"
-                          >
-                            {m.lms_show_past()}
-                          </FieldLabel>
-                        </Field>
-                      </ComboboxContent>
-                    </Combobox>
-                  </div>
-                )}
-              </SettingRow>
-            </SettingsGroup>
-            <ConfirmDialog
-              {...replacing.props}
-              title={m.lms_course_change_title()}
-              description={m.lms_course_change_desc()}
-              confirmLabel={m.lms_course_change()}
-              pending={link.isPending}
-              onConfirm={() => (replacing.target ? submit(replacing.target) : undefined)}
-            />
-          </>
-        )
-      }}
-    </AsyncBoundary>
-  )
-}
-
-/** Code over name; the current one, or one linked by another course, is disabled and says so. */
-function CourseOption({
-  course,
-  courseId,
-  currentId,
-}: {
-  course: ExternalCourse
-  courseId: string
-  currentId?: string
-}) {
-  const elsewhere = Boolean(course.linked_course_id && course.linked_course_id !== courseId)
-  const isCurrent = course.external_id === currentId
-  return (
-    <ComboboxItem value={course} disabled={elsewhere || isCurrent}>
-      <span className="flex min-w-0 flex-col">
-        <span className="truncate">{course.code ?? course.name}</span>
-        <span className="truncate text-xs text-muted-foreground">
-          {isCurrent
-            ? m.lms_course_current()
-            : elsewhere
-              ? m.lms_course_linked_to({ course: course.linked_course_name ?? '' })
-              : course.code
-                ? course.name
-                : course.term}
-        </span>
-      </span>
-    </ComboboxItem>
+    <div className="space-y-3">
+      <SettingsGroup>
+        <SettingRow
+          label={current ? m.lms_course_change_to() : m.lms_course_pick({ provider })}
+          description={
+            current
+              ? undefined
+              : connection
+                ? m.lms_course_pick_from({ connection })
+                : m.lms_course_pick_description({ provider })
+          }
+        >
+          {(labelId) => (
+            <div className="flex items-center gap-2">
+              {current ? (
+                <Button variant="ghost" size="sm" onClick={onDone}>
+                  {m.common_cancel()}
+                </Button>
+              ) : null}
+              <PlatformCoursePicker
+                programId={programId}
+                courseId={courseId}
+                courseCode={course?.code}
+                currentId={current?.external_course_id}
+                labelId={labelId}
+                disabled={link.isPending}
+                onPick={(chosen) => (current ? replacing.show(chosen) : submit(chosen))}
+                className="w-full sm:w-72"
+              />
+            </div>
+          )}
+        </SettingRow>
+      </SettingsGroup>
+      {suggestion ? (
+        <Alert>
+          <Lightbulb aria-hidden />
+          <AlertTitle>
+            {m.lms_course_suggestion({ provider, course: externalLabel(suggestion) })}
+          </AlertTitle>
+          <AlertDescription>
+            {[suggestion.term, m.lms_course_suggestion_why()].filter(Boolean).join(' · ')}
+          </AlertDescription>
+          <AlertAction>
+            <Button size="sm" disabled={link.isPending} onClick={() => submit(suggestion)}>
+              {m.lms_course_link()}
+            </Button>
+          </AlertAction>
+        </Alert>
+      ) : null}
+      <ConfirmDialog
+        {...replacing.props}
+        title={m.lms_course_change_title()}
+        description={m.lms_course_change_desc()}
+        confirmLabel={m.lms_course_change()}
+        pending={link.isPending}
+        onConfirm={() => (replacing.target ? submit(replacing.target) : undefined)}
+      />
+    </div>
   )
 }

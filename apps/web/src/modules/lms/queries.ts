@@ -1,7 +1,9 @@
 import {
   academicsCourseGetOptions,
+  academicsCourseListOptions,
   lmsConnectionListOptions,
   lmsCourseLinkGetOptions,
+  lmsCourseLinkListOptions,
   lmsCourseListOptions,
   lmsProgramBindingGetOptions,
   lmsProviderListOptions,
@@ -190,6 +192,18 @@ export const settingsPrefetch = {
       queryClient.ensureQueryData(lmsConnectionListOptions()),
       bindingOf(scope, queryClient),
     ]),
+  // The Program's courses and their links; the platform's courses (for suggestions) come after.
+  programCourses: async (scope: Scope | undefined, queryClient: QueryClient) => {
+    const programId = scope?.programId ?? ''
+    const path = { path: { program_id: programId } }
+    const [binding] = await Promise.all([
+      bindingOf(scope, queryClient),
+      queryClient.ensureQueryData(academicsCourseListOptions({ ...path, query: { limit: 500 } })),
+    ])
+    if (binding?.connection_id) {
+      await queryClient.ensureQueryData(lmsCourseLinkListOptions(path))
+    }
+  },
   // A linked course shows its link; an unlinked one the platform's courses to pick from; one in an
   // unbound Program a way to connect.
   course: async (scope: Scope | undefined, queryClient: QueryClient) => {

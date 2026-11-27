@@ -59,13 +59,26 @@ For how an administrator turns it on, see
 
 ## 2. Choose a connection for a program
 
-In program settings → **LMS**, choose the connection this program's courses use.
+In program settings → **LMS → Connection**, choose the connection this program's courses use. You
+can also choose it right from a course's settings → **LMS**.
+
+The section also shows the connection's status and when it last synced. While courses are linked
+through it, the connection can't be changed or removed; unlink those courses first.
 
 ## 3. Link courses
 
-Courses you [import from Canvas](./imports.mdx) are linked automatically. For an existing course,
-choose its Canvas course in course settings → **LMS**. Before you do, you can set that course's own
-materials settings below it.
+Courses you [import from Canvas](./imports.mdx) are linked automatically. Link your other courses
+all at once in program settings → **LMS → Course links**:
+
+- Each **unlinked** course has a picker where you can search Canvas courses, grouped by term. Turn
+  on **Show past courses** to find courses from earlier terms.
+- Courses with a matching code on Canvas are listed together above the list; choose **Link all** to
+  link them in one go. The match also comes first in the picker, under **Suggested**.
+- **Linked** courses are listed in a table with when each last synced. Each row's menu lets you sync
+  now, open the course in Canvas, change the course, or unlink it.
+
+You can also choose a course's Canvas course in its own course settings → **LMS**. Before you do,
+you can set that course's own materials settings below it.
 
 To stop syncing a course, turn off **Sync this course**. It then no longer updates and its Canvas
 calendar events are hidden, but you can still read it in the Canvas tab and ask Sem about it.
