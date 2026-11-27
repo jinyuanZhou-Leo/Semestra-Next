@@ -50,7 +50,9 @@ function file(id: string, name: string, folder_id: string | null): ItemOut {
 
 /** A course with more files than open by default: one folder per week, two files each. */
 function bigCourse(courseId: string) {
-  const folders = Array.from({ length: 9 }, (_, i) => folder(`${courseId}-w${i + 1}`, `Week ${i + 1}`))
+  const folders = Array.from({ length: 9 }, (_, i) =>
+    folder(`${courseId}-w${i + 1}`, `Week ${i + 1}`),
+  )
   const items = folders.flatMap((f, i) => [
     file(`${f.id}-a`, `Lecture ${i + 1}.pdf`, f.id),
     file(`${f.id}-b`, `Problem set ${i + 1}.pdf`, f.id),
@@ -129,5 +131,8 @@ test("a term's courses are at the top, and no more files can be ticked once the 
   expect(screen.getByRole('status')).toHaveTextContent('c1-w2-a,c2-outline')
   // Two picked: the rest wait until one is unticked.
   await userEvent.click(within(list).getByRole('button', { name: /^Week 1$/ }))
-  expect(within(list).getByRole('checkbox', { name: 'Lecture 1.pdf' })).toHaveAttribute('aria-disabled', 'true')
+  expect(within(list).getByRole('checkbox', { name: 'Lecture 1.pdf' })).toHaveAttribute(
+    'aria-disabled',
+    'true',
+  )
 })

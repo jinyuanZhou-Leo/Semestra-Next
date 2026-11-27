@@ -243,12 +243,12 @@ export function FilePicker({
       let holds = false
       for (const node of nodes) {
         if (node.kind === 'file') {
-          holds ||= selected.includes(node.item.id)
+          if (selected.includes(node.item.id)) holds = true
           continue
         }
         const inner = visit(node.children)
         if (inner || total <= EXPAND_ALL_UP_TO) open.add(node.key)
-        holds ||= inner
+        if (inner) holds = true
       }
       return holds
     }
