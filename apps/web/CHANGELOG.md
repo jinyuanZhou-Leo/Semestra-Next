@@ -1,5 +1,37 @@
 # @semestra/web
 
+## 2.8.0
+
+### Minor Changes
+
+- b96cea2: <!-- area: canvas -->
+  <!-- en -->
+  New Canvas shortcut cards open the Canvas tab's announcements, modules, assignments and more straight from a course or term overview.
+  <!-- zh -->
+  新增 Canvas 快速入口卡片，在课程或学期概览上一键打开 Canvas 标签页里的公告、单元、作业与成绩等。
+- 7c9582b: <!-- area: files -->
+  <!-- improved -->
+  <!-- en -->
+  Picking course files now shows the course's folders and has a search box.
+  <!-- zh -->
+  选择课程文件时按文件夹浏览，也可以直接搜索。
+- 546e0bb: <!-- area: canvas -->
+  <!-- improved -->
+  <!-- en -->
+  Link all of a program's courses to the LMS in one place, with suggested matches you can accept at once.
+  <!-- zh -->
+  在 Program 设置里一次关联所有课程，代码一致的课程可一键全部关联。
+- 0a806f2: <!-- area: plugins -->
+  <!-- improved -->
+  <!-- en -->
+  Plugins are grouped into installed and not installed, with full descriptions and a simpler way to uninstall.
+  <!-- zh -->
+  插件按已安装和未安装分组，显示完整简介，卸载入口更清晰。
+
+### Patch Changes
+
+- @semestra/api-client@2.8.0
+
 ## 2.7.5
 
 ### Patch Changes

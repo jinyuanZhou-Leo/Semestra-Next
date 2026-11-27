@@ -1,5 +1,9 @@
 # @semestra/docs
 
+## 2.8.0
+
+No changes in this release.
+
 ## 2.7.5
 
 No changes in this release.
