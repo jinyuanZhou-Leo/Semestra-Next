@@ -43,6 +43,7 @@ import {
   EmptyTitle,
 } from '@/ui/empty'
 import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from '@/ui/item'
+import { Skeleton } from '@/ui/skeleton'
 import { Switch } from '@/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { externalLabel } from '../external'
@@ -406,6 +407,9 @@ function CoursePicker({
     })
   const suggestion =
     current === null && course ? suggestLinks([course], all.data?.items ?? []).get(courseId) : null
+
+  // The suggestion goes under the picker: wait for it, so what follows doesn't move down after.
+  if (current === null && all.isPending) return <Skeleton className="h-16 rounded-2xl" />
 
   return (
     <div className="space-y-3">

@@ -7,7 +7,7 @@ import type {
 } from '@semestra/api-client'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { http, HttpResponse } from 'msw'
+import { delay, http, HttpResponse } from 'msw'
 import { afterAll, afterEach, beforeAll, expect, test, vi } from 'vitest'
 import { API, apiError, renderWithRouter, server } from '@/test-utils'
 import AnnouncementsCard from './cards/AnnouncementsCard'
@@ -485,8 +485,10 @@ test('program course links: matches by code are linked at once, the rest each pi
       }),
     ),
     http.get(`${API}/programs/p1/lms-links`, () => HttpResponse.json({ items: links })),
-    http.get(`${API}/programs/p1/lms/courses`, () =>
-      HttpResponse.json({
+    // The platform answers last: the suggestions are there when the list first shows.
+    http.get(`${API}/programs/p1/lms/courses`, async () => {
+      await delay(50)
+      return HttpResponse.json({
         connection_id: 'k1',
         provider: 'canvas',
         truncated: false,
@@ -507,8 +509,8 @@ test('program course links: matches by code are linked at once, the rest each pi
             linked_course_name: 'ECE110H1',
           }),
         ],
-      }),
-    ),
+      })
+    }),
     http.put(`${API}/courses/:id/lms-link`, async ({ params, request }) => {
       linked(String(params.id), await request.json())
       return HttpResponse.json({ course_id: params.id, link: null, program_connection_id: 'k1' })
@@ -530,6 +532,39 @@ test('program course links: matches by code are linked at once, the rest each pi
     expect(linked).toHaveBeenCalledWith('c1', { external_course_id: '101', replace: false }),
   )
   expect(linked).toHaveBeenCalledOnce()
+})
+
+test('program course links: a failed read says so and can be retried', async () => {
+  let fail = true
+  server.use(
+    http.get(`${API}/programs/p1/lms-binding`, () =>
+      HttpResponse.json({
+        program_id: 'p1',
+        connection_id: 'k1',
+        connection: connection(),
+        link_count: 0,
+      }),
+    ),
+    http.get(`${API}/programs/p1/courses`, () =>
+      fail
+        ? HttpResponse.json(
+            { error: { code: 'common.internal', params: {}, request_id: 'r' } },
+            { status: 500 },
+          )
+        : HttpResponse.json({
+            items: [academicsCourse({ term_ids: [], id: 'c1', code: 'APS105H1' })],
+          }),
+    ),
+    http.get(`${API}/programs/p1/lms-links`, () => HttpResponse.json({ items: [] })),
+    http.get(`${API}/programs/p1/lms/courses`, () =>
+      HttpResponse.json({ connection_id: 'k1', provider: 'canvas', truncated: false, items: [] }),
+    ),
+  )
+  renderWithRouter(<ProgramCoursesSection scope={{ kind: 'program', programId: 'p1' }} />)
+  const retry = await screen.findByRole('button', { name: 'Retry' })
+  fail = false
+  await userEvent.click(retry)
+  expect(await screen.findByRole('region', { name: 'Not linked · 1' })).toBeInTheDocument()
 })
 
 test('course settings: guidance without a binding, then the switches, materials and unlink', async () => {

@@ -31,6 +31,7 @@ import {
   settingsTableFeatures,
   useSettingsDialog,
 } from '@/app/settings'
+import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { useNow } from '@/hooks/use-now'
 import { useDialogTarget } from '@/lib/dialog-target'
@@ -88,18 +89,52 @@ export function ProgramCoursesSection({ scope }: SettingsSectionProps) {
       </Empty>
     )
   }
-  if (!courses.data || !links.data) return <Skeleton className="h-40 rounded-2xl" />
-
-  const byCourse = new Map(links.data.items.map((l) => [l.course_id, l]))
-  const sorted = courses.data.items.toSorted((a, b) =>
-    (a.code ?? a.title).localeCompare(b.code ?? b.title),
+  return (
+    <AsyncBoundary query={courses}>
+      {(courseData) => (
+        <AsyncBoundary query={links}>
+          {(linkData) =>
+            // The suggestions sit above the list: wait for them, so nothing moves down after.
+            // Without the platform's courses (it can't be reached) the list shows without them.
+            externals.isPending ? (
+              <Skeleton className="h-40 rounded-2xl" />
+            ) : (
+              <CourseLinks
+                programId={programId}
+                provider={provider}
+                courses={courseData.items}
+                links={linkData.items}
+                externals={externals.data?.items ?? []}
+              />
+            )
+          }
+        </AsyncBoundary>
+      )}
+    </AsyncBoundary>
   )
+}
+
+function CourseLinks({
+  programId,
+  provider,
+  courses,
+  links,
+  externals,
+}: {
+  programId: string
+  provider: string
+  courses: readonly Course[]
+  links: readonly CourseLink[]
+  externals: readonly ExternalCourse[]
+}) {
+  const byCourse = new Map(links.map((l) => [l.course_id, l]))
+  const sorted = courses.toSorted((a, b) => (a.code ?? a.title).localeCompare(b.code ?? b.title))
   const unlinked = sorted.filter((c) => !byCourse.has(c.id))
   const linked = sorted.flatMap((course) => {
     const link = byCourse.get(course.id)
     return link ? [{ course, link }] : []
   })
-  const suggested = suggestLinks(unlinked, externals.data?.items ?? [])
+  const suggested = suggestLinks(unlinked, externals)
 
   return (
     <div className="space-y-6">
