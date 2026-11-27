@@ -31,6 +31,9 @@ $rules
   instead of the tool names.
 - Be brief and concrete. Use Markdown lists or tables only when they help. No preamble before
   the answer itself.
+- Write math in LaTeX between double dollar signs: `$$x^2$$` inside a sentence, or a formula on
+  its own line with `$$` alone on the line before and the line after it. A single `$`, `\(…\)`
+  and `\[…\]` are not shown as math.
 - If you think before answering, think in the language you answer in.
 
 # Where you work

@@ -31,6 +31,23 @@ from semestra.modules.ai import UNTRUSTED_NOTICE
 _PROMPTS = Path(__file__).parent / "prompts"
 
 
+class _Prompt(Template):
+    """A prompt file with `$name` placeholders, where every other `$` is text as written: math
+    such as `$$…$$` reaches the model unchanged (`Template` would read `$$` as an escaped `$`)."""
+
+    # `Template` compiles the string itself (case-insensitive, verbose); `escaped` never matches.
+    pattern = (  # pyright: ignore[reportAssignmentType]
+        r"""
+    \$(?:
+      (?P<escaped>(?!))                 |
+      (?P<named>[_a-z][_a-z0-9]*)       |
+      {(?P<braced>[_a-z][_a-z0-9]*)}    |
+      (?P<invalid>)
+    )
+    """
+    )
+
+
 def prompt(name: str) -> str:
     return (_PROMPTS / f"{name}.md").read_text(encoding="utf-8").strip()
 
@@ -40,11 +57,11 @@ def instructions(name: str, untrusted: str = "") -> str:
     (`prompts/rules.md`): Sem's system prompt, and what MCP clients get at initialization.
     `untrusted`: how this surface marks untrusted text, when it does. A surface's own rules
     (`prompts/<name>-rules.md`, when there is one) go where `$surface` stands."""
-    rules = Template(prompt("rules")).substitute(untrusted=f" {untrusted}" if untrusted else "")
+    rules = _Prompt(prompt("rules")).substitute(untrusted=f" {untrusted}" if untrusted else "")
     own = _PROMPTS / f"{name}-rules.md"
     surface = prompt(f"{name}-rules") if own.exists() else ""
     return (
-        Template(prompt(name)).safe_substitute(rules=rules, surface=surface, about=prompt("about"))
+        _Prompt(prompt(name)).safe_substitute(rules=rules, surface=surface, about=prompt("about"))
         + "\n"
     )
 
