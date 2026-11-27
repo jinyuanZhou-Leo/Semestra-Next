@@ -5,24 +5,22 @@ import { pluginsCatalogListOptions } from '@semestra/api-client/react-query'
 import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import {
   Blocks,
-  Check,
-  ChevronDown,
   Download,
-  Info,
   LayoutGrid,
   PanelTop,
+  Plus,
   Search,
   SearchX,
   Trash2,
   type LucideIcon,
   X,
 } from 'lucide-react'
-import { useId, useState } from 'react'
+import { type ReactNode, useId, useState } from 'react'
 import { toast } from 'sonner'
 import { invalidateOperations } from '@/app/api'
 import type { ModuleManifest } from '@/app/extensions'
 import { useAllModules } from '@/app/registry'
-import { PluginSettingsSections, SettingsBlock, SettingsGroup } from '@/app/settings'
+import { PluginSettingsSections, RowMenu, SettingsBlock, SettingsGroup } from '@/app/settings'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { useDialogTarget } from '@/lib/dialog-target'
 import { toastError } from '@/lib/errors'
@@ -30,27 +28,19 @@ import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Checkbox } from '@/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/ui/dialog'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/ui/dropdown-menu'
+import { DropdownMenuItem } from '@/ui/dropdown-menu'
 import {
   Empty,
   EmptyContent,
-  EmptyDescription,
   EmptyHeader,
   EmptyMedia,
   EmptyTitle,
 } from '@/ui/empty'
 import { Field, FieldContent, FieldDescription, FieldLabel } from '@/ui/field'
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/ui/input-group'
-import { Item, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from '@/ui/item'
+import { Item, ItemContent, ItemDescription, ItemMedia, ItemTitle } from '@/ui/item'
 import { Separator } from '@/ui/separator'
 import { Spinner } from '@/ui/spinner'
-import { ChoiceControl } from '@/app/settings/choice'
 
 /** What the user sees of a catalog entry: the frontend manifest when the module has one. */
 type Entry = {
@@ -60,8 +50,6 @@ type Entry = {
   description: string
   icon: LucideIcon
 }
-
-type Show = 'all' | 'installed'
 
 function toEntry(plugin: PluginOut, modules: readonly ModuleManifest[]): Entry {
   const module = modules.find((mod) => mod.id === plugin.id)
@@ -138,15 +126,13 @@ type ActionProps = {
   pending: boolean
   onInstall: () => void
   onUninstall: () => void
-  /** Adds "Details" to the installed menu (on the card; the details dialog leaves it out). */
-  onOpen?: () => void
 }
 
 /**
- * "Install", or "Installed ✓" opening a menu with the details and "Uninstall". While a change
- * runs, a spinner takes the place of the leading icon so the button keeps its width.
+ * "Install" for a plugin that is not installed; the "⋯" menu with "Uninstall" for one that is.
+ * While a change runs, a spinner takes the place of the icon so the control keeps its width.
  */
-function InstallButton({ entry, pending, onInstall, onUninstall, onOpen }: ActionProps) {
+function PluginAction({ entry, pending, onInstall, onUninstall }: ActionProps) {
   if (!entry.plugin.installed) {
     return (
       <Button size="sm" disabled={pending} onClick={onInstall}>
@@ -155,32 +141,20 @@ function InstallButton({ entry, pending, onInstall, onUninstall, onOpen }: Actio
       </Button>
     )
   }
+  if (pending) {
+    return (
+      <Button variant="ghost" size="icon-sm" disabled aria-label={m.common_loading()}>
+        <Spinner aria-hidden />
+      </Button>
+    )
+  }
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={<Button size="sm" variant="secondary" disabled={pending} />}
-        aria-label={m.plugins_installed_menu({ name: entry.name })}
-      >
-        {pending ? <Spinner aria-label={m.common_loading()} /> : <Check aria-hidden />}
-        {m.plugins_installed()}
-        <ChevronDown aria-hidden />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-40">
-        {onOpen ? (
-          <>
-            <DropdownMenuItem onClick={onOpen}>
-              <Info aria-hidden />
-              {m.plugins_details()}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-          </>
-        ) : null}
-        <DropdownMenuItem variant="destructive" onClick={onUninstall}>
-          <Trash2 aria-hidden />
-          {m.plugins_uninstall()}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <RowMenu label={m.plugins_installed_menu({ name: entry.name })}>
+      <DropdownMenuItem variant="destructive" onClick={onUninstall}>
+        <Trash2 aria-hidden />
+        {m.plugins_uninstall()}
+      </DropdownMenuItem>
+    </RowMenu>
   )
 }
 
@@ -199,8 +173,9 @@ function PluginIcon({ icon: Icon, large }: { icon: LucideIcon; large?: boolean }
 }
 
 /**
- * A marketplace card. The whole card opens the details (the name's button stretches over it);
- * the install control sits above that overlay so it works on its own.
+ * A marketplace card: icon, name and the whole description, with the action at the top right.
+ * The whole card opens the details (the name's button stretches over it); the action sits above
+ * that overlay so it works on its own.
  */
 function PluginCard(props: ActionProps & { onOpen: () => void }) {
   const { entry, onOpen } = props
@@ -208,28 +183,23 @@ function PluginCard(props: ActionProps & { onOpen: () => void }) {
     <Item
       variant="outline"
       render={<li />}
-      className="relative h-full min-w-0 flex-col flex-nowrap items-stretch gap-3 p-4 transition-colors hover:bg-muted/50"
+      className="relative h-full min-w-0 flex-nowrap items-start gap-3 p-4 transition-colors hover:bg-muted/50"
     >
-      <div className="flex items-start gap-3">
-        <PluginIcon icon={entry.icon} />
-        <ItemContent className="min-w-0 gap-0.5">
-          <ItemTitle className="w-full">
-            <button
-              type="button"
-              onClick={onOpen}
-              className="max-w-full min-w-0 truncate text-left outline-none after:absolute after:inset-0 after:rounded-[inherit] focus-visible:after:ring-3 focus-visible:after:ring-ring/50"
-            >
-              {entry.name}
-            </button>
-          </ItemTitle>
-          <ItemDescription className="truncate text-xs">
-            {m.plugins_by({ author: entry.plugin.author })}
-          </ItemDescription>
-        </ItemContent>
-      </div>
-      <ItemDescription className="line-clamp-2 min-h-10">{entry.description}</ItemDescription>
-      <div className="relative mt-auto flex justify-end">
-        <InstallButton {...props} />
+      <PluginIcon icon={entry.icon} />
+      <ItemContent className="min-w-0 gap-1">
+        <ItemTitle className="w-full">
+          <button
+            type="button"
+            onClick={onOpen}
+            className="max-w-full min-w-0 truncate text-left outline-none after:absolute after:inset-0 after:rounded-[inherit] focus-visible:after:ring-3 focus-visible:after:ring-ring/50"
+          >
+            {entry.name}
+          </button>
+        </ItemTitle>
+        <ItemDescription className="line-clamp-none">{entry.description}</ItemDescription>
+      </ItemContent>
+      <div className="relative -mt-0.5 shrink-0">
+        <PluginAction {...props} />
       </div>
     </Item>
   )
@@ -239,31 +209,33 @@ function ProvidesList({
   icon: Icon,
   title,
   items,
+  action,
 }: {
   icon: LucideIcon
   title: string
   items: readonly { id: string; title: string; description?: string }[]
+  action?: ReactNode
 }) {
   if (items.length === 0) return null
   return (
-    <section className="space-y-2">
-      <h3 className="text-xs font-medium text-muted-foreground">{title}</h3>
-      <ItemGroup className="gap-1.5">
+    <SettingsBlock title={title}>
+      <SettingsGroup>
         {items.map((item) => (
-          <Item key={item.id} render={<li />} size="xs" className="items-start px-0 py-0">
+          <Item key={item.id} render={<li />} size="sm">
             <ItemMedia variant="icon" className="text-muted-foreground">
               <Icon aria-hidden />
             </ItemMedia>
-            <ItemContent className="gap-0">
-              <ItemTitle className="font-normal">{item.title}</ItemTitle>
+            <ItemContent className="min-w-0 gap-0.5">
+              <ItemTitle>{item.title}</ItemTitle>
               {item.description ? (
                 <ItemDescription className="text-xs">{item.description}</ItemDescription>
               ) : null}
             </ItemContent>
+            {action}
           </Item>
         ))}
-      </ItemGroup>
-    </section>
+      </SettingsGroup>
+    </SettingsBlock>
   )
 }
 
@@ -289,10 +261,10 @@ function PluginDetails(props: ActionProps) {
           <div className="min-w-0 flex-1 space-y-0.5">
             <DialogTitle className="truncate">{entry.name}</DialogTitle>
             <DialogDescription className="text-xs">
-              {m.plugins_version({ author: plugin.author, version: plugin.version })}
+              {m.plugins_version({ version: plugin.version })}
             </DialogDescription>
           </div>
-          <InstallButton {...props} />
+          <PluginAction {...props} />
         </div>
       </DialogHeader>
       <div className="-mx-6 flex min-h-0 flex-col gap-6 overflow-y-auto px-6 pb-1">
@@ -304,7 +276,19 @@ function PluginDetails(props: ActionProps) {
           </section>
         ) : null}
         <ProvidesList icon={PanelTop} title={m.plugins_provides_pages()} items={pages} />
-        <ProvidesList icon={LayoutGrid} title={m.plugins_provides_cards()} items={cards} />
+        <ProvidesList
+          icon={LayoutGrid}
+          title={m.plugins_provides_cards()}
+          items={cards}
+          action={
+            plugin.installed ? (
+              <Button size="sm" variant="outline">
+                <Plus aria-hidden />
+                {m.plugins_add_to_today()}
+              </Button>
+            ) : null
+          }
+        />
         {plugin.installed && hasSettings ? (
           <>
             <Separator />
@@ -326,7 +310,6 @@ export default function PluginCatalog() {
   const purgeId = useId()
   const { pending, install, uninstall } = usePluginActions()
   const [search, setSearch] = useState('')
-  const [show, setShow] = useState<Show>('all')
   const details = useDialogTarget<string>()
   const removing = useDialogTarget<Entry>()
   const [purge, setPurge] = useState(false)
@@ -334,13 +317,8 @@ export default function PluginCatalog() {
   const entries = data.items.map((plugin) => toEntry(plugin, modules))
   const query = search.trim().toLocaleLowerCase()
   const plugins = entries.filter((e) => e.plugin.kind === 'plugin')
-  const visible = plugins.filter((e) => matches(e, query) && (show === 'all' || e.plugin.installed))
-  const core = entries.filter((e) => e.plugin.kind === 'core' && matches(e, query))
+  const visible = plugins.filter((e) => matches(e, query))
   const open = plugins.find((e) => e.plugin.id === details.target)
-  const filtered = query !== '' || show !== 'all'
-  // "Installed" with nothing installed is a state of the account, not a search without results.
-  const noneInstalled =
-    show === 'installed' && query === '' && !plugins.some((e) => e.plugin.installed)
   const removingPending = removing.target != null && pending.includes(removing.target.plugin.id)
 
   const actionsFor = (entry: Entry): ActionProps => ({
@@ -383,58 +361,55 @@ export default function PluginCatalog() {
     />
   )
 
+  const card = (entry: Entry) => (
+    <PluginCard
+      key={entry.plugin.id}
+      {...actionsFor(entry)}
+      onOpen={() => details.show(entry.plugin.id)}
+    />
+  )
+  const installed = visible.filter((e) => e.plugin.installed)
+  const available = visible.filter((e) => !e.plugin.installed)
+
   return (
     <div className="space-y-8">
       {/* The section above already says "Plugins": the marketplace goes without a heading. */}
-      <section aria-label={m.plugins_available()} className="@container space-y-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <InputGroup className="min-w-48 flex-1">
-            <InputGroupInput
-              type="search"
-              aria-label={m.plugins_search()}
-              placeholder={m.plugins_search()}
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              onKeyDown={clearOnEscape(search, () => setSearch(''))}
-            />
-            <InputGroupAddon>
-              <Search aria-hidden />
-            </InputGroupAddon>
-            <InputGroupAddon align="inline-end">
-              {search ? (
-                <InputGroupButton
-                  size="icon-xs"
-                  aria-label={m.common_search_clear()}
-                  onClick={(event) => clearSearch(event, () => setSearch(''))}
-                >
-                  <X aria-hidden />
-                </InputGroupButton>
-              ) : null}
-            </InputGroupAddon>
-          </InputGroup>
-          <div className="flex h-9 items-center">
-            <ChoiceControl<Show>
-              label={m.plugins_filter_label()}
-              value={show}
-              onChange={setShow}
-              options={[
-                { value: 'all', label: m.plugins_filter_all() },
-                { value: 'installed', label: m.plugins_installed() },
-              ]}
-            />
-          </div>
-        </div>
-        {visible.length > 0 ? (
-          <ul className="grid gap-3 @lg:grid-cols-2 @3xl:grid-cols-3">
-            {visible.map((entry) => (
-              <PluginCard
-                key={entry.plugin.id}
-                {...actionsFor(entry)}
-                onOpen={() => details.show(entry.plugin.id)}
-              />
-            ))}
-          </ul>
-        ) : plugins.length === 0 ? (
+      <section aria-label={m.plugins_available()} className="@container space-y-6">
+        <InputGroup>
+          <InputGroupInput
+            type="search"
+            aria-label={m.plugins_search()}
+            placeholder={m.plugins_search()}
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            onKeyDown={clearOnEscape(search, () => setSearch(''))}
+          />
+          <InputGroupAddon>
+            <Search aria-hidden />
+          </InputGroupAddon>
+          <InputGroupAddon align="inline-end">
+            {search ? (
+              <InputGroupButton
+                size="icon-xs"
+                aria-label={m.common_search_clear()}
+                onClick={(event) => clearSearch(event, () => setSearch(''))}
+              >
+                <X aria-hidden />
+              </InputGroupButton>
+            ) : null}
+          </InputGroupAddon>
+        </InputGroup>
+        {installed.length > 0 ? (
+          <SettingsBlock title={m.plugins_installed()}>
+            <ul className="grid gap-3 @2xl:grid-cols-2">{installed.map(card)}</ul>
+          </SettingsBlock>
+        ) : null}
+        {available.length > 0 ? (
+          <SettingsBlock title={m.plugins_group_available()}>
+            <ul className="grid gap-3 @2xl:grid-cols-2">{available.map(card)}</ul>
+          </SettingsBlock>
+        ) : null}
+        {visible.length > 0 ? null : plugins.length === 0 ? (
           <Empty className="border-0">
             <EmptyHeader>
               <EmptyMedia variant="icon">
@@ -443,20 +418,7 @@ export default function PluginCatalog() {
               <EmptyTitle>{m.plugins_none_available()}</EmptyTitle>
             </EmptyHeader>
           </Empty>
-        ) : noneInstalled ? (
-          <Empty className="border-0">
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <Blocks aria-hidden />
-              </EmptyMedia>
-              <EmptyTitle>{m.plugins_none_installed()}</EmptyTitle>
-              <EmptyDescription>{m.plugins_none_installed_hint()}</EmptyDescription>
-            </EmptyHeader>
-            <EmptyContent>
-              <Button onClick={() => setShow('all')}>{m.plugins_browse_all()}</Button>
-            </EmptyContent>
-          </Empty>
-        ) : filtered ? (
+        ) : (
           <Empty className="border-0">
             <EmptyHeader>
               <EmptyMedia variant="icon">
@@ -465,36 +427,13 @@ export default function PluginCatalog() {
               <EmptyTitle>{m.plugins_no_match()}</EmptyTitle>
             </EmptyHeader>
             <EmptyContent>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setSearch('')
-                  setShow('all')
-                }}
-              >
+              <Button variant="outline" onClick={() => setSearch('')}>
                 {m.common_clear_filters()}
               </Button>
             </EmptyContent>
           </Empty>
-        ) : null}
+        )}
       </section>
-      {core.length > 0 ? (
-        <SettingsBlock title={m.plugins_core_title()} description={m.plugins_core_note()}>
-          <SettingsGroup>
-            {core.map(({ plugin, name, description, icon: Icon }) => (
-              <Item key={plugin.id} render={<li />} size="sm">
-                <ItemMedia variant="icon" className="text-muted-foreground">
-                  <Icon aria-hidden />
-                </ItemMedia>
-                <ItemContent className="min-w-0 gap-0.5">
-                  <ItemTitle>{name}</ItemTitle>
-                  <ItemDescription className="line-clamp-1 text-xs">{description}</ItemDescription>
-                </ItemContent>
-              </Item>
-            ))}
-          </SettingsGroup>
-        </SettingsBlock>
-      ) : null}
       <Dialog {...details.props}>
         <DialogContent className="flex max-h-[min(44rem,calc(100svh-2rem))] flex-col sm:max-w-xl">
           {open ? <PluginDetails {...actionsFor(open)} /> : null}

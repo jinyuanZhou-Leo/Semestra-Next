@@ -1422,7 +1422,7 @@
   "plugins_core_note": "核心功能无法卸载，可在“管理页面”中隐藏它们的页面。",
   "plugins_installed": "已安装",
   "plugins_by": "作者：{author}",
-  "plugins_version": "{author} · 版本 {version}",
+  "plugins_version": "版本 {version}",
   "plugins_requirements": "使用前需要",
   "plugins_provides_pages": "页面",
   "plugins_provides_cards": "卡片",
@@ -3656,5 +3656,7 @@
   "lms_link_failed": "同步出错",
   "lms_link_stale": "部分未更新",
   "lms_assignment_source_stale": "这份作业暂未从 {provider} 更新。",
-  "lms_assignment_submission_as_of": "提交状态更新于 {time}"
+  "lms_assignment_submission_as_of": "提交状态更新于 {time}",
+  "plugins_group_available": "未安装",
+  "plugins_add_to_today": "添加到今天"
 }

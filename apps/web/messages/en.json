@@ -1422,7 +1422,7 @@
   "plugins_core_note": "Core features can't be uninstalled. You can hide their pages with Manage pages.",
   "plugins_installed": "Installed",
   "plugins_by": "By {author}",
-  "plugins_version": "{author} · version {version}",
+  "plugins_version": "Version {version}",
   "plugins_requirements": "Before you start",
   "plugins_provides_pages": "Pages",
   "plugins_provides_cards": "Cards",
@@ -3656,5 +3656,7 @@
   "lms_link_failed": "Sync error",
   "lms_link_stale": "Partly out of date",
   "lms_assignment_source_stale": "This assignment hasn't been updated from {provider} yet.",
-  "lms_assignment_submission_as_of": "Submission status as of {time}"
+  "lms_assignment_submission_as_of": "Submission status as of {time}",
+  "plugins_group_available": "Not installed",
+  "plugins_add_to_today": "Add to Today"
 }
