@@ -1,8 +1,4 @@
-import type { Course } from '@semestra/api-client'
-import {
-  academicsCourseGetOptions,
-  academicsCourseListOptions,
-} from '@semestra/api-client/react-query'
+import { academicsCourseListOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
 import { coursesOfTerm } from '@/modules/academics/queries'
@@ -39,20 +35,12 @@ export function QuickOpenPicker({
     }),
     enabled: onTerm,
   })
-  const courseGet = useQuery({
-    ...academicsCourseGetOptions({ path: { course_id: params.courseId ?? '' } }),
-    enabled: onCourse,
-  })
-  const thisCourse = courseGet.data
-  const courses: Course[] = onCourse
-    ? thisCourse
-      ? [thisCourse]
-      : []
-    : coursesOfTerm(termList.data?.items ?? [], params.termId ?? '')
+  const courses = onTerm ? coursesOfTerm(termList.data?.items ?? [], params.termId ?? '') : []
   const selected = value.item_ids ?? []
   return (
     <div className="flex flex-col gap-2">
       <FilePicker
+        courseId={params.courseId}
         courses={courses}
         selected={selected}
         max={MAX}

@@ -1,9 +1,6 @@
-import type { ImportSession, ItemOut } from '@semestra/api-client'
-import {
-  academicsCourseGetOptions,
-  importsSessionDiscardMutation,
-} from '@semestra/api-client/react-query'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import type { ImportSession } from '@semestra/api-client'
+import { importsSessionDiscardMutation } from '@semestra/api-client/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { FileText, Upload } from 'lucide-react'
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { invalidateOperations } from '@/app/api'
@@ -14,7 +11,6 @@ import { useJob } from '@/hooks/use-job'
 import { errorCode, errorMessage, toastError } from '@/lib/errors'
 import { formatDate } from '@/lib/format'
 import { FilePicker } from '@/modules/files/components/FilePicker'
-import { useCourseFiles } from '@/modules/files/queries'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
@@ -31,19 +27,8 @@ const ACCEPT = Object.entries(SOURCES.syllabus.accept ?? {})
   .flatMap(([type, extensions]) => [type, ...extensions])
   .join(',')
 
-/** File names that are most likely the syllabus; they are listed first. */
+/** File names that are most likely the syllabus; their rows say so. */
 const SYLLABUS_NAME = /syllabus|outline|course[ _-]?info|大纲|教学大纲/i
-
-/** Course files to read: likely syllabi first, then the newest. */
-export function syllabusCandidates(items: readonly ItemOut[]): ItemOut[] {
-  return items
-    .filter(readableCourseFile)
-    .toSorted(
-      (a, b) =>
-        Number(SYLLABUS_NAME.test(b.display_name)) - Number(SYLLABUS_NAME.test(a.display_name)) ||
-        b.created_at.localeCompare(a.created_at),
-    )
-}
 
 /**
  * "Read from a file" at the top of a course's basics (M08 §6.1): pick a course file or upload
@@ -80,11 +65,6 @@ export function CourseInfoFill({
     waiting ?? started
   const job = useJob(isReading(session) ? session?.job_id : null)
   const discard = useMutation({ ...importsSessionDiscardMutation(), onError: toastError })
-  const course = useQuery(academicsCourseGetOptions({ path: { course_id: courseId } })).data
-  // Likely syllabi: their folders start open.
-  const suggested = (useCourseFiles(courseId).data?.items ?? [])
-    .filter((file) => readableCourseFile(file) && SYLLABUS_NAME.test(file.display_name))
-    .map((file) => file.id)
 
   const request: FileImportRequest = {
     programId,
@@ -170,11 +150,9 @@ export function CourseInfoFill({
       </AiRequired>
       <PopoverContent align="end" className="w-96 gap-2 p-2">
         <FilePicker
-          courses={course ? [course] : []}
+          courseId={courseId}
           mode="single"
-          autoFocus
           filter={readableCourseFile}
-          reveal={suggested}
           onPick={(file) => start({ fileItemIds: [file.id], upload: [] })}
           meta={(file) =>
             SYLLABUS_NAME.test(file.display_name)

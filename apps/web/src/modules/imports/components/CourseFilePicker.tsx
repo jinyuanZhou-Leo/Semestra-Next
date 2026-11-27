@@ -1,5 +1,3 @@
-import { useQuery } from '@tanstack/react-query'
-import { academicsCourseGetOptions } from '@semestra/api-client/react-query'
 import { formatDate } from '@/lib/format'
 import { FilePicker } from '@/modules/files/components/FilePicker'
 import { m } from '@/paraglide/messages'
@@ -12,6 +10,7 @@ import { readableCourseFile } from '../sources'
 export function CourseFilePicker({
   courseId,
   picked,
+  disabled,
   onChange,
 }: {
   courseId: string
@@ -19,12 +18,12 @@ export function CourseFilePicker({
   disabled?: boolean
   onChange: (picked: string[]) => void
 }) {
-  const course = useQuery(academicsCourseGetOptions({ path: { course_id: courseId } })).data
   return (
     <FilePicker
-      courses={course ? [course] : []}
+      courseId={courseId}
       selected={picked}
       onChange={onChange}
+      disabled={disabled}
       filter={readableCourseFile}
       meta={(file) =>
         file.doc_status === 'pending' || file.doc_status === 'processing'

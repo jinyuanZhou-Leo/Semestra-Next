@@ -77,6 +77,7 @@ type TreeState = {
   setExpanded: (key: string, open: boolean) => void
   selected: ReadonlySet<string>
   full: boolean
+  disabled: boolean
   toggle: (id: string, on: boolean) => void
   pick: (item: ItemOut) => void
   meta?: (item: ItemOut) => ReactNode
@@ -165,7 +166,7 @@ function FileRow({ item, depth, state }: { item: ItemOut; depth: number; state: 
       <Checkbox
         id={id}
         checked={checked}
-        disabled={!checked && state.full}
+        disabled={state.disabled || (!checked && state.full)}
         onCheckedChange={(on) => state.toggle(item.id, on)}
       />
       {body}
@@ -188,7 +189,8 @@ function Rows({ nodes, depth, state }: { nodes: Node[]; depth: number; state: Tr
  * above filters by file and folder names; folders holding picked files say how many.
  */
 export function FilePicker({
-  courses,
+  courseId,
+  courses = [],
   mode = 'multiple',
   selected = [],
   onChange,
@@ -198,10 +200,12 @@ export function FilePicker({
   meta,
   emptyTitle,
   className,
-  autoFocus,
-  reveal = [],
+  disabled = false,
 }: {
-  courses: readonly Course[]
+  /** One course: its folders at the top. */
+  courseId?: string
+  /** Several courses (a term): each course at the top, its folders inside. */
+  courses?: readonly Course[]
   mode?: 'multiple' | 'single'
   selected?: readonly string[]
   onChange?: (selected: string[]) => void
@@ -215,19 +219,19 @@ export function FilePicker({
   emptyTitle: string
   /** Sizes the scrolling list (`h-72`, `flex-1`). */
   className?: string
-  autoFocus?: boolean
-  /** Files whose folders start open (besides the picked ones). */
-  reveal?: readonly string[]
+  /** Ticks cannot change (while the picked files are being sent). */
+  disabled?: boolean
 }) {
   const baseId = useId()
   const [search, setSearch] = useState('')
-  const lists = useQueries({ queries: courses.map((course) => courseFilesOptions(course.id)) })
+  const ids = courseId ? [courseId] : courses.map((course) => course.id)
+  const lists = useQueries({ queries: ids.map((id) => courseFilesOptions(id)) })
   const needle = search.trim().toLowerCase()
   const pending = lists.some((list) => list.isPending)
-  const branches = courses.map((course, index) => {
+  const branches = ids.map((id, index) => {
     const data = lists[index]?.data
     const items = (data?.items ?? []).filter((i) => i.kind === 'file' && (filter?.(i) ?? true))
-    return { course, ...buildBranch(data?.folders ?? [], items, null, [], needle) }
+    return { id, ...buildBranch(data?.folders ?? [], items, null, [], needle) }
   })
   const total = branches.reduce((sum, b) => sum + b.files.length, 0)
   const [expanded, setExpandedKeys] = useState<Set<string> | null>(null)
@@ -239,7 +243,7 @@ export function FilePicker({
       let holds = false
       for (const node of nodes) {
         if (node.kind === 'file') {
-          holds ||= selected.includes(node.item.id) || reveal.includes(node.item.id)
+          holds ||= selected.includes(node.item.id)
           continue
         }
         const inner = visit(node.children)
@@ -250,8 +254,7 @@ export function FilePicker({
     }
     for (const b of branches) {
       const inner = visit(b.nodes)
-      if (inner || total <= EXPAND_ALL_UP_TO || courses.length === 1)
-        open.add(`course:${b.course.id}`)
+      if (inner || total <= EXPAND_ALL_UP_TO) open.add(`course:${b.id}`)
     }
     return open
   }
@@ -269,6 +272,7 @@ export function FilePicker({
     },
     selected: chosen,
     full: max !== undefined && chosen.size >= max,
+    disabled,
     toggle: (id, on) =>
       onChange?.(on ? [...selected.filter((x) => x !== id), id] : selected.filter((x) => x !== id)),
     pick: (item) => onPick?.(item),
@@ -297,7 +301,6 @@ export function FilePicker({
           aria-label={m.files_picker_search()}
           placeholder={m.files_picker_search()}
           value={search}
-          autoFocus={autoFocus}
           onChange={(event) => setSearch(event.target.value)}
           onKeyDown={clearOnEscape(search, () => setSearch(''))}
         />
@@ -331,25 +334,27 @@ export function FilePicker({
               <p className="px-2.5 py-2 text-xs text-muted-foreground">
                 {m.files_picker_no_match()}
               </p>
-            ) : courses.length === 1 ? (
+            ) : courseId ? (
               <Rows nodes={branches[0]?.nodes ?? []} depth={0} state={state} />
             ) : (
-              branches
-                .filter((b) => b.files.length > 0)
-                .map((b) => (
+              courses.map((course, index) => {
+                const branch = branches[index]
+                if (!branch || branch.files.length === 0) return null
+                return (
                   <BranchRow
-                    key={b.course.id}
+                    key={course.id}
                     node={{
                       kind: 'course',
-                      key: `course:${b.course.id}`,
-                      course: b.course,
-                      children: b.nodes,
-                      files: b.files,
+                      key: `course:${course.id}`,
+                      course,
+                      children: branch.nodes,
+                      files: branch.files,
                     }}
                     depth={0}
                     state={state}
                   />
-                ))
+                )
+              })
             )}
           </div>
         </ScrollArea>
