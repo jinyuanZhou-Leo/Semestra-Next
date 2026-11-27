@@ -4227,6 +4227,12 @@ export type DocumentPage = {
      * `<item_id>:p<page_no>-<page_no>`
      */
     citation_id: string;
+    /**
+     * Visual
+     *
+     * The page has handwriting, a large figure or a scan: its text may not have all of it
+     */
+    visual?: boolean;
 };
 
 /**
@@ -8527,6 +8533,18 @@ export type OrganizeState = {
 };
 
 /**
+ * Outdated
+ */
+export type Outdated = {
+    /**
+     * Count
+     *
+     * Files (PDFs) read by an older reader, which may have missed handwriting
+     */
+    count: number;
+};
+
+/**
  * OutlineEntry
  */
 export type OutlineEntry = {
@@ -10423,6 +10441,12 @@ export type SearchHit = {
      * `<item_id>:p<page_from>-<page_to>`
      */
     citation_id: string;
+    /**
+     * Visual Pages
+     *
+     * Pages of the hit with handwriting, a large figure or a scan: their text may not have all of it
+     */
+    visual_pages?: Array<number>;
 };
 
 /**
@@ -19572,6 +19596,56 @@ export type FilesOrganizationListResponses = {
 };
 
 export type FilesOrganizationListResponse = FilesOrganizationListResponses[keyof FilesOrganizationListResponses];
+
+export type FilesOutdatedCountData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/me/files/outdated';
+};
+
+export type FilesOutdatedCountErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesOutdatedCountError = FilesOutdatedCountErrors[keyof FilesOutdatedCountErrors];
+
+export type FilesOutdatedCountResponses = {
+    /**
+     * Successful Response
+     */
+    200: Outdated;
+};
+
+export type FilesOutdatedCountResponse = FilesOutdatedCountResponses[keyof FilesOutdatedCountResponses];
+
+export type FilesOutdatedRereadData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/me/files/outdated:reread';
+};
+
+export type FilesOutdatedRereadErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesOutdatedRereadError = FilesOutdatedRereadErrors[keyof FilesOutdatedRereadErrors];
+
+export type FilesOutdatedRereadResponses = {
+    /**
+     * Successful Response
+     */
+    200: Retried;
+};
+
+export type FilesOutdatedRereadResponse = FilesOutdatedRereadResponses[keyof FilesOutdatedRereadResponses];
 
 export type FilesProcessingCancelAllData = {
     body?: never;

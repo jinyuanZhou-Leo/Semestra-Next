@@ -32,3 +32,4 @@ apps/web/.shots/
 
 # Playwright: the data directory E2E_BUILT=1 runs create
 apps/web/e2e/.data/
+.calibration/

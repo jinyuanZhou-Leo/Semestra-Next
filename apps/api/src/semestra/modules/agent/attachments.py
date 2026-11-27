@@ -106,7 +106,7 @@ async def read_upload(ctx: Ctx, data: bytes, detected: Detected) -> Reading:
     if scanned and detected.kind == "pdf":
         try:
             rendering = await _render(ctx, data, pdf=True, pages=scanned)
-            reading.images = {i + 1: image for i, image in rendering.images.items()}
+            reading.images = {i + 1: parts[0] for i, parts in rendering.images.items()}
         except ParseError as exc:  # the pages stay readable as text; they are just not shown
             log.info("agent.attachment.render_failed", code=exc.code)
     return reading
@@ -118,7 +118,7 @@ async def _read_image(ctx: Ctx, data: bytes, mime: str) -> Reading:
         rendering = await _render(ctx, data, pdf=False, pages=SHOWN_IMAGES)
     except ParseError as exc:
         return Reading("image", mime, error=exc.code)
-    images = {i + 1: image for i, image in rendering.images.items()}
+    images = {i + 1: shown[0] for i, shown in rendering.images.items()}
     parts = [ParsedPage("") for _ in range(rendering.page_count)]
     return Reading("image", mime, parts, images=images)
 
@@ -249,7 +249,8 @@ async def snapshot_file(ctx: Ctx, session_id: str, item_id: str) -> AgentAttachm
                 user_id=row.user_id,
                 page_no=page.page_no,
                 markdown=page.markdown,
-                needs_ocr=not page.markdown.strip() and not page.ocr_used,
+                # Handwriting, a large figure or a scan: the text may not have all of it.
+                needs_ocr=page.visual or (not page.markdown.strip() and not page.ocr_used),
             )
         )
     await charge(ctx)
@@ -347,7 +348,10 @@ class AttachmentReadInput(BaseModel):
 class AttachmentPageOut(BaseModel):
     page_no: int
     markdown: str
-    needs_ocr: bool = Field(description="Scanned page without a text layer")
+    needs_ocr: bool = Field(
+        description="The page has handwriting, a large figure or a scan: its text may not have "
+        "all of it"
+    )
     truncated: bool = Field(default=False, description="The page was cut; the rest is not shown")
 
 

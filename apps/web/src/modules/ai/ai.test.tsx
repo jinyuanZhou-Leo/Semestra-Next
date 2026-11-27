@@ -39,6 +39,7 @@ type World = {
   providers: Provider[]
   assignments: Record<string, { provider_id: string; model: string }>
   params: Record<string, Assignment['params']>
+  outdated: number
 }
 let world: World
 const requests: { method: string; path: string; body: unknown }[] = []
@@ -83,6 +84,13 @@ function aiHandlers() {
     http.post(`${API}/me/ui-state\\:get`, () => HttpResponse.json({ items: {} })),
     http.put(`${API}/me/ui-state/:key`, () => HttpResponse.json({ ok: true })),
     http.get(`${API}/ai/status`, () => HttpResponse.json({ items: statusItems() })),
+    http.get(`${API}/me/files/outdated`, () => HttpResponse.json({ count: world.outdated })),
+    http.post(`${API}/me/files/outdated\\:reread`, async ({ request }) => {
+      await record(request)
+      const retried = world.outdated
+      world.outdated = 0
+      return HttpResponse.json({ retried })
+    }),
     http.get(`${API}/ai/providers`, () => HttpResponse.json({ items: world.providers })),
     http.post(`${API}/ai/providers`, async ({ request }) => {
       const body = (await record(request))!
@@ -160,7 +168,7 @@ function aiHandlers() {
 }
 
 beforeEach(() => {
-  world = { providers: [], assignments: {}, params: {} }
+  world = { providers: [], assignments: {}, params: {}, outdated: 0 }
   requests.length = 0
   server.use(...aiHandlers())
 })
@@ -439,6 +447,43 @@ test('a model is picked from one searchable list, and Auto goes back to the reco
       body: { purpose: 'extraction', provider_id: null },
     }),
   )
+})
+
+test('PDFs read by an earlier version are read again from under OCR, after a confirmation', async () => {
+  world.providers.push(provider())
+  world.outdated = 3
+  const user = userEvent.setup()
+  renderWithQuery(<ModelsSection />)
+  expect(await screen.findByText('PDFs read by an earlier version: 3')).toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: 'Read again' }))
+  // OCR is a provider's model here: reading again uses it.
+  const dialog = await screen.findByRole('alertdialog')
+  expect(dialog).toHaveTextContent('PDFs to read again: 3')
+  expect(dialog).toHaveTextContent('uses model credits')
+  await user.click(within(dialog).getByRole('button', { name: 'Read again' }))
+  await waitFor(() =>
+    expect(requests.at(-1)).toMatchObject({ method: 'POST', path: '/me/files/outdated:reread' }),
+  )
+  await waitFor(() =>
+    expect(screen.queryByText('PDFs read by an earlier version: 3')).not.toBeInTheDocument(),
+  )
+})
+
+test('PDFs read by an earlier version are not offered again while nothing can read them', async () => {
+  world.providers.push(provider())
+  world.outdated = 3
+  server.use(
+    http.get(`${API}/ai/status`, () =>
+      HttpResponse.json({
+        items: statusItems().map((item) =>
+          item.purpose === 'ocr' ? { ...item, available: false, source: null } : item,
+        ),
+      }),
+    ),
+  )
+  renderWithQuery(<ModelsSection />)
+  await waitFor(() => expect(modelBox('OCR')).toHaveTextContent('Unavailable'))
+  expect(screen.queryByRole('button', { name: 'Read again' })).not.toBeInTheDocument()
 })
 
 test("a task's output limit is set under Advanced, and applies on Auto too", async () => {

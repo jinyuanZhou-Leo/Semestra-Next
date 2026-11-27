@@ -226,3 +226,24 @@ async def test_cookies_and_missing_tokens_are_refused(client: AsyncClient, agent
         headers={"Authorization": "Bearer spat_not-a-real-token"},
     )
     assert r.status_code == 401
+
+
+async def test_a_client_can_look_at_the_pages_of_a_course_file(app: FastAPI, agent: Agent):
+    from semestra.modules.files.tests.conftest import make_pdf
+
+    _, course, _ = await agent.course_with_lab()
+    upload = [("files", ("notes.pdf", make_pdf(["one", "two"]), "application/pdf"))]
+    item = (await agent.call("POST", f"/courses/{course['id']}/files", files=upload))["items"][0]
+    token = await _token(agent, ["read"])
+    async with _connector(app)(token) as mcp:
+        tools = {t.name: t for t in (await mcp.list_tools()).tools}
+        assert "attachment_id" not in tools["view_pages"].input_schema["properties"]
+        assert "attachment_id" not in (tools["view_pages"].description or "")
+        result = await mcp.call_tool("view_pages", {"item_id": item["id"], "page_to": 2})
+        assert result.is_error is False
+        images = [c for c in result.content if isinstance(c, types.ImageContent)]
+        assert [i.mime_type for i in images] == ["image/png", "image/png"]
+        assert 'Pages 1-2 of "notes.pdf"' in _text(result.content[0])
+
+        missing = await mcp.call_tool("view_pages", {"item_id": "nope"})
+        assert missing.is_error is True

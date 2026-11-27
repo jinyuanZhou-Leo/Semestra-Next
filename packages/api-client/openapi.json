@@ -6791,7 +6791,7 @@
           "files"
         ],
         "summary": "Read the text of a processed file, page by page.",
-        "description": "Returns the markdown of the pages from page_from (a few pages per call, each with\nits citation_id). When next_page is set, call again from there to continue. Use it to summarise or\nextract from a whole document; to find something specific use files.document.search first.",
+        "description": "Returns the markdown of the pages from page_from (a few pages per call, each with\nits citation_id). When next_page is set, call again from there to continue. Use it to summarise or\nextract from a whole document; to find something specific use files.document.search first.\nPages with visual set have handwriting, a large figure or a scan, and their text may miss some of\nit: if you can view pages (view_pages), look at the ones the answer depends on; if you cannot, tell\nthe user once that those pages are handwritten or drawn and the answer may be incomplete.",
         "operationId": "filesDocumentRead",
         "security": [
           {
@@ -6878,7 +6878,7 @@
           "files"
         ],
         "summary": "Search what the course files say.",
-        "description": "Use to answer questions about course content (syllabus rules, dates, lecture\nmaterial): finds the passages of the user's files that match, with page numbers. Narrow it with\ncourse_ids or term_id. Quote results with their citation_id. If pending_items is not empty, some\nfiles are still being processed; if unindexed_items is not empty, those files are not indexed yet\n(tell the user they can index them with \"Index\" in the file list); if unreadable_items is not\nempty, those files could not be read at all. In all these cases tell the user the answer may be\nincomplete. Do not use to find a file by its name; use files.item.list.",
+        "description": "Use to answer questions about course content (syllabus rules, dates, lecture\nmaterial): finds the passages of the user's files that match, with page numbers. Narrow it with\ncourse_ids or term_id. Quote results with their citation_id. If pending_items is not empty, some\nfiles are still being processed; if unindexed_items is not empty, those files are not indexed yet\n(tell the user they can index them with \"Index\" in the file list); if unreadable_items is not\nempty, those files could not be read at all. In all these cases tell the user the answer may be\nincomplete. Pages in visual_pages have handwriting, a large figure or a scan, and their text may\nmiss some of it: if you can view pages (view_pages), look at the ones the answer depends on; if you\ncannot, tell the user once that those pages are handwritten or drawn and the answer may be\nincomplete. Do not use to find a file by its name; use files.item.list.",
         "operationId": "filesDocumentSearch",
         "security": [
           {
@@ -8212,6 +8212,86 @@
             "description": "Default Response"
           }
         }
+      }
+    },
+    "/me/files/outdated": {
+      "get": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Count the files read by an older reader.",
+        "description": "PDFs read before handwriting and notes on slides were recognized; the user\ncan have them read again with files.outdated.reread.",
+        "operationId": "filesOutdatedCount",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Outdated"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
+      }
+    },
+    "/me/files/outdated:reread": {
+      "post": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Read again the files read by an older reader.",
+        "description": "Each is read again as with files.item.reprocess; reading may use the OCR\nmodel.",
+        "operationId": "filesOutdatedReread",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Retried"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
       }
     },
     "/me/files/processing:cancel": {
@@ -27402,6 +27482,12 @@
             "type": "string",
             "title": "Citation Id",
             "description": "`<item_id>:p<page_no>-<page_no>`"
+          },
+          "visual": {
+            "type": "boolean",
+            "title": "Visual",
+            "description": "The page has handwriting, a large figure or a scan: its text may not have all of it",
+            "default": false
           }
         },
         "type": "object",
@@ -34867,6 +34953,20 @@
         "title": "OrganizeState",
         "description": "The course's organizing: its job (while reading, or when it failed; None once the job\nrecord is gone), and its plan once read. Both None: nothing waits."
       },
+      "Outdated": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "title": "Count",
+            "description": "Files (PDFs) read by an older reader, which may have missed handwriting"
+          }
+        },
+        "type": "object",
+        "required": [
+          "count"
+        ],
+        "title": "Outdated"
+      },
       "OutlineEntry": {
         "properties": {
           "level": {
@@ -38152,6 +38252,14 @@
             "type": "string",
             "title": "Citation Id",
             "description": "`<item_id>:p<page_from>-<page_to>`"
+          },
+          "visual_pages": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Visual Pages",
+            "description": "Pages of the hit with handwriting, a large figure or a scan: their text may not have all of it"
           }
         },
         "type": "object",

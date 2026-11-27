@@ -816,7 +816,53 @@
           ]
         }
       ],
-      "cards": [],
+      "cards": [
+        {
+          "id": "canvas-tab.shortcuts",
+          "scopes": [
+            "course",
+            "term"
+          ],
+          "sizes": [
+            "m",
+            "l"
+          ],
+          "default_size": "m",
+          "multiple": false,
+          "settings_schema": null
+        },
+        {
+          "id": "canvas-tab.shortcut",
+          "scopes": [
+            "course"
+          ],
+          "sizes": [
+            "s"
+          ],
+          "default_size": "s",
+          "multiple": true,
+          "settings_schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+              "place": {
+                "default": "last",
+                "type": "string",
+                "enum": [
+                  "last",
+                  "home",
+                  "announcements",
+                  "syllabus",
+                  "modules",
+                  "assignments",
+                  "pages",
+                  "files"
+                ]
+              }
+            }
+          }
+        }
+      ],
       "default_board": {}
     }
   ]

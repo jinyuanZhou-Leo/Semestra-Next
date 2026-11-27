@@ -1,18 +1,7 @@
 import { type CourseOverview, lmsCourseRefresh } from '@semestra/api-client'
 import { lmsCourseOverviewOptions } from '@semestra/api-client/react-query'
 import { keepPreviousData, useIsFetching, useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-  ArrowUpRight,
-  FileText,
-  Folder,
-  GraduationCap,
-  House,
-  Layers,
-  type LucideIcon,
-  Megaphone,
-  RefreshCw,
-  ScrollText,
-} from 'lucide-react'
+import { ArrowUpRight, RefreshCw } from 'lucide-react'
 import { useState } from 'react'
 import type { PageProps } from '@/app/extensions'
 import { useDialogTarget } from '@/lib/dialog-target'
@@ -40,6 +29,7 @@ import {
   SelectValue,
 } from '@/ui/select'
 import { Skeleton } from '@/ui/skeleton'
+import { NAV_ICONS } from './icons'
 import { CanvasBoundary, ListSkeleton } from './CanvasBoundary'
 import { type CanvasPage, CanvasPageContext, useCanvasPage } from './context'
 import { useCanvasLocation } from './location'
@@ -234,16 +224,6 @@ function View({ overview, resolved }: { overview: CourseOverview; resolved: Reso
     case 'syllabus':
       return <SyllabusView />
   }
-}
-
-const NAV_ICONS: Record<NativeView, LucideIcon> = {
-  home: House,
-  announcements: Megaphone,
-  syllabus: ScrollText,
-  modules: Layers,
-  assignments: GraduationCap,
-  pages: FileText,
-  files: Folder,
 }
 
 /** When the course was read from Canvas: "Updated just now", "Updated 3 minutes ago". */

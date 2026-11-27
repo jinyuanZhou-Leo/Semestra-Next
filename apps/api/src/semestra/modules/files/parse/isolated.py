@@ -27,7 +27,7 @@ import anyio.to_thread
 
 from semestra.modules.files.parse.detect import Detected
 from semestra.modules.files.parse.readers import ParsedDocument, ParseError, parse
-from semestra.modules.files.parse.render import PageImage, PageRenderer
+from semestra.modules.files.parse.render import OcrLine, OcrPart, PageImage, PageRenderer
 
 _POLL_SECONDS = 0.25
 MAX_CHILDREN = 3
@@ -54,7 +54,7 @@ class Thumbnail:
 @dataclass(frozen=True)
 class Rendered:
     index: int
-    image: PageImage
+    images: list[PageImage]
 
 
 @dataclass(frozen=True)
@@ -64,17 +64,20 @@ class PageCount:
 
 @dataclass(frozen=True)
 class Rendering:
-    """What `render_isolated` gives: how many pages the document has, and the image of each
-    rendered page by its index (pages past the end are left out)."""
+    """What `render_isolated` gives: how many pages the document has, and the images of each
+    rendered page by its index (pages past the end are left out): one, or with `parts` a tall
+    page's parts, top to bottom."""
 
     page_count: int
-    images: dict[int, PageImage]
+    images: dict[int, list[PageImage]]
 
 
 @dataclass(frozen=True)
 class Recognized:
+    """The lines local OCR read on a page, top to bottom, with their boxes in page points."""
+
     index: int
-    text: str
+    lines: list[OcrLine]
 
 
 @dataclass(frozen=True)
@@ -142,6 +145,7 @@ def _render_child(
     pdf: bool,
     pages: Sequence[int] | int,
     split_tall: bool,
+    parts: bool,
     memory_limit: int,
 ) -> None:
     """Page images for a vision model: the given pages that exist, or the first `pages`."""
@@ -153,7 +157,8 @@ def _render_child(
         indexes = range(min(count, pages)) if isinstance(pages, int) else pages
         for index in indexes:
             if 0 <= index < count:
-                conn.send(Rendered(index, renderer.model_image(index)))
+                images = renderer.model_parts(index) if parts else [renderer.model_image(index)]
+                conn.send(Rendered(index, images))
         renderer.close()
         conn.send(None)
     except MemoryError:
@@ -179,11 +184,14 @@ def _ocr_child(conn: Connection, model: str, data: bytes, pdf: bool) -> None:
         while (pages := conn.recv()) is not None:
             for index, page in enumerate(pages):
                 try:
-                    png = renderer.local_ocr_png(page)
+                    parts = renderer.local_ocr_parts(page)
                 except Exception:
                     traceback.print_exc()
                     continue
-                conn.send(Recognized(index, local_ocr.recognize(model, png)))
+                lines: list[OcrLine] = []
+                for part in parts:
+                    lines += _on_page(part, local_ocr.recognize(model, part.png))
+                conn.send(Recognized(index, lines))
             conn.send(None)
     except EOFError:
         pass  # the parent went away
@@ -196,6 +204,24 @@ def _ocr_child(conn: Connection, model: str, data: bytes, pdf: bool) -> None:
         if renderer is not None:
             renderer.close()
         conn.close()
+
+
+def _on_page(
+    part: OcrPart, lines: list[tuple[str, float, tuple[float, float, float, float]]]
+) -> list[OcrLine]:
+    """The part's lines (as `local_ocr.recognize` reads them) placed on the page, without those
+    whose middle is in a neighbour's band (read there too, where the parts overlap)."""
+    out: list[OcrLine] = []
+    for text, score, (x0, y0, x1, y1) in lines:
+        box = (
+            part.left + x0 / part.zoom,
+            part.top + y0 / part.zoom,
+            part.left + x1 / part.zoom,
+            part.top + y1 / part.zoom,
+        )
+        if part.owns[0] <= (box[1] + box[3]) / 2 < part.owns[1]:
+            out.append(OcrLine(text, score, box))
+    return out
 
 
 class OcrSession:
@@ -275,18 +301,20 @@ async def render_isolated(
     time_limit: float,
     memory_limit: int,
     split_tall: bool = False,
+    parts: bool = False,
 ) -> Rendering:
     """Images of the pages (`model_image`), rendered in a child process like `parse_isolated`.
-    With `split_tall`, a long image's pages are its parts (`PageRenderer`)."""
+    With `split_tall`, a long image's pages are its parts (`PageRenderer`); with `parts`, a tall
+    page comes in parts (`model_parts`), otherwise each page is one image."""
     wanted = pages if isinstance(pages, int) else list(pages)
     out = Rendering(0, {})
-    args = (data, pdf, wanted, split_tall, memory_limit)
+    args = (data, pdf, wanted, split_tall, parts, memory_limit)
     async with aclosing(_run(_render_child, args, time_limit)) as m:
         async for message in m:
             if isinstance(message, PageCount):
                 out = Rendering(message.count, out.images)
             elif isinstance(message, Rendered):
-                out.images[message.index] = message.image
+                out.images[message.index] = message.images
     return out
 
 

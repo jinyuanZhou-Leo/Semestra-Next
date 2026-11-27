@@ -177,42 +177,55 @@ def _outline_and_hint(
 async def _scanned(
     ctx: Ctx, att: AgentAttachment, shown: list[AgentAttachmentPage], *, vision: bool
 ) -> list[UserContent]:
-    scanned = [r.page_no for r in shown if r.needs_ocr]
-    if not scanned:
+    """What the shown pages' text may lack (`needs_ocr`): a scanned page without text, or one
+    with handwriting or a large figure (M07 `visual`) whose text may not have all of it."""
+    pages = [r for r in shown if r.needs_ocr]
+    if not pages:
         return []
+    name = _attr(att.name)
     look = (
         f" Look at them with {tools.VIEW_PAGES} (attachment_id {att.id}) if the question needs "
         "them."
     )
     if not att.storage_key:
         # A course file: the files pipeline already tried OCR on these pages.
-        return [
-            f"Pages {', '.join(map(str, scanned))} of {_attr(att.name)} are scanned images "
-            f"whose text could not be recognized.{look if vision else ''}"
-        ]
+        return [_lacking(pages, name, unread="whose text could not be recognized") + (
+            look if vision else ""
+        )]  # fmt: skip
     if not vision or att.doc_kind != "pdf":
-        return [
-            f"Pages {', '.join(map(str, scanned))} of {_attr(att.name)} are scanned images "
-            f"without text. {NO_VISION if not vision else ''}".strip()
-        ]
+        told = _lacking(pages, name, unread="without text")
+        return [f"{told} {NO_VISION if not vision else ''}".strip()]
     out: list[UserContent] = []
-    rest: list[int] = []
-    for row in shown:
-        if not row.needs_ocr:
-            continue
+    rest: list[AgentAttachmentPage] = []
+    for row in pages:
         if (image := await attachments.page_image(ctx, row)) is None:
-            rest.append(row.page_no)  # past the first few, or could not be rendered on upload
+            rest.append(row)  # past the first few, or could not be rendered on upload
             continue
+        what = "scanned" if not row.markdown.strip() else "handwriting or a large figure"
         out += [
-            f"Page {row.page_no} of {_attr(att.name)} (scanned):",
+            f"Page {row.page_no} of {name} ({what}):",
             BinaryContent(data=image.data, media_type=image.media_type),
         ]
     if rest:
-        out.append(
-            f"Pages {', '.join(map(str, rest))} of {_attr(att.name)} are scanned too and not "
-            f"shown.{look}"
-        )
+        numbers = ", ".join(str(r.page_no) for r in rest)
+        out.append(f"Pages {numbers} of {name} are not shown as images.{look}")
     return out
+
+
+def _lacking(pages: list[AgentAttachmentPage], name: str, *, unread: str) -> str:
+    """Says which pages are scanned images (`unread` tells what became of their text) and
+    which have handwriting or a large figure their text may not include."""
+    scans = [str(r.page_no) for r in pages if not r.markdown.strip()]
+    marked = [str(r.page_no) for r in pages if r.markdown.strip()]
+    said = []
+    if scans:
+        said.append(f"Pages {', '.join(scans)} of {name} are scanned images {unread}.")
+    if marked:
+        said.append(
+            f"Pages {', '.join(marked)} of {name} have handwriting or a large figure: their text "
+            "may not include all of it."
+        )
+    return " ".join(said)
 
 
 async def _image_parts(ctx: Ctx, att: AgentAttachment) -> list[UserContent]:
