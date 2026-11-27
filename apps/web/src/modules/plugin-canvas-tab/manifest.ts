@@ -6,6 +6,7 @@ import { LMS_LINK_OPENERS, type LmsLinkOpener } from '@/modules/lms/types'
 import { m } from '@/paraglide/messages'
 import { openLinkedCourse, programLinksOptions } from './open-in-canvas'
 import { prefetchCanvasPage } from './prefetch'
+import { prefetchCards } from './cards/prefetch'
 
 // The Program's links, not each course's: the sidebar asks for every course of the term at once.
 function linkQuery(scope: Scope) {
@@ -52,6 +53,7 @@ export default defineModule({
       sizes: ['m', 'l'],
       defaultSize: 'm',
       component: preloadable(() => import('./cards/ShortcutsCard')),
+      prefetch: prefetchCards,
       multiple: false,
     },
     {
@@ -63,7 +65,9 @@ export default defineModule({
       sizes: ['s'],
       defaultSize: 's',
       component: preloadable(() => import('./cards/ShortcutCard')),
+      prefetch: prefetchCards,
       settings: () => import('./cards/shortcut'),
+      bleed: true,
       multiple: true,
     },
   ],
