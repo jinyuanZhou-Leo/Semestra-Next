@@ -754,13 +754,14 @@ export function ModelsSection() {
                 />
               )
               const stale = outdated.data?.count ?? 0
-              return assignment.purpose === 'ocr' && stale > 0
+              // Only when something can read them: reading again without OCR recognizes nothing.
+              return assignment.purpose === 'ocr' && stale > 0 && purposeStatus?.available
                 ? [
                     row,
                     <OutdatedPdfsRow
                       key="outdated"
                       count={stale}
-                      vision={purposeStatus?.available === true && purposeStatus.source !== 'local'}
+                      vision={purposeStatus.source !== 'local'}
                     />,
                   ]
                 : [row]

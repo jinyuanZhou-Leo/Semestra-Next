@@ -469,6 +469,23 @@ test('PDFs read by an earlier version are read again from under OCR, after a con
   )
 })
 
+test('PDFs read by an earlier version are not offered again while nothing can read them', async () => {
+  world.providers.push(provider())
+  world.outdated = 3
+  server.use(
+    http.get(`${API}/ai/status`, () =>
+      HttpResponse.json({
+        items: statusItems().map((item) =>
+          item.purpose === 'ocr' ? { ...item, available: false, source: null } : item,
+        ),
+      }),
+    ),
+  )
+  renderWithQuery(<ModelsSection />)
+  await waitFor(() => expect(modelBox('OCR')).toHaveTextContent('Unavailable'))
+  expect(screen.queryByRole('button', { name: 'Read again' })).not.toBeInTheDocument()
+})
+
 test("a task's output limit is set under Advanced, and applies on Auto too", async () => {
   world.providers.push(provider())
   const user = userEvent.setup()
