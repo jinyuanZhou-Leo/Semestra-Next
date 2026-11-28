@@ -47,9 +47,7 @@ The token is shown once. Give each client its own token and revoke it under **Cl
 | Read and write                                     | yes        | yes         | no           |
 | Read and write, and **Delete data** turned on      | yes        | yes         | yes          |
 
-- **Write tools run immediately.** Unlike Sem, which shows a confirmation card, Semestra relies on
-  the client's own approval prompt for MCP calls. Semestra also asks the client's AI to check
-  with you before it deletes anything, changes many records at once or commits an import.
+- **Write tools run immediately**, except in the cases under "Confirming and choosing" below.
 - **Delete data** is off by default. Turn it on in global settings → **AI → API & MCP**, under
   **Client permissions**. It applies to every connection, including API tokens used with the REST
   endpoints.
@@ -58,6 +56,22 @@ The token is shown once. Give each client its own token and revoke it under **Cl
 - **Recent changes** lists what clients changed in Semestra over the last 90 days, revoked
   connections included, and can be narrowed to one connection. **⋯ → Recent changes** on a read
   and write connection opens that connection's changes.
+
+## Confirming and choosing
+
+In clients that can show MCP forms, Semestra opens a form when:
+
+- **Confirming a change**: before deleting anything, changing many records at once or committing
+  an import, the form lists what will change. Nothing happens until you accept; decline and
+  nothing changes.
+- **Choosing a course**: when you haven't said which course you mean, or several have similar
+  names, the form lets you pick it from a list. Terms and Programs work the same way.
+- **Settling conflicts**: when an import differs from what is already in Semestra, such as a
+  course's credits, or an assessment with the same name already in the gradebook, the form asks
+  for each one whether to keep what you have or use the import.
+
+Clients without forms work as before: the client's AI asks you in the chat before it deletes
+anything, changes many records at once or commits an import.
 
 ## Skills
 

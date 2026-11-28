@@ -59,6 +59,24 @@ class Http:
 
 
 @dataclass(frozen=True)
+class Conflict:
+    """One disagreement between a write and the user's data (`Capability.conflicts`).
+
+    `overwrite`: `field` of `subject` is `before` in Semestra and would become `after`.
+    `duplicate`: `subject` is already there; the call would add another one. `keep` is what
+    happens unless the user chooses otherwise. `subject` is the user's own words (a course code,
+    an assessment's title); whoever asks words the rest in the user's language."""
+
+    key: str
+    subject: str
+    kind: Literal["overwrite", "duplicate"]
+    field: str | None = None
+    before: Any = None
+    after: Any = None
+    keep: bool = True
+
+
+@dataclass(frozen=True)
 class Capability:
     name: str
     summary: str
@@ -88,6 +106,19 @@ class Capability:
     # An update of one record: (the argument holding its id, how it is read). The agent's
     # confirmation card shows each sent field as stored before → after (`core.labels`).
     record: tuple[str, Loader] | None = field(default=None, compare=False)
+    # Changes many of the user's records in one call (a batch, an import's commit): an MCP client
+    # that can show forms asks the user first when the call names more than one record.
+    bulk: bool = False
+    # Where what the call would write disagrees with what the user has (an import's field that
+    # differs from the course, an assessment that is already there). An MCP client that can show
+    # forms lets the user choose for each one before it runs; `resolve_conflicts` records the
+    # choices (key → keep what is there) in the caller's transaction, then the call runs.
+    conflicts: Callable[[Ctx, Any], Awaitable[list[Conflict]]] | None = field(
+        default=None, compare=False
+    )
+    resolve_conflicts: Callable[[Ctx, Any, dict[str, bool]], Awaitable[None]] | None = field(
+        default=None, compare=False
+    )
 
     @property
     def operation_id(self) -> str:
@@ -310,6 +341,9 @@ def capability(
     check: Callable[[Ctx, Any], Awaitable[None]] | None = None,
     untrusted: bool = False,
     record: tuple[str, Loader] | None = None,
+    bulk: bool = False,
+    conflicts: Callable[[Ctx, Any], Awaitable[list[Conflict]]] | None = None,
+    resolve_conflicts: Callable[[Ctx, Any, dict[str, bool]], Awaitable[None]] | None = None,
     target: Registry | None = None,
 ) -> Callable[[Callable[[Ctx, Any], Awaitable[Any]]], Callable[[Ctx, Any], Awaitable[Any]]]:
     def decorate(
@@ -348,6 +382,9 @@ def capability(
                 check=check,
                 untrusted=untrusted,
                 record=record,
+                bulk=bulk,
+                conflicts=conflicts,
+                resolve_conflicts=resolve_conflicts,
             )
         )
         return fn

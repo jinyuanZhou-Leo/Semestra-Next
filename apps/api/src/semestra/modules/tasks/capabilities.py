@@ -197,6 +197,7 @@ async def item_create(ctx: Ctx, inp: TaskCreateInput) -> Task:
 through imports.session.create. Items whose source_kind and source_ref match an existing task
 are skipped and returned with that task's id, so repeating an import does not duplicate them.""",
     effect="write",
+    bulk=True,
     http=Http("POST", "/programs/{program_id}/tasks:batch"),
     tags=TAGS,
     agent_output_fields=("created.id", "created.title", "created.due_date", "skipped"),

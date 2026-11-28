@@ -344,6 +344,7 @@ academics.term.list. For a year-long course whose second term does not exist yet
 term only and set `planned_terms` to 2; the term wizard offers to continue it later. Courses in a
 document or file (a timetable, a syllabus) go through imports.session.create instead.""",
     effect="write",
+    bulk=True,
     http=Http("POST", "/programs/{program_id}/courses:batch"),
     tags=TAGS,
     agent_output_fields=("items.id", "items.code", "items.title", "items.term_ids"),

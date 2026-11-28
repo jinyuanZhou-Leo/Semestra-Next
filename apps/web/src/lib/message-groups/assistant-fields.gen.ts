@@ -91,6 +91,7 @@ export const assistantFieldMessages = {
   assistant_field_points_earned: m.assistant_field_points_earned,
   assistant_field_points_possible: m.assistant_field_points_possible,
   assistant_field_priority: m.assistant_field_priority,
+  assistant_field_program: m.assistant_field_program,
   assistant_field_query: m.assistant_field_query,
   assistant_field_recurrence: m.assistant_field_recurrence,
   assistant_field_recursive: m.assistant_field_recursive,

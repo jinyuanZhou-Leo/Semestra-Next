@@ -780,6 +780,47 @@ async def test_course_info_keeps_only_the_field_changes(
     assert updated["title"] == "Computer Fundamentals"
 
 
+async def test_an_mcp_client_lets_the_user_keep_a_course_field(
+    app: FastAPI, api: Api, fake_ai: list[dict[str, Any]], run_jobs
+):
+    """Committing over MCP asks about each course field that would change (M12 §5 "forms")."""
+    import mcp_types as types
+
+    from semestra.modules.agent.tests.conftest import mcp_session
+
+    program_id = await api.program()
+    term_id = await api.term(program_id)
+    course = await api.course(program_id, term_id, title="APS 105")
+    session = await api.create(
+        program_id, source_kind="text", target={"kind": "course", "course_id": course["id"]},
+        text="APS105 syllabus ...", source_meta={"only": "course_info"},
+    )  # fmt: skip
+    await run_jobs()
+    token = (
+        await api.call("POST", "/account/tokens", json={"name": "Claude", "scopes": ["write"]})
+    )["token"]
+    tool, args = "imports__session__commit", {"session_id": session["id"]}
+    async with mcp_session(app, token, forms=True) as mcp:
+        asked = await mcp.call_tool(tool, args, allow_input_required=True)
+        assert isinstance(asked, types.InputRequiredResult)
+        assert asked.input_requests
+        form = asked.input_requests["confirm"].params
+        assert isinstance(form, types.ElicitRequestFormParams)
+        props = form.requested_schema["properties"]
+        key, prop = next((k, p) for k, p in props.items() if p["title"] == "APS105H1 · Title")
+        assert [o["title"] for o in prop["oneOf"]] == [
+            "Keep APS 105",
+            "Change to Computer Fundamentals",
+        ]
+        assert prop["default"] == "replace"
+        answer = types.ElicitResult(action="accept", content={key: "keep"})
+        done = await mcp.call_tool(
+            tool, args, input_responses={"confirm": answer}, request_state=asked.request_state
+        )
+        assert done.is_error is False
+    assert (await api.call("GET", f"/courses/{course['id']}"))["title"] == "APS 105"
+
+
 async def test_ics_into_one_course_takes_only_its_meetings(api: Api):
     program_id = await api.program()
     term_id = await api.term(program_id)

@@ -1946,6 +1946,7 @@
   "assistant_field_connection": "LMS 连接",
   "assistant_field_content": "内容",
   "assistant_field_course": "课程",
+  "assistant_field_program": "Program",
   "assistant_field_courses": "课程",
   "assistant_field_kept_courses": "保留的课程（还有其他学期）",
   "assistant_field_terms": "学期",

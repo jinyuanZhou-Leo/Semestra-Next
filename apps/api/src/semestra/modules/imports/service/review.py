@@ -6,6 +6,7 @@ from typing import Any
 
 from sqlalchemy import select
 
+from semestra.core.capability import Conflict
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError, not_found
 from semestra.modules.academics import service as academics
@@ -314,3 +315,79 @@ async def commit_preview(ctx: Ctx, session_id: str) -> dict[str, Any]:
             into = (await academics.get_term_row(ctx, target.term_id)).name
     target_text = " → ".join(p for p in (_files(row), into) if p)
     return {"target": target_text, "changes": changes}
+
+
+# --- conflicts an MCP client lets the user settle before the commit (M12 §5 "forms") -------
+
+_DUPLICATES = ("import.duplicate_course", "import.duplicate_assessment")
+
+
+async def commit_conflicts(
+    ctx: Ctx, session_id: str, item_ids: Sequence[str] | None
+) -> list[Conflict]:
+    """Where the commit would meet what the user has: each field of an accepted change to an
+    existing course (keep it or take the import's value), and each item that is already there
+    (leave it out or add it anyway). Written items and undecided ones are left out."""
+    row = await get_session_row(ctx, session_id)
+    out: list[Conflict] = []
+    for item in await session_items(ctx, row.id):
+        if _written(item) or item.decision == "pending":
+            continue
+        if item_ids is not None and item.id not in item_ids:
+            continue
+        if item.type == "course_patch":
+            if item.decision != "accept":
+                continue
+            with contextlib.suppress(AppError):
+                course = await academics.get_course_row(ctx, item.data["course_id"])
+                for name, change in item.data.get("changes", {}).items():
+                    out.append(
+                        Conflict(
+                            key=f"{item.id}:{name}",
+                            subject=course.code or course.title,
+                            kind="overwrite",
+                            field=name,
+                            before=change.get("old"),
+                            after=change.get("new"),
+                            keep=not change.get("apply", True),
+                        )
+                    )
+        elif any(issue["code"] in _DUPLICATES for issue in item.issues):
+            subject = item.data.get("code") or item.data.get("title") or ""
+            out.append(
+                Conflict(
+                    key=item.id,
+                    subject=str(subject),
+                    kind="duplicate",
+                    keep=item.decision == "reject",
+                )
+            )
+    return out
+
+
+async def resolve_commit_conflicts(ctx: Ctx, session_id: str, keep: dict[str, bool]) -> None:
+    """Records the user's choices (conflict key → keep what is there) as review edits."""
+    changes: dict[str, dict[str, bool]] = {}
+    for key, kept in keep.items():
+        item_id, _, field = key.partition(":")
+        if field:
+            changes.setdefault(item_id, {})[field] = not kept
+        else:
+            decision = "reject" if kept else "accept"
+            await update_item(
+                ctx, ItemUpdateInput(session_id=session_id, item_id=item_id, decision=decision)
+            )
+    by_id = {i.id: i for i in await session_items(ctx, session_id)}
+    for item_id, applied in changes.items():
+        item = by_id.get(item_id)
+        if item is None:
+            continue
+        current = item.data.get("changes", {})
+        data = {
+            "changes": {
+                name: {**current[name], "apply": apply}
+                for name, apply in applied.items()
+                if name in current
+            }
+        }
+        await update_item(ctx, ItemUpdateInput(session_id=session_id, item_id=item_id, data=data))

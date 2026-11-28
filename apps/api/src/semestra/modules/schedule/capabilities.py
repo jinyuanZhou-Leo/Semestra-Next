@@ -273,6 +273,7 @@ already has in that term adds the times to that section. Check schedule.conflict
 and mention any overlap. For a single extra session (exam, make-up class) use
 schedule.event.create_many instead.""",
     effect="write",
+    bulk=True,
     http=Http("POST", "/courses/{course_id}/sections:batch"),
     tags=TAGS,
     agent_output_fields=(
@@ -495,6 +496,7 @@ async def event_create(ctx: Ctx, inp: EventCreateInput) -> OneOffEvent:
 that repeats weekly use schedule.section.create_many. An item with the same source_kind and
 source_ref as an existing event of the Program updates it.""",
     effect="write",
+    bulk=True,
     http=Http("POST", "/programs/{program_id}/events:batch"),
     tags=TAGS,
     agent_output_fields=("created_ids", "updated_ids", "items.id", "items.title"),

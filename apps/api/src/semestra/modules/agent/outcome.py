@@ -4,6 +4,7 @@
 replace it here. `result_meta` is what the chat stores with every tool result.
 """
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -82,14 +83,18 @@ async def invoke(
     surface: Surface = "agent",
     auth: AuthInfo | None = None,
     changes: bool = False,
+    before: Callable[[Ctx], Awaitable[None]] | None = None,
 ) -> Outcome:
     """Runs a capability in its own transaction as the agent (or MCP client), then dispatches
     its events so open pages refresh. `changes`: a write that runs without a card; its step
-    shows what the card would have (before → after), worked out before it runs."""
+    shows what the card would have (before → after), worked out before it runs. `before`: what
+    the user chose on an MCP form, recorded in the same transaction."""
     async with agent_ctx(state, user_id, scope=scope, actor=surface) as ctx:
         ctx.auth = auth
         try:
             card = await _card(ctx, name, args) if changes else {}
+            if before is not None:
+                await before(ctx)
             out = await registry.invoke(ctx, name, args, surface)
             await ctx.db.commit()
             payload = out.model_dump(mode="json") if isinstance(out, BaseModel) else out

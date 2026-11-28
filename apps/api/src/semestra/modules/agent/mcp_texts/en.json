@@ -1,0 +1,16 @@
+{
+  "head": "$action: $target",
+  "change": "$field: $before → $after",
+  "change_new": "$field: $after",
+  "confirm": "Nothing changes until you accept.",
+  "conflicts": "Some of this differs from what is in Semestra. Choose for each:",
+  "keep": "Keep $value",
+  "replace": "Change to $value",
+  "skip": "Leave it out (already there)",
+  "add": "Add it anyway",
+  "pick": "$action: choose",
+  "yes": "Yes",
+  "no": "No",
+  "empty": "(empty)",
+  "list": ", "
+}

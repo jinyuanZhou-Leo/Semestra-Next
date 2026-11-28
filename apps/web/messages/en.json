@@ -1946,6 +1946,7 @@
   "assistant_field_connection": "LMS connection",
   "assistant_field_content": "Content",
   "assistant_field_course": "Course",
+  "assistant_field_program": "Program",
   "assistant_field_courses": "Courses",
   "assistant_field_kept_courses": "Courses kept (other terms)",
   "assistant_field_terms": "Terms",

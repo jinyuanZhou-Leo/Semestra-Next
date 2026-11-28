@@ -274,7 +274,7 @@ async def _links(ctx: Ctx, course_ids: Iterable[str]) -> dict[str, set[str]]:
     return links
 
 
-async def _program_links(ctx: Ctx, program_id: str) -> dict[str, set[str]]:
+async def program_links(ctx: Ctx, program_id: str) -> dict[str, set[str]]:
     rows = (
         await ctx.db.execute(
             select(AcademicsCourseTerm.course_id, AcademicsCourseTerm.term_id)
@@ -502,7 +502,7 @@ async def delete_program(ctx: Ctx, program_id: str) -> None:
     Program (M02 §2): the last one goes only with the account."""
     row = await get_program_row(ctx, program_id)
     terms = await program_terms(ctx, program_id)
-    links = await _program_links(ctx, program_id)
+    links = await program_links(ctx, program_id)
     courses = (
         await ctx.db.scalars(
             select(AcademicsCourse.id).where(
@@ -579,7 +579,7 @@ async def check_adjacency(ctx: Ctx, program_id: str) -> None:
     order = [t.id for t in await program_terms(ctx, program_id)]
     bad = sorted(
         course_id
-        for course_id, term_ids in (await _program_links(ctx, program_id)).items()
+        for course_id, term_ids in (await program_links(ctx, program_id)).items()
         if len(term_ids) > 1 and not rules.is_consecutive(order, term_ids)
     )
     if bad:

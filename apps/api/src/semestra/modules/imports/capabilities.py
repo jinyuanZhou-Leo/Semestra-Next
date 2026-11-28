@@ -1,6 +1,6 @@
 from typing import Any
 
-from semestra.core.capability import Http, capability
+from semestra.core.capability import Conflict, Http, capability
 from semestra.core.context import Ctx
 from semestra.core.errors import agent_hints
 from semestra.modules.imports import service
@@ -204,6 +204,14 @@ async def _commit_preview(ctx: Ctx, inp: CommitInput) -> dict[str, Any]:
     return await service.commit_preview(ctx, inp.session_id)
 
 
+async def _commit_conflicts(ctx: Ctx, inp: CommitInput) -> list[Conflict]:
+    return await service.commit_conflicts(ctx, inp.session_id, inp.item_ids)
+
+
+async def _resolve_commit_conflicts(ctx: Ctx, inp: CommitInput, keep: dict[str, bool]) -> None:
+    await service.resolve_commit_conflicts(ctx, inp.session_id, keep)
+
+
 @capability(
     name="imports.session.commit",
     summary="Write the accepted items of an import (courses, gradebook, schedule, tasks).",
@@ -215,6 +223,9 @@ the counts and the items that failed.""",
     http=Http("POST", "/imports/{session_id}:commit"),
     tags=TAGS,
     preview=_commit_preview,
+    bulk=True,
+    conflicts=_commit_conflicts,
+    resolve_conflicts=_resolve_commit_conflicts,
     agent_output_fields=(
         "created",
         "updated",
