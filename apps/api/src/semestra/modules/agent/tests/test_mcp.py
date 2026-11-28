@@ -395,6 +395,10 @@ async def test_sem_asks_the_same_on_its_card(app: FastAPI, agent: Agent, model: 
     token = await _token(agent, ["read", "write"])
     async with mcp_session(app, token) as mcp:
         session_id = await _import_with_a_duplicate(mcp, program, course)
+    # Even when committing is approved for good, a conflict is the user's to settle.
+    await agent.call(
+        "PATCH", "/agent/preferences", json={"auto_approve": ["imports.session.commit"]}
+    )
     session = await agent.session()
     model.then(
         call("load_capability", {"id": "import-from-documents"}),

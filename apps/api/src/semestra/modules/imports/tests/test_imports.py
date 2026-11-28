@@ -810,7 +810,7 @@ async def test_an_mcp_client_lets_the_user_keep_a_course_field(
         key, prop = next((k, p) for k, p in props.items() if p["title"] == "APS105H1 · Title")
         assert [o["title"] for o in prop["oneOf"]] == [
             "Keep APS 105",
-            "Change to Computer Fundamentals",
+            "Replace with Computer Fundamentals",
         ]
         assert prop["default"] == "replace"
         answer = types.ElicitResult(action="accept", content={key: "keep"})
