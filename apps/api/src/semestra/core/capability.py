@@ -8,7 +8,7 @@ import inspect
 import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Annotated, Any, Literal, Protocol, get_type_hints
+from typing import Annotated, Any, Literal, Protocol, get_args, get_origin, get_type_hints
 
 from fastapi import APIRouter, Body, Depends, FastAPI, Path, Query
 from pydantic import BaseModel, ValidationError, create_model
@@ -324,6 +324,13 @@ class Registry:
 registry = Registry()
 
 
+def _is_list(annotation: object) -> bool:
+    """`list[...]`, or `list[...] | None`."""
+    if get_origin(annotation) is list:
+        return True
+    return any(get_origin(a) is list for a in get_args(annotation))
+
+
 def capability(
     *,
     name: str,
@@ -362,6 +369,11 @@ def capability(
         missing = [f"{n}" for n, f in input_model.model_fields.items() if not f.description]
         if missing:
             raise TypeError(f"{name}: input fields need Field(description=...): {missing}")
+        if isinstance(confirm, tuple):
+            fields = input_model.model_fields
+            wrong = [n for n in confirm if n not in fields or not _is_list(fields[n].annotation)]
+            if not confirm or wrong:
+                raise TypeError(f"{name}: confirm names list arguments of the input: {wrong}")
         (target or registry).register(
             Capability(
                 name=name,
