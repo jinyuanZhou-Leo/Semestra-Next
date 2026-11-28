@@ -13,6 +13,7 @@ import TodayCard from './cards/TodayCard'
 import { flushCompletions } from './completion'
 import TasksMobilePage from './mobile/TasksMobilePage'
 import TasksPage from './pages/TasksPage'
+import { searchTasks } from './search'
 
 /** Where the page is narrow (always in jsdom) the title is the menu of lists. */
 async function pickList(current: string, name: RegExp) {
@@ -641,4 +642,29 @@ test('a link to a task opens its details, also when the list on screen does not 
   expect(within(sheet).getByDisplayValue('Old lab')).toBeInTheDocument()
   // The link is not repeated by a reload or by going back.
   await waitFor(() => expect(router.state.location.search).toEqual({}))
+})
+
+test('the command palette lists open tasks before finished ones that match better', async () => {
+  const candidate = (id: string, completed: boolean) => ({
+    task_id: id,
+    title: `Lab ${id}`,
+    course_id: null,
+    due_date: null,
+    completed,
+    source_kind: null,
+    assessment_id: null,
+    score: completed ? 1 : 0.8,
+  })
+  const finished = ['d1', 'd2', 'd3', 'd4', 'd5'].map((id) => candidate(id, true))
+  server.use(
+    http.get(`${API}/programs/p1/task-matches`, ({ request }) => {
+      const all = new URL(request.url).searchParams.get('include_completed') === 'true'
+      return HttpResponse.json({
+        items: all ? finished : [candidate('o1', false)],
+      })
+    }),
+  )
+  const { queryClient } = renderWithRouter(<p />)
+  const found = await searchTasks('lab', { kind: 'program', programId: 'p1' }, queryClient)
+  expect(found.map((r) => r.id)).toEqual(['o1', 'd1', 'd2', 'd3', 'd4'])
 })

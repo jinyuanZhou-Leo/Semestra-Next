@@ -260,16 +260,27 @@ function PaletteBody({ initialQuery, close }: { initialQuery: string; close: () 
     : rank(navigation, text, recent).slice(0, text ? MAX_PER_GROUP : SUGGESTED_NAVIGATION)
   const actionsShown = rank(actions, text, recent).slice(0, MAX_PER_GROUP)
   const asking = assistant && text && !slash ? assistant : null
-  // The first line is selected whenever another one comes first, also when search results arrive
-  // after "Ask Sem" was the only line: Enter then opens the best match, not the question.
+  // Until the user picks a line (arrow keys, pointer) for what is typed, the first line is
+  // selected, also when search results arrive after "Ask Sem" was the only line: Enter then opens
+  // the best match, not the question. A line the user picked stays picked as more results arrive.
   const firstKey =
     [...navigationShown, ...searchGroups.flatMap((g) => g.entries), ...actionsShown][0]?.key ??
     (asking ? ASK_KEY : '')
   const [selected, setSelected] = useState(firstKey)
+  const [picked, setPicked] = useState(false)
   const [shownFirst, setShownFirst] = useState(firstKey)
+  const [typed, setTyped] = useState(text)
+  if (text !== typed) {
+    setTyped(text)
+    setPicked(false)
+  }
   if (firstKey !== shownFirst) {
     setShownFirst(firstKey)
-    setSelected(firstKey)
+    if (!picked || text !== typed) setSelected(firstKey)
+  }
+  const pick = (value: string) => {
+    setSelected(value)
+    if (value !== firstKey) setPicked(true)
   }
   const loading = searching && results.some((r) => r.isFetching)
 
@@ -281,7 +292,7 @@ function PaletteBody({ initialQuery, close }: { initialQuery: string; close: () 
       onKeyDown={onKeyDown}
       // A second list picks its own first line.
       value={child ? undefined : selected}
-      onValueChange={setSelected}
+      onValueChange={pick}
     >
       {child ? (
         <span className="mx-2 mt-1 flex w-fit items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-xs">

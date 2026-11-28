@@ -21,20 +21,27 @@ export async function searchTasks(
 ): Promise<SearchResult[]> {
   if (!scope) return []
   const { programId } = scope
-  const [found, courses, program] = await Promise.all([
+  // Open tasks first: asked for on their own, so finished ones that match better cannot push
+  // them out of the few lines shown; finished ones fill the rest.
+  const find = (include_completed: boolean) =>
     queryClient.fetchQuery(
       tasksItemFindOptions({
         path: { program_id: programId },
-        query: { query, include_completed: true, limit: MAX_RESULTS },
+        query: { query, include_completed, limit: MAX_RESULTS },
       }),
-    ),
+    )
+  const [open, all, courses, program] = await Promise.all([
+    find(false),
+    find(true),
     queryClient.ensureQueryData(courseListOptions(programId)),
     queryClient.ensureQueryData(academicsProgramGetOptions({ path: { program_id: programId } })),
   ])
   const today = todayIn(program.timezone)
   const codes = new Map(courses.items.map((c) => [c.id, courseLabel(c)]))
-  // Finished tasks after the open ones, each in the order of the match.
-  const ordered = found.items.toSorted((a, b) => Number(a.completed) - Number(b.completed))
+  const ordered = [...open.items, ...all.items.filter((task) => task.completed)].slice(
+    0,
+    MAX_RESULTS,
+  )
   return ordered.map((task) => {
     const course = task.course_id ? codes.get(task.course_id) : undefined
     const page = task.course_id

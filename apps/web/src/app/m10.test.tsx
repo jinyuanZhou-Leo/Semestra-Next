@@ -358,28 +358,30 @@ test('the palette ranks courses by pinyin initials and lists only actions after 
   expect(screen.queryByRole('option', { name: '高等数学' })).not.toBeInTheDocument()
 })
 
-test('search results come in a group per provider and Enter opens the first one', async () => {
-  const ask = vi.fn<(ctx: unknown, question?: string) => void>()
-  const found = (title: string, to: string) => async () => {
-    await delay(50)
-    return [{ id: title, title, to }]
+const ask = vi.fn<(ctx: unknown, question?: string) => void>()
+
+/** A provider that answers after `ms` with one result per title, each going to `/<title>`. */
+function provider(id: string, order: number, ms: number, titles: string[]) {
+  return {
+    id,
+    title: () => id,
+    icon: File,
+    order,
+    search: async () => {
+      await delay(ms)
+      return titles.map((title) => ({ id: title, title, to: `/${title}` }))
+    },
   }
+}
+
+async function searchPalette(providers: ReturnType<typeof provider>[]) {
   const searching: ModuleManifest = {
     ...template,
     id: 'searching',
     kind: 'core',
     pages: [],
     commands: [],
-    searchProviders: [
-      {
-        id: 'files',
-        title: () => 'Files',
-        icon: File,
-        order: 30,
-        search: found('Lab 3.pdf', '/f'),
-      },
-      { id: 'tasks', title: () => 'Tasks', icon: File, order: 10, search: found('Lab 3', '/t') },
-    ],
+    searchProviders: providers,
     assistant: {
       open: ask,
       panel: { subscribe: () => () => {}, isOpen: () => false },
@@ -401,16 +403,35 @@ test('search results come in a group per provider and Enter opens the first one'
   )
   const user = userEvent.setup()
   act(() => openCommandPalette())
-  const input = await screen.findByRole('combobox', { name: 'Command palette' })
-  await user.type(input, 'lab')
+  await user.type(await screen.findByRole('combobox', { name: 'Command palette' }), 'lab')
+  return { router, user }
+}
+
+test('search results come in a group per provider and Enter opens the first one', async () => {
+  const { router, user } = await searchPalette([
+    provider('Files', 30, 50, ['lab3.pdf']),
+    provider('Tasks', 10, 50, ['lab3']),
+  ])
   const tasks = await screen.findByRole('group', { name: 'Tasks' })
-  expect(within(tasks).getByRole('option', { name: 'Lab 3' })).toBeInTheDocument()
+  expect(within(tasks).getByRole('option', { name: 'lab3' })).toBeInTheDocument()
   const files = await screen.findByRole('group', { name: 'Files' })
   expect(tasks.compareDocumentPosition(files) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   // "Ask Sem" was the only line before the results came; the best match is chosen now.
   await user.keyboard('{Enter}')
-  await waitFor(() => expect(router.state.location.pathname).toBe('/t'))
+  await waitFor(() => expect(router.state.location.pathname).toBe('/lab3'))
   expect(ask).not.toHaveBeenCalled()
+})
+
+test('a line picked with the arrow keys stays picked when more results arrive above it', async () => {
+  const { router, user } = await searchPalette([
+    provider('Tasks', 10, 300, ['lab1']),
+    provider('Files', 30, 0, ['lab2.pdf', 'lab3.pdf']),
+  ])
+  await screen.findByRole('option', { name: 'lab2.pdf' })
+  await user.keyboard('{ArrowDown}')
+  await screen.findByRole('group', { name: 'Tasks' })
+  await user.keyboard('{Enter}')
+  await waitFor(() => expect(router.state.location.pathname).toBe('/lab3.pdf'))
 })
 
 test('plugins appear once the catalog says they are installed', async () => {
