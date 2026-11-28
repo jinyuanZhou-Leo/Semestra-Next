@@ -94,7 +94,8 @@ async def process(ctx: JobCtx, payload: ProcessPayload) -> ProcessResult:
     priority=-2,
 )
 async def process_synced(ctx: JobCtx, payload: ProcessPayload) -> ProcessResult:
-    return ProcessResult(page_count=await pipeline.run(ctx, payload.item_id, payload.version))
+    page_count = await pipeline.run(ctx, payload.item_id, payload.version, background=True)
+    return ProcessResult(page_count=page_count)
 
 
 @job_handler("files.store_copy", stages=[("storing", 1)], max_attempts=1)

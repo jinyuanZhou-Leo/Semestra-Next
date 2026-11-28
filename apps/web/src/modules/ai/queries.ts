@@ -31,6 +31,9 @@ export function invalidateAi(queryClient: QueryClient) {
 export type UsageRange = '1' | '7' | '30' | 'all'
 
 export const USAGE_RANGE_KEY = 'ai.usage_range'
+
+/** The settings namespace of the monthly usage limit (`ai.status.get` reports its state). */
+export const USAGE_LIMIT_NAMESPACE = 'ai.usage'
 export const DEFAULT_USAGE_RANGE: UsageRange = '30'
 
 export function browserTimeZone(): string {
@@ -72,6 +75,10 @@ export const settingsPrefetch = {
     ]),
   usage: async (_scope: unknown, queryClient: QueryClient) => {
     const range = await readUiPref<UsageRange>(queryClient, USAGE_RANGE_KEY)
-    return queryClient.ensureQueryData(usageOptions(range ?? DEFAULT_USAGE_RANGE))
+    return Promise.all([
+      queryClient.ensureQueryData(usageOptions(range ?? DEFAULT_USAGE_RANGE)),
+      // The monthly limit row.
+      queryClient.ensureQueryData(aiStatusOptions()),
+    ])
   },
 }

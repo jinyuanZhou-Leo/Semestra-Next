@@ -89,10 +89,26 @@ class AiRuntime:
             gave_up()
 
     def record_usage(self, state: State, event: AiUsageEvent) -> None:
-        async def write(db: Any) -> None:
-            db.add(event)
+        """Saves a call's usage. The call that takes the month's cost to the user's limit sends
+        `ai.usage.limit_reached`, so the paused background work shows (`ai.status.get`)."""
+        cost, user_id = event.cost_usd_estimate, event.user_id
 
-        self._spawn(state, write)
+        async def write(db: Any) -> bool:
+            db.add(event)
+            return bool(cost) and user_id is not None
+
+        async def saved() -> None:
+            from semestra.core.context import system_ctx
+            from semestra.modules.ai import usage_limit
+
+            assert cost is not None
+            assert user_id is not None
+            async with system_ctx(state, user_id) as ctx:
+                reached = await usage_limit.crossed(ctx, cost, event.created_at)
+            if reached:
+                await events.dispatch(state, Event("ai.usage.limit_reached", {}, user_id))
+
+        self._spawn(state, write, saved=saved)
 
     def mark_provider(
         self,

@@ -8,7 +8,6 @@ import asyncio
 from dataclasses import dataclass, field
 from datetime import datetime, time, timedelta
 from typing import Any, Literal
-from zoneinfo import ZoneInfo
 
 import structlog
 from pydantic import BaseModel
@@ -20,7 +19,7 @@ from semestra.core.context import Ctx, system_ctx
 from semestra.core.errors import AppError
 from semestra.core.events import spawn
 from semestra.core.jobs import JobCtx, enqueue, job_handler
-from semestra.modules.academics import service as academics
+from semestra.modules.academics.zone import home_zone
 from semestra.modules.auth.models import AuthSession
 from semestra.modules.notifications import texts, webpush
 from semestra.modules.notifications.models import NotificationsDevice
@@ -175,14 +174,6 @@ class Message:
     held: bool = False
 
 
-async def zone_of(ctx: Ctx) -> ZoneInfo:
-    """The time zone for quiet hours: the Program the user is in, else their first one."""
-    prefs = await settings_service.get_preferences(ctx)
-    rows = await academics.program_rows(ctx)
-    row = next((r for r in rows if r.id == prefs.active_program_id), rows[0] if rows else None)
-    return ZoneInfo(row.timezone) if row else ZoneInfo("UTC")
-
-
 def in_quiet_hours(cfg: NotificationsSettings, local: datetime) -> bool:
     if not cfg.quiet_hours:
         return False
@@ -210,7 +201,7 @@ async def allowed(ctx: Ctx, message: Message, cfg: NotificationsSettings | None 
     cfg = cfg or await settings_of(ctx)
     if not _wanted(cfg, message):
         return False
-    return not in_quiet_hours(cfg, ctx.now.astimezone(await zone_of(ctx)))
+    return not in_quiet_hours(cfg, ctx.now.astimezone(await home_zone(ctx)))
 
 
 async def deliver(ctx: Ctx, message: Message, *, exclude_session: str | None = None) -> int:
@@ -260,7 +251,7 @@ def notify_after_commit(
                 if own.user is None:
                     return
                 cfg = await settings_of(own)
-                until = quiet_until(cfg, own.now.astimezone(await zone_of(own)))
+                until = quiet_until(cfg, own.now.astimezone(await home_zone(own)))
                 if message.held and until is not None and _wanted(cfg, message):
                     later = Later(message=_dump(message), exclude_session=exclude_session)
                     await enqueue(own, LATER, later, run_after=until)

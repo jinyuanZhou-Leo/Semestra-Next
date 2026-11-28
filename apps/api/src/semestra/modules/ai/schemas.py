@@ -193,8 +193,20 @@ class LocalModels(BaseModel):
     custom: bool = False
 
 
+class UsageLimit(BaseModel):
+    # None: no limit (the default).
+    monthly_limit_usd: float | None
+    # This month's estimated cost (models without a known price count as nothing).
+    spent_usd: float
+    # Background calls are paused until `resets_at`.
+    reached: bool
+    # The next month's first day in the user's time zone, when background calls run again.
+    resets_on: date
+
+
 class AiStatusGet(BaseModel):
     items: list[PurposeStatus]
+    usage_limit: UsageLimit
     # Self-hosted installs only; empty elsewhere.
     local: list[LocalModels] = Field(default_factory=list)
 

@@ -8,6 +8,8 @@ from sqlalchemy import Select, select
 
 from semestra.core.context import Ctx
 from semestra.modules.academics.models import AcademicsCourse, AcademicsProgram, AcademicsTerm
+from semestra.modules.academics.service import program_rows
+from semestra.modules.settings import service as settings_service
 
 
 def _str(obj: BaseModel, name: str) -> str | None:
@@ -44,3 +46,12 @@ async def output_zone(ctx: Ctx, inp: BaseModel, out: BaseModel) -> tzinfo | None
         if len(zones) == 1:
             return ZoneInfo(zones[0])
     return None
+
+
+async def home_zone(ctx: Ctx) -> ZoneInfo:
+    """The user's own time zone where no Program is named (quiet hours, the AI usage month): the
+    Program they are in, else their first one, else UTC."""
+    prefs = await settings_service.get_preferences(ctx)
+    rows = await program_rows(ctx)
+    row = next((r for r in rows if r.id == prefs.active_program_id), rows[0] if rows else None)
+    return ZoneInfo(row.timezone) if row else ZoneInfo("UTC")

@@ -64,3 +64,22 @@ finishes, search results may be incomplete.
 Global settings → **AI → Usage** shows how much each purpose used and an estimated cost. Models
 without a public price show no cost, and models running on your own machine, such as Ollama, cost
 nothing.
+
+### Monthly limit
+
+At the top of **AI → Usage** you can set a monthly limit in US dollars; leave it empty for no
+limit. Once this month's estimated cost reaches it, Semestra pauses the AI work it does on its own
+in the background, and the sidebar shows "Background AI paused":
+
+- Files synced from your LMS are no longer OCR'd or indexed for search by meaning; they can still
+  be searched by their text.
+- Rebuilding the search index, Auto Dream tidying Sem's memory and rewording Sem's suggested
+  questions pause.
+
+What you start yourself keeps working: chatting with Sem, importing, uploading files and reading a
+file again. Background AI resumes on the 1st of next month (in your Program's time zone) and
+catches up on what it paused; you can also raise or clear the limit at any time. Scanned pages
+left unread meanwhile can be read again from the file.
+
+The limit counts estimated costs: models without a public price and models running on your own
+server don't count and are never paused. Your provider's bill is authoritative.

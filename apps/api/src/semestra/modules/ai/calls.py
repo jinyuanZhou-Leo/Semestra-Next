@@ -28,7 +28,7 @@ from semestra.core.context import Ctx
 from semestra.core.db import new_id
 from semestra.core.errors import AppError
 from semestra.core.http import safe_client
-from semestra.modules.ai import catalog, local_embedding, local_embedding_runtime
+from semestra.modules.ai import catalog, local_embedding, local_embedding_runtime, usage_limit
 from semestra.modules.ai.adapters import SemestraModel, adapter_for, convert, semestra_model
 from semestra.modules.ai.adapters.base import (
     CALL_TIMEOUT_SECONDS,
@@ -310,12 +310,15 @@ async def complete(
     source_module: str,
     source_ref: str | None = None,
     rasterize: Rasterize | None = None,
+    background: bool = False,
 ) -> Completion:
-    """A chat completion. Raises `ai.not_configured` when nothing serves `purpose`."""
+    """A chat completion. Raises `ai.not_configured` when nothing serves `purpose`.
+    `background`: no one asked for this call just now (a sync's files, Auto Dream); it raises
+    `ai.usage_limit_reached` once the month's cost reached the user's limit (`usage_limit`)."""
     resolved = await resolve_provider(ctx, purpose)
     return await complete_with(
         ctx, resolved, messages, source_module=source_module, source_ref=source_ref,
-        rasterize=rasterize,
+        rasterize=rasterize, background=background,
     )  # fmt: skip
 
 
@@ -328,11 +331,14 @@ async def complete_with(
     source_ref: str | None = None,
     rasterize: Rasterize | None = None,
     transcribe: bool = False,
+    background: bool = False,
 ) -> Completion:
     """`complete` with the provider already resolved (many calls in a row, e.g. OCR pages).
     With `transcribe` (copying what an image says), the model does not reason first
     (`_no_reasoning`), and a reply cut off at the output limit raises `ai.output_truncated`
     instead of passing for the whole answer."""
+    if background:
+        await usage_limit.check_background(ctx)
     prepared = await _prepare_messages(resolved, messages, rasterize)
     call = _Call(ctx, resolved, source_module, source_ref, time.monotonic(), prepared)
     history = convert.to_messages(prepared)
@@ -427,7 +433,10 @@ async def structured_with[T: BaseModel](
     source_ref: str | None = None,
     max_retries: int = 2,
     rasterize: Rasterize | None = None,
+    background: bool = False,
 ) -> tuple[T, Usage]:
+    if background:
+        await usage_limit.check_background(ctx)
     prepared = await _prepare_messages(resolved, messages, rasterize)
     call = _Call(ctx, resolved, source_module, source_ref, time.monotonic(), prepared)
     history = convert.to_messages(prepared)
@@ -454,10 +463,12 @@ async def structured[T: BaseModel](
     source_ref: str | None = None,
     max_retries: int = 2,
     rasterize: Rasterize | None = None,
+    background: bool = False,
 ) -> T:
     """The model's answer as a validated `schema` instance: the provider's native structured
     output where it has one, otherwise the schema in the prompt; invalid output is retried with
-    the validation errors shown to the model, then raises `ai.output_invalid`."""
+    the validation errors shown to the model, then raises `ai.output_invalid`. `background` as
+    in `complete`."""
     resolved = await resolve_provider(ctx, purpose)
     value, _ = await structured_with(
         ctx,
@@ -468,6 +479,7 @@ async def structured[T: BaseModel](
         source_ref=source_ref,
         max_retries=max_retries,
         rasterize=rasterize,
+        background=background,
     )
     return value
 
@@ -498,11 +510,13 @@ async def embed(
     source_module: str,
     query: bool = False,
     retry: bool = True,
+    background: bool = False,
 ) -> EmbeddingResult:
     """Vectors for `texts` with the user's embedding model; `provider_kind`, `model` and `dim`
     identify the vector space (M07 rebuilds its index when they change). `query` marks search
     queries, which most retrieval models embed differently from documents; `retry=False` makes
-    one attempt (a search query falls back to keywords rather than wait)."""
+    one attempt (a search query falls back to keywords rather than wait). `background` as in
+    `complete`; a model this server runs itself costs nothing and is never paused."""
     local = await local_embedding.choice(ctx)
     if local is not None:
         if not local_embedding.downloaded(ctx.settings, local):
@@ -519,6 +533,8 @@ async def embed(
             vectors=vectors,
             provider_kind="local",
         )
+    if background:
+        await usage_limit.check_background(ctx)
     resolved = await resolve_provider(ctx, "embedding")
     ep = resolved.endpoint
     rt = runtime(ctx.state)

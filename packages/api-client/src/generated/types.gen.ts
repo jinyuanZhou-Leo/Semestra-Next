@@ -488,6 +488,7 @@ export type AiStatusGet = {
      * Items
      */
     items: Array<PurposeStatus>;
+    usage_limit: UsageLimit;
     /**
      * Local
      */
@@ -13916,6 +13917,28 @@ export type UsageDay = {
      * Cost Complete
      */
     cost_complete: boolean;
+};
+
+/**
+ * UsageLimit
+ */
+export type UsageLimit = {
+    /**
+     * Monthly Limit Usd
+     */
+    monthly_limit_usd: number | null;
+    /**
+     * Spent Usd
+     */
+    spent_usd: number;
+    /**
+     * Reached
+     */
+    reached: boolean;
+    /**
+     * Resets On
+     */
+    resets_on: string;
 };
 
 /**

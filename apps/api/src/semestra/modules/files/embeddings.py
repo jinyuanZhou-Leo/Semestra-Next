@@ -21,10 +21,12 @@ def embedding_text(heading_path: Sequence[str], text: str) -> str:
     return f"{' > '.join(heading_path)}\n{text}" if heading_path else text
 
 
-async def embed_texts(ctx: Ctx, texts: Sequence[str]) -> tuple[str, int, list[list[float]]]:
+async def embed_texts(
+    ctx: Ctx, texts: Sequence[str], *, background: bool = False
+) -> tuple[str, int, list[list[float]]]:
     """`(space, dim, vectors)` of document texts with the user's embedding model. Raises `ai.*`
-    errors."""
-    result = await ai.embed(ctx, list(texts), source_module="files")
+    errors; `background` as in `ai.embed`."""
+    result = await ai.embed(ctx, list(texts), source_module="files", background=background)
     return fingerprint(result.provider_kind, result.model, result.dim), result.dim, result.vectors
 
 

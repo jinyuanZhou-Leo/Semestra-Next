@@ -20948,6 +20948,9 @@
             "type": "array",
             "title": "Items"
           },
+          "usage_limit": {
+            "$ref": "#/components/schemas/UsageLimit"
+          },
           "local": {
             "items": {
               "$ref": "#/components/schemas/LocalModels"
@@ -20958,7 +20961,8 @@
         },
         "type": "object",
         "required": [
-          "items"
+          "items",
+          "usage_limit"
         ],
         "title": "AiStatusGet"
       },
@@ -44031,6 +44035,42 @@
           "cost_complete"
         ],
         "title": "UsageDay"
+      },
+      "UsageLimit": {
+        "properties": {
+          "monthly_limit_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Monthly Limit Usd"
+          },
+          "spent_usd": {
+            "type": "number",
+            "title": "Spent Usd"
+          },
+          "reached": {
+            "type": "boolean",
+            "title": "Reached"
+          },
+          "resets_on": {
+            "type": "string",
+            "format": "date",
+            "title": "Resets On"
+          }
+        },
+        "type": "object",
+        "required": [
+          "monthly_limit_usd",
+          "spent_usd",
+          "reached",
+          "resets_on"
+        ],
+        "title": "UsageLimit"
       },
       "UsageRow": {
         "properties": {
