@@ -124,6 +124,7 @@ export default defineModule({
       icon: FolderOpen,
       component: preloadable(() => import('./pages/FilesPage')),
       prefetch: prefetchFilesPage,
+      mobile: { component: preloadable(() => import('./mobile/CourseFilesMobile')) },
       order: 30,
     },
   ],

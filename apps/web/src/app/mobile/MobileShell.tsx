@@ -9,7 +9,7 @@ import {
 } from '@/app/extensions'
 import { PluginBoundary } from '@/app/host/PluginBoundary'
 import { usePreferences } from '@/app/preferences'
-import { useModules, usePageStatuses } from '@/app/registry'
+import { useInstalledPluginsReady, useModules, usePageStatuses } from '@/app/registry'
 import { cn } from '@/lib/utils'
 import { whenSettled } from '@/lib/when-settled'
 import { m } from '@/paraglide/messages'
@@ -22,31 +22,48 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/ui/empty'
+import { MobileCourse } from './MobileCourse'
 import { MoreDrawer } from './MoreDrawer'
+import { onPhone } from './phone'
 
 /** The Program's pages that have a phone version, the tabs first by their order. */
-function usePhonePages(scope: Scope): { pages: PageContribution[]; tabs: PageContribution[] } {
-  const pages = usePageStatuses(scope)
-    .filter((entry) => entry.status === 'available' && entry.page.mobile)
+function usePhonePages(scope: Scope): {
+  pages: PageContribution[]
+  tabs: PageContribution[]
+  settled: boolean
+} {
+  const statuses = usePageStatuses(scope)
+  // Until the installed plugins and every page's availability are known, a tab may still come.
+  const settled =
+    useInstalledPluginsReady() && statuses.every((entry) => entry.status !== 'pending')
+  const pages = statuses
+    .filter((entry) => entry.status === 'available' && onPhone(entry.page, scope))
     .map((entry) => entry.page)
   const tabs = pages
     .filter((page) => page.mobile?.tab)
     .sort((a, b) => a.mobile!.tab!.order - b.mobile!.tab!.order)
-  return { pages, tabs }
+  return { pages, tabs, settled }
 }
 
 const NO_PAGE: AssistantContribution['page'] = { subscribe: () => () => {}, sessionId: () => null }
 
 /**
- * The signed-in app on a phone (M17): one page at a time over a tab bar. Only Program pages with
- * a phone version (`PageContribution.mobile`) and the assistant (`AssistantContribution.mobile`)
- * are shown; every other address asks for a computer. The desktop shell and pages are not loaded.
+ * The signed-in app on a phone (M17): one page at a time over a tab bar. Only Program and course
+ * pages with a phone version (`PageContribution.mobile`) and the assistant
+ * (`AssistantContribution.mobile`) are shown; every other address asks for a computer. The
+ * desktop shell and pages are not loaded.
  */
 export default function MobileShell({ programId }: { programId: string }) {
   const scope: Scope = { kind: 'program', programId }
-  const { pages, tabs } = usePhonePages(scope)
+  const { pages, tabs, settled } = usePhonePages(scope)
   const pageMatch = useMatch({ from: '/_authed/p/$programId/$page', shouldThrow: false })
   const atProgram = useMatch({ from: '/_authed/p/$programId/', shouldThrow: false })
+  const coursePage = useMatch({
+    from: '/_authed/p/$programId/c/$courseId/$page',
+    shouldThrow: false,
+  })
+  const courseIndex = useMatch({ from: '/_authed/p/$programId/c/$courseId/', shouldThrow: false })
+  const courseId = (coursePage ?? courseIndex)?.params.courseId
   const assistantMatch = useMatch({
     from: '/_authed/p/$programId/assistant/{-$sessionId}',
     shouldThrow: false,
@@ -58,24 +75,54 @@ export default function MobileShell({ programId }: { programId: string }) {
   // The Sem tab goes back to the conversation last open, like the other tabs keep their place.
   const semPage = assistant?.page ?? NO_PAGE
   const lastSession = useSyncExternalStore(semPage.subscribe, semPage.sessionId) ?? undefined
-  const startPage = usePreferences().data?.start_page
+  const preferences = usePreferences()
+  const startPage = preferences.data?.start_page
+  // Where the Program's address leads waits for the start page and every tab.
+  const ready = settled && !preferences.isPending
   const pageId = pageMatch?.params.page
   const home = tabs[0]
   const page = pages.find((candidate) => candidate.id === pageId)
   // The Program's address (where `/` and the installed app start) opens the start page the user
   // chose when the phone has it (M11 `start_page`), else the first tab.
-  if (atProgram && startPage === 'assistant' && Assistant) {
-    return <Navigate to="/p/$programId/assistant/{-$sessionId}" params={{ programId }} replace />
+  if (atProgram && ready && startPage === 'assistant' && Assistant) {
+    return (
+      <Navigate
+        to="/p/$programId/assistant/{-$sessionId}"
+        params={{ programId }}
+        search={true}
+        replace
+      />
+    )
   }
   const start = tabs.find((tab) => tab.id === startPage) ?? home
-  if (atProgram && start) {
-    return <Navigate to="/p/$programId/$page" params={{ programId, page: start.id }} replace />
+  if (atProgram && ready && start) {
+    // The search goes along: a notification's `?import=` is read on the start page.
+    return (
+      <Navigate
+        to="/p/$programId/$page"
+        params={{ programId, page: start.id }}
+        search={true}
+        replace
+      />
+    )
   }
   const Page = page?.mobile?.component
+  // Inside a course the courses tab stays selected: it is where the course was opened from.
+  const coursesTab = tabs.find((tab) => tab.mobile?.tab?.courses)
+  const activeId = courseId ? coursesTab?.id : page?.id
   return (
     <div className="flex h-dvh flex-col bg-background">
       <main className="flex min-h-0 flex-1 flex-col">
-        {Page ? (
+        {courseId ? (
+          <MobileCourse
+            key={`${programId}:${courseId}`}
+            programId={programId}
+            courseId={courseId}
+            pageId={coursePage?.params.page}
+            back={coursesTab}
+            home={home}
+          />
+        ) : Page ? (
           <PluginBoundary key={`${programId}:${page.id}`}>
             <Page scope={scope} />
           </PluginBoundary>
@@ -90,14 +137,14 @@ export default function MobileShell({ programId }: { programId: string }) {
       <TabBar
         programId={programId}
         tabs={tabs}
-        activeId={page?.id}
+        activeId={activeId}
         assistant={Assistant ? { active: !!assistantMatch, sessionId: lastSession } : null}
       />
     </div>
   )
 }
 
-function DesktopOnly({
+export function DesktopOnly({
   programId,
   home,
 }: {
@@ -148,7 +195,7 @@ function TabBar({
     >
       {tabs.map((tab) => {
         const active = tab.id === activeId
-        const Icon = tab.icon
+        const Icon = tab.mobile?.tab?.icon ?? tab.icon
         return (
           <Link
             key={tab.id}
@@ -158,7 +205,7 @@ function TabBar({
             className={cn(TAB, active && 'text-primary')}
           >
             <Icon aria-hidden className="size-6" strokeWidth={active ? 2.25 : 1.75} />
-            {tab.title()}
+            {(tab.mobile?.tab?.title ?? tab.title)()}
           </Link>
         )
       })}

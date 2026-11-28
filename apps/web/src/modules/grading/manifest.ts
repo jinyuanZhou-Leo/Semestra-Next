@@ -2,6 +2,10 @@ import { CalendarClock, ChartLine, GraduationCap, NotebookPen, Percent, Sigma } 
 import { defineModule, preloadable } from '@/app/extensions'
 import {
   COURSE_COLUMNS,
+  MOBILE_COURSE_SECTIONS,
+  MOBILE_OVERVIEW_SECTIONS,
+  type MobileCourseSection,
+  type MobileOverviewSection,
   PROGRAM_SETUP_FIELDS,
   type ProgramSetupField,
 } from '@/modules/academics/types'
@@ -65,6 +69,7 @@ export default defineModule({
       icon: NotebookPen,
       component: preloadable(() => import('./pages/GradesPage')),
       prefetch: prefetchGradesPage,
+      mobile: { component: preloadable(() => import('./mobile/CourseGradesMobile')) },
       order: 20,
     },
   ],
@@ -154,6 +159,20 @@ export default defineModule({
   ],
   extensions: {
     [COURSE_COLUMNS]: courseColumns,
+    [MOBILE_COURSE_SECTIONS]: [
+      {
+        id: 'grading.summary',
+        order: 10,
+        component: preloadable(() => import('./mobile/GradeSummarySection')),
+      },
+    ] satisfies MobileCourseSection[],
+    [MOBILE_OVERVIEW_SECTIONS]: [
+      {
+        id: 'grading.grade',
+        order: 20,
+        component: preloadable(() => import('./mobile/CourseGradeSection')),
+      },
+    ] satisfies MobileOverviewSection[],
     [PROGRAM_SETUP_FIELDS]: [setupField],
     [TASK_DETAIL_SECTIONS]: [
       {

@@ -82,11 +82,18 @@ export type PageContribution = {
   /** The board the page shows, if any (the scope's own or Today's), so its cards load with it. */
   board?: 'scope' | 'today'
   /**
-   * The page on phones (M17), Program pages only: its own component, written for a narrow
-   * screen, in place of `component`. With `tab` it is a tab of the phone's tab bar (by `order`).
-   * Pages without it ask for a computer on phones.
+   * The page on phones (M17), for Program and course pages: its own component, written for a
+   * narrow screen, in place of `component`. A Program page with `tab` is a tab of the phone's tab
+   * bar (by `order`, with `title` and `icon` in place of the page's when given); the tab with `courses` is where the courses are
+   * listed, and stays selected inside a course. A course page's phone version is one of the
+   * course's segments, in `order`. `scopes` limits it to some of the page's scopes. Pages
+   * without it ask for a computer on phones.
    */
-  mobile?: { component: Lazy<PageProps>; tab?: { order: number } }
+  mobile?: {
+    component: Lazy<PageProps>
+    scopes?: readonly ScopeKind[]
+    tab?: { order: number; title?: Message; icon?: LucideIcon; courses?: true }
+  }
   /**
    * Starts the page's main data along with its code, from the route loader (also on hover), so
    * the page's own queries find it in the cache instead of waiting for the page to mount. Use

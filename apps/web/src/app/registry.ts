@@ -9,7 +9,7 @@ import {
   useContext,
   useMemo,
 } from 'react'
-import { isPhone, usePhone } from './mobile/phone'
+import { isPhone, onPhone, usePhone } from './mobile/phone'
 import { loadCardSettings } from './board/settings'
 import academics from '@/modules/academics/manifest'
 import ai from '@/modules/ai/manifest'
@@ -111,7 +111,7 @@ export function preloadPage(
       if (page.id !== pageId || !page.scopes.includes(scope.kind)) continue
       // A phone shows a page's phone version, or nothing to load (M17).
       if (isPhone()) {
-        parts.push(page.mobile?.component)
+        if (onPhone(page, scope)) parts.push(page.mobile?.component)
         continue
       }
       parts.push(page.component)

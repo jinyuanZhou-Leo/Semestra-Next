@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react'
+import type { PageContribution, ScopeKind } from '@/app/extensions'
 
 /**
  * Where a Program opens in the phone shell (M17): below shadcn's `useIsMobile` breakpoint, or a
@@ -25,4 +26,12 @@ function subscribe(onChange: () => void): () => void {
 /** Whether the window is phone-sized; follows resizes. */
 export function usePhone(): boolean {
   return useSyncExternalStore(subscribe, isPhone, () => false)
+}
+
+/** Whether a page has a phone version in this scope (M17): `mobile.scopes`, else the page's own. */
+export function onPhone(
+  page: Pick<PageContribution, 'scopes' | 'mobile'>,
+  scope: { kind: ScopeKind },
+): boolean {
+  return !!page.mobile && (page.mobile.scopes ?? page.scopes).includes(scope.kind)
 }

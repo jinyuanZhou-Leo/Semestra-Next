@@ -38,6 +38,7 @@ const notes = defineModule({
       title: () => 'Notes',
       icon: FileText,
       component: () => <p>Notes page</p>,
+      mobile: { component: () => <p>Notes on a phone</p> },
       order: 50,
       isAvailable: (scope) => scope.kind !== 'course' || scope.courseId !== 'c2',
     },
@@ -544,6 +545,33 @@ test('on a phone a Program opens in the phone shell, without the desktop sidebar
   const more = await screen.findByRole('dialog')
   expect(within(more).getByRole('button', { name: 'Settings' })).toBeInTheDocument()
   expect(within(more).getByRole('button', { name: 'Sign out' })).toBeInTheDocument()
+})
+
+test("on a phone the courses tab lists the term's courses, each opening its pages (M17)", async () => {
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: query === PHONE_QUERY,
+    media: query,
+    addEventListener() {},
+    removeEventListener() {},
+  }))
+  const { router } = mount('/p/p1/lists')
+  const tabs = within(await screen.findByRole('navigation', { name: 'Tabs' }))
+  await userEvent.click(tabs.getByRole('link', { name: 'Courses' }))
+  await userEvent.click(await screen.findByRole('link', { name: /APS105H1/ }))
+  // The course opens with its pages as segments; the courses tab stays the current one.
+  expect(await screen.findByRole('heading', { name: 'APS105H1' })).toBeInTheDocument()
+  expect(tabs.getByRole('link', { name: 'Courses' })).toHaveAttribute('aria-current', 'page')
+  const pages = within(screen.getByRole('navigation', { name: 'Course pages' }))
+  await userEvent.click(pages.getByRole('link', { name: 'Notes' }))
+  expect(await screen.findByText('Notes on a phone')).toBeInTheDocument()
+  expect(router.state.location.pathname).toBe('/p/p1/c/c1/notes')
+  // A page with no phone version in a course (Lists is a Program page) is not among them.
+  expect(pages.queryByRole('link', { name: 'Lists' })).not.toBeInTheDocument()
+
+  // A link from a notification keeps its query on the way to the first tab.
+  await act(() => router.navigate({ href: '/p/p1?import=s1' }))
+  await waitFor(() => expect(router.state.location.pathname).toBe('/p/p1/lists'))
+  expect(router.state.location.search).toEqual({ import: 's1' })
 })
 
 /** The "Settings" buttons on screen: the sidebar entry and the gear of the page header. */
