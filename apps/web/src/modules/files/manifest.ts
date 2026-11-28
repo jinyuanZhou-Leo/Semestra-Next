@@ -1,6 +1,6 @@
 import type { PendingOrganizeList } from '@semestra/api-client'
 import type { QueryClient } from '@tanstack/react-query'
-import { FileClock, FileSearch, FolderOpen, Star } from 'lucide-react'
+import { FileClock, FileSearch, FileText, FolderOpen, Star } from 'lucide-react'
 import {
   defineModule,
   type InvalidationTarget,
@@ -126,6 +126,16 @@ export default defineModule({
       prefetch: prefetchFilesPage,
       mobile: { component: preloadable(() => import('./mobile/CourseFilesMobile')) },
       order: 30,
+    },
+  ],
+  searchProviders: [
+    {
+      id: 'files.names',
+      title: m.files_nav,
+      icon: FileText,
+      order: 30,
+      search: (query, scope, queryClient) =>
+        import('./search').then((search) => search.searchFiles(query, scope, queryClient)),
     },
   ],
   cards: [

@@ -290,7 +290,7 @@ async def item_clear_completed(ctx: Ctx, inp: TaskClearInput) -> TaskClearResult
     description="""Use whenever the user refers to a task in words and you need its id. If the two
 best candidates score similarly, ask which one is meant.""",
     effect="read",
-    expose=("agent", "mcp"),
+    http=Http("GET", "/programs/{program_id}/task-matches"),
     tags=TAGS,
 )
 async def item_find(ctx: Ctx, inp: TaskFindInput) -> TaskCandidates:

@@ -273,7 +273,7 @@ first. Returns candidates with their course and a score; ask the user when the t
 close. When none matches, read the course's grading.assessment.list before creating one: the
 user may call it something else ("Q2" for "Quiz 2").""",
     effect="read",
-    expose=("agent", "mcp"),
+    http=Http("GET", "/programs/{program_id}/assessment-matches"),
     tags=TAGS,
     agent_core=True,
 )

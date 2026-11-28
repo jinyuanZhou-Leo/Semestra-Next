@@ -1,5 +1,6 @@
 import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { File } from 'lucide-react'
 import { delay, http, HttpResponse } from 'msw'
 import { afterAll, afterEach, beforeAll, expect, test, vi } from 'vitest'
 import template from '@/modules/_template/manifest'
@@ -355,6 +356,61 @@ test('the palette ranks courses by pinyin initials and lists only actions after 
   await user.type(input, '/')
   expect(await screen.findByRole('option', { name: 'Go to home' })).toBeInTheDocument()
   expect(screen.queryByRole('option', { name: '高等数学' })).not.toBeInTheDocument()
+})
+
+test('search results come in a group per provider and Enter opens the first one', async () => {
+  const ask = vi.fn<(ctx: unknown, question?: string) => void>()
+  const found = (title: string, to: string) => async () => {
+    await delay(50)
+    return [{ id: title, title, to }]
+  }
+  const searching: ModuleManifest = {
+    ...template,
+    id: 'searching',
+    kind: 'core',
+    pages: [],
+    commands: [],
+    searchProviders: [
+      {
+        id: 'files',
+        title: () => 'Files',
+        icon: File,
+        order: 30,
+        search: found('Lab 3.pdf', '/f'),
+      },
+      { id: 'tasks', title: () => 'Tasks', icon: File, order: 10, search: found('Lab 3', '/t') },
+    ],
+    assistant: {
+      open: ask,
+      panel: { subscribe: () => () => {}, isOpen: () => false },
+      page: { subscribe: () => () => {}, sessionId: () => null },
+      Dock: ({ children }) => children,
+    },
+  }
+  server.use(
+    http.post(`${API}/me/ui-state\\:get`, () => HttpResponse.json({ items: {} })),
+    http.put(`${API}/me/ui-state/:key`, () => HttpResponse.json({ ok: true })),
+    http.get(`${API}/layouts/nav/:kind`, () =>
+      HttpResponse.json({ scope_type: 'program', order: [], hidden: [] }),
+    ),
+  )
+  const { router } = renderWithRouter(
+    <ModuleRegistry value={[template, searching]}>
+      <CommandCenter />
+    </ModuleRegistry>,
+  )
+  const user = userEvent.setup()
+  act(() => openCommandPalette())
+  const input = await screen.findByRole('combobox', { name: 'Command palette' })
+  await user.type(input, 'lab')
+  const tasks = await screen.findByRole('group', { name: 'Tasks' })
+  expect(within(tasks).getByRole('option', { name: 'Lab 3' })).toBeInTheDocument()
+  const files = await screen.findByRole('group', { name: 'Files' })
+  expect(tasks.compareDocumentPosition(files) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  // "Ask Sem" was the only line before the results came; the best match is chosen now.
+  await user.keyboard('{Enter}')
+  await waitFor(() => expect(router.state.location.pathname).toBe('/t'))
+  expect(ask).not.toHaveBeenCalled()
 })
 
 test('plugins appear once the catalog says they are installed', async () => {

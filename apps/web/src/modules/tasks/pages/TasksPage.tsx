@@ -15,8 +15,11 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import type { Task } from '@semestra/api-client'
+import { tasksItemGetOptions } from '@semestra/api-client/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { ArrowDownUp, ChevronRight, CircleCheck, ListChecks, Plus } from 'lucide-react'
 import { useRef, useState } from 'react'
+import { useLinkedTask } from '../linked'
 import type { PageProps } from '@/app/extensions'
 import { useHotkey } from '@/app/hotkeys'
 import { useUiPref } from '@/app/ui-pref'
@@ -151,7 +154,29 @@ export default function TasksPage({ scope }: PageProps) {
   const doneTotal = donePage?.total ?? 0
   const items = [...open, ...done]
   const selected = items.find((t) => t.id === selectedId) ?? null
-  const detail = items.find((t) => t.id === detailId) ?? null
+  // A task a link opened (`?task=`, from the command palette): its details show even when the
+  // list on screen does not hold it.
+  const linkedId = useLinkedTask()
+  const [linkSeen, setLinkSeen] = useState<string | null>(null)
+  const [linkedSeen, setLinkedSeen] = useState<string | null>(null)
+  if (linkedId !== linkSeen) {
+    setLinkSeen(linkedId)
+    if (linkedId) {
+      setLinkedSeen(linkedId)
+      setSelectedId(linkedId)
+      setDetailId(linkedId)
+      setScrollTo({ id: linkedId })
+      setEditing(null)
+      setNewKey(null)
+    }
+  }
+  const linked = useQuery({
+    ...tasksItemGetOptions({ path: { task_id: linkedSeen ?? '' } }),
+    enabled: linkedSeen !== null && detailId === linkedSeen,
+  })
+  const detail =
+    items.find((t) => t.id === detailId) ??
+    (linked.data && linked.data.id === detailId ? linked.data : null)
   const sortableRows =
     viewPref.sort === 'manual' && (selection.kind === 'list' || selection.kind === 'inbox')
   const listChoices =

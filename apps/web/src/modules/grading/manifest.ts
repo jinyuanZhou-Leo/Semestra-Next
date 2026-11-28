@@ -73,6 +73,16 @@ export default defineModule({
       order: 20,
     },
   ],
+  searchProviders: [
+    {
+      id: 'grading.assessments',
+      title: m.grading_search_title,
+      icon: NotebookPen,
+      order: 20,
+      search: (query, scope, queryClient) =>
+        import('./search').then((search) => search.searchAssessments(query, scope, queryClient)),
+    },
+  ],
   cards: [
     {
       id: 'grading.courseSummary',

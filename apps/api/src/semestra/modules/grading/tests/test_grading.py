@@ -886,9 +886,6 @@ async def test_finding_assessments_prefers_the_current_term(api: Api, app: FastA
 async def test_agent_tools_are_described_and_list_fields_can_be_selected(api: Api, app: FastAPI):
     names = {c.name for c in registry.list(expose="agent") if c.name.startswith("grading.")}
     assert {"grading.gradebook.get", "grading.assessment.find"} <= names
-    assert "grading.assessment.find" not in {
-        c.name for c in registry.list(expose="http") if c.name.startswith("grading.")
-    }
     core = {c.name for c in registry.list() if c.agent_core and c.name.startswith("grading.")}
     assert core == {"grading.assessment.find"}
 

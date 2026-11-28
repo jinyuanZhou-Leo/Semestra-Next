@@ -626,3 +626,19 @@ test('on a phone the tasks are grouped by due date, checked off in place and edi
   await userEvent.click(within(sheet).getByRole('button', { name: 'High' }))
   await waitFor(() => expect(log.updates).toEqual([{ id: 't1', body: { priority: 'high' } }]))
 })
+
+test('a link to a task opens its details, also when the list on screen does not hold it', async () => {
+  const done = task({ id: 't9', title: 'Old lab', completed_at: stamp })
+  server.use(http.get(`${API}/tasks/t9`, () => HttpResponse.json(done)))
+  const { router } = renderWithRouter(
+    <SidebarProvider>
+      <TasksPage scope={{ kind: 'program', programId: 'p1' }} />
+    </SidebarProvider>,
+    undefined,
+    { path: '/', at: '/?task=t9' },
+  )
+  const sheet = await screen.findByRole('dialog', { name: 'Details' })
+  expect(within(sheet).getByDisplayValue('Old lab')).toBeInTheDocument()
+  // The link is not repeated by a reload or by going back.
+  await waitFor(() => expect(router.state.location.search).toEqual({}))
+})

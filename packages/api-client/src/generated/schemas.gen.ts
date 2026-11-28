@@ -1178,6 +1178,131 @@ export const AssessmentSchema = {
     title: 'Assessment'
 } as const;
 
+export const AssessmentCandidateSchema = {
+    properties: {
+        id: {
+            type: 'string',
+            title: 'Id'
+        },
+        course_id: {
+            type: 'string',
+            title: 'Course Id'
+        },
+        course_code: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Course Code'
+        },
+        course_title: {
+            type: 'string',
+            title: 'Course Title'
+        },
+        in_current_term: {
+            type: 'boolean',
+            title: 'In Current Term',
+            description: 'The course runs in the current term'
+        },
+        title: {
+            type: 'string',
+            title: 'Title'
+        },
+        category_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Category Id'
+        },
+        category_name: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Category Name'
+        },
+        due_at: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date-time'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Due At'
+        },
+        weight: {
+            type: 'number',
+            title: 'Weight'
+        },
+        score_percentage: {
+            anyOf: [
+                {
+                    type: 'number'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Score Percentage'
+        },
+        score: {
+            type: 'number',
+            title: 'Score',
+            description: 'Match quality from 0 to 1'
+        }
+    },
+    type: 'object',
+    required: [
+        'id',
+        'course_id',
+        'course_code',
+        'course_title',
+        'in_current_term',
+        'title',
+        'category_id',
+        'category_name',
+        'due_at',
+        'weight',
+        'score_percentage',
+        'score'
+    ],
+    title: 'AssessmentCandidate'
+} as const;
+
+export const AssessmentCandidatesSchema = {
+    properties: {
+        items: {
+            items: {
+                $ref: '#/components/schemas/AssessmentCandidate'
+            },
+            type: 'array',
+            title: 'Items',
+            description: 'Best match first'
+        }
+    },
+    type: 'object',
+    required: [
+        'items'
+    ],
+    title: 'AssessmentCandidates'
+} as const;
+
 export const AssessmentCategorySchema = {
     properties: {
         id: {
@@ -9123,6 +9248,18 @@ export const FileMatchSchema = {
             type: 'string',
             title: 'Course Id'
         },
+        folder_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Folder Id',
+            description: 'Folder it is in; none at the course\'s top level'
+        },
         display_name: {
             type: 'string',
             title: 'Display Name'
@@ -9148,6 +9285,7 @@ export const FileMatchSchema = {
     required: [
         'id',
         'course_id',
+        'folder_id',
         'display_name',
         'mime_type',
         'updated_at'
@@ -21850,6 +21988,108 @@ export const TaskSchema = {
         'updated_at'
     ],
     title: 'Task'
+} as const;
+
+export const TaskCandidateSchema = {
+    properties: {
+        task_id: {
+            type: 'string',
+            title: 'Task Id'
+        },
+        title: {
+            type: 'string',
+            title: 'Title'
+        },
+        course_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Course Id'
+        },
+        due_date: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Due Date'
+        },
+        completed: {
+            type: 'boolean',
+            title: 'Completed'
+        },
+        source_kind: {
+            anyOf: [
+                {
+                    type: 'string',
+                    enum: [
+                        'lms',
+                        'syllabus',
+                        'agent',
+                        'manual'
+                    ]
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Source Kind'
+        },
+        assessment_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Assessment Id',
+            description: 'Set when title, due date and course follow a gradebook assessment'
+        },
+        score: {
+            type: 'number',
+            title: 'Score'
+        }
+    },
+    type: 'object',
+    required: [
+        'task_id',
+        'title',
+        'course_id',
+        'due_date',
+        'completed',
+        'source_kind',
+        'assessment_id',
+        'score'
+    ],
+    title: 'TaskCandidate'
+} as const;
+
+export const TaskCandidatesSchema = {
+    properties: {
+        items: {
+            items: {
+                $ref: '#/components/schemas/TaskCandidate'
+            },
+            type: 'array',
+            title: 'Items'
+        }
+    },
+    type: 'object',
+    required: [
+        'items'
+    ],
+    title: 'TaskCandidates'
 } as const;
 
 export const TaskClearInputBodySchema = {
