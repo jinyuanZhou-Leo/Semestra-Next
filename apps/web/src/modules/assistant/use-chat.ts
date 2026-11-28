@@ -42,6 +42,8 @@ export type Decision = {
   answer?: string
   remember?: boolean
   reason?: string
+  /** The choices on the card's conflicts: key → keep what is there. */
+  keep?: Record<string, boolean>
 }
 
 const LIST_QUERIES = ['agentSessionList']
@@ -388,6 +390,7 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
       remember: d.remember ?? false,
       reason: d.reason ?? null,
       answer: d.answer ?? null,
+      keep: d.keep ?? null,
     })
     const [first] = decisions
     if (decisions.length === 1 && first) {

@@ -8,6 +8,8 @@ import { Field, FieldGroup, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
 import { NativeSelect, NativeSelectOption } from '@/ui/native-select'
 import { Switch } from '@/ui/switch'
+import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
+import { SEGMENT, SEGMENTED } from '@/lib/segmented'
 import { fieldLabel, formatValue } from '../labels'
 import type { Change } from '../stream'
 
@@ -252,4 +254,86 @@ export function ProposalChanges({ proposal }: { proposal: AgentProposalOut }) {
 /** Where the change can be seen, from the capability's preview. */
 export function proposalLink(proposal: AgentProposalOut): string | null {
   return ((proposal.preview ?? {}) as Preview).link?.to ?? null
+}
+
+export type Conflict = {
+  key: string
+  subject: string
+  kind: 'overwrite' | 'duplicate'
+  field?: string | null
+  before?: unknown
+  after?: unknown
+  keep: boolean
+}
+
+/** Where a write meets what the user has (an import's commit): each one is a choice, keep
+ * what is there or take the new value, leave a duplicate out or add it anyway (M12 §3.5). */
+export function ConflictList({
+  conflicts,
+  keep,
+  onChange,
+  disabled,
+}: {
+  conflicts: readonly Conflict[]
+  keep: Readonly<Record<string, boolean>>
+  onChange: (key: string, keep: boolean) => void
+  disabled: boolean
+}) {
+  if (conflicts.length === 0) return null
+  return (
+    <section className="space-y-1.5">
+      <h3 className="text-xs text-muted-foreground">{m.assistant_conflicts_title()}</h3>
+      <ul className="divide-y rounded-xl border">
+        {conflicts.map((conflict) => {
+          const overwrite = conflict.kind === 'overwrite'
+          const kept = keep[conflict.key] ?? conflict.keep
+          return (
+            <li key={conflict.key} className="flex items-center gap-3 px-3 py-2">
+              <div className="min-w-0 flex-1 text-sm">
+                <p className="truncate font-medium">
+                  {overwrite && conflict.field
+                    ? `${conflict.subject} · ${fieldLabel(conflict.field)}`
+                    : conflict.subject}
+                </p>
+                <p className="flex min-w-0 items-baseline gap-1.5 text-muted-foreground">
+                  {overwrite ? (
+                    <>
+                      <span className="max-w-1/2 shrink-0 truncate line-through">
+                        {formatValue(conflict.before, conflict.field ?? undefined)}
+                      </span>
+                      <ArrowRight
+                        aria-label={m.assistant_proposal_becomes()}
+                        className="size-3 shrink-0 self-center"
+                      />
+                      <span className="truncate text-foreground">
+                        {formatValue(conflict.after, conflict.field ?? undefined)}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="truncate">{m.assistant_conflict_duplicate()}</span>
+                  )}
+                </p>
+              </div>
+              <ToggleGroup
+                aria-label={conflict.subject}
+                className={SEGMENTED}
+                value={[kept ? 'keep' : 'take']}
+                disabled={disabled}
+                onValueChange={(value) => {
+                  if (value[0]) onChange(conflict.key, value[0] === 'keep')
+                }}
+              >
+                <ToggleGroupItem value="keep" size="sm" className={SEGMENT}>
+                  {overwrite ? m.assistant_conflict_keep() : m.assistant_conflict_skip()}
+                </ToggleGroupItem>
+                <ToggleGroupItem value="take" size="sm" className={SEGMENT}>
+                  {overwrite ? m.assistant_conflict_replace() : m.assistant_conflict_add()}
+                </ToggleGroupItem>
+              </ToggleGroup>
+            </li>
+          )
+        })}
+      </ul>
+    </section>
+  )
 }

@@ -1,0 +1,16 @@
+{
+  "head": "$action：$target",
+  "change": "$field：$before → $after",
+  "change_new": "$field：$after",
+  "confirm": "确认后才会执行。",
+  "conflicts": "以下内容与 Semestra 中已有的不同，请逐项选择：",
+  "keep": "保留 $value",
+  "replace": "覆盖为 $value",
+  "skip": "跳过",
+  "add": "添加",
+  "pick": "$action：请选择",
+  "yes": "是",
+  "no": "否",
+  "empty": "（空）",
+  "list": "、"
+}

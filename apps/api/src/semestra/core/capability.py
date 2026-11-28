@@ -8,7 +8,7 @@ import inspect
 import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Annotated, Any, Literal, Protocol, get_type_hints
+from typing import Annotated, Any, Literal, Protocol, get_args, get_origin, get_type_hints
 
 from fastapi import APIRouter, Body, Depends, FastAPI, Path, Query
 from pydantic import BaseModel, ValidationError, create_model
@@ -59,6 +59,24 @@ class Http:
 
 
 @dataclass(frozen=True)
+class Conflict:
+    """One disagreement between a write and the user's data (`Capability.conflicts`).
+
+    `overwrite`: `field` of `subject` is `before` in Semestra and would become `after`.
+    `duplicate`: `subject` is already there; the call would add another one. `keep` is what
+    happens unless the user chooses otherwise. `subject` is the user's own words (a course code,
+    an assessment's title); whoever asks words the rest in the user's language."""
+
+    key: str
+    subject: str
+    kind: Literal["overwrite", "duplicate"]
+    field: str | None = None
+    before: Any = None
+    after: Any = None
+    keep: bool = True
+
+
+@dataclass(frozen=True)
 class Capability:
     name: str
     summary: str
@@ -88,6 +106,20 @@ class Capability:
     # An update of one record: (the argument holding its id, how it is read). The agent's
     # confirmation card shows each sent field as stored before → after (`core.labels`).
     record: tuple[str, Loader] | None = field(default=None, compare=False)
+    # An MCP client that can show forms asks the user before this write runs (deletes always
+    # are): True, every time (applying a reviewed plan, like an import's commit); argument names,
+    # when those arguments together list more than one record (a batch).
+    confirm: bool | tuple[str, ...] = False
+    # Where what the call would write disagrees with what the user has (an import's field that
+    # differs from the course, an assessment that is already there). An MCP client that can show
+    # forms lets the user choose for each one before it runs; `resolve_conflicts` records the
+    # choices (key → keep what is there) in the caller's transaction, then the call runs.
+    conflicts: Callable[[Ctx, Any], Awaitable[list[Conflict]]] | None = field(
+        default=None, compare=False
+    )
+    resolve_conflicts: Callable[[Ctx, Any, dict[str, bool]], Awaitable[None]] | None = field(
+        default=None, compare=False
+    )
 
     @property
     def operation_id(self) -> str:
@@ -292,6 +324,13 @@ class Registry:
 registry = Registry()
 
 
+def _is_list(annotation: object) -> bool:
+    """`list[...]`, or `list[...] | None`."""
+    if get_origin(annotation) is list:
+        return True
+    return any(get_origin(a) is list for a in get_args(annotation))
+
+
 def capability(
     *,
     name: str,
@@ -310,6 +349,9 @@ def capability(
     check: Callable[[Ctx, Any], Awaitable[None]] | None = None,
     untrusted: bool = False,
     record: tuple[str, Loader] | None = None,
+    confirm: bool | tuple[str, ...] = False,
+    conflicts: Callable[[Ctx, Any], Awaitable[list[Conflict]]] | None = None,
+    resolve_conflicts: Callable[[Ctx, Any, dict[str, bool]], Awaitable[None]] | None = None,
     target: Registry | None = None,
 ) -> Callable[[Callable[[Ctx, Any], Awaitable[Any]]], Callable[[Ctx, Any], Awaitable[Any]]]:
     def decorate(
@@ -327,6 +369,11 @@ def capability(
         missing = [f"{n}" for n, f in input_model.model_fields.items() if not f.description]
         if missing:
             raise TypeError(f"{name}: input fields need Field(description=...): {missing}")
+        if isinstance(confirm, tuple):
+            fields = input_model.model_fields
+            wrong = [n for n in confirm if n not in fields or not _is_list(fields[n].annotation)]
+            if not confirm or wrong:
+                raise TypeError(f"{name}: confirm names list arguments of the input: {wrong}")
         (target or registry).register(
             Capability(
                 name=name,
@@ -348,6 +395,9 @@ def capability(
                 check=check,
                 untrusted=untrusted,
                 record=record,
+                confirm=confirm,
+                conflicts=conflicts,
+                resolve_conflicts=resolve_conflicts,
             )
         )
         return fn

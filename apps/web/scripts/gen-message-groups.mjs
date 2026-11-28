@@ -5,6 +5,10 @@
 // bundle, because the bundler cannot tell which ones are used. A group file names its keys, so
 // only that group is bundled, and only with the code that needs it.
 //
+// It also writes the backend's copy of the words MCP confirmation forms use (capability titles,
+// field names and values; `apps/api/.../agent/mcp_texts/labels.json`): an MCP client has no
+// Semestra frontend to word them.
+//
 // `node scripts/gen-message-groups.mjs` rewrites the files; `--check` fails when they are stale
 // (run by `pnpm i18n:lint`).
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
@@ -47,6 +51,36 @@ for (const group of GROUPS) {
   if (current === content) continue
   if (check) stale.push(`src/lib/message-groups/${group.file}.gen.ts`)
   else writeFileSync(target, content)
+}
+// The backend copy for MCP forms: plain messages only (no placeholders), per locale.
+const LABEL_PREFIXES = ['capability_', 'assistant_field_', 'assistant_value_']
+const labelsFile = new URL(
+  '../../api/src/semestra/modules/agent/mcp_texts/labels.json',
+  import.meta.url,
+)
+const labels = {}
+for (const locale of ['en', 'zh-CN']) {
+  const all = JSON.parse(
+    readFileSync(new URL(`../messages/${locale}.json`, import.meta.url), 'utf8'),
+  )
+  labels[locale] = Object.fromEntries(
+    Object.keys(all)
+      .filter((key) => LABEL_PREFIXES.some((p) => key.startsWith(p)))
+      .filter((key) => typeof all[key] === 'string' && !all[key].includes('{'))
+      .toSorted()
+      .map((key) => [key, all[key]]),
+  )
+}
+const labelsContent = `${JSON.stringify(labels, null, 2)}\n`
+let labelsCurrent = null
+try {
+  labelsCurrent = readFileSync(labelsFile, 'utf8')
+} catch {
+  // missing
+}
+if (labelsCurrent !== labelsContent) {
+  if (check) stale.push('apps/api/src/semestra/modules/agent/mcp_texts/labels.json')
+  else writeFileSync(labelsFile, labelsContent)
 }
 // Every lookup by a computed key goes through a group above; one on the whole namespace would
 // pull every message into the bundle again.

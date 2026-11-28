@@ -254,6 +254,7 @@ same course (to_folder_id null = course root). Folders move with everything insi
 them move or, if one cannot (a folder name already taken there, folders nested too deep), none
 do.""",
     effect="write",
+    confirm=("item_ids", "folder_ids"),
     http=Http("POST", "/courses/{course_id}/files:move"),
     tags=TAGS,
 )
@@ -523,6 +524,7 @@ async def organization_list(ctx: Ctx, inp: ProgramInput) -> PendingOrganizeList:
 files.organization.get): each goes in its folder, made when the course has none. Files
 moved or deleted since the plan stay as they are. The plan is done with afterwards.""",
     effect="write",
+    confirm=True,
     http=Http("POST", "/courses/{course_id}/files:organize-apply"),
     preview=organize.preview_apply,
     tags=TAGS,

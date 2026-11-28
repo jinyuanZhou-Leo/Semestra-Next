@@ -331,7 +331,10 @@ class _Hooks(AbstractCapability[Turn]):
         cap = turn.caps.get(tools.capability_name(call.tool_name))
         if cap is None or cap.effect == "read":
             return args
-        if cap.effect == "write" and (cap.name in turn.auto_approve or cap.name in memory.WRITES):
+        auto = cap.effect == "write" and (
+            cap.name in turn.auto_approve or cap.name in memory.WRITES
+        )
+        if auto and cap.conflicts is None:
             return args
         try:
             async with agent_ctx(turn.state, turn.user_id, scope=turn.scope) as c:
@@ -342,6 +345,10 @@ class _Hooks(AbstractCapability[Turn]):
         except AppError as exc:  # wrong arguments go back to the model without a card
             result = Outcome(False, outcome.error_payload(exc), exc.code)
             raise SkipToolExecution(_tool_return(cap, call.tool_call_id, result, turn)) from None
+        if auto and not preview.get("conflicts"):
+            return args
+        # Approved for good, a write still asks where it meets what the user has: the choice
+        # is theirs (the same as on an MCP form).
         raise ApprovalRequired(metadata={"preview": preview, "args": filled})
 
     async def after_tool_execute(

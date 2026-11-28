@@ -19,12 +19,14 @@ from semestra.modules.imports.service.create import (
 from semestra.modules.imports.service.retention import cleanup
 from semestra.modules.imports.service.review import (
     bulk_decide,
+    commit_conflicts,
     commit_preview,
     discard,
     list_sessions,
     preview_add_items,
     preview_bulk_decide,
     preview_update_item,
+    resolve_commit_conflicts,
     update_item,
 )
 from semestra.modules.imports.service.rows import (
@@ -48,6 +50,7 @@ __all__ = [
     "bulk_decide",
     "cleanup",
     "commit",
+    "commit_conflicts",
     "commit_preview",
     "create_session",
     "detail",
@@ -61,6 +64,7 @@ __all__ = [
     "preview_update_item",
     "read_upload_bytes",
     "register_commit_hook",
+    "resolve_commit_conflicts",
     "revalidate",
     "session_items",
     "store_upload",

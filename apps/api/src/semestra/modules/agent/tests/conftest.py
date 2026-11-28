@@ -7,9 +7,13 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from typing import Any
 
+import httpx2
+import mcp_types as types
 import pytest
 from fastapi import FastAPI
 from httpx import AsyncClient
+from mcp import ClientSession
+from mcp.client.streamable_http import streamable_http_client
 from pydantic_ai.messages import (
     ModelMessage,
     ModelMessagesTypeAdapter,
@@ -315,6 +319,33 @@ async def report_input_tokens(app: FastAPI, session_id: str, input_tokens: int) 
         parts[0]["usage"] = {**parts[0].get("usage", {}), "input_tokens": input_tokens}
         row.model_parts = parts
         await db.commit()
+
+
+@asynccontextmanager
+async def mcp_session(
+    app: FastAPI, token: str, *, modern: bool = False, forms: bool = False
+) -> AsyncIterator[ClientSession]:
+    """The official SDK client on `/mcp` over the ASGI app. `modern`: the 2026-07-28 protocol
+    (`server/discover`, extensions advertised); `forms`: it also shows forms (elicitation), so
+    a call may come back asking the user (`InputRequiredResult`)."""
+
+    async def unused(context: Any, params: types.ElicitRequestParams) -> types.ElicitResult:
+        # On the 2026-07-28 protocol a form comes in the call's result, answered by calling again.
+        raise AssertionError("no standalone elicitation request expected")
+
+    async with (
+        httpx2.AsyncClient(
+            transport=httpx2.ASGITransport(app=app),
+            base_url="http://testserver",
+            headers={"Authorization": f"Bearer {token}"},
+        ) as http,
+        streamable_http_client("http://testserver/mcp", http_client=http) as streams,
+        ClientSession(
+            streams[0], streams[1], elicitation_callback=unused if forms else None
+        ) as session,
+    ):
+        await (session.discover() if modern or forms else session.initialize())
+        yield session
 
 
 def events_named(events: list[tuple[str, Any]], name: str) -> list[Any]:

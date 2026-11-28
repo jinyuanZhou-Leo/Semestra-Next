@@ -709,6 +709,50 @@ test('the card takes the place of the input; typing tells Sem what to do instead
   )
 })
 
+test('a commit lists what differs from what is there, and sends each choice', async () => {
+  srv.detail.messages = [
+    msg('u1', 'user', [{ type: 'text', text: 'Apply it' }]),
+    msg('a1', 'assistant', [
+      { type: 'tool_call', id: 'call1', name: 'imports__session__commit', args: {} },
+    ]),
+  ]
+  srv.detail.proposals = [
+    proposal({
+      capability: 'imports.session.commit',
+      preview: {
+        changes: [{ field: 'import_assessment', after: 2 }],
+        conflicts: [
+          {
+            key: 'i1:title',
+            subject: 'APS105H1',
+            kind: 'overwrite',
+            field: 'title',
+            before: 'APS 105',
+            after: 'Computer Fundamentals',
+            keep: false,
+          },
+          { key: 'i2', subject: 'Lab 3', kind: 'duplicate', keep: true },
+        ],
+      },
+    }),
+  ]
+  srv.reply = () => sse([])
+  renderWithRouter(<Conversation sessionId="s1" pageScope={null} onCreated={() => {}} />)
+  const card = await screen.findByLabelText('Apply an import')
+  const title = within(card).getByRole('group', { name: 'APS105H1' })
+  expect(within(title).getByRole('button', { name: 'Replace' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
+  await userEvent.click(within(title).getByRole('button', { name: 'Keep' }))
+  await userEvent.click(within(card).getByRole('button', { name: 'Approve' }))
+  await waitFor(() =>
+    expect(srv.sent[0]).toMatchObject({
+      body: { decision: 'approve', keep: { 'i1:title': true } },
+    }),
+  )
+})
+
 test('a question is answered by picking an option, then shows with its answer', async () => {
   const asked = (status: string, result: unknown = null) =>
     proposal({

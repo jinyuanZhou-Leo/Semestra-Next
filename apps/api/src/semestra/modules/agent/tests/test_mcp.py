@@ -1,21 +1,26 @@
 """The MCP endpoint with the official SDK client over the ASGI app (M12 §5, §10)."""
 
 import hashlib
-from collections.abc import AsyncIterator, Callable
-from contextlib import AbstractAsyncContextManager, asynccontextmanager
+from collections.abc import Callable
+from contextlib import AbstractAsyncContextManager
 from typing import Any
 
-import httpx2
 import mcp_types as types
 import pytest
 from fastapi import FastAPI
 from httpx import AsyncClient
 from mcp import ClientSession
-from mcp.client.streamable_http import streamable_http_client
 from mcp.shared.exceptions import MCPError
 from pydantic import RootModel
 
-from semestra.modules.agent.tests.conftest import Agent
+from semestra.modules.agent.tests.conftest import (
+    Agent,
+    FakeModel,
+    call,
+    events_named,
+    mcp_session,
+    say,
+)
 
 Connect = Callable[[str], AbstractAsyncContextManager[ClientSession]]
 
@@ -32,19 +37,8 @@ async def _token(agent: Agent, scopes: list[str]) -> str:
 def _connector(app: FastAPI, *, modern: bool = False) -> Connect:
     """`modern`: the 2026-07-28 protocol (`server/discover`), where extensions are advertised."""
 
-    @asynccontextmanager
-    async def connect(token: str) -> AsyncIterator[ClientSession]:
-        async with (
-            httpx2.AsyncClient(
-                transport=httpx2.ASGITransport(app=app),
-                base_url="http://testserver",
-                headers={"Authorization": f"Bearer {token}"},
-            ) as http,
-            streamable_http_client("http://testserver/mcp", http_client=http) as streams,
-            ClientSession(streams[0], streams[1]) as session,
-        ):
-            await (session.discover() if modern else session.initialize())
-            yield session
+    def connect(token: str) -> AbstractAsyncContextManager[ClientSession]:
+        return mcp_session(app, token, modern=modern)
 
     return connect
 
@@ -247,3 +241,206 @@ async def test_a_client_can_look_at_the_pages_of_a_course_file(app: FastAPI, age
 
         missing = await mcp.call_tool("view_pages", {"item_id": "nope"})
         assert missing.is_error is True
+
+
+# --- forms (MCP elicitation, M12 §5) -----------------------------------------------------------
+
+
+def _form(asked: Any, key: str) -> types.ElicitRequestFormParams:
+    assert isinstance(asked, types.InputRequiredResult), asked
+    assert asked.input_requests is not None
+    assert list(asked.input_requests) == [key]
+    request = asked.input_requests[key]
+    assert isinstance(request, types.ElicitRequest)
+    assert isinstance(request.params, types.ElicitRequestFormParams)
+    return request.params
+
+
+async def _answer(
+    mcp: ClientSession,
+    tool: str,
+    args: dict[str, Any],
+    asked: types.InputRequiredResult,
+    key: str,
+    action: str = "accept",
+    content: dict[str, Any] | None = None,
+) -> Any:
+    return await mcp.call_tool(
+        tool,
+        args,
+        input_responses={key: types.ElicitResult(action=action, content=content)},  # pyright: ignore[reportArgumentType]
+        request_state=asked.request_state,
+        allow_input_required=True,
+    )
+
+
+async def test_a_delete_waits_for_the_user_to_confirm_it(app: FastAPI, agent: Agent):
+    _, course, lab = await agent.course_with_lab()
+    await agent.call("PATCH", "/agent/preferences", json={"mcp_allow_destructive": True})
+    token = await _token(agent, ["read", "write"])
+    tool, args = (
+        "grading__assessment__delete_many",
+        {
+            "course_id": course["id"],
+            "assessment_ids": [lab["id"]],
+        },
+    )
+    async with mcp_session(app, token, forms=True) as mcp:
+        listed = {t.name: t for t in (await mcp.list_tools()).tools}
+        assert "Semestra shows the user what it changes" in (listed[tool].description or "")
+
+        asked = await mcp.call_tool(tool, args, allow_input_required=True)
+        form = _form(asked, "confirm")
+        assert "APS105H1" in form.message
+        assert "Lab 3" in form.message
+        assert isinstance(asked, types.InputRequiredResult)
+        declined = await _answer(mcp, tool, args, asked, "confirm", action="decline")
+        assert _payload(declined)["rejected"] is True
+        assert (await agent.call("GET", f"/courses/{course['id']}/gradebook"))["assessments"]
+
+        asked = await mcp.call_tool(tool, args, allow_input_required=True)
+        assert isinstance(asked, types.InputRequiredResult)
+        done = await _answer(mcp, tool, args, asked, "confirm")
+        assert done.is_error is False
+        assert not (await agent.call("GET", f"/courses/{course['id']}/gradebook"))["assessments"]
+
+    # A client without forms gets the tool as before: the model confirms in the chat.
+    lab = await agent.call(
+        "POST", f"/courses/{course['id']}/assessments", json={"title": "Lab 4", "weight": 10}
+    )
+    async with mcp_session(app, token, modern=True) as mcp:
+        listed = {t.name: t for t in (await mcp.list_tools()).tools}
+        assert "Semestra shows the user" not in (listed[tool].description or "")
+        args["assessment_ids"] = [lab["id"]]
+        assert (await mcp.call_tool(tool, args)).is_error is False
+
+
+async def test_the_user_picks_a_course_the_call_left_out(app: FastAPI, agent: Agent):
+    program, course, _ = await agent.course_with_lab()
+    term_id = (await agent.call("GET", f"/courses/{course['id']}"))["term_ids"][0]
+    other = await agent.call(
+        "POST",
+        f"/programs/{program['id']}/courses",
+        json={"title": "Calculus", "code": "MAT186H1", "term_ids": [term_id]},
+    )
+    token = await _token(agent, ["read", "write"])
+    tool = "grading__assessment__create_many"
+    args: dict[str, Any] = {"assessments": [{"title": "Quiz 1", "weight": 5}]}
+    async with mcp_session(app, token, forms=True) as mcp:
+        listed = {t.name: t for t in (await mcp.list_tools()).tools}
+        assert "course_id" not in listed[tool].input_schema.get("required", [])
+        # A read is not run through a form, so it still needs the course.
+        assert "course_id" in listed["grading__gradebook__get"].input_schema["required"]
+
+        asked = await mcp.call_tool(tool, args, allow_input_required=True)
+        options = _form(asked, "pick").requested_schema["properties"]["course_id"]["oneOf"]
+        assert {o["const"] for o in options} == {course["id"], other["id"]}
+        assert any(o["title"].startswith("MAT186H1 · Calculus") for o in options)
+        assert isinstance(asked, types.InputRequiredResult)
+        # One assessment is not a batch: picking the course is the only question.
+        done = await _answer(mcp, tool, args, asked, "pick", content={"course_id": other["id"]})
+        assert done.is_error is False
+    gradebook = await agent.call("GET", f"/courses/{other['id']}/gradebook")
+    assert [a["title"] for a in gradebook["assessments"]] == ["Quiz 1"]
+
+
+async def _import_with_a_duplicate(
+    mcp: ClientSession, program: dict[str, Any], course: dict[str, Any]
+) -> str:
+    """An import draft of Lab 3 (already in the gradebook) and Lab 4."""
+    created = await mcp.call_tool(
+        "imports__session__create",
+        {
+            "program_id": program["id"],
+            "source_kind": "agent",
+            "target": {"kind": "course", "course_id": course["id"]},
+        },
+    )
+    session_id = _payload(created)["id"]
+    ref = f"course:{course['id']}"
+    added = await mcp.call_tool(
+        "imports__item__add_many",
+        {
+            "session_id": session_id,
+            "items": [
+                {"type": "assessment", "data": {"course_ref": ref, "title": t, "weight": 10}}
+                for t in ("Lab 3", "Lab 4")
+            ],
+        },
+    )
+    assert added.is_error is False, _payload(added)
+    return session_id
+
+
+async def test_committing_an_import_asks_about_what_is_already_there(app: FastAPI, agent: Agent):
+    program, course, _ = await agent.course_with_lab()
+    token = await _token(agent, ["read", "write"])
+    async with mcp_session(app, token, forms=True) as mcp:
+        session_id = await _import_with_a_duplicate(mcp, program, course)
+        tool, args = "imports__session__commit", {"session_id": session_id}
+        asked = await mcp.call_tool(tool, args, allow_input_required=True)
+        form = _form(asked, "confirm")
+        [(key, prop)] = form.requested_schema["properties"].items()
+        assert prop["title"] == "Lab 3"
+        assert prop["default"] == "skip"
+        assert isinstance(asked, types.InputRequiredResult)
+        done = await _answer(mcp, tool, args, asked, "confirm", content={key: "add"})
+        assert done.is_error is False, _payload(done)
+    gradebook = await agent.call("GET", f"/courses/{course['id']}/gradebook")
+    assert sorted(a["title"] for a in gradebook["assessments"]) == ["Lab 3", "Lab 3", "Lab 4"]
+
+
+async def test_sem_asks_the_same_on_its_card(app: FastAPI, agent: Agent, model: FakeModel):
+    program, course, _ = await agent.course_with_lab()
+    token = await _token(agent, ["read", "write"])
+    async with mcp_session(app, token) as mcp:
+        session_id = await _import_with_a_duplicate(mcp, program, course)
+    # Even when committing is approved for good, a conflict is the user's to settle.
+    await agent.call(
+        "PATCH", "/agent/preferences", json={"auto_approve": ["imports.session.commit"]}
+    )
+    session = await agent.session()
+    model.then(
+        call("load_capability", {"id": "import-from-documents"}),
+        call("imports.session.commit", {"session_id": session_id}),
+    )
+    [proposal] = events_named(await agent.send(session["id"], "Apply it"), "proposal")
+    [conflict] = proposal["preview"]["conflicts"]
+    assert (conflict["subject"], conflict["kind"], conflict["keep"]) == ("Lab 3", "duplicate", True)
+
+    model.then(say("Done."))
+    # A key the card did not show is ignored.
+    await agent.decide(session["id"], proposal["id"], keep={conflict["key"]: False, "x": True})
+    gradebook = await agent.call("GET", f"/courses/{course['id']}/gradebook")
+    assert sorted(a["title"] for a in gradebook["assessments"]) == ["Lab 3", "Lab 3", "Lab 4"]
+
+
+async def test_committing_one_new_item_still_asks(app: FastAPI, agent: Agent):
+    program, course, _ = await agent.course_with_lab()
+    token = await _token(agent, ["read", "write"])
+    async with mcp_session(app, token, forms=True) as mcp:
+        created = await mcp.call_tool(
+            "imports__session__create",
+            {
+                "program_id": program["id"],
+                "source_kind": "agent",
+                "target": {"kind": "course", "course_id": course["id"]},
+            },
+        )
+        session_id = _payload(created)["id"]
+        item = {"course_ref": f"course:{course['id']}", "title": "Midterm", "weight": 30}
+        added = await mcp.call_tool(
+            "imports__item__add_many",
+            {"session_id": session_id, "items": [{"type": "assessment", "data": item}]},
+        )
+        assert added.is_error is False, _payload(added)
+        # Naming the one item (as a retry does) still asks: a commit always does.
+        args = {"session_id": session_id, "item_ids": [_payload(added)["items"][0]["id"]]}
+        asked = await mcp.call_tool("imports__session__commit", args, allow_input_required=True)
+        assert not _form(asked, "confirm").requested_schema.get("properties")
+
+
+def test_form_texts_have_the_same_keys_in_every_language() -> None:
+    from semestra.modules.agent import mcp_elicit
+
+    assert mcp_elicit.catalog("en").keys() == mcp_elicit.catalog("zh-CN").keys()

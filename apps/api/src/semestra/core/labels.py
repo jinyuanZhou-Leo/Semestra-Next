@@ -3,7 +3,8 @@
 Each module names its own records here, in its own package (`<module>/labels.py`): `resolver`
 registers how ids of one argument become names, `owned_names` builds the usual one (one query for
 all the ids, the user's own rows only). What a write's confirmation card compares before → after
-is declared on the capability (`@capability(record=...)`, a `Loader`).
+is declared on the capability (`@capability(record=...)`, a `Loader`). `choices` registers what
+a person can pick from for an argument, for an MCP client that asks the user (M12 §5 "forms").
 """
 
 from collections.abc import Awaitable, Callable, Iterable
@@ -18,6 +19,11 @@ from semestra.core.errors import AppError
 Resolver = Callable[[Ctx, list[str], dict[str, Any]], Awaitable[dict[str, str]]]
 # (ctx, id) → the record an update is about, as stored (None when it is not the user's)
 Loader = Callable[[Ctx, str], Awaitable[Any]]
+
+# (ctx, the call's arguments so far) → (id, label) for each record the user can pick, best first
+Choices = Callable[[Ctx, dict[str, Any]], Awaitable[list[tuple[str, str]]]]
+
+_CHOICES: dict[str, Choices] = {}
 
 # Keyed by (a capability name or a prefix of it such as its module, or None for any; the
 # argument's name without `_id`/`_ids`). The longest prefix wins.
@@ -42,6 +48,21 @@ def lookup(capability: str, field: str) -> Resolver | None:
         if found is not None:
             return found
     return _RESOLVERS.get((None, field))
+
+
+def choices(field: str) -> Callable[[Choices], Choices]:
+    """Registers what the user can pick from for a `<field>_id` argument: when a call leaves
+    it out, an MCP client that can show forms asks the user to pick one."""
+
+    def register(fn: Choices) -> Choices:
+        _CHOICES[field] = fn
+        return fn
+
+    return register
+
+
+def choices_for(field: str) -> Choices | None:
+    return _CHOICES.get(field)
 
 
 def owned_names(model: type[Any], name: Callable[[Any], str | None]) -> Resolver:

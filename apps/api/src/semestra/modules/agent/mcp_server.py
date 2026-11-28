@@ -6,18 +6,24 @@ ways, all from the same `SKILL.md` files and limited to those whose tools the to
 the `load_skill` tool (every client supports tools, so the model can load one itself), prompts
 (for the user to start one by hand) and the MCP Skills extension (`skills/list`, `skills/get`
 and `skill://` resources, for clients that support it). The server's instructions are the rules
-Sem works by (`prompts/rules.md`) plus what differs here (`prompts/mcp.md`).
+Sem works by (`prompts/rules.md`) plus what differs here (`prompts/mcp.md`). A client that shows
+forms has the user confirm a delete, a batch or an import, and pick an id the call left out
+(`mcp_elicit`).
 """
 
 import base64
 import hashlib
+import hmac
 import json
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from functools import partial
 from typing import Any
 
 import mcp_types as types
+from mcp.server.context import ServerRequestContext
 from mcp.server.lowlevel import Server
+from mcp.server.request_state import RequestStateBoundary, RequestStateSecurity
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from mcp.shared.exceptions import MCPError
 from mcp_types._types import MCPModel
@@ -31,7 +37,7 @@ from semestra.core.capability import Capability, registry
 from semestra.core.config import Settings
 from semestra.core.context import AuthInfo, Ctx, Identity
 from semestra.core.errors import AppError
-from semestra.modules.agent import outcome, service, skills, tools, view
+from semestra.modules.agent import mcp_elicit, outcome, service, skills, tools, view
 from semestra.modules.agent.context import instructions, prompt
 from semestra.modules.agent.runtime import agent_ctx
 
@@ -135,8 +141,10 @@ async def _list_tools(ctx: Any, params: Any) -> types.ListToolsResult:
     caps: list[Capability] = await _with_ctx(state, ident, run)
     found = skills.visible_skills(caps)
     extra = [_view_tool()] if any(c.name == VIEW_NEEDS for c in caps) else []
+    forms = mcp_elicit.can_ask(ctx)
+    listed = [mcp_elicit.tool_for_forms(_tool(c), c) if forms else _tool(c) for c in caps]
     return types.ListToolsResult(
-        tools=[_tool(c) for c in caps] + extra + ([_load_skill_tool(found)] if found else [])
+        tools=listed + extra + ([_load_skill_tool(found)] if found else [])
     )
 
 
@@ -218,7 +226,9 @@ def _text(payload: Any, *, error: bool = False) -> types.CallToolResult:
     )
 
 
-async def _call_tool(ctx: Any, params: types.CallToolRequestParams) -> types.CallToolResult:
+async def _call_tool(
+    ctx: Any, params: types.CallToolRequestParams
+) -> types.CallToolResult | types.InputRequiredResult:
     state, ident = _identity(ctx)
     if params.name == LOAD_SKILL:
         wanted = (params.arguments or {}).get("name")
@@ -231,13 +241,52 @@ async def _call_tool(ctx: Any, params: types.CallToolRequestParams) -> types.Cal
     if params.name == tools.VIEW_PAGES:
         return await _view(state, ident, dict(params.arguments or {}))
     name = tools.capability_name(params.name)
+    args = dict(params.arguments or {})
+    before: Callable[[Ctx], Awaitable[None]] | None = None
+    if mcp_elicit.can_ask(ctx):
+        step = await _ask(state, ident, name, args, params)
+        if isinstance(step, mcp_elicit.Ask):
+            return step.result
+        if isinstance(step, mcp_elicit.Declined):
+            return _text(mcp_elicit.declined_payload())
+        if step is not None:
+            args = step.args
+            before = partial(
+                outcome.settle_conflicts,
+                cap=registry.get(name),
+                args=args,
+                keep=step.keep,
+                surface="mcp",
+            )
+
     # `Registry.invoke` enforces what a token may call (scope, plugins, the delete preference),
     # the same as on REST routes; `_tools_for` only decides which tools to show.
     auth = AuthInfo(kind="pat", token_id=ident.token_id, scopes=ident.scopes)
     result = await outcome.invoke(
-        state, ident.user_id, None, name, dict(params.arguments or {}), surface="mcp", auth=auth
+        state, ident.user_id, None, name, args, surface="mcp", auth=auth, before=before
     )
     return _text(result.payload, error=not result.ok)
+
+
+async def _ask(
+    state: State,
+    ident: McpIdentity,
+    name: str,
+    args: dict[str, Any],
+    params: types.CallToolRequestParams,
+) -> mcp_elicit.Ask | mcp_elicit.Go | mcp_elicit.Declined | None:
+    """This round's form, for a write the token may make (None: nothing to ask, the call itself
+    says what is wrong)."""
+
+    async def run(c: Ctx) -> mcp_elicit.Ask | mcp_elicit.Go | mcp_elicit.Declined | None:
+        cap = next((cap for cap in await _tools_for(c, ident) if cap.name == name), None)
+        if cap is None or cap.effect == "read":
+            return None
+        return await mcp_elicit.step(
+            c, cap, args, params.input_responses or {}, params.request_state
+        )
+
+    return await _with_ctx(state, ident, run)
 
 
 async def _skill_list(state: State, ident: McpIdentity) -> list[skills.Skill]:
@@ -365,7 +414,15 @@ async def _read_resource(
     )
 
 
-def make_server() -> Server[Any]:
+def _principal(ctx: ServerRequestContext[Any, Any]) -> str | None:
+    """Whose call a form's answers belong to: the token, so another connection cannot replay
+    them."""
+    request: Request | None = ctx.request
+    ident = request.scope.get("state", {}).get(_IDENTITY) if request is not None else None
+    return f"{ident.user_id}:{ident.token_id}" if isinstance(ident, McpIdentity) else None
+
+
+def make_server(settings: Settings) -> Server[Any]:
     server = Server(
         "semestra",
         version="0.1.0",
@@ -378,6 +435,11 @@ def make_server() -> Server[Any]:
         on_read_resource=_read_resource,
     )
     server.extensions[SKILLS_EXTENSION] = {}
+    # A form's answers ride back in `requestState`, sealed with a key from the instance's secret
+    # (any worker can open it), bound to the call, its arguments and the token, for half an hour.
+    key = hmac.new(settings.secret_key.encode(), b"semestra-mcp-request-state", "sha256").digest()
+    security = RequestStateSecurity(keys=[key], ttl=1800, bind_principal=_principal)
+    server.middleware.append(RequestStateBoundary(security, default_audience="semestra"))
     server.add_request_handler("skills/list", types.PaginatedRequestParams, _list_skills)
     server.add_request_handler("skills/get", GetSkillParams, _get_skill)
     return server
@@ -427,10 +489,11 @@ class McpEndpoint:
     request's task (no app-wide task group to start and stop)."""
 
     def __init__(self) -> None:
-        self.server = make_server()
+        self.server: Server[Any] | None = None
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         request = Request(scope, receive)
+        self.server = self.server or make_server(request.app.state.settings)
         identity = await _authenticate(request)
         if identity is None:
             return await _unauthorized(request.app.state.settings)(scope, receive, send)
