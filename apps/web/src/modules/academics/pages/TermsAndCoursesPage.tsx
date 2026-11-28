@@ -438,3 +438,5 @@ function TermPane({
     </section>
   )
 }
+
+export default TermsAndCoursesPage

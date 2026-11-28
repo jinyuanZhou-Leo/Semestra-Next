@@ -2,7 +2,14 @@ import { lazy } from 'react'
 import { expect, test, vi } from 'vitest'
 import { layoutsBoardGetOptions, pluginsCatalogListOptions } from '@semestra/api-client/react-query'
 import { QueryClient } from '@tanstack/react-query'
-import { builtInModules, installedModules, mergeInvalidations, preloadPage } from './registry'
+import {
+  builtInModules,
+  installedModules,
+  mergeInvalidations,
+  preloadPage,
+  preloadProgramRoute,
+} from './registry'
+import { PHONE_QUERY } from './mobile/phone'
 import { preloadable } from './extensions'
 import type { ModuleManifest } from './extensions'
 
@@ -204,4 +211,27 @@ test("a module skipping its own echo still leaves other modules' refetches", () 
   ] as unknown as ModuleManifest[]
   expect(mergeInvalidations(modules)).toEqual({ 'a.changed': ['aGet', 'bGet'] })
   expect(mergeInvalidations(modules, { own: true })).toEqual({ 'a.changed': ['bGet'] })
+})
+
+test('a route of its own loads its desktop page on a computer and only its phone tab on a phone', async () => {
+  type Load = () => Promise<never>
+  const desktop = vi.fn<Load>(() => new Promise<never>(() => {}))
+  const phone = vi.fn<Load>(() => new Promise<never>(() => {}))
+  const modules = [
+    {
+      id: 'demo',
+      kind: 'core',
+      mobileTabs: [{ id: 'academics', order: 0, component: preloadable(phone) }],
+    },
+  ] as unknown as ModuleManifest[]
+  const page = preloadable(desktop)
+  void preloadProgramRoute('p1', 'academics', page, new QueryClient(), {}, modules)
+  expect(desktop).toHaveBeenCalledTimes(1)
+  expect(phone).not.toHaveBeenCalled()
+
+  vi.stubGlobal('window', { matchMedia: (query: string) => ({ matches: query === PHONE_QUERY }) })
+  void preloadProgramRoute('p1', 'academics', preloadable(desktop), new QueryClient(), {}, modules)
+  expect(phone).toHaveBeenCalledTimes(1)
+  expect(desktop).toHaveBeenCalledTimes(1)
+  vi.unstubAllGlobals()
 })

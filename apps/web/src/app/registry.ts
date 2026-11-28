@@ -119,7 +119,31 @@ export function preloadPage(
       if (page.board) preloadBoardCards(scope, page.board, queryClient, modules, hovered)
     }
   }
+  // A Program address that is a route of its own on the desktop, on a phone (M17 `mobileTabs`).
+  if (isPhone() && scope.kind === 'program') {
+    for (const module of modules) {
+      for (const tab of module.mobileTabs ?? []) if (tab.id === pageId) parts.push(tab.component)
+    }
+  }
   return Promise.all(parts.map(preload)).then(() => undefined)
+}
+
+/**
+ * The loader of a Program address that is a route of its own (`/p/<program>/<id>`, e.g. "Terms &
+ * courses"): its `desktop` component on a computer, the module's `mobileTabs` entry on a phone
+ * (M17), so neither shows a placeholder first and a phone does not download the desktop page.
+ */
+export function preloadProgramRoute(
+  programId: string,
+  id: string,
+  desktop: unknown,
+  queryClient: QueryClient,
+  options: { preload?: boolean } = {},
+  modules = installedModules(queryClient),
+): Promise<void> {
+  return isPhone()
+    ? preloadPage({ kind: 'program', programId }, id, queryClient, { ...options, modules })
+    : preload(desktop)
 }
 
 function preloadBoardCards(

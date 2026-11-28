@@ -1,5 +1,11 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { TermsAndCoursesPage } from '@/modules/academics/pages/TermsAndCoursesPage'
+import { preloadable } from '@/app/extensions'
+import { preloadProgramRoute } from '@/app/registry'
+
+// Loaded by the loader on a computer only: a phone shows the courses tab here (M17 `mobileTabs`).
+const TermsAndCoursesPage = preloadable(
+  () => import('@/modules/academics/pages/TermsAndCoursesPage'),
+)
 
 type Search = { tab?: 'terms' | 'courses'; term?: string }
 
@@ -9,6 +15,10 @@ export const Route = createFileRoute('/_authed/p/$programId/academics')({
     ...(search.tab === 'terms' || search.tab === 'courses' ? { tab: search.tab } : {}),
     ...(typeof search.term === 'string' && search.term ? { term: search.term } : {}),
   }),
+  loader: ({ context, params, preload }) =>
+    preloadProgramRoute(params.programId, 'academics', TermsAndCoursesPage, context.queryClient, {
+      preload,
+    }),
   component: TermsAndCourses,
 })
 
