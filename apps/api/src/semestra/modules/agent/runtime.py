@@ -86,11 +86,15 @@ async def _summarize(ctx: Ctx, messages: list[Message]) -> str:
 
 
 async def _memory_model(ctx: Ctx, messages: list[Message]) -> MemoryUpdates:
-    return await ai.structured(ctx, "title", messages, MemoryUpdates, source_module="agent")
+    return await ai.structured(
+        ctx, "title", messages, MemoryUpdates, source_module="agent", background=True
+    )
 
 
 async def _suggestion_model(ctx: Ctx, messages: list[Message]) -> SuggestionWording:
-    return await ai.structured(ctx, "title", messages, SuggestionWording, source_module="agent")
+    return await ai.structured(
+        ctx, "title", messages, SuggestionWording, source_module="agent", background=True
+    )
 
 
 class Claim:

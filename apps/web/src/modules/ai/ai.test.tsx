@@ -40,6 +40,9 @@ type World = {
   assignments: Record<string, { provider_id: string; model: string }>
   params: Record<string, Assignment['params']>
   outdated: number
+  /** This month's estimated cost and the monthly limit (null: none). */
+  spent: number
+  limit: number | null
 }
 let world: World
 const requests: { method: string; path: string; body: unknown }[] = []
@@ -83,7 +86,22 @@ function aiHandlers() {
     // Remembered view state (the usage table's grouping), none saved.
     http.post(`${API}/me/ui-state\\:get`, () => HttpResponse.json({ items: {} })),
     http.put(`${API}/me/ui-state/:key`, () => HttpResponse.json({ ok: true })),
-    http.get(`${API}/ai/status`, () => HttpResponse.json({ items: statusItems() })),
+    http.get(`${API}/ai/status`, () =>
+      HttpResponse.json({
+        items: statusItems(),
+        usage_limit: {
+          monthly_limit_usd: world.limit,
+          spent_usd: world.spent,
+          reached: world.limit !== null && world.spent >= world.limit,
+          resets_on: '2026-02-01',
+        },
+      }),
+    ),
+    http.patch(`${API}/me/settings/ai.usage`, async ({ request }) => {
+      const body = (await record(request)) as { values: { monthly_limit_usd: number | null } }
+      world.limit = body.values.monthly_limit_usd
+      return HttpResponse.json({ namespace: 'ai.usage', values: body.values })
+    }),
     http.get(`${API}/me/files/outdated`, () => HttpResponse.json({ count: world.outdated })),
     http.post(`${API}/me/files/outdated\\:reread`, async ({ request }) => {
       await record(request)
@@ -168,7 +186,7 @@ function aiHandlers() {
 }
 
 beforeEach(() => {
-  world = { providers: [], assignments: {}, params: {}, outdated: 0 }
+  world = { providers: [], assignments: {}, params: {}, outdated: 0, spent: 3.42, limit: null }
   requests.length = 0
   server.use(...aiHandlers())
 })
@@ -796,6 +814,45 @@ test('usage shows totals, a chart per day and a table that can be grouped and so
   await waitFor(() => expect(queries.at(-1)?.has('days')).toBe(false))
   await user.click(screen.getByRole('button', { name: '7 days' }))
   await waitFor(() => expect(queries.at(-1)?.get('days')).toBe('7'))
+})
+
+test('the monthly limit is an amount or none, and says when background AI is paused', async () => {
+  server.use(http.get(`${API}/ai/usage`, () => HttpResponse.json(usage)))
+  const user = userEvent.setup()
+  renderWithQuery(<UsageSection />)
+  const input = await screen.findByRole('textbox', { name: 'Monthly limit' })
+  expect(input).toHaveAttribute('placeholder', 'No limit')
+  expect(screen.getByText('Estimated this month: $3.42')).toBeInTheDocument()
+
+  await user.type(input, '0')
+  await user.tab()
+  expect(screen.getByText('Enter an amount above 0.')).toBeInTheDocument()
+  expect(requests).toEqual([])
+
+  await user.clear(input)
+  await user.type(input, '3{Enter}')
+  await waitFor(() =>
+    expect(requests).toEqual([
+      {
+        method: 'PATCH',
+        path: '/me/settings/ai.usage',
+        body: { scope_type: 'account', values: { monthly_limit_usd: 3 } },
+      },
+    ]),
+  )
+  expect(
+    await screen.findByText('Limit reached. Background AI is paused until Feb 1, 2026.'),
+  ).toBeInTheDocument()
+
+  await user.clear(input)
+  await user.tab()
+  await waitFor(() =>
+    expect(requests.at(-1)?.body).toEqual({
+      scope_type: 'account',
+      values: { monthly_limit_usd: null },
+    }),
+  )
+  expect(await screen.findByText('Estimated this month: $3.42')).toBeInTheDocument()
 })
 
 test('usage bars are days, or weeks over long ranges, with tokens per purpose', () => {

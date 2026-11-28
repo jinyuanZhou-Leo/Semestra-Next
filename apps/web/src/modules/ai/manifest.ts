@@ -5,13 +5,14 @@ import { defineModule, preloadable } from '@/app/extensions'
 import { ONBOARDING_STEPS, type OnboardingStep } from '@/modules/academics/types'
 import { m } from '@/paraglide/messages'
 import { aiStatusOptions } from '@/hooks/use-ai-status'
-import { AI_QUERIES, settingsPrefetch } from './queries'
+import { AI_QUERIES, USAGE_LIMIT_NAMESPACE, settingsPrefetch } from './queries'
 
 const EVENTS = [
   'ai.provider.created',
   'ai.provider.updated',
   'ai.provider.deleted',
   'ai.assignment.updated',
+  'ai.usage.limit_reached',
   'ai.local_ocr.downloaded',
   'ai.local_embedding.downloaded',
   'ai.local_model.deleted',
@@ -101,10 +102,23 @@ export default defineModule({
     },
   ],
   extensions: { [ONBOARDING_STEPS]: onboardingSteps },
+  statusItems: [
+    {
+      id: 'ai.usage_limit',
+      order: 90,
+      load: () => import('./usage-line').then((line) => line.useUsageLimitLine),
+    },
+  ],
   jobKinds: [
     { kind: 'ai.local_ocr.download', title: m.ai_job_local_ocr_download },
     { kind: 'ai.local_embedding.download', title: m.ai_job_local_embedding_download },
   ],
   uiPrefPrefixes: ['ai.'],
-  realtimeInvalidations: Object.fromEntries(EVENTS.map((event) => [event, AI_QUERIES])),
+  realtimeInvalidations: {
+    ...Object.fromEntries(EVENTS.map((event) => [event, AI_QUERIES])),
+    // The monthly limit, changed in another tab: whether background AI is paused.
+    'settings.values.updated': [
+      (data) => (data.namespace === USAGE_LIMIT_NAMESPACE ? ['aiStatusGet'] : []),
+    ],
+  },
 })

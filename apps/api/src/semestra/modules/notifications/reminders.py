@@ -21,6 +21,7 @@ from semestra.core.context import Ctx, system_ctx
 from semestra.core.jobs import periodic
 from semestra.modules.academics import service as academics
 from semestra.modules.academics.models import AcademicsProgram
+from semestra.modules.academics.zone import home_zone
 from semestra.modules.notifications import service, texts
 from semestra.modules.notifications.models import NotificationsDevice, NotificationsReminder
 from semestra.modules.notifications.settings import NotificationsSettings
@@ -328,7 +329,7 @@ async def _send_for(state: State, user_id: str, ids: list[str]) -> None:
         if ctx.user is None:
             return
         cfg = await service.settings_of(ctx)
-        quiet = service.in_quiet_hours(cfg, ctx.now.astimezone(await service.zone_of(ctx)))
+        quiet = service.in_quiet_hours(cfg, ctx.now.astimezone(await home_zone(ctx)))
         # Claimed in one statement before the push: another process running the same tick, or
         # a slow push service holding this one past the next tick, cannot send them again.
         claimed = (

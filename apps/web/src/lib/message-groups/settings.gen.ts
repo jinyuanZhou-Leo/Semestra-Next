@@ -26,6 +26,8 @@ export const settingsMessages = {
   settings_accent_rose: m.settings_accent_rose,
   settings_accent_teal: m.settings_accent_teal,
   settings_accent_violet: m.settings_accent_violet,
+  settings_ai_usage_monthly_limit_usd_description: m.settings_ai_usage_monthly_limit_usd_description,
+  settings_ai_usage_monthly_limit_usd_label: m.settings_ai_usage_monthly_limit_usd_label,
   settings_appearance_description: m.settings_appearance_description,
   settings_appearance_title: m.settings_appearance_title,
   settings_assistant_ai_suggestions_description: m.settings_assistant_ai_suggestions_description,

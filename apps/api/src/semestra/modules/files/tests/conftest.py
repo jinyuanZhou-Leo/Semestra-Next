@@ -346,6 +346,8 @@ class FakeAi:
         self.fail_embedding_on: str | None = None
         # Called after each embedding request, e.g. to change the model halfway through a job.
         self.after_embed: Callable[[FakeAi], None] | None = None
+        # The month's AI usage is at the user's limit: background calls are refused.
+        self.paused = False
 
 
 @pytest.fixture
@@ -366,7 +368,14 @@ def fake_ai(monkeypatch: pytest.MonkeyPatch) -> FakeAi:
             raise AppError(fake.ocr_fail_code, 502)
         return ai.Completion(text=fake.ocr_text)
 
+    def check_paused(background: bool) -> None:
+        if background and fake.paused:
+            from semestra.core.errors import AppError
+
+            raise AppError("ai.usage_limit_reached", 429)
+
     async def complete_with(ctx: Any, resolved: Any, messages: Any, **kwargs: Any) -> Any:
+        check_paused(kwargs.get("background", False))
         fake.ocr_requests.append((messages, kwargs))
         return await complete(ctx, "ocr", messages, **kwargs)
 
@@ -374,8 +383,15 @@ def fake_ai(monkeypatch: pytest.MonkeyPatch) -> FakeAi:
         return "fake", fake.model
 
     async def embed(
-        ctx: Any, texts: list[str], *, source_module: str, query: bool = False, retry: bool = True
+        ctx: Any,
+        texts: list[str],
+        *,
+        source_module: str,
+        query: bool = False,
+        retry: bool = True,
+        background: bool = False,
     ) -> ai.EmbeddingResult:
+        check_paused(background)
         if fake.fail_embedding or (
             fake.fail_embedding_on is not None and any(fake.fail_embedding_on in t for t in texts)
         ):

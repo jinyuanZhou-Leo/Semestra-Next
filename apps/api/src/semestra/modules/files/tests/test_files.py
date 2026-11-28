@@ -823,6 +823,34 @@ async def test_embedding_failure_keeps_keyword_search_and_is_retried(
     assert fake_ai.embed_calls == []  # nothing is missing any more
 
 
+async def test_rebuilding_vectors_waits_out_the_monthly_ai_limit(fx: Fx, fake_ai: FakeAi):
+    """Rebuilding the index is background work: at the user's AI usage limit it stops without
+    counting it against the documents, and the periodic retry finishes it once the limit allows."""
+    from semestra.core.jobs import run_periodic
+    from semestra.modules.files import pipeline
+
+    fake_ai.enabled.add("embedding")
+    fake_ai.fail_embedding = True
+    await fx.upload_ready("syllabus.pdf", make_pdf(SYLLABUS))
+    fake_ai.fail_embedding, fake_ai.paused = False, True
+    for _ in range(pipeline.VECTOR_RETRIES + 1):
+        await run_periodic(fx.app.state, "files.retry_vectors")
+        await fx.run_jobs()
+    assert fake_ai.embed_calls == []
+
+    fake_ai.paused = False  # a new month, or a higher limit
+    await run_periodic(fx.app.state, "files.retry_vectors")
+    await fx.run_jobs()
+    assert (await fx.search("grading midterm", mode="semantic"))["mode_used"] == "semantic"
+
+
+async def test_the_users_own_upload_is_read_at_the_monthly_ai_limit(fx: Fx, fake_ai: FakeAi):
+    fake_ai.enabled.add("embedding")
+    fake_ai.paused = True
+    await fx.upload_ready("syllabus.pdf", make_pdf(SYLLABUS))
+    assert (await fx.search("grading midterm", mode="semantic"))["mode_used"] == "semantic"
+
+
 async def test_a_document_that_keeps_failing_to_embed_stops_being_retried(fx: Fx, fake_ai: FakeAi):
     from semestra.core.jobs import run_periodic
     from semestra.modules.files import pipeline

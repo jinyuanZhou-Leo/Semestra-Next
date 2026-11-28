@@ -836,6 +836,9 @@ export const AiStatusGetSchema = {
             type: 'array',
             title: 'Items'
         },
+        usage_limit: {
+            $ref: '#/components/schemas/UsageLimit'
+        },
         local: {
             items: {
                 $ref: '#/components/schemas/LocalModels'
@@ -846,7 +849,8 @@ export const AiStatusGetSchema = {
     },
     type: 'object',
     required: [
-        'items'
+        'items',
+        'usage_limit'
     ],
     title: 'AiStatusGet'
 } as const;
@@ -24322,6 +24326,43 @@ export const UsageDaySchema = {
         'cost_complete'
     ],
     title: 'UsageDay'
+} as const;
+
+export const UsageLimitSchema = {
+    properties: {
+        monthly_limit_usd: {
+            anyOf: [
+                {
+                    type: 'number'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Monthly Limit Usd'
+        },
+        spent_usd: {
+            type: 'number',
+            title: 'Spent Usd'
+        },
+        reached: {
+            type: 'boolean',
+            title: 'Reached'
+        },
+        resets_on: {
+            type: 'string',
+            format: 'date',
+            title: 'Resets On'
+        }
+    },
+    type: 'object',
+    required: [
+        'monthly_limit_usd',
+        'spent_usd',
+        'reached',
+        'resets_on'
+    ],
+    title: 'UsageLimit'
 } as const;
 
 export const UsageRowSchema = {

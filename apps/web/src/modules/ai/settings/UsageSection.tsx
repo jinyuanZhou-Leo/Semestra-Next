@@ -1,6 +1,9 @@
-import type { UsageRow, UsageSummary } from '@semestra/api-client'
-import { aiUsageSummarizeOptions } from '@semestra/api-client/react-query'
-import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import type { UsageLimit, UsageRow, UsageSummary } from '@semestra/api-client'
+import {
+  aiUsageSummarizeOptions,
+  settingsValueUpdateMutation,
+} from '@semestra/api-client/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   type CellContext,
   type SortingState,
@@ -14,10 +17,11 @@ import { ArrowDown, ArrowUp, BarChart3, X } from 'lucide-react'
 import { type CSSProperties, type ReactNode, createContext, use, useState } from 'react'
 import { Bar, BarChart, CartesianGrid, Cell, XAxis, YAxis } from 'recharts'
 import { useModules } from '@/app/registry'
-import { SettingsBlock, SettingsNote } from '@/app/settings'
+import { SettingRow, SettingsBlock, SettingsGroup, SettingsNote } from '@/app/settings'
 import { useUiPref } from '@/app/ui-pref'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
-import { AI_PURPOSES, type AiPurpose } from '@/hooks/use-ai-status'
+import { AI_PURPOSES, type AiPurpose, aiStatusOptions } from '@/hooks/use-ai-status'
+import { toastError } from '@/lib/errors'
 import {
   firstDayOfWeek,
   formatCount,
@@ -39,15 +43,20 @@ import {
   ChartTooltipContent,
 } from '@/ui/chart'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
+import { FieldError } from '@/ui/field'
+import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from '@/ui/input-group'
+import { Progress } from '@/ui/progress'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { KIND_INFO, PURPOSE_TITLES, type ProviderKind } from '../labels'
 import {
   DEFAULT_USAGE_RANGE,
+  USAGE_LIMIT_NAMESPACE,
   USAGE_RANGE_KEY,
   type UsageRange,
   browserTimeZone,
+  invalidateAi,
   usageOptions,
 } from '../queries'
 import { daysBetween, plusDays, weekStartOf } from '@/lib/day'
@@ -411,6 +420,75 @@ function chatCacheRate(summary: UsageSummary): string {
   return chat && chat.input_tokens > 0 ? formatPercent(chat.cached_tokens / chat.input_tokens) : '—'
 }
 
+function limitDescription(limit: UsageLimit): string {
+  const spent = formatUsd(limit.spent_usd)
+  if (limit.monthly_limit_usd === null) return m.ai_usage_limit_spent({ spent })
+  if (limit.reached) return m.ai_usage_limit_reached({ date: formatDate(limit.resets_on) })
+  return m.ai_usage_limit_progress({ spent, limit: formatUsd(limit.monthly_limit_usd) })
+}
+
+/**
+ * The monthly limit (M06 §7.1): an amount in dollars, or empty for none. Background AI pauses once
+ * the month's estimated cost reaches it; what the user starts still runs.
+ */
+function LimitRow({ limit }: { limit: UsageLimit }) {
+  const queryClient = useQueryClient()
+  const id = 'ai-usage-limit'
+  const saved = limit.monthly_limit_usd
+  const [draft, setDraft] = useState(saved?.toString() ?? '')
+  const update = useMutation({
+    ...settingsValueUpdateMutation(),
+    onSuccess: () => invalidateAi(queryClient),
+    onError: toastError,
+  })
+  const amount = draft.trim() === '' ? null : Number(draft)
+  const valid = amount === null || (Number.isFinite(amount) && amount > 0)
+  const save = () => {
+    if (!valid || amount === saved) return
+    update.mutate({
+      path: { namespace: USAGE_LIMIT_NAMESPACE },
+      body: { scope_type: 'account', values: { monthly_limit_usd: amount } },
+    })
+  }
+  return (
+    <SettingRow
+      label={m.ai_usage_limit()}
+      description={limitDescription(limit)}
+      htmlFor={id}
+      note={
+        !valid ? (
+          <FieldError>{m.ai_usage_limit_invalid()}</FieldError>
+        ) : saved === null ? null : (
+          <Progress
+            aria-label={m.ai_usage_limit()}
+            value={Math.min(100, (limit.spent_usd / saved) * 100)}
+            className="mt-2 max-w-64"
+          />
+        )
+      }
+    >
+      <InputGroup className="w-36">
+        <InputGroupAddon>
+          <InputGroupText>$</InputGroupText>
+        </InputGroupAddon>
+        <InputGroupInput
+          id={id}
+          type="text"
+          inputMode="decimal"
+          placeholder={m.ai_usage_limit_unlimited()}
+          aria-invalid={valid ? undefined : true}
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onBlur={save}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') save()
+          }}
+        />
+      </InputGroup>
+    </SettingRow>
+  )
+}
+
 /** A clicked bar: the details table shows only its days. */
 type Selection = { range: UsageRange; start: string; end: string }
 
@@ -422,6 +500,8 @@ export function UsageSection() {
   // A bar picked in another range no longer exists.
   const selection = picked?.range === range ? picked : null
   const tz = browserTimeZone()
+  // This month's cost changes with every call, without an event.
+  const status = useQuery({ ...aiStatusOptions(), refetchOnMount: 'always' })
   const usage = useQuery({
     ...usageOptions(range),
     // Every chat adds usage without an event, so opening this page asks again.
@@ -441,6 +521,11 @@ export function UsageSection() {
 
   return (
     <div className="space-y-6">
+      {status.data ? (
+        <SettingsGroup>
+          <LimitRow limit={status.data.usage_limit} />
+        </SettingsGroup>
+      ) : null}
       <div className="flex justify-end">
         <ToggleGroup
           aria-label={m.ai_usage_range()}

@@ -15,7 +15,7 @@ from semestra.core.errors import AppError, not_found
 from semestra.core.events import events
 from semestra.core.http import safe_client
 from semestra.core.security import encrypt, mask
-from semestra.modules.ai import catalog, local_embedding, local_jobs
+from semestra.modules.ai import catalog, local_embedding, local_jobs, usage_limit
 from semestra.modules.ai import local_ocr as ocr_local
 from semestra.modules.ai.adapters import adapter_for
 from semestra.modules.ai.adapters.base import Endpoint, ModelInfo
@@ -506,7 +506,7 @@ async def status(ctx: Ctx) -> AiStatusGet:
                 custom=settings.local_embedding_custom,
             )
         )
-    return AiStatusGet(items=items, local=local_models)
+    return AiStatusGet(items=items, usage_limit=await usage_limit.state(ctx), local=local_models)
 
 
 async def download_local_model(ctx: Ctx, inp: LocalModelDownloadInput) -> LocalModelDownload:

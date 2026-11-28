@@ -56,6 +56,7 @@ export const errorMessages = {
   error_ai_rate_limited: m.error_ai_rate_limited,
   error_ai_request_rejected: m.error_ai_request_rejected,
   error_ai_timeout: m.error_ai_timeout,
+  error_ai_usage_limit_reached: m.error_ai_usage_limit_reached,
   error_auth_authorization_expired: m.error_auth_authorization_expired,
   error_auth_avatar_invalid: m.error_auth_avatar_invalid,
   error_auth_avatar_too_large: m.error_auth_avatar_too_large,

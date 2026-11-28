@@ -60,7 +60,7 @@ OCR_CONCURRENCY = 4
 # out for minutes (M06 `adapters.limits`): a daily quota, not a per-minute one.
 OCR_STOP_CODES = frozenset({
     "ai.invalid_key", "ai.model_not_found", "ai.not_configured", "ai.capability_unsupported",
-    "ai.provider_unreachable", "ai.rate_limited", "ai.cancelled",
+    "ai.provider_unreachable", "ai.rate_limited", "ai.cancelled", "ai.usage_limit_reached",
 })  # fmt: skip
 
 
@@ -81,6 +81,9 @@ class _Work:
     document_id: str = field(default_factory=new_id)
     thumbnail_keys: list[str] = field(default_factory=lambda: [])
     document_written: bool = False
+    # Read without the user asking (a source's files): the AI calls pause at the user's monthly
+    # limit (`ai.usage_limit`), leaving the pages for OCR unread and the vectors for later.
+    background: bool = False
 
 
 async def _announce(ctx: Ctx, *kinds: tuple[str, dict[str, object]]) -> None:
@@ -182,13 +185,16 @@ async def mark_failed(ctx: Ctx, item_id: str, job: CoreJob) -> None:
     )
 
 
-async def run(ctx: JobCtx, item_id: str, version: str | None = None) -> int:
+async def run(
+    ctx: JobCtx, item_id: str, version: str | None = None, *, background: bool = False
+) -> int:
     """Processes one item at `version` (`service.request_read`); returns its page count. A
     failure ends the job with the reason as its error code, which `mark_failed` records on the
-    item."""
+    item. `background`: see `_Work.background`."""
     work = await _begin(ctx, item_id, version)
     if work is None:
         return 0
+    work.background = background
     try:
         return await _run(ctx, work)
     except JobCancelled:
@@ -417,6 +423,7 @@ async def _ocr(
                         source_module="files",
                         source_ref=work.item_id,
                         transcribe=True,
+                        background=work.background,
                     )
                 except AppError as exc:
                     log.warning("files_ocr_page_failed", code=exc.code, page=index + 1)
@@ -516,7 +523,7 @@ async def _embed(
             await ctx.check_cancelled()
             await ctx.stage("embedding", current=number + 1, total=len(batches))
             batch_space, dim, vectors = await embed_texts(
-                ctx, [embedding_text(h, t) for _, h, t in batch]
+                ctx, [embedding_text(h, t) for _, h, t in batch], background=work.background
             )
             if space is not None and batch_space != space:
                 raise AppError("ai.embedding_changed", 409)
@@ -634,13 +641,18 @@ async def reindex_vectors(ctx: JobCtx, *, retry: bool = False) -> int:
             return 0
     done = 0
     for _ in range(REINDEX_RESTARTS):
-        # One short text tells which space the current model writes to.
-        space, _, _ = await embed_texts(ctx, ["semestra"])
         try:
+            # One short text tells which space the current model writes to.
+            space, _, _ = await embed_texts(ctx, ["semestra"], background=True)
             done += await _reindex_into(ctx, store, space, retry=retry)
             break
         except _SpaceChanged:
             continue
+        except AppError as exc:
+            if exc.code != "ai.usage_limit_reached":
+                raise
+            # The monthly limit: the rest waits for the periodic retry (`jobs.retry_vectors`).
+            break
     async with ctx.state.session_factory() as db:
         for old in await store.spaces(db):
             if await store.count(db, old) == 0:
@@ -727,7 +739,7 @@ async def _embed_stale(
             for start in range(0, len(refs), BATCH_SIZE):
                 batch = refs[start : start + BATCH_SIZE]
                 batch_space, dim, vectors = await embed_texts(
-                    ctx, [embedding_text(h, t) for _, h, t in batch]
+                    ctx, [embedding_text(h, t) for _, h, t in batch], background=True
                 )
                 if batch_space != space:
                     raise _SpaceChanged
@@ -738,6 +750,8 @@ async def _embed_stale(
                 await db.commit()
             raise
         except AppError as exc:
+            if exc.code == "ai.usage_limit_reached":
+                raise  # not this document's failure
             await _count_failure(ctx, item_id)
             if exc.code in OCR_STOP_CODES:  # every other document would fail the same way
                 raise

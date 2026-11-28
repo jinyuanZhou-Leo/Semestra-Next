@@ -12,6 +12,7 @@ from semestra.modules.ai import (  # noqa: F401  (registers on import)
     local_ocr,
     models,
     portability,
+    usage_limit,
 )
 from semestra.modules.ai.calls import (
     UNTRUSTED_NOTICE,
