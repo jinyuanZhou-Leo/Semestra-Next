@@ -20,13 +20,13 @@ import { importAssignments } from '../import/assignments'
 import { useSyncAnswers } from './answers'
 import { ScrollArea } from '@/ui/scroll-area'
 import { CalendarLines } from './CalendarNote'
-import { byCourse, staleCourses } from './labels'
+import { byCourse } from './labels'
 import { MoreSections } from './MoreSections'
 import { PendingSection } from './PendingSection'
 import { ProblemList } from './ProblemList'
 import { RecentSection } from './RecentSection'
 import type { CourseOf } from './rows'
-import { syncedAgo, useProgramId, useSync } from './status'
+import { syncHeadline, useProgramId, useSync } from './status'
 
 /**
  * The panel of the LMS status line (M09 §4.1). The header (platform, last sync, "Sync now")
@@ -95,19 +95,8 @@ function Panel({
   const broken = status.connection_error
     ? errorMessage({ error: { code: status.connection_error } })
     : null
-  // How far a sync the user asked for is; the background's own shows no count.
   const shownRound = syncing ? (status.round ?? null) : null
-  const headline = broken
-    ? broken
-    : shownRound
-      ? m.lms_sync_panel_progress({ done: shownRound.done, total: shownRound.total })
-      : syncing
-        ? m.lms_sync_panel_syncing()
-        : status.synced_at
-          ? status.problems.length > 0 || staleCourses(status).length > 0
-            ? m.lms_sync_panel_synced_partly({ ago: syncedAgo(status.synced_at, now) })
-            : m.lms_sync_panel_synced({ ago: syncedAgo(status.synced_at, now) })
-          : m.lms_sync_meta_waiting()
+  const headline = syncHeadline(status, now, syncing)
   const course: CourseOf = (id, code) => ({ course: code, color: colors.get(id) })
   const shared = { provider, answers, course }
 

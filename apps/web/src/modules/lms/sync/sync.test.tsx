@@ -663,16 +663,62 @@ test('on a phone the courses tab shows what waits, answered in a sheet', async (
   server.use(
     ...handlers(current),
     http.post(`${API}/programs/p1/lms/sync\\:dismiss`, async ({ request }) => {
-      dismissed(await request.json())
-      return HttpResponse.json(status({ ignored: current.pending }))
+      const body = (await request.json()) as { dismissed: boolean }
+      dismissed(body)
+      return HttpResponse.json(
+        body.dismissed
+          ? status({ ignored: current.pending })
+          : status({ pending: current.pending }),
+      )
     }),
   )
-  renderWithRouter(<SyncSection programId="p1" termId="t1" />, undefined, IN_PROGRAM)
+  const { router } = renderWithRouter(
+    <SyncSection programId="p1" termId="t1" />,
+    undefined,
+    IN_PROGRAM,
+  )
   await userEvent.click(await screen.findByRole('button', { name: /Canvas.*1 to review/ }))
   const sheet = await screen.findByRole('dialog')
-  expect(within(sheet).getByText('A3')).toBeInTheDocument()
+  // A new assignment is imported on a computer, where the import is reviewed.
+  expect(within(sheet).queryByRole('button', { name: 'Import' })).not.toBeInTheDocument()
+  expect(within(sheet).getByText(/imported on a computer/)).toBeInTheDocument()
   await userEvent.click(within(sheet).getByRole('button', { name: 'Ignore' }))
   await waitFor(() =>
     expect(dismissed).toHaveBeenCalledWith({ assignment_ids: ['r1'], dismissed: true }),
+  )
+  // Ignored, it can be offered again.
+  const ignored = within(await within(sheet).findByRole('list', { name: 'Ignored' }))
+  await userEvent.click(ignored.getByRole('button', { name: 'Offer again' }))
+  await waitFor(() =>
+    expect(dismissed).toHaveBeenLastCalledWith({ assignment_ids: ['r1'], dismissed: false }),
+  )
+  // A row opens the assignment's details.
+  await userEvent.click(await within(sheet).findByRole('button', { name: /^A3/ }))
+  await waitFor(() => expect(router.state.location.search).toEqual({ assignment: 'c1:r1' }))
+})
+
+test('on a phone a partial sync says so, and a broken connection can be reconnected', async () => {
+  server.use(...handlers(status({ problems: [PROBLEM] })))
+  const { unmount } = renderWithRouter(
+    <SyncSection programId="p1" termId="t1" />,
+    undefined,
+    IN_PROGRAM,
+  )
+  await userEvent.click(await screen.findByRole('button', { name: /Some content not updated/ }))
+  expect(await screen.findByText('Sync errors')).toBeInTheDocument()
+  unmount()
+
+  server.use(...handlers(status({ connection_error: 'lms.auth_failed' })))
+  const { router } = renderWithRouter(
+    <SyncSection programId="p1" termId="t1" />,
+    undefined,
+    IN_PROGRAM,
+  )
+  await userEvent.click(await screen.findByRole('button', { name: /Canvas.*Reconnect/ }))
+  await userEvent.click(
+    within(await screen.findByRole('dialog')).getByRole('button', { name: 'Reconnect' }),
+  )
+  await waitFor(() =>
+    expect(router.state.location.search).toMatchObject({ settings: 'account/lms' }),
   )
 })

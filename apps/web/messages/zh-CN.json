@@ -3731,5 +3731,6 @@
   "mobile_day_due": "截止",
   "mobile_sync_title": "同步",
   "mobile_sync_pending": "{count} 项待处理",
+  "mobile_sync_import_on_computer": "新作业请在电脑上导入，导入时需要逐项核对。",
   "mobile_sync_nothing": "没有待处理的项目"
 }
