@@ -24,7 +24,13 @@ import { capabilityTitle } from '../labels'
 import { ASK_USER } from '../transcript'
 import type { Decision } from '../use-chat'
 import { INPUT_FRAME, SmoothHeight, Swap } from './motion'
-import { EditForm, ProposalChanges, editableFields } from './ProposalCard'
+import {
+  type Conflict,
+  ConflictList,
+  EditForm,
+  ProposalChanges,
+  editableFields,
+} from './ProposalCard'
 
 type Option = { label: string; description?: string }
 type Question = { question: string; options: Option[]; recommended?: number | null }
@@ -275,6 +281,8 @@ function ConfirmPanel({
   const [editing, setEditing] = useState(false)
   const [remember, setRemember] = useState(false)
   const [text, setText] = useState('')
+  const [keep, setKeep] = useState<Record<string, boolean>>({})
+  const conflicts = (proposal.preview as { conflicts?: Conflict[] } | null)?.conflicts ?? []
   const destructive = proposal.effect === 'destructive'
   const title = capabilityTitle(proposal.capability)
   const target = (proposal.preview as { target?: string } | null)?.target
@@ -315,7 +323,7 @@ function ConfirmPanel({
             disabled={disabled}
             onCancel={() => setEditing(false)}
             onSubmit={(args) =>
-              onDecide({ proposalId: proposal.id, decision: 'edit', args, remember })
+              onDecide({ proposalId: proposal.id, decision: 'edit', args, remember, keep })
             }
           />
         </div>
@@ -324,6 +332,16 @@ function ConfirmPanel({
           <div className="px-4 pt-1 pb-3 pl-10">
             <ProposalChanges proposal={proposal} />
           </div>
+          {conflicts.length > 0 ? (
+            <div className="px-4 pb-3 pl-10">
+              <ConflictList
+                conflicts={conflicts}
+                keep={keep}
+                disabled={disabled}
+                onChange={(key, value) => setKeep((current) => ({ ...current, [key]: value }))}
+              />
+            </div>
+          ) : null}
           <div className="flex flex-wrap items-center justify-between gap-2 px-4 pb-3">
             {proposal.effect === 'write' ? (
               <Label className="text-xs font-normal text-muted-foreground">
@@ -361,7 +379,9 @@ function ConfirmPanel({
                 size="sm"
                 variant={destructive ? 'destructive' : 'default'}
                 disabled={disabled}
-                onClick={() => onDecide({ proposalId: proposal.id, decision: 'approve', remember })}
+                onClick={() =>
+                  onDecide({ proposalId: proposal.id, decision: 'approve', remember, keep })
+                }
               >
                 {m.assistant_proposal_approve()}
               </Button>

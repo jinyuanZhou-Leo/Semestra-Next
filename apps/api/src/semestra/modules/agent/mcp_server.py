@@ -251,7 +251,13 @@ async def _call_tool(
             return _text(mcp_elicit.declined_payload())
         if step is not None:
             args = step.args
-            before = partial(mcp_elicit.resolve, cap=registry.get(name), args=args, keep=step.keep)
+            before = partial(
+                outcome.settle_conflicts,
+                cap=registry.get(name),
+                args=args,
+                keep=step.keep,
+                surface="mcp",
+            )
 
     # `Registry.invoke` enforces what a token may call (scope, plugins, the delete preference),
     # the same as on REST routes; `_tools_for` only decides which tools to show.

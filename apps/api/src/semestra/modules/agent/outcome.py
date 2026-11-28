@@ -73,6 +73,25 @@ def result_meta(cap: Capability | None, outcome: Outcome) -> dict[str, Any]:
     }
 
 
+async def settle_conflicts(
+    ctx: Ctx,
+    cap: Capability,
+    args: dict[str, Any],
+    keep: dict[str, bool],
+    surface: Surface = "agent",
+) -> None:
+    """Records the user's choices on where a write meets what they have (Sem's card, an MCP
+    form: conflict key → keep what is there), in the write's own transaction. Keys the
+    capability does not report now are ignored."""
+    if not keep or cap.conflicts is None or cap.resolve_conflicts is None:
+        return
+    inp = await registry.validate(ctx, cap, args, surface)
+    known = {c.key for c in await cap.conflicts(ctx, inp)}
+    chosen = {k: v for k, v in keep.items() if k in known}
+    if chosen:
+        await cap.resolve_conflicts(ctx, inp, chosen)
+
+
 async def invoke(
     state: State,
     user_id: str,

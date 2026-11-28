@@ -13,7 +13,14 @@ from mcp import ClientSession
 from mcp.shared.exceptions import MCPError
 from pydantic import RootModel
 
-from semestra.modules.agent.tests.conftest import Agent, mcp_session
+from semestra.modules.agent.tests.conftest import (
+    Agent,
+    FakeModel,
+    call,
+    events_named,
+    mcp_session,
+    say,
+)
 
 Connect = Callable[[str], AbstractAsyncContextManager[ClientSession]]
 
@@ -337,37 +344,39 @@ async def test_the_user_picks_a_course_the_call_left_out(app: FastAPI, agent: Ag
     assert [a["title"] for a in gradebook["assessments"]] == ["Quiz 1"]
 
 
+async def _import_with_a_duplicate(
+    mcp: ClientSession, program: dict[str, Any], course: dict[str, Any]
+) -> str:
+    """An import draft of Lab 3 (already in the gradebook) and Lab 4."""
+    created = await mcp.call_tool(
+        "imports__session__create",
+        {
+            "program_id": program["id"],
+            "source_kind": "agent",
+            "target": {"kind": "course", "course_id": course["id"]},
+        },
+    )
+    session_id = _payload(created)["id"]
+    ref = f"course:{course['id']}"
+    added = await mcp.call_tool(
+        "imports__item__add_many",
+        {
+            "session_id": session_id,
+            "items": [
+                {"type": "assessment", "data": {"course_ref": ref, "title": t, "weight": 10}}
+                for t in ("Lab 3", "Lab 4")
+            ],
+        },
+    )
+    assert added.is_error is False, _payload(added)
+    return session_id
+
+
 async def test_committing_an_import_asks_about_what_is_already_there(app: FastAPI, agent: Agent):
     program, course, _ = await agent.course_with_lab()
     token = await _token(agent, ["read", "write"])
     async with mcp_session(app, token, forms=True) as mcp:
-        created = await mcp.call_tool(
-            "imports__session__create",
-            {
-                "program_id": program["id"],
-                "source_kind": "agent",
-                "target": {"kind": "course", "course_id": course["id"]},
-            },
-        )
-        session_id = _payload(created)["id"]
-        ref = f"course:{course['id']}"
-        added = await mcp.call_tool(
-            "imports__item__add_many",
-            {
-                "session_id": session_id,
-                "items": [
-                    {
-                        "type": "assessment",
-                        "data": {"course_ref": ref, "title": "Lab 3", "weight": 10},
-                    },
-                    {
-                        "type": "assessment",
-                        "data": {"course_ref": ref, "title": "Lab 4", "weight": 10},
-                    },
-                ],
-            },
-        )
-        assert added.is_error is False, _payload(added)
+        session_id = await _import_with_a_duplicate(mcp, program, course)
         tool, args = "imports__session__commit", {"session_id": session_id}
         asked = await mcp.call_tool(tool, args, allow_input_required=True)
         form = _form(asked, "confirm")
@@ -377,6 +386,27 @@ async def test_committing_an_import_asks_about_what_is_already_there(app: FastAP
         assert isinstance(asked, types.InputRequiredResult)
         done = await _answer(mcp, tool, args, asked, "confirm", content={key: "add"})
         assert done.is_error is False, _payload(done)
+    gradebook = await agent.call("GET", f"/courses/{course['id']}/gradebook")
+    assert sorted(a["title"] for a in gradebook["assessments"]) == ["Lab 3", "Lab 3", "Lab 4"]
+
+
+async def test_sem_asks_the_same_on_its_card(app: FastAPI, agent: Agent, model: FakeModel):
+    program, course, _ = await agent.course_with_lab()
+    token = await _token(agent, ["read", "write"])
+    async with mcp_session(app, token) as mcp:
+        session_id = await _import_with_a_duplicate(mcp, program, course)
+    session = await agent.session()
+    model.then(
+        call("load_capability", {"id": "import-from-documents"}),
+        call("imports.session.commit", {"session_id": session_id}),
+    )
+    [proposal] = events_named(await agent.send(session["id"], "Apply it"), "proposal")
+    [conflict] = proposal["preview"]["conflicts"]
+    assert (conflict["subject"], conflict["kind"], conflict["keep"]) == ("Lab 3", "duplicate", True)
+
+    model.then(say("Done."))
+    # A key the card did not show is ignored.
+    await agent.decide(session["id"], proposal["id"], keep={conflict["key"]: False, "x": True})
     gradebook = await agent.call("GET", f"/courses/{course['id']}/gradebook")
     assert sorted(a["title"] for a in gradebook["assessments"]) == ["Lab 3", "Lab 3", "Lab 4"]
 

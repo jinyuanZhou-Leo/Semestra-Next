@@ -5,6 +5,7 @@ then hands its outcome to the model (`loop._prepare`)."""
 import asyncio
 from collections.abc import Sequence
 from dataclasses import dataclass
+from functools import partial
 from typing import Any
 
 import structlog
@@ -183,7 +184,12 @@ async def run(
             await asyncio.shield(_record(state, user_id, session_id, row, result, "rejected", None))
             continue
         args = d.args if d.decision == "edit" and d.args is not None else row.args
-        result = await outcome.invoke(state, user_id, scope, row.capability, args)
+        settle = (
+            partial(outcome.settle_conflicts, cap=cap, args=args, keep=d.keep)
+            if cap is not None and d.keep
+            else None
+        )
+        result = await outcome.invoke(state, user_id, scope, row.capability, args, before=settle)
         row.args = args
         status = "executed" if result.ok else "failed"
         results.append((row, result))

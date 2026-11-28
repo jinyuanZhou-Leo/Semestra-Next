@@ -7,6 +7,7 @@ resolved simply shows fewer details: never an id.
 """
 
 import re
+from dataclasses import asdict
 from datetime import date, datetime, time
 from decimal import Decimal
 from enum import Enum
@@ -281,6 +282,9 @@ async def make_preview(ctx: Ctx, cap: Capability, args: dict[str, Any]) -> dict[
             out = dict(own)  # pyright: ignore[reportUnknownArgumentType]
     else:
         out = await _generic_preview(ctx, cap, args)
+    if cap.conflicts is not None:
+        # Where it meets what the user has: each one a choice on the card (M12 §3.5).
+        out["conflicts"] = [asdict(c) for c in await cap.conflicts(ctx, inp)]
     if not out.get("target"):
         # What the card is about, by name: the ids in the arguments are never shown.
         try:

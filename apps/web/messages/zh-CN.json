@@ -3705,5 +3705,11 @@
   "settings_card_canvas_tab_shortcut_place_option_modules": "单元",
   "settings_card_canvas_tab_shortcut_place_option_assignments": "作业与成绩",
   "settings_card_canvas_tab_shortcut_place_option_pages": "页面",
-  "settings_card_canvas_tab_shortcut_place_option_files": "文件"
+  "settings_card_canvas_tab_shortcut_place_option_files": "文件",
+  "assistant_conflicts_title": "与已有内容不同",
+  "assistant_conflict_duplicate": "Semestra 中已有",
+  "assistant_conflict_keep": "保留",
+  "assistant_conflict_replace": "覆盖",
+  "assistant_conflict_skip": "跳过",
+  "assistant_conflict_add": "添加"
 }

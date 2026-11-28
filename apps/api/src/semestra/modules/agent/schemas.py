@@ -242,6 +242,11 @@ class Decision(BaseModel):
     )
     remember: bool = False
     reason: str | None = Field(default=None, max_length=1000)
+    keep: dict[str, bool] | None = Field(
+        default=None,
+        description="The user's choices on the card's `preview.conflicts`: key → keep what is "
+        "there (approve or edit).",
+    )
 
 
 class CompactBody(BaseModel):
@@ -256,6 +261,11 @@ class DecideBody(BaseModel):
     )
     remember: bool = False
     reason: str | None = Field(default=None, max_length=1000)
+    keep: dict[str, bool] | None = Field(
+        default=None,
+        description="The user's choices on the card's `preview.conflicts`: key → keep what is "
+        "there (approve or edit).",
+    )
 
 
 class DecideManyBody(BaseModel):

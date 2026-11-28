@@ -189,13 +189,6 @@ async def step(
     return _ask(CONFIRM, form, {"picked": picked, "asked": CONFIRM})
 
 
-async def resolve(ctx: Ctx, cap: Capability, args: dict[str, Any], keep: dict[str, bool]) -> None:
-    """Records the user's choices on the conflicts, in the call's own transaction."""
-    if keep and cap.resolve_conflicts is not None:
-        inp = await registry.validate(ctx, cap, args, "mcp")
-        await cap.resolve_conflicts(ctx, inp, keep)
-
-
 def _ask(key: str, form: types.ElicitRequestFormParams, state: dict[str, Any]) -> Ask:
     return Ask(
         types.InputRequiredResult(
