@@ -26,6 +26,8 @@ import {
 } from '@semestra/api-client/react-query'
 import {
   COURSE_INFO_ROWS,
+  MOBILE_OVERVIEW_SECTIONS,
+  type MobileOverviewSection,
   ONBOARDING_STEPS,
   type OnboardingStep,
   TERM_WIZARD_IMPORT_SOURCES,
@@ -34,6 +36,8 @@ import {
   ASSESSMENT_ACTIONS,
   ASSESSMENT_COLUMNS,
   ASSESSMENT_IMPORT_SOURCES,
+  MOBILE_ASSESSMENT_OPENERS,
+  type MobileAssessmentOpener,
   type AssessmentColumn,
 } from '@/modules/grading/types'
 import { FILE_ITEM_ACTIONS, type FileItemAction } from '@/modules/files/types'
@@ -163,6 +167,7 @@ export default defineModule({
       icon: Megaphone,
       order: 40,
       component: preloadable(() => import('./pages/AnnouncementsPage')),
+      mobile: { component: preloadable(() => import('./mobile/AnnouncementsMobile')) },
       availabilityQuery: announcementLinksQuery,
       isAvailable: hasAnnouncements,
       unread: {
@@ -355,6 +360,16 @@ export default defineModule({
     [TERM_WIZARD_IMPORT_SOURCES]: [wizardCourseSource],
     [ASSESSMENT_IMPORT_SOURCES]: [assignmentSource, syllabusSource],
     [ASSESSMENT_ACTIONS]: [openAction, bindAction, unbindAction],
+    [MOBILE_ASSESSMENT_OPENERS]: [
+      { id: 'lms.assignment', Opener: preloadable(() => import('./mobile/AssessmentOpener')) },
+    ] satisfies MobileAssessmentOpener[],
+    [MOBILE_OVERVIEW_SECTIONS]: [
+      {
+        id: 'lms.platform',
+        order: 90,
+        component: preloadable(() => import('./mobile/PlatformSection')),
+      },
+    ] satisfies MobileOverviewSection[],
     // Only in a gradebook where some assessment is an assignment of the platform (imported, or
     // kept from when it was): each such row opens the assignment's details, or its feedback.
     [ASSESSMENT_COLUMNS]: [

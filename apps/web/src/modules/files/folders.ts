@@ -132,3 +132,17 @@ export function itemsInside(
       i.folder_id && (i.folder_id === folderId || tree.ancestors.get(i.folder_id)?.has(folderId)),
   )
 }
+
+/** Folders with a file not opened yet in them (`unseen`), at any depth. */
+export function freshFolders(
+  folders: readonly FolderOut[],
+  items: readonly ItemOut[],
+): ReadonlySet<string> {
+  const parents = new Map(folders.map((f) => [f.id, f.parent_id]))
+  const fresh = new Set<string>()
+  for (const item of items) {
+    if (!item.unseen) continue
+    for (let id = item.folder_id; id && !fresh.has(id); id = parents.get(id) ?? null) fresh.add(id)
+  }
+  return fresh
+}

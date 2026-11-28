@@ -45,6 +45,7 @@ export const courseColumns: CourseColumn[] = [
     id: 'grading.grade',
     header: m.grading_grade,
     query,
+    showOnPhone: true,
     cell: (course, data) => {
       const grade = gradeOf(course, data)
       if (!grade) return <span className="text-muted-foreground">—</span>

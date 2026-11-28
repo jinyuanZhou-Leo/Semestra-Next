@@ -1,4 +1,5 @@
 import {
+  BookOpen,
   CalendarRange,
   ChartColumn,
   GraduationCap,
@@ -59,6 +60,7 @@ export default defineModule({
       title: m.academics_nav_overview,
       icon: LayoutDashboard,
       component: preloadable(() => import('./pages/OverviewPage')),
+      mobile: { component: preloadable(() => import('./mobile/CourseOverviewMobile')) },
       board: 'scope',
       order: 0,
     },
@@ -71,6 +73,17 @@ export default defineModule({
       component: preloadable(() => import('./pages/OverviewPage')),
       board: 'scope',
       order: 100,
+    },
+  ],
+  // "Terms & courses" (`/p/<program>/academics`) on a phone: the courses tab (M17 §4).
+  mobileTabs: [
+    {
+      id: 'academics',
+      order: 20,
+      title: m.mobile_courses,
+      icon: BookOpen,
+      component: preloadable(() => import('./mobile/CoursesMobilePage')),
+      courses: true,
     },
   ],
   navigationSources: [academicsNavigation],

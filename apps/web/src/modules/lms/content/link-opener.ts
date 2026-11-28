@@ -17,8 +17,8 @@ import { fileContentUrl } from './file-url'
  * where a platform's plugin shows it (`lms.linkOpeners`). It answers false for what nothing
  * takes: that link goes to the platform in a new tab.
  *
- * `pages: false` is for where the app has none of those pages (a phone, M17): only the details
- * and the file proxy open there, the rest goes to the platform.
+ * `pages: false` is for where the app has none of those pages (a phone, M17): only the details,
+ * the file proxy and `onAnnouncement` open there, the rest goes to the platform.
  */
 export function useLmsLinkOpener({
   programId,
@@ -53,10 +53,13 @@ export function useLmsLinkOpener({
       }
       return true
     }
+    if (link.kind === 'announcement' && onAnnouncement) {
+      onAnnouncement(link.ref)
+      return true
+    }
     if (!pages || !programId) return false
     if (link.kind === 'announcement') {
-      if (onAnnouncement) onAnnouncement(link.ref)
-      else go(announcementPath({ kind: 'course', programId, courseId }, courseId, link.ref))
+      go(announcementPath({ kind: 'course', programId, courseId }, courseId, link.ref))
       return true
     }
     for (const opener of openers) {

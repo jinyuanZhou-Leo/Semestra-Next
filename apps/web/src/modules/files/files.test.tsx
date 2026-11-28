@@ -12,6 +12,7 @@ import { Citation } from './components/Citation'
 import { DocumentText } from './components/DocumentText'
 import { type Target, canMoveInto, canMoveIntoNewFolder, folderTree } from './folders'
 import { academicsHandlers, course, defaultWorld } from '@/modules/academics/test-data'
+import CourseFilesMobile from './mobile/CourseFilesMobile'
 import CourseFilesPage from './pages/CourseFilesPage'
 import TermFilesPage from './pages/TermFilesPage'
 import { pageTarget } from './page-target'
@@ -1287,4 +1288,35 @@ test('closing a preview leaves no step behind: back goes where the page was befo
   expect(router.history.length).toBe(2)
   act(() => router.history.back())
   await waitFor(() => expect(router.state.location.search).toEqual({ from: 1 }))
+})
+
+test('on a phone a new file is marked in its folder and is not new once opened', async () => {
+  const seen = vi.fn<(id: string) => void>()
+  items = [item({ id: 'n1', folder_id: 'f1', display_name: 'Week 3.pdf', unseen: true })]
+  server.use(
+    http.get(`${API}/courses/c1/files`, () =>
+      HttpResponse.json({
+        folders: [makeFolder('f1', 'Lecture slides')],
+        items,
+        next_cursor: null,
+      }),
+    ),
+    http.post(`${API}/files/:id\\:seen`, ({ params }) => {
+      seen(String(params.id))
+      return HttpResponse.json({ ...items[0], unseen: false })
+    }),
+  )
+  const user = userEvent.setup()
+  renderWithRouter(<CourseFilesMobile scope={scope} />, undefined, {
+    path: '/p/$programId',
+    at: '/p/p1',
+  })
+  const folder = await screen.findByRole('button', { name: /^Lecture slides/ })
+  expect(within(folder).getByText('New')).toBeInTheDocument()
+  await user.click(folder)
+  const file = await screen.findByRole('link', { name: /^Week 3\.pdf/ })
+  // jsdom does not open the new tab; the click is what counts.
+  file.addEventListener('click', (event) => event.preventDefault())
+  await user.click(file)
+  await waitFor(() => expect(seen).toHaveBeenCalledWith('n1'))
 })

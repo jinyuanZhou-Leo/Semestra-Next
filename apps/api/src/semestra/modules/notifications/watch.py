@@ -91,8 +91,7 @@ async def on_course_synced(ctx: Ctx, event: Event) -> None:
     found = [n for n in data.get("notices") or [] if n.get("kind") == "announcement"]
     if found and cfg.lms == "all":
         one = str(found[0]["external_id"]) if len(found) == 1 else None
-        path = await lms_pages.announcements_path(ctx, course_id, one)
-        url = f"{page}/{path}" if path else page
+        url = f"{page}/{lms_pages.announcements_path(course_id, one)}"
         messages.append(
             Message(
                 kind=_kind("lms_announcements", len(found)),

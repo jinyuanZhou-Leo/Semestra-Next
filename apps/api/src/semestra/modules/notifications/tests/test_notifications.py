@@ -428,6 +428,10 @@ async def test_what_an_lms_sync_did_is_told_per_course_and_kind(
     await call(client, "PATCH", "/me/settings/notifications", json={"values": {"lms": "all"}})
     told = await synced()
     assert told["New announcement in APS105H1"]["hidden_only"] is False
+    # A single announcement opens on the course's announcements page, on a phone too.
+    assert told["New announcement in APS105H1"]["url"] == (
+        f"/p/{program_id}/c/{course_id}/announcements?post={course_id}%3An1"
+    )
     # In quiet hours (it is 07:00 in Toronto) the news waits until they end.
     quiet = {"quiet_hours": True, "quiet_start": "06:00", "quiet_end": "08:00"}
     await call(client, "PATCH", "/me/settings/notifications", json={"values": quiet})
