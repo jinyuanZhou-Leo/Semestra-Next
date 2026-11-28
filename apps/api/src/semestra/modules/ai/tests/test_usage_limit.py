@@ -17,6 +17,7 @@ from semestra.testing import collect_events
 # The test clock is 2026-01-15 12:00 UTC.
 THIS_MONTH = datetime(2026, 1, 10, tzinfo=UTC)
 LAST_MONTH = datetime(2025, 12, 31, 12, tzinfo=UTC)
+HI = [Message.user("hi")]
 
 
 async def set_limit(ai: Ai, amount: float | None) -> None:
@@ -71,7 +72,7 @@ async def test_background_calls_pause_at_the_limit_but_the_users_own_still_run(
 
     async with ai.ctx() as ctx:
         with pytest.raises(AppError) as exc:
-            await m06.complete(ctx, "chat", [Message.user("hi")], source_module="t", background=True)
+            await m06.complete(ctx, "chat", HI, source_module="t", background=True)
         assert exc.value.code == "ai.usage_limit_reached"
         assert route.call_count == 0
 
@@ -80,7 +81,7 @@ async def test_background_calls_pause_at_the_limit_but_the_users_own_still_run(
 
     await set_limit(ai, 5.0)  # raised: background calls run again
     async with ai.ctx() as ctx:
-        await m06.complete(ctx, "chat", [Message.user("hi")], source_module="t", background=True)
+        await m06.complete(ctx, "chat", HI, source_module="t", background=True)
     assert route.call_count == 2
 
 
