@@ -2,7 +2,8 @@ import type { Course, TaskCreateInputBody } from '@semestra/api-client'
 import { useEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
-import { type NewTaskPlace, newTaskBody } from '../new-task'
+import { ClipboardPaste } from 'lucide-react'
+import { importableText, importPastedText, type NewTaskPlace, newTaskBody } from '../new-task'
 import { focusAt, useEditorExit } from './editor-exit'
 import { useNewTaskDraft } from '../draft'
 import { TaskChips } from './TaskChips'
@@ -10,6 +11,7 @@ import { TitleInput } from './TitleInput'
 import { NOTES_MAX, TITLE_MAX } from '../limits'
 
 type Props = {
+  programId: string
   /** Set while the row is open; a new value starts a fresh task. */
   openKey: number | null
   /** Opens the row from its empty circle; without it the row shows only while open. */
@@ -74,6 +76,7 @@ export function NewTaskRow({ openKey, onOpen, onClose, compact, ...editor }: Pro
 }
 
 function NewTaskEditor({
+  programId,
   circle,
   onClose,
   place,
@@ -89,6 +92,8 @@ function NewTaskEditor({
   const titleRef = useRef<HTMLInputElement>(null)
   const closed = useRef(false)
   const [notes, setNotes] = useState('')
+  // Pasted text that reads like more than a title: offered for import while it is in the title.
+  const [pasted, setPasted] = useState<string | null>(null)
   const draft = useNewTaskDraft(place.initial, {
     courses,
     timezone,
@@ -105,6 +110,7 @@ function NewTaskEditor({
     const body = newTaskBody(place, { title: draft.savedTitle, notes, values: draft.values })
     draft.reset()
     setNotes('')
+    setPasted(null)
     // What was typed comes back, so the words read from it are read again.
     void onAdd(body).then((added) => {
       if (!added) draft.setTitle((current) => current || typed)
@@ -117,6 +123,12 @@ function NewTaskEditor({
     onClose()
   }
   useEditorExit(rowRef, { onLeave: () => finish(true), onEscape: () => finish(false) })
+  const importPasted = (text: string) => {
+    // Closed first: the dialog taking focus would otherwise add the title as a task.
+    finish(false)
+    importPastedText(programId, { courseId: draft.values.course_id, termId: place.termId }, text)
+  }
+  const offered = pasted !== null && draft.title !== '' ? pasted : null
   const keys = (event: React.KeyboardEvent, enterAdds: boolean) => {
     if (event.nativeEvent.isComposing) return
     if (event.key === 'Enter' && (enterAdds || event.metaKey || event.ctrlKey)) {
@@ -150,7 +162,33 @@ function NewTaskEditor({
           maxLength={TITLE_MAX}
           onChange={(event) => draft.setTitle(event.target.value)}
           onKeyDown={(event) => keys(event, true)}
+          onPaste={(event) => {
+            const text = event.clipboardData.getData('text/plain')
+            setPasted(importableText(text) ? text : null)
+          }}
         />
+        <div
+          className={cn(
+            'grid transition-[grid-template-rows,opacity] duration-200 ease-out',
+            offered ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0',
+          )}
+        >
+          <div className="min-h-0 overflow-hidden">
+            <button
+              type="button"
+              tabIndex={offered ? 0 : -1}
+              aria-hidden={!offered}
+              className={cn(
+                'flex items-center gap-1.5 py-0.5 font-medium text-primary outline-none hover:underline focus-visible:underline',
+                compact ? 'text-xs' : 'text-sm',
+              )}
+              onClick={() => offered && importPasted(offered)}
+            >
+              <ClipboardPaste aria-hidden className={compact ? 'size-3.5' : 'size-4'} />
+              {m.tasks_import_pasted()}
+            </button>
+          </div>
+        </div>
         <textarea
           aria-label={m.tasks_notes_label()}
           placeholder={m.tasks_notes_label()}

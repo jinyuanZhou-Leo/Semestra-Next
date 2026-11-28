@@ -11050,7 +11050,7 @@ export type SessionTarget = {
     /**
      * Term Id
      *
-     * Term (kind term, or course's term: without it, the course's current or next term; with term_wizard, the existing term the courses are added to, for its real weeks)
+     * Term (kind term: without it, the Program's current term; for kind course, without it, the course's current or next term; with term_wizard, the existing term the courses are added to, for its real weeks)
      */
     term_id?: string | null;
     /**
@@ -11359,9 +11359,9 @@ export type SourceOptions = {
     /**
      * Only
      *
-     * course_info keeps just the field changes of the target course
+     * course_info keeps just the field changes of the target course; dates (text and syllabus) reads just the deadlines and dated events, as to-dos and events
      */
-    only?: 'course_info' | null;
+    only?: 'course_info' | 'dates' | null;
     /**
      * Keep Files
      *

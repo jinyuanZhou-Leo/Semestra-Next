@@ -32,6 +32,7 @@ import schedule from '@/modules/schedule/manifest'
 import settings from '@/modules/settings/manifest'
 import tasks from '@/modules/tasks/manifest'
 import type {
+  FileDropContribution,
   KeptQueries,
   BoardKind,
   CalendarSourceContribution,
@@ -306,6 +307,12 @@ export function useOverlays(): ComponentType[] {
   return useModules()
     .flatMap((m) => m.overlays ?? [])
     .map((overlay) => ('desktop' in overlay ? (phone ? overlay.phone : overlay.desktop) : overlay))
+}
+
+/** What files dropped on a scope's page start (`fileDrops`), in registry order. */
+export function useFileDrops(scope: Scope, pageId: string): FileDropContribution[] {
+  const page = `${scope.kind}/${pageId}`
+  return useModules().flatMap((m) => (m.fileDrops ?? []).filter((d) => d.pages.includes(page)))
 }
 
 /** All contributions to an extension point another module defined, e.g. `'academics.courseColumns'`. */

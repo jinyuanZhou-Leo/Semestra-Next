@@ -259,6 +259,7 @@ export default function TasksPage({ scope }: PageProps) {
   })
   const newRow = completedView ? null : (
     <NewTaskRow
+      programId={programId}
       openKey={newKey}
       onOpen={openNew}
       onClose={() => setNewKey(null)}

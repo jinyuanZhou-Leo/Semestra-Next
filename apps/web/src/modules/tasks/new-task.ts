@@ -1,5 +1,6 @@
 import type { TaskCreateInputBody } from '@semestra/api-client'
 import { useSyncExternalStore } from 'react'
+import { openImport } from '@/modules/imports/launcher'
 import type { ChipValues } from './components/TaskChips'
 import { type Priority, type Selection } from './types'
 
@@ -87,4 +88,34 @@ export function useNewTaskOpen(instanceId: string): number | null {
     },
     () => opened.get(instanceId) ?? null,
   )
+}
+
+/**
+ * Text pasted into a new task's title that reads like more than a title (several lines, or a
+ * paragraph), offered for import instead (M05 §5.1): its deadlines and dates are read and
+ * reviewed in the import dialog.
+ */
+export function importableText(text: string): boolean {
+  const trimmed = text.trim()
+  return trimmed.includes('\n') || trimmed.length > PASTE_IMPORT_CHARS
+}
+
+const PASTE_IMPORT_CHARS = 120
+
+/** Opens the import of pasted text for the place the task would have gone (M08 text source). */
+export function importPastedText(
+  programId: string,
+  { courseId, termId }: { courseId: string | null; termId?: string },
+  text: string,
+) {
+  void openImport({
+    programId,
+    source: 'text',
+    target: courseId
+      ? { kind: 'course', course_id: courseId }
+      : { kind: 'term', term_id: termId ?? null },
+    sourceMeta: { only: 'dates' },
+    mode: 'direct',
+    text: text.trim(),
+  })
 }

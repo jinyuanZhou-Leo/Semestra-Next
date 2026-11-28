@@ -73,6 +73,15 @@ async def _read_source(
         return await extraction.extract_timetable(
             ctx, images, source_ref=row.id, on_segment=on_segment
         )
+    if row.source_meta.get("only") == "dates":
+        return await extraction.extract_dates(
+            ctx,
+            texts,
+            images=images,
+            label=ref.get("filename") or "text",
+            source_ref=row.id,
+            on_segment=on_segment,
+        )
     return await extraction.extract_syllabus(
         ctx,
         texts,
@@ -96,6 +105,9 @@ def _add_source_items(
     if row.source_kind == "timetable_image":
         timetable = extraction.TimetableExtraction.model_validate(reading)
         added = extraction.from_timetable(timetable, context, builder, source)
+    elif row.source_meta.get("only") == "dates":
+        found = extraction.DatesExtraction.model_validate(reading)
+        added = extraction.from_dates(found, context, builder, source)
     else:
         syllabus = extraction.SyllabusExtraction.model_validate(reading)
         added = extraction.from_syllabus(syllabus, context, builder, source)

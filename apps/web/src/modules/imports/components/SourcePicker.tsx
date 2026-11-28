@@ -108,10 +108,12 @@ export function SourcePicker({
       ? request.target.course_id
       : null
   const [from, setFrom] = useState<'upload' | 'course'>('upload')
-  const [files, setFiles] = useState<File[]>([])
+  const [files, setFiles] = useState<File[]>(() =>
+    spec.multiple ? (request.files ?? []) : (request.files ?? []).slice(0, 1),
+  )
   const [picked, setPicked] = useState<string[]>([])
   const [keepFiles, setKeepFiles] = useState(true)
-  const [text, setText] = useState('')
+  const [text, setText] = useState(request.text ?? '')
   const [phase, setPhase] = useState<'idle' | 'uploading' | 'creating'>('idle')
   const [uploaded, setUploaded] = useState({ bytes: 0, count: 0 })
   const [startError, setStartError] = useState<unknown>(null)

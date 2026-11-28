@@ -67,7 +67,7 @@ export function ProgramView({
               )
             }
           />
-          <div className="flex flex-1 flex-col px-6 pt-4 pb-6 *:not-data-[slot=skeleton]:flex-1">
+          <div className="relative flex flex-1 flex-col px-6 pt-4 pb-6 *:not-data-[slot=skeleton]:flex-1">
             <ScopePage scope={scope} pageId={pageId} />
           </div>
         </>
@@ -123,7 +123,7 @@ export function TermView({
                     </>
                   }
                 />
-                <div className="flex flex-1 flex-col px-6 pt-4 pb-6 *:not-data-[slot=skeleton]:flex-1">
+                <div className="relative flex flex-1 flex-col px-6 pt-4 pb-6 *:not-data-[slot=skeleton]:flex-1">
                   <ScopePage scope={scope} pageId={pageId} />
                 </div>
               </>
@@ -182,7 +182,7 @@ export function CourseView({
                   termCourses={termCourses}
                   subtitle={c.code && c.title !== c.code ? c.title : null}
                 />
-                <div className="flex flex-1 flex-col px-6 pt-4 pb-6 *:not-data-[slot=skeleton]:flex-1">
+                <div className="relative flex flex-1 flex-col px-6 pt-4 pb-6 *:not-data-[slot=skeleton]:flex-1">
                   <ScopePage scope={scope} pageId={pageId} />
                 </div>
               </>

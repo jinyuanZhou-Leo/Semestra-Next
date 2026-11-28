@@ -3728,5 +3728,9 @@
   "mobile_week_previous": "Previous week",
   "mobile_week_next": "Next week",
   "mobile_day_empty": "Nothing on this day",
-  "mobile_day_due": "Due"
+  "mobile_day_due": "Due",
+  "imports_drop_syllabus": "Drop to import the syllabus",
+  "imports_drop_ics": "Drop to import the calendar file",
+  "imports_drop_timetable": "Drop to import the timetable",
+  "tasks_import_pasted": "Import from this text"
 }

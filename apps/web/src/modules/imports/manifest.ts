@@ -10,7 +10,7 @@ import { ASSESSMENT_IMPORT_SOURCES } from '@/modules/grading/types'
 import { MEETING_IMPORT_SOURCES } from '@/modules/schedule/types'
 import { m } from '@/paraglide/messages'
 import { ImportHost } from './components/ImportHost'
-import { meetingSource, syllabusGradingSource, wizardSource } from './entries'
+import { courseFileDrop, meetingSource, syllabusGradingSource, wizardSource } from './entries'
 
 /** "Read from a file" above the course's basics in its settings. */
 const courseInfoFill: CourseInfoFill = {
@@ -50,6 +50,11 @@ export default defineModule({
   description: m.imports_description,
   icon: Import,
   overlays: [ImportHost],
+  fileDrops: [
+    courseFileDrop('syllabus', ['course/grades', 'course/overview'], m.imports_drop_syllabus),
+    courseFileDrop('ics', ['course/schedule'], m.imports_drop_ics),
+    courseFileDrop('timetable_image', ['course/schedule'], m.imports_drop_timetable),
+  ],
   settingsSections: [
     {
       id: 'import-history',

@@ -19447,7 +19447,7 @@ export const SessionTargetSchema = {
                 }
             ],
             title: 'Term Id',
-            description: 'Term (kind term, or course\'s term: without it, the course\'s current or next term; with term_wizard, the existing term the courses are added to, for its real weeks)'
+            description: 'Term (kind term: without it, the Program\'s current term; for kind course, without it, the course\'s current or next term; with term_wizard, the existing term the courses are added to, for its real weeks)'
         },
         course_id: {
             anyOf: [
@@ -19980,14 +19980,17 @@ export const SourceOptionsSchema = {
             anyOf: [
                 {
                     type: 'string',
-                    const: 'course_info'
+                    enum: [
+                        'course_info',
+                        'dates'
+                    ]
                 },
                 {
                     type: 'null'
                 }
             ],
             title: 'Only',
-            description: 'course_info keeps just the field changes of the target course'
+            description: 'course_info keeps just the field changes of the target course; dates (text and syllabus) reads just the deadlines and dated events, as to-dos and events'
         },
         keep_files: {
             type: 'boolean',

@@ -1327,3 +1327,68 @@ async def test_assistant_cards_count_what_a_decision_changes(app: FastAPI, api: 
     assert edit["changes"] == [
         {"field": "location", "before": meeting["data"].get("location"), "after": "BA1130"}
     ]
+
+
+async def test_pasted_text_dates_become_tasks_and_events(
+    api: Api, fake_ai: list[dict[str, Any]], run_jobs
+):
+    """`only: dates` (pasted into the to-do quick add): deadlines are to-dos and the rest events,
+    of the course the text names; a deadline that is an assessment already comes unchecked."""
+    program_id = await api.program()
+    term_id = await api.term(program_id)
+    course = await api.course(program_id, term_id)
+    await api.call("POST", f"/courses/{course['id']}/assessments", json={"title": "Lab 1"})
+    fake_ai.append({
+        "items": [
+            {"title": ev("Lab 2 report"), "course": ev("APS105"), "kind": ev("deadline"),
+             "date": ev("2026-02-06"), "start_time": ev("23:59")},
+            {"title": ev("Lab 1"), "course": ev("APS105"), "kind": ev("deadline"),
+             "date_text": ev("Week 3, Friday")},
+            {"title": ev("Midterm"), "course": ev("Computer Fundamentals"), "kind": ev("exam"),
+             "date": ev("2026-03-03"), "start_time": ev("18:00"), "end_time": ev("20:00"),
+             "location": ev("EX100")},
+            {"title": ev("Career fair"), "kind": ev("event"), "date": ev("2026-01-20")},
+        ]
+    })  # fmt: skip
+    # Without a term: the Program's current one.
+    session = await api.create(
+        program_id, source_kind="text", target={"kind": "term"}, text="Hi all, ...",
+        source_meta={"only": "dates"},
+    )  # fmt: skip
+    assert session["target"]["term_id"] == term_id
+    await run_jobs()
+    session = await api.call("GET", f"/imports/{session['id']}")
+    assert session["status"] == "ready"
+    assert {i["type"] for i in session["items"]} == {"task", "event"}
+    lab2, lab1 = by_type(session, "task")
+    ref = f"course:{course['id']}"
+    assert lab2["data"] | {"source_ref": None} == {
+        "course_ref": ref, "title": "Lab 2 report", "due_date": "2026-02-06",
+        "due_time": "23:59:00", "priority": "none", "source_ref": None,
+    }  # fmt: skip
+    assert lab2["decision"] == "accept"
+    assert (lab1["data"]["due_date"], lab1["decision"]) == ("2026-01-23", "reject")
+    midterm, fair = by_type(session, "event")
+    assert midterm["data"]["course_ref"] == ref  # named by its title
+    assert (midterm["data"]["kind"], midterm["data"]["all_day"]) == ("exam", False)
+    assert midterm["data"]["location"] == "EX100"
+    assert "course_ref" not in fair["data"]
+    assert fair["data"]["all_day"] is True
+
+    done = await api.commit(session["id"])
+    assert (done["created"], done["failed"]) == (3, 0)
+    tasks = await api.call("GET", f"/programs/{program_id}/tasks")
+    lab = next(t for t in tasks["items"] if t["title"] == "Lab 2 report")
+    assert lab["course_id"] == course["id"]
+    events = await api.call(
+        "GET", f"/programs/{program_id}/events", params={"start": "2026-01-01", "end": "2026-04-01"}
+    )
+    assert sorted(e["title"] for e in events["items"]) == ["Career fair", "Midterm"]
+
+    # Dates are read from text and documents only.
+    err = await api.create(
+        program_id, 422, source_kind="ics", target={"kind": "term"},
+        upload_ids=[await api.upload("acorn.ics", ACORN, "text/calendar")],
+        source_meta={"only": "dates"},
+    )  # fmt: skip
+    assert err["error"]["code"] == "common.validation"

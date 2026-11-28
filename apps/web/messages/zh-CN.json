@@ -3728,5 +3728,9 @@
   "mobile_week_previous": "上一周",
   "mobile_week_next": "下一周",
   "mobile_day_empty": "这一天没有安排",
-  "mobile_day_due": "截止"
+  "mobile_day_due": "截止",
+  "imports_drop_syllabus": "松开即可导入课程大纲",
+  "imports_drop_ics": "松开即可导入日历文件",
+  "imports_drop_timetable": "松开即可导入课表截图",
+  "tasks_import_pasted": "从这段文字导入"
 }

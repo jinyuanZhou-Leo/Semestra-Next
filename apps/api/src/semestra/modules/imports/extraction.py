@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError
 from semestra.modules import ai
+from semestra.modules.academics import rules as academics_rules
 from semestra.modules.imports import dates
 from semestra.modules.imports.build import (
     BuildContext,
@@ -114,6 +115,28 @@ class TimetableExtraction(BaseModel):
     cells: list[TimetableCellX] = Field(default_factory=list, description="One per class block")
 
 
+DatedKind = Literal["deadline", "exam", "event", "no_class"]
+
+
+class DatedX(BaseModel):
+    title: E[str] = Field(
+        default_factory=E[str], description="What is due or happens, e.g. 'Lab 3 report'"
+    )
+    course: E[str] = Field(
+        default_factory=E[str], description="The course code or name it is for, when stated"
+    )
+    kind: E[DatedKind] = Field(default_factory=E[DatedKind])
+    date_text: E[str] = Field(default_factory=E[str], description="The date as written")
+    date: E[Day] = Field(default_factory=E[Day], description="YYYY-MM-DD when stated")
+    start_time: E[time] = Field(default_factory=E[time], description="HH:MM, 24-hour")
+    end_time: E[time] = Field(default_factory=E[time], description="HH:MM, 24-hour")
+    location: E[str] = Field(default_factory=E[str])
+
+
+class DatesExtraction(BaseModel):
+    items: list[DatedX] = Field(default_factory=list, description="One per deadline or event")
+
+
 SYLLABUS_INSTRUCTIONS = """Extract the course information from this course syllabus (or pasted \
 text about a course): the course itself, its grading scheme (categories and individual \
 assessments with weights and deadlines), its weekly class meetings and important dates.
@@ -127,6 +150,14 @@ TIMETABLE_INSTRUCTIONS = """This is a weekly class timetable (a screenshot or a 
 timetable). List every class block once: course code, title if shown, type (lecture, tutorial, \
 lab...), section, weekday (1 = Monday .. 7 = Sunday), start and end time (24-hour HH:MM) and the \
 location. Use the [image N] number as the evidence page. Do not invent blocks that are not shown."""
+
+DATES_INSTRUCTIONS = """List every deadline and dated event this text states (an email, an \
+announcement, a course page or notes): what is due or happens, the course it is for when the text \
+names one, and its kind: `deadline` (something to hand in or do by a date), `exam` (a test or \
+exam), `no_class` (a class that is cancelled) or `event` (anything else on a date: a talk, a lab \
+session, office hours on one day). Keep the date as written in `date_text` and also give `date` \
+when the text states a calendar date; give times only when stated. Only list what the text \
+states, never guess, and list each thing once."""
 
 # A syllabus is read in three requests side by side: the whole schema is too large for strict
 # structured output (M06 `extract`). Updating the course info reads only the first.
@@ -453,6 +484,89 @@ def _syllabus_dates(
         builder.add("event", fields.data, evidence=fields.evidence, confidence=fields.confidence)
 
 
+def _dated_course(item: DatedX, ctx: BuildContext) -> str | None:
+    """The existing course a dated item is for: the target course, else the one course of the
+    Program the text clearly names ("APS105" for APS105H1, or its title); dates never create
+    courses."""
+    if ctx.target_course_id is not None:
+        return f"course:{ctx.target_course_id}"
+    said = _text(item.course)
+    if not said:
+        return None
+    scored = sorted(
+        ((academics_rules.match_score(said, c.code, None, c.title), c.id) for c in ctx.courses),
+        reverse=True,
+    )
+    if not scored or scored[0][0] < COURSE_MATCH:
+        return None
+    if len(scored) > 1 and scored[1][0] == scored[0][0]:
+        return None  # two courses fit as well: the user picks in the review
+    return f"course:{scored[0][1]}"
+
+
+# `academics.rules.match_score` of a course the text names: a prefix of its code or title words.
+COURSE_MATCH = 0.85
+
+
+def from_dates(
+    ext: DatesExtraction, ctx: BuildContext, builder: Builder, source: dict[str, str | None]
+) -> int:
+    """Deadlines and dated events of a text (M08 §4.3, `only: dates`): deadlines become tasks,
+    the rest events of the course it names (or of the term). A deadline that is an assessment
+    of its course already is added unchecked: that assessment has its own task."""
+    before = len(builder.items)
+    for item in ext.items:
+        name = _text(item.title)
+        if not name:
+            continue
+        ref = _dated_course(item, ctx)
+        fields = _Fields(source)
+        fields.put("title", item.title, name[:200])
+        if ref is not None:
+            fields.data["course_ref"] = ref
+        date_text = _text(item.date_text)
+        resolved = dates.resolve(date_text, ctx.term)
+        day = resolved or item.date.value
+        said = item.date_text if resolved else item.date
+        normalized = norm_title(name)
+        fields.data["source_ref"] = f"text:{ref or ''}:{normalized}:{day or date_text or ''}"[:500]
+        kind = item.kind.value or "event"
+        if kind == "deadline":
+            if date_text:
+                fields.put("due_text", item.date_text, date_text[:200])
+            if day is not None:
+                fields.put("due_date", said, day)
+                if item.start_time.value is not None:
+                    fields.put("due_time", item.start_time)
+            course_id = ref.removeprefix("course:") if ref else ""
+            known = normalized in ctx.existing_assessments.get(course_id, set())
+            builder.add(
+                "task",
+                fields.data,
+                evidence=fields.evidence,
+                confidence=fields.confidence,
+                decision="reject" if known else "accept",
+            )
+            continue
+        if date_text:
+            fields.put("date_text", item.date_text, date_text[:200])
+        if day is not None:
+            fields.put("date", said, day)
+        start, end = item.start_time.value, item.end_time.value
+        if start is not None and kind != "no_class":
+            fields.put("start_time", item.start_time)
+            if end is not None and end > start:
+                fields.put("end_time", item.end_time)
+        fields.data["all_day"] = "start_time" not in fields.data
+        fields.data["kind"] = {"event": "other"}.get(kind, kind)
+        if kind == "exam" and "EXAM" in {c.upper() for c in ctx.type_codes}:
+            fields.data["type_code"] = "EXAM"
+        if loc := _text(item.location):
+            fields.put("location", item.location, loc[:200])
+        builder.add("event", fields.data, evidence=fields.evidence, confidence=fields.confidence)
+    return len(builder.items) - before
+
+
 def from_timetable(
     ext: TimetableExtraction, ctx: BuildContext, builder: Builder, source: dict[str, str | None]
 ) -> int:
@@ -538,6 +652,39 @@ async def extract_syllabus(
         source_ref=source_ref,
         label=label,
         parts=COURSE_INFO_PARTS if course_only else SYLLABUS_PARTS,
+        on_segment=on_segment,
+    )
+    return result.value
+
+
+async def extract_dates(
+    ctx: Ctx,
+    pages: Sequence[ai.PageText],
+    *,
+    images: Sequence[ai.Image] = (),
+    label: str,
+    source_ref: str,
+    on_segment: Callable[[int, int], Awaitable[None]] | None = None,
+) -> DatesExtraction:
+    """The deadlines and dated events of a text or document (`only: dates`)."""
+    purpose: ai.Purpose = "extraction"
+    if images:
+        if await ai.available(ctx, "vision"):
+            purpose = "vision"
+        elif pages:
+            images = ()
+        else:
+            raise AppError("ai.not_configured", 409, purpose="vision")
+    result = await run_extract(
+        ctx,
+        purpose,
+        DatesExtraction,
+        texts=pages,
+        images=images,
+        instructions=DATES_INSTRUCTIONS,
+        source_module="imports",
+        source_ref=source_ref,
+        label=label,
         on_segment=on_segment,
     )
     return result.value

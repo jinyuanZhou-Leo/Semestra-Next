@@ -29,6 +29,7 @@ export default function TodayCard({ scope, instanceId }: CardProps) {
         newRow={
           openKey === null ? null : (
             <NewTaskRow
+              programId={scope.programId}
               compact
               openKey={openKey}
               onClose={() => closeNewTask(instanceId)}

@@ -1,9 +1,12 @@
 import { FileQuestion } from 'lucide-react'
+import { toast } from 'sonner'
+import { FileDropOverlay } from '@/components/FileDropOverlay'
+import { accepts, useFileDrag } from '@/lib/file-drop'
 import { m } from '@/paraglide/messages'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { Spinner } from '@/ui/spinner'
 import type { Scope } from '../extensions'
-import { usePageStatuses } from '../registry'
+import { useFileDrops, usePageStatuses } from '../registry'
 import { PluginBoundary } from './PluginBoundary'
 
 /** Renders the page `pageId` of a scope, or an "unavailable" state for unknown ids (M00 §4.3). */
@@ -32,8 +35,28 @@ export function ScopePage({ scope, pageId }: { scope: Scope; pageId: string }) {
   }
   const Page = page.component
   return (
-    <PluginBoundary key={`${pageId}:${JSON.stringify(scope)}`}>
-      <Page scope={scope} />
-    </PluginBoundary>
+    <>
+      <PageFileDrop scope={scope} pageId={pageId} />
+      <PluginBoundary key={`${pageId}:${JSON.stringify(scope)}`}>
+        <Page scope={scope} />
+      </PluginBoundary>
+    </>
   )
+}
+
+/**
+ * Files dragged onto a page that something takes (`fileDrops`, e.g. a syllabus onto the
+ * gradebook): the drop overlay says what dropping them does. Files no contribution takes are
+ * refused with the same toast as a drop zone's.
+ */
+function PageFileDrop({ scope, pageId }: { scope: Scope; pageId: string }) {
+  const drops = useFileDrops(scope, pageId)
+  const onDrop = (files: File[]) => {
+    const drop = drops.find((d) => files.every((file) => accepts(d.accept, file)))
+    if (drop) drop.onDrop(scope, files)
+    else for (const file of files) toast.error(m.common_file_type_unsupported({ name: file.name }))
+  }
+  const types = useFileDrag(onDrop, drops.length > 0)
+  const drop = types && drops.find((d) => types.every((type) => accepts(d.accept, { type })))
+  return drop ? <FileDropOverlay label={drop.label()} className="inset-x-4 top-2 bottom-3" /> : null
 }

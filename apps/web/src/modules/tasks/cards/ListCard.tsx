@@ -34,6 +34,7 @@ export default function ListCard({ scope, instanceId, settings }: CardProps<List
         newRow={
           openKey === null ? null : (
             <NewTaskRow
+              programId={scope.programId}
               compact
               openKey={openKey}
               onClose={() => closeNewTask(instanceId)}

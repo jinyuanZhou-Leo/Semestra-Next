@@ -12,6 +12,7 @@ from semestra.core.errors import AppError, not_found, validation_error
 from semestra.core.jobs import enqueue
 from semestra.core.storage import get_storage
 from semestra.modules import ai
+from semestra.modules.academics import rules as academics_rules
 from semestra.modules.academics import service as academics
 from semestra.modules.academics.models import AcademicsCourse, AcademicsProgram
 from semestra.modules.imports import build, deps
@@ -50,7 +51,12 @@ async def _check_target(
             "common.validation", 422, errors=[{"loc": ["target", "kind"], "code": "wizard_only"}]
         )
     if target.kind == "term" and target.term_id is None:
-        raise AppError("common.validation", 422, errors=[{"loc": ["target", "term_id"]}])
+        # The Program's current term, as the app shows it ("Week 5" is read against it).
+        today = academics.program_today(ctx, program)
+        term = academics_rules.current_term(await academics.program_terms(ctx, program_id), today)
+        if term is None:
+            raise AppError("common.validation", 422, errors=[{"loc": ["target", "term_id"]}])
+        target = target.model_copy(update={"term_id": term.id})
     if target.kind == "course" and target.course_id is None:
         raise AppError("common.validation", 422, errors=[{"loc": ["target", "course_id"]}])
     if target.term_id is not None:
@@ -131,6 +137,10 @@ async def create_session(
     if kind == "syllabus" and not (files or inp.file_item_ids):
         raise AppError(
             "common.validation", 422, errors=[{"loc": ["upload_ids"], "code": "missing"}]
+        )
+    if inp.source_meta.only == "dates" and kind not in ("text", "syllabus"):
+        raise AppError(
+            "common.validation", 422, errors=[{"loc": ["source_meta", "only"], "code": "dates"}]
         )
     if kind == "text" and not (inp.text or "").strip():
         raise AppError("common.validation", 422, errors=[{"loc": ["text"], "code": "missing"}])

@@ -568,6 +568,22 @@ export type KeptQueries = {
 }
 
 /**
+ * What files dropped on a page start (M08: an import of them). While files are dragged over the
+ * page, the first contribution for it whose `accept` takes them all shows its `label` in the drop
+ * overlay, and gets them when they are dropped.
+ */
+export type FileDropContribution = {
+  id: string
+  /** The pages it is offered on, as `<scope kind>/<page id>` (e.g. `course/grades`). */
+  pages: readonly string[]
+  /** MIME type → extensions, as react-dropzone's `accept`. */
+  accept: Readonly<Record<string, readonly string[]>>
+  /** "Drop to import the syllabus". */
+  label: Message
+  onDrop: (scope: Scope, files: File[]) => void
+}
+
+/**
  * A component of the whole signed-in app (`overlays`). One that looks different on a phone (M17:
  * a dialog there is a page that slides up) gives both, and the shell that is on screen picks.
  */
@@ -615,6 +631,8 @@ export type ModuleManifest = {
    * through a function (the import review that `launch()` of an import source opens, M08).
    */
   overlays?: readonly Overlay[]
+  /** What files dropped on a page start, e.g. an import (M08). */
+  fileDrops?: readonly FileDropContribution[]
   /** Contributions to other modules' extension points, keyed `'<module>.<point>'`. */
   extensions?: Readonly<Record<string, readonly unknown[]>>
   /** Cards placed on new boards of each kind, appended in registry order (M10 §2). */

@@ -117,6 +117,10 @@ export type ImportRequest = {
       target: SessionTarget
       /** Passed to `imports.session.create` (e.g. `{ only: 'course_info' }`). */
       sourceMeta?: SourceOptions
+      /** Files already in hand (dropped on a page): the picker starts with them, not reading yet. */
+      files?: File[]
+      /** Text already in hand (pasted into the to-do quick add): the picker starts with it. */
+      text?: string
     }
   | { source: 'picker'; picker: ImportPicker }
   /**

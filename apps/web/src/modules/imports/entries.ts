@@ -1,5 +1,6 @@
 import { importsSessionCommit } from '@semestra/api-client'
 import { toast } from 'sonner'
+import type { FileDropContribution } from '@/app/extensions'
 import type {
   CourseDraft,
   CreatedCourseMapping,
@@ -145,6 +146,34 @@ export function meetingSource(source: 'ics' | 'timetable_image'): MeetingImportS
         source,
         target: { kind: 'course', course_id: courseId, term_id: termId },
         mode: 'direct',
+      })
+    },
+  }
+}
+
+/**
+ * Files dropped on a course page open the import that page offers, with them picked (M08 §6.1):
+ * a syllabus on the gradebook or the course overview, a calendar file or a timetable screenshot
+ * on the course schedule. Reading starts when the user presses "Read", as from the menu.
+ */
+export function courseFileDrop(
+  source: 'syllabus' | 'ics' | 'timetable_image',
+  pages: readonly string[],
+  label: () => string,
+): FileDropContribution {
+  return {
+    id: `imports.${source}`,
+    pages,
+    accept: SOURCES[source].accept ?? {},
+    label,
+    onDrop: (scope, files) => {
+      if (scope.kind !== 'course') return
+      void openImport({
+        programId: scope.programId,
+        source,
+        target: { kind: 'course', course_id: scope.courseId },
+        mode: 'direct',
+        files,
       })
     },
   }
