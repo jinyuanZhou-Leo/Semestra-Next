@@ -421,10 +421,28 @@ function chatCacheRate(summary: UsageSummary): string {
 }
 
 function limitDescription(limit: UsageLimit): string {
-  const spent = formatUsd(limit.spent_usd)
-  if (limit.monthly_limit_usd === null) return m.ai_usage_limit_spent({ spent })
-  if (limit.reached) return m.ai_usage_limit_reached({ date: formatDate(limit.resets_on) })
-  return m.ai_usage_limit_progress({ spent, limit: formatUsd(limit.monthly_limit_usd) })
+  if (limit.monthly_limit_usd === null) {
+    return m.ai_usage_limit_spent({ spent: formatUsd(limit.spent_usd) })
+  }
+  const date = formatDate(limit.resets_on)
+  return limit.reached ? m.ai_usage_limit_reached({ date }) : m.ai_usage_limit_period({ date })
+}
+
+/** How much of the limit is used: the bar fills with what was spent, its ends say how much. */
+function LimitMeter({ limit, spent, reached }: { limit: number; spent: number; reached: boolean }) {
+  return (
+    <div className="mt-2 max-w-72 space-y-1.5">
+      <Progress aria-label={m.ai_usage_limit()} value={Math.min(100, (spent / limit) * 100)} />
+      <div className="flex justify-between gap-4 text-xs text-muted-foreground tabular-nums">
+        <span>{m.ai_usage_limit_used({ amount: formatUsd(spent) })}</span>
+        <span>
+          {reached
+            ? m.ai_usage_limit_full()
+            : m.ai_usage_limit_left({ amount: formatUsd(limit - spent) })}
+        </span>
+      </div>
+    </div>
+  )
 }
 
 /**
@@ -459,11 +477,7 @@ function LimitRow({ limit }: { limit: UsageLimit }) {
         !valid ? (
           <FieldError>{m.ai_usage_limit_invalid()}</FieldError>
         ) : saved === null ? null : (
-          <Progress
-            aria-label={m.ai_usage_limit()}
-            value={Math.min(100, (limit.spent_usd / saved) * 100)}
-            className="mt-2 max-w-64"
-          />
+          <LimitMeter limit={saved} spent={limit.spent_usd} reached={limit.reached} />
         )
       }
     >

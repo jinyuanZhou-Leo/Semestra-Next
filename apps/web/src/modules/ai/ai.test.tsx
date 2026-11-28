@@ -822,7 +822,7 @@ test('the monthly limit is an amount or none, and says when background AI is pau
   renderWithQuery(<UsageSection />)
   const input = await screen.findByRole('textbox', { name: 'Monthly limit' })
   expect(input).toHaveAttribute('placeholder', 'No limit')
-  expect(screen.getByText('Estimated this month: $3.42')).toBeInTheDocument()
+  expect(screen.getByText('$3.42 used this month')).toBeInTheDocument()
 
   await user.type(input, '0')
   await user.tab()
@@ -841,8 +841,15 @@ test('the monthly limit is an amount or none, and says when background AI is pau
     ]),
   )
   expect(
-    await screen.findByText('Limit reached. Background AI is paused until Feb 1, 2026.'),
+    await screen.findByText('Background AI is paused until Feb 1, 2026.'),
   ).toBeInTheDocument()
+  expect(screen.getByText('$3.42 used')).toBeInTheDocument()
+  expect(screen.getByText('Limit reached')).toBeInTheDocument()
+
+  await user.clear(input)
+  await user.type(input, '5{Enter}')
+  expect(await screen.findByText('$1.58 left')).toBeInTheDocument()
+  expect(screen.getByText("This month's estimated cost. Resets on Feb 1, 2026.")).toBeInTheDocument()
 
   await user.clear(input)
   await user.tab()
@@ -852,7 +859,7 @@ test('the monthly limit is an amount or none, and says when background AI is pau
       values: { monthly_limit_usd: null },
     }),
   )
-  expect(await screen.findByText('Estimated this month: $3.42')).toBeInTheDocument()
+  expect(await screen.findByText('$3.42 used this month')).toBeInTheDocument()
 })
 
 test('usage bars are days, or weeks over long ranges, with tokens per purpose', () => {
