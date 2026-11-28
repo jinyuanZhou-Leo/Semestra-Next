@@ -3717,5 +3717,10 @@
   "mobile_files_no_match": "没有匹配的文件",
   "mobile_files_results": "搜索结果",
   "mobile_course_classes": "近期安排",
-  "mobile_course_no_classes": "未来 7 天没有课"
+  "mobile_course_no_classes": "未来 7 天没有课",
+  "mobile_week_previous": "上一周",
+  "mobile_week_next": "下一周",
+  "mobile_day_agenda": "课程与截止",
+  "mobile_day_empty": "这一天没有安排",
+  "mobile_day_due": "截止"
 }

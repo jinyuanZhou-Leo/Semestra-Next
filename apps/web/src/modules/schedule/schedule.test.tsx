@@ -8,6 +8,7 @@ import { type ReactNode, forwardRef, useEffect, useImperativeHandle, useRef } fr
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest'
 import type { ModuleManifest } from '@/app/extensions'
 import { ModuleRegistry } from '@/app/registry'
+import { PHONE_QUERY } from '@/app/mobile/phone'
 import academics from '@/modules/academics/manifest'
 import { type World, academicsHandlers, defaultWorld } from '@/modules/academics/test-data'
 import auth from '@/modules/auth/manifest'
@@ -769,4 +770,37 @@ test("editing a section into another section's code merges it after a confirmati
   await userEvent.click(within(confirm).getByRole('button', { name: 'Merge into LEC0101' }))
   await waitFor(() => expect(saves()).toHaveLength(1))
   expect(saves()[0]!.body).toMatchObject({ section_id: 's2', section_code: 'LEC0101', merge: true })
+})
+
+test('on a phone the week strip opens another day, and "Today" comes back', async () => {
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: query === PHONE_QUERY,
+    media: query,
+    addEventListener() {},
+    removeEventListener() {},
+  }))
+  server.use(
+    http.get(`${API}/programs/:id/today`, () =>
+      HttpResponse.json({
+        day: '2026-01-12',
+        timezone: 'America/Toronto',
+        week: null,
+        items: [lecture],
+        upcoming: [],
+        tasks: [],
+      }),
+    ),
+    http.get(`${API}/programs/:id/tasks`, () =>
+      HttpResponse.json({ items: [], next_cursor: null }),
+    ),
+  )
+  const { router } = mount('/p/p1/today', [auth, settings, academics, schedule, tasks])
+  expect(await screen.findByRole('heading', { name: 'Today' })).toBeInTheDocument()
+  await userEvent.click(await screen.findByRole('button', { name: /January 13/ }))
+  expect(await screen.findByRole('heading', { name: 'January 13' })).toBeInTheDocument()
+  expect(router.state.location.search).toEqual({ date: '2026-01-13' })
+  expect(await screen.findByText('Nothing on this day')).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: 'Today' }))
+  expect(await screen.findByRole('heading', { name: 'Today' })).toBeInTheDocument()
+  expect(router.state.location.search).toEqual({})
 })
