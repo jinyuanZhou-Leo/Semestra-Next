@@ -15,6 +15,7 @@ import SyncPanel from './SyncPanel'
 import { AssessmentDialog } from '@/modules/grading/components/AssessmentDialog'
 import { assessment } from '@/modules/grading/test-data'
 import { SyncOnOpen } from './SyncOnOpen'
+import SyncSection from '../mobile/SyncSection'
 
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => server.resetHandlers())
@@ -654,4 +655,24 @@ test('the panel says how many course calendars are not read yet', async () => {
   renderWithRouter(<InPopover />, undefined, IN_PROGRAM)
   expect(await screen.findByText('Course calendars not yet synced: 3')).toBeInTheDocument()
   expect(screen.queryByText('Course calendars unavailable: 1')).not.toBeInTheDocument()
+})
+
+test('on a phone the courses tab shows what waits, answered in a sheet', async () => {
+  const current = status({ pending: [item({ id: 'r1', title: 'A3' })] })
+  const dismissed = vi.fn<(body: unknown) => void>()
+  server.use(
+    ...handlers(current),
+    http.post(`${API}/programs/p1/lms/sync\\:dismiss`, async ({ request }) => {
+      dismissed(await request.json())
+      return HttpResponse.json(status({ ignored: current.pending }))
+    }),
+  )
+  renderWithRouter(<SyncSection programId="p1" termId="t1" />, undefined, IN_PROGRAM)
+  await userEvent.click(await screen.findByRole('button', { name: /Canvas.*1 to review/ }))
+  const sheet = await screen.findByRole('dialog')
+  expect(within(sheet).getByText('A3')).toBeInTheDocument()
+  await userEvent.click(within(sheet).getByRole('button', { name: 'Ignore' }))
+  await waitFor(() =>
+    expect(dismissed).toHaveBeenCalledWith({ assignment_ids: ['r1'], dismissed: true }),
+  )
 })

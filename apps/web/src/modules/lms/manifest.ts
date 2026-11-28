@@ -26,7 +26,9 @@ import {
 } from '@semestra/api-client/react-query'
 import {
   COURSE_INFO_ROWS,
+  MOBILE_COURSE_SECTIONS,
   MOBILE_OVERVIEW_SECTIONS,
+  type MobileCourseSection,
   type MobileOverviewSection,
   ONBOARDING_STEPS,
   type OnboardingStep,
@@ -363,6 +365,9 @@ export default defineModule({
     [MOBILE_ASSESSMENT_OPENERS]: [
       { id: 'lms.assignment', Opener: preloadable(() => import('./mobile/AssessmentOpener')) },
     ] satisfies MobileAssessmentOpener[],
+    [MOBILE_COURSE_SECTIONS]: [
+      { id: 'lms.sync', order: 0, component: preloadable(() => import('./mobile/SyncSection')) },
+    ] satisfies MobileCourseSection[],
     [MOBILE_OVERVIEW_SECTIONS]: [
       {
         id: 'lms.platform',
