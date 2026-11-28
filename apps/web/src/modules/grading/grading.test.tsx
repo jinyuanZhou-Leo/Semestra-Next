@@ -5,6 +5,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, expect, test, vi } from 'vi
 import type { Scope } from '@/app/extensions'
 import { API, renderWithRouter, server } from '@/test-utils'
 import { Toaster } from '@/ui/sonner'
+import CourseGradesMobile from './mobile/CourseGradesMobile'
 import CourseGradesPage from './pages/CourseGradesPage'
 import { assessment, gradebook, gradingScale, summary } from './test-data'
 
@@ -666,4 +667,25 @@ test('an assessment from the LMS opens its assignment on the platform from the r
   await screen.findAllByRole('menuitem')
   expect(screen.queryByRole('menuitem', { name: 'Open in LMS' })).toBeNull()
   open.mockRestore()
+})
+
+test('on a phone a Pass/Fail course and one graded by hand show that grade, as on a computer', async () => {
+  book = gradebook({
+    result: { ...gradebook().result, basis: 'pass_fail', pass_fail_result: 'pass' },
+    assessments: [assessment({ id: 'a1', title: 'Quiz 1' })],
+  })
+  const { unmount } = renderWithRouter(<CourseGradesMobile scope={scope} />)
+  expect(await screen.findByText('Pass')).toBeInTheDocument()
+  // The gradebook does not count, so it is not listed.
+  expect(screen.queryByText('Quiz 1')).not.toBeInTheDocument()
+  unmount()
+
+  book = gradebook({
+    result: { ...gradebook().result, gradebook_enabled: false, manual_percentage: 91 },
+    summary: summary({ final_percentage: 91, final_letter: 'A+', final_points: 4 }),
+  })
+  renderWithRouter(<CourseGradesMobile scope={scope} />)
+  expect(await screen.findByText('Final grade')).toBeInTheDocument()
+  expect(screen.getByText('91%')).toBeInTheDocument()
+  expect(screen.queryByText('No assessments yet')).not.toBeInTheDocument()
 })

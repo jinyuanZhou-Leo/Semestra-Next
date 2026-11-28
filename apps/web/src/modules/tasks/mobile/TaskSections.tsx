@@ -46,9 +46,17 @@ export function groupByDue(tasks: readonly Task[], today: string): TaskGroup[] {
 
 /**
  * Groups of tasks as phone rows (M17), with the details drawer a row opens. The drawer keeps the
- * last task while it slides away.
+ * last task while it slides away. `inCourse` leaves out the rows' course: the page is the course's.
  */
-export function TaskSections({ programId, groups }: { programId: string; groups: TaskGroup[] }) {
+export function TaskSections({
+  programId,
+  groups,
+  inCourse = false,
+}: {
+  programId: string
+  groups: TaskGroup[]
+  inCourse?: boolean
+}) {
   const today = useProgramToday(programId)
   useTaskLinkQueries(programId)
   const courses = useCourses(programId).data?.items ?? []
@@ -67,7 +75,11 @@ export function TaskSections({ programId, groups }: { programId: string; groups:
                     <TaskItem
                       key={task.id}
                       task={task}
-                      course={courses.find((course) => course.id === task.course_id)}
+                      course={
+                        inCourse
+                          ? undefined
+                          : courses.find((course) => course.id === task.course_id)
+                      }
                       today={today}
                       actions={actions}
                       onOpen={(opened) => setSheet({ task: opened, open: true })}

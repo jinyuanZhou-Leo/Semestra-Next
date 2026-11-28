@@ -1,7 +1,7 @@
 import type { Assessment, AssessmentCreateInputBody } from '@semestra/api-client'
 import type { UseQueryOptions } from '@tanstack/react-query'
 import type { LucideIcon } from 'lucide-react'
-import type { ComponentType } from 'react'
+import type { ComponentType, ReactNode } from 'react'
 import type { Message } from '@/app/extensions'
 import type { DialogTargetProps } from '@/lib/dialog-target'
 
@@ -114,3 +114,19 @@ export type AssessmentActionDialogProps = DialogTargetProps & {
 }
 
 export const ASSESSMENT_ACTIONS = 'grading.assessmentActions'
+
+/**
+ * What tapping an assessment on the phone's grades list opens (M17 §4.1), e.g. the platform
+ * assignment's details. `Opener` calls `children` with what to do for the assessment, or with null
+ * when it has nothing to open (the next contribution is asked then).
+ */
+export type MobileAssessmentOpener = {
+  id: string
+  Opener: ComponentType<{
+    assessment: Assessment
+    programId: string
+    children: (open: (() => void) | null) => ReactNode
+  }>
+}
+
+export const MOBILE_ASSESSMENT_OPENERS = 'grading.mobileAssessmentOpeners'

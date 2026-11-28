@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { type CalendarOpenAction, defineModule, preloadable } from '@/app/extensions'
 import { coursePath } from '@/modules/academics/paths'
+import { MOBILE_OVERVIEW_SECTIONS, type MobileOverviewSection } from '@/modules/academics/types'
 import { m } from '@/paraglide/messages'
 import { TodaySubtitle } from './components/TodaySubtitle'
 import { prefetchCalendarPage, prefetchToday } from './queries'
@@ -227,4 +228,13 @@ export default defineModule({
     ['schedule.feed.updated', ['scheduleFeedGet']],
     ['schedule.feed.revoked', ['scheduleFeedGet']],
   ]),
+  extensions: {
+    [MOBILE_OVERVIEW_SECTIONS]: [
+      {
+        id: 'schedule.classes',
+        order: 10,
+        component: preloadable(() => import('./mobile/CourseClassesSection')),
+      },
+    ] satisfies MobileOverviewSection[],
+  },
 })

@@ -35,6 +35,8 @@ export type CourseColumn = {
   }[]
   /** Also shown in the `academics.termCourses` card. */
   showInTermCard?: boolean
+  /** Also shown at the end of each row of the phone's course list (M17 §4.1). */
+  showOnPhone?: boolean
 }
 
 /** A course coming from an import source into the term wizard. */
@@ -160,7 +162,29 @@ export type OnboardingStep = {
   }
 }
 
+/**
+ * A section at the top of the phone's course list (M17 §4.1), above the courses: the grade
+ * summary, the LMS sync's open questions. `termId` is the term the list shows.
+ */
+export type MobileCourseSection = {
+  id: string
+  order: number
+  component: ComponentType<{ programId: string; termId: string | undefined }>
+}
+
+/**
+ * A section of a course's overview on a phone (M17 §4.1), in `order`: its classes this week, the
+ * current grade, the tasks, the platform's page. Renders nothing when it has nothing to show.
+ */
+export type MobileOverviewSection = {
+  id: string
+  order: number
+  component: ComponentType<{ programId: string; courseId: string }>
+}
+
 export const COURSE_COLUMNS = 'academics.courseColumns'
+export const MOBILE_OVERVIEW_SECTIONS = 'academics.mobileOverviewSections'
+export const MOBILE_COURSE_SECTIONS = 'academics.mobileCourseSections'
 export const TERM_WIZARD_IMPORT_SOURCES = 'academics.termWizardImportSources'
 export const COURSE_INFO_FILLS = 'academics.courseInfoFills'
 export const COURSE_INFO_ROWS = 'academics.courseInfoRows'

@@ -2,6 +2,7 @@ import { caldavConnectionListOptions } from '@semestra/api-client/react-query'
 import { ListChecks, ListTodo, Smartphone, Sun } from 'lucide-react'
 import { defineModule, preloadable } from '@/app/extensions'
 import { coursePath, termPath } from '@/modules/academics/paths'
+import { MOBILE_OVERVIEW_SECTIONS, type MobileOverviewSection } from '@/modules/academics/types'
 import { ASSESSMENT_COLUMNS, type AssessmentColumn } from '@/modules/grading/types'
 import { m } from '@/paraglide/messages'
 import NewTaskButton from './cards/NewTaskButton'
@@ -43,6 +44,7 @@ export default defineModule({
       prefetch: prefetchTasksPage,
       mobile: {
         component: preloadable(() => import('./mobile/TasksMobilePage')),
+        scopes: ['program'],
         tab: { order: 10 },
       },
       order: 20,
@@ -144,6 +146,13 @@ export default defineModule({
     },
   ],
   extensions: {
+    [MOBILE_OVERVIEW_SECTIONS]: [
+      {
+        id: 'tasks.course',
+        order: 30,
+        component: preloadable(() => import('./mobile/CourseTasksSection')),
+      },
+    ] satisfies MobileOverviewSection[],
     [ASSESSMENT_COLUMNS]: [
       {
         id: 'tasks.todo',
