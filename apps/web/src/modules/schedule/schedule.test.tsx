@@ -8,6 +8,7 @@ import { type ReactNode, forwardRef, useEffect, useImperativeHandle, useRef } fr
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest'
 import type { ModuleManifest } from '@/app/extensions'
 import { ModuleRegistry } from '@/app/registry'
+import { PHONE_QUERY } from '@/app/mobile/phone'
 import academics from '@/modules/academics/manifest'
 import { type World, academicsHandlers, defaultWorld } from '@/modules/academics/test-data'
 import auth from '@/modules/auth/manifest'
@@ -769,4 +770,84 @@ test("editing a section into another section's code merges it after a confirmati
   await userEvent.click(within(confirm).getByRole('button', { name: 'Merge into LEC0101' }))
   await waitFor(() => expect(saves()).toHaveLength(1))
   expect(saves()[0]!.body).toMatchObject({ section_id: 's2', section_code: 'LEC0101', merge: true })
+})
+
+const labReport = {
+  id: 'lab',
+  program_id: 'p1',
+  term_id: null,
+  course_id: null,
+  list_id: null,
+  title: 'Lab report',
+  notes: '',
+  due_date: '2026-01-13',
+  due_time: null,
+  priority: 'none',
+  flagged: false,
+  completed_at: null,
+  position: 1,
+  source_kind: null,
+  source_ref: null,
+  assessment_id: null,
+  overdue: false,
+  created_at: '2026-01-01T00:00:00Z',
+  updated_at: '2026-01-01T00:00:00Z',
+}
+
+test('on a phone the week strip opens another day, and "Today" comes back', async () => {
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: query === PHONE_QUERY,
+    media: query,
+    addEventListener() {},
+    removeEventListener() {},
+  }))
+  server.use(
+    http.get(`${API}/programs/:id/today`, () =>
+      HttpResponse.json({
+        day: '2026-01-12',
+        timezone: 'America/Toronto',
+        week: null,
+        items: [lecture],
+        upcoming: [],
+        tasks: [],
+      }),
+    ),
+    http.get(`${API}/programs/:id/task-lists`, () => HttpResponse.json({ items: [] })),
+    // One task, due on the 13th.
+    http.get(`${API}/programs/:id/tasks`, ({ request }) => {
+      const query = new URL(request.url).searchParams
+      const from = query.get('due_from')
+      const to = query.get('due_to')
+      const due = from && to && from <= '2026-01-13' && '2026-01-13' <= to
+      return HttpResponse.json({
+        items: due ? [labReport] : [],
+        next_cursor: null,
+      })
+    }),
+  )
+  const { router } = mount('/p/p1/today?date=not-a-day', [
+    auth,
+    settings,
+    academics,
+    schedule,
+    tasks,
+  ])
+  // A date in the address that is not a real day is today.
+  expect(await screen.findByRole('heading', { name: 'Today' })).toBeInTheDocument()
+  await act(() => router.navigate({ href: '/p/p1/today' }))
+  expect(await screen.findByRole('heading', { name: 'Today' })).toBeInTheDocument()
+  await userEvent.click(await screen.findByRole('button', { name: /January 13/ }))
+  expect(await screen.findByRole('heading', { name: 'January 13' })).toBeInTheDocument()
+  expect(router.state.location.search).toEqual({ date: '2026-01-13' })
+  // Its task checks off as on today.
+  expect(await screen.findByRole('checkbox', { name: 'Complete Lab report' })).toBeInTheDocument()
+  // Browsing the weeks leaves the day shown.
+  await userEvent.click(screen.getByRole('button', { name: 'Next week' }))
+  expect(router.state.location.search).toEqual({ date: '2026-01-13' })
+  expect(screen.getByRole('heading', { name: 'January 13' })).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: /January 14/ }))
+  expect(await screen.findByText('Nothing on this day')).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: 'Today' }))
+  expect(await screen.findByRole('heading', { name: 'Today' })).toBeInTheDocument()
+  expect(router.state.location.search).toEqual({})
 })

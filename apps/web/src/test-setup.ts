@@ -31,6 +31,18 @@ globalThis.ResizeObserver ??= class {
   unobserve() {}
   disconnect() {}
 }
+// Embla (shadcn's Carousel) watches which slides are in view.
+globalThis.IntersectionObserver ??= class {
+  readonly root = null
+  readonly rootMargin = ''
+  readonly thresholds = []
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+  takeRecords() {
+    return []
+  }
+} as unknown as typeof IntersectionObserver
 
 // Vitest runs with `globals: false`, so Testing Library cannot register its own cleanup.
 import { cleanup } from '@testing-library/react'

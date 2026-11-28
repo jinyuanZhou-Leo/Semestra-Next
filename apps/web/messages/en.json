@@ -3724,5 +3724,9 @@
   "mobile_files_no_match": "No matching files",
   "mobile_files_results": "Results",
   "mobile_course_classes": "Coming up",
-  "mobile_course_no_classes": "No classes in the next 7 days"
+  "mobile_course_no_classes": "No classes in the next 7 days",
+  "mobile_week_previous": "Previous week",
+  "mobile_week_next": "Next week",
+  "mobile_day_empty": "Nothing on this day",
+  "mobile_day_due": "Due"
 }
