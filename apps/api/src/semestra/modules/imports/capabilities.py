@@ -223,7 +223,7 @@ the counts and the items that failed.""",
     http=Http("POST", "/imports/{session_id}:commit"),
     tags=TAGS,
     preview=_commit_preview,
-    bulk=True,
+    confirm=True,
     conflicts=_commit_conflicts,
     resolve_conflicts=_resolve_commit_conflicts,
     agent_output_fields=(

@@ -106,9 +106,10 @@ class Capability:
     # An update of one record: (the argument holding its id, how it is read). The agent's
     # confirmation card shows each sent field as stored before → after (`core.labels`).
     record: tuple[str, Loader] | None = field(default=None, compare=False)
-    # Changes many of the user's records in one call (a batch, an import's commit): an MCP client
-    # that can show forms asks the user first when the call names more than one record.
-    bulk: bool = False
+    # An MCP client that can show forms asks the user before this write runs (deletes always
+    # are): True, every time (applying a reviewed plan, like an import's commit); argument names,
+    # when those arguments together list more than one record (a batch).
+    confirm: bool | tuple[str, ...] = False
     # Where what the call would write disagrees with what the user has (an import's field that
     # differs from the course, an assessment that is already there). An MCP client that can show
     # forms lets the user choose for each one before it runs; `resolve_conflicts` records the
@@ -341,7 +342,7 @@ def capability(
     check: Callable[[Ctx, Any], Awaitable[None]] | None = None,
     untrusted: bool = False,
     record: tuple[str, Loader] | None = None,
-    bulk: bool = False,
+    confirm: bool | tuple[str, ...] = False,
     conflicts: Callable[[Ctx, Any], Awaitable[list[Conflict]]] | None = None,
     resolve_conflicts: Callable[[Ctx, Any, dict[str, bool]], Awaitable[None]] | None = None,
     target: Registry | None = None,
@@ -382,7 +383,7 @@ def capability(
                 check=check,
                 untrusted=untrusted,
                 record=record,
-                bulk=bulk,
+                confirm=confirm,
                 conflicts=conflicts,
                 resolve_conflicts=resolve_conflicts,
             )

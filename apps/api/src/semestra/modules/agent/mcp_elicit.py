@@ -8,7 +8,8 @@ Two forms, in this order, each only when needed:
   (`core.labels.choices`: a Program, term or course). The model leaves it out when it does not
   know which one is meant, or several match.
 - **confirm**: what the call changes (the same preview as Sem's confirmation card) before it
-  deletes, changes several records at once (`Capability.bulk`) or meets data the user has
+  deletes, applies what the capability declares needs a yes (`Capability.confirm`: always, or
+  a batch naming more than one record) or meets data the user has
   (`Capability.conflicts`: each one is a choice on the form, keep what is there or not).
 
 A client that cannot show forms (an older protocol, or no form elicitation) gets neither: its
@@ -78,12 +79,15 @@ def pickable(cap: Capability) -> list[str]:
 
 
 def may_confirm(cap: Capability) -> bool:
-    return cap.effect == "destructive" or cap.bulk or cap.conflicts is not None
+    return cap.effect == "destructive" or bool(cap.confirm) or cap.conflicts is not None
 
 
 def tool_for_forms(tool: types.Tool, cap: Capability) -> types.Tool:
-    """The tool as a client that shows forms gets it: pickable ids are optional, and the
-    description says when the user is asked."""
+    """The tool as a client that shows forms gets it: a write's pickable ids are optional, and
+    the description says when the user is asked. Reads are left as they are (nothing runs them
+    through a form)."""
+    if cap.effect == "read":
+        return tool
     schema = dict(tool.input_schema)
     props: dict[str, Any] = dict(schema.get("properties", {}))
     picks = [name for name in pickable(cap) if name in props]
@@ -202,14 +206,17 @@ def _ask(key: str, form: types.ElicitRequestFormParams, state: dict[str, Any]) -
 
 
 def _needs_confirm(cap: Capability, args: dict[str, Any]) -> bool:
-    """Deleting anything, or a batch naming more than one record (or no list: the whole of
-    something, like an import's commit)."""
-    if cap.effect == "destructive":
+    """Deleting anything; whatever the capability says always needs a yes; a batch whose
+    listed records come to more than one."""
+    if cap.effect == "destructive" or cap.confirm is True:
         return True
-    if not cap.bulk:
+    if not cap.confirm:
         return False
-    sizes = [len(v) for v in args.values() if isinstance(v, list)]  # pyright: ignore[reportUnknownArgumentType]
-    return not sizes or max(sizes) > 1
+    named = 0
+    for name in cap.confirm:
+        value = args.get(name)
+        named += len(value) if isinstance(value, list) else 0  # pyright: ignore[reportUnknownArgumentType]
+    return named > 1
 
 
 # --- forms ------------------------------------------------------------------------------------

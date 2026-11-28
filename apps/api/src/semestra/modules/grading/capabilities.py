@@ -307,7 +307,7 @@ through imports.session.create, and LMS assignments through lms.assignment.impor
 Items that carry `source_kind` and `source_ref` are skipped when the course
 already has an assessment from the same source, so repeating an import creates no duplicates.""",
     effect="write",
-    bulk=True,
+    confirm=("assessments",),
     http=Http("POST", "/courses/{course_id}/assessments:batch"),
     tags=TAGS,
     agent_output_fields=("created.id", "created.title", "skipped"),
@@ -359,7 +359,7 @@ the Quizzes category", "each lab is worth 2%"). `weight` is each one's share, no
 Only the fields that are sent change; scores are recorded one by one with
 grading.assessment.update. All of them change, or none if one is not the course's.""",
     effect="write",
-    bulk=True,
+    confirm=("assessment_ids",),
     http=Http("POST", "/courses/{course_id}/assessments:update"),
     tags=TAGS,
     preview=service.preview_assessments_update,

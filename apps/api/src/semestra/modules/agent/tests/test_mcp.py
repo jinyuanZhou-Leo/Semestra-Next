@@ -322,6 +322,8 @@ async def test_the_user_picks_a_course_the_call_left_out(app: FastAPI, agent: Ag
     async with mcp_session(app, token, forms=True) as mcp:
         listed = {t.name: t for t in (await mcp.list_tools()).tools}
         assert "course_id" not in listed[tool].input_schema.get("required", [])
+        # A read is not run through a form, so it still needs the course.
+        assert "course_id" in listed["grading__gradebook__get"].input_schema["required"]
 
         asked = await mcp.call_tool(tool, args, allow_input_required=True)
         options = _form(asked, "pick").requested_schema["properties"]["course_id"]["oneOf"]
@@ -377,6 +379,31 @@ async def test_committing_an_import_asks_about_what_is_already_there(app: FastAP
         assert done.is_error is False, _payload(done)
     gradebook = await agent.call("GET", f"/courses/{course['id']}/gradebook")
     assert sorted(a["title"] for a in gradebook["assessments"]) == ["Lab 3", "Lab 3", "Lab 4"]
+
+
+async def test_committing_one_new_item_still_asks(app: FastAPI, agent: Agent):
+    program, course, _ = await agent.course_with_lab()
+    token = await _token(agent, ["read", "write"])
+    async with mcp_session(app, token, forms=True) as mcp:
+        created = await mcp.call_tool(
+            "imports__session__create",
+            {
+                "program_id": program["id"],
+                "source_kind": "agent",
+                "target": {"kind": "course", "course_id": course["id"]},
+            },
+        )
+        session_id = _payload(created)["id"]
+        item = {"course_ref": f"course:{course['id']}", "title": "Midterm", "weight": 30}
+        added = await mcp.call_tool(
+            "imports__item__add_many",
+            {"session_id": session_id, "items": [{"type": "assessment", "data": item}]},
+        )
+        assert added.is_error is False, _payload(added)
+        # Naming the one item (as a retry does) still asks: a commit always does.
+        args = {"session_id": session_id, "item_ids": [_payload(added)["items"][0]["id"]]}
+        asked = await mcp.call_tool("imports__session__commit", args, allow_input_required=True)
+        assert not _form(asked, "confirm").requested_schema.get("properties")
 
 
 def test_form_texts_have_the_same_keys_in_every_language() -> None:
