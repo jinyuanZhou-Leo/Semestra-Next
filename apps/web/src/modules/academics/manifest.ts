@@ -71,13 +71,19 @@ export default defineModule({
       title: m.academics_nav_summary,
       icon: ChartColumn,
       component: preloadable(() => import('./pages/OverviewPage')),
-      // On a phone the Program's page is the courses tab (M17 §4.1).
-      mobile: {
-        component: preloadable(() => import('./mobile/CoursesMobilePage')),
-        tab: { order: 20, title: m.mobile_courses, icon: BookOpen, courses: true },
-      },
       board: 'scope',
       order: 100,
+    },
+  ],
+  // "Terms & courses" (`/p/<program>/academics`) on a phone: the courses tab (M17 §4).
+  mobileTabs: [
+    {
+      id: 'academics',
+      order: 20,
+      title: m.mobile_courses,
+      icon: BookOpen,
+      component: preloadable(() => import('./mobile/CoursesMobilePage')),
+      courses: true,
     },
   ],
   navigationSources: [academicsNavigation],

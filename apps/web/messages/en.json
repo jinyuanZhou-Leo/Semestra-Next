@@ -3706,7 +3706,6 @@
   "settings_card_canvas_tab_shortcut_place_option_pages": "Pages",
   "settings_card_canvas_tab_shortcut_place_option_files": "Files",
   "mobile_courses": "Courses",
-  "mobile_courses_this_term": "This term",
   "mobile_courses_empty": "No courses this term",
   "mobile_courses_empty_description": "Add courses on a computer.",
   "mobile_course_pages": "Course pages",
@@ -3717,7 +3716,6 @@
   "mobile_files_search": "Search file names",
   "mobile_files_no_match": "No matching files",
   "mobile_files_results": "Results",
-  "mobile_files_new": "New",
   "mobile_course_classes": "Coming up",
   "mobile_course_no_classes": "No classes in the next 7 days"
 }

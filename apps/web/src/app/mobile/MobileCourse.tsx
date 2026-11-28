@@ -1,14 +1,21 @@
 import { skipToken, useQuery } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { ChevronLeft } from 'lucide-react'
-import { type PageContribution, type Scope, scopePath } from '@/app/extensions'
+import {
+  type MobileTabContribution,
+  type PageContribution,
+  type Scope,
+  scopePath,
+} from '@/app/extensions'
 import { PluginBoundary } from '@/app/host/PluginBoundary'
 import { usePageStatuses } from '@/app/registry'
+import { SEGMENT, SEGMENTED } from '@/lib/segmented'
 import { cn } from '@/lib/utils'
 import { courseColor, courseLabel } from '@/modules/academics/color'
 import { useCourse } from '@/modules/academics/queries'
 import { m } from '@/paraglide/messages'
 import { Skeleton } from '@/ui/skeleton'
+import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import { DesktopOnly } from './MobileShell'
 import { onPhone } from './phone'
 
@@ -28,11 +35,12 @@ export function MobileCourse({
   programId: string
   courseId: string
   pageId: string | undefined
-  back: PageContribution | undefined
-  home: PageContribution | undefined
+  back: MobileTabContribution | undefined
+  home: MobileTabContribution | undefined
 }) {
   const scope: Scope = { kind: 'course', programId, courseId }
   const course = useCourse(courseId).data
+  const navigate = useNavigate()
   const statuses = usePageStatuses(scope)
   const pages = statuses
     .filter((entry) => entry.status === 'available' && onPhone(entry.page, scope))
@@ -53,7 +61,7 @@ export function MobileCourse({
             className="-ml-1.5 flex h-9 w-fit items-center text-sm font-medium text-primary"
           >
             <ChevronLeft aria-hidden className="size-5" />
-            {(back.mobile?.tab?.title ?? back.title)()}
+            {back.title()}
           </Link>
         ) : null}
         {course ? (
@@ -78,29 +86,25 @@ export function MobileCourse({
         )}
       </header>
       {pages.length > 1 ? (
-        <nav
+        <ToggleGroup
           aria-label={m.mobile_course_pages()}
-          className="mx-4 flex gap-0.5 rounded-full bg-muted p-0.5"
+          value={page ? [page.id] : []}
+          onValueChange={(next) => {
+            if (next[0]) void navigate({ to: scopePath(scope, next[0]), replace: true })
+          }}
+          className={cn(SEGMENTED, 'mx-4 flex')}
         >
-          {pages.map((p) => {
-            const active = p.id === page?.id
-            return (
-              <Link
-                key={p.id}
-                to={scopePath(scope, p.id)}
-                replace
-                aria-current={active ? 'page' : undefined}
-                className={cn(
-                  'flex h-8 min-w-0 flex-1 items-center justify-center gap-1 rounded-full px-2 text-sm font-medium text-muted-foreground',
-                  active && 'bg-background text-foreground shadow-sm dark:bg-input',
-                )}
-              >
-                <span className="truncate">{p.title()}</span>
-                <Unread page={p} scope={scope} />
-              </Link>
-            )
-          })}
-        </nav>
+          {pages.map((p) => (
+            <ToggleGroupItem
+              key={p.id}
+              value={p.id}
+              className={cn(SEGMENT, 'min-w-0 flex-1 gap-1 px-2')}
+            >
+              <span className="truncate">{p.title()}</span>
+              <Unread page={p} scope={scope} />
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
       ) : null}
       {Page && page ? (
         <PluginBoundary key={page.id}>

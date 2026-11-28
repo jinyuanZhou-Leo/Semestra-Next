@@ -28,8 +28,13 @@ function termGradesOptions(termId: string) {
   return gradingSummaryTermOptions({ path: { term_id: termId } })
 }
 
-export function useTermGrades(termId: string) {
-  return useQuery({ ...termGradesOptions(termId), placeholderData: keepPreviousData })
+/** `termId` undefined (a Program without terms yet) asks for nothing. */
+export function useTermGrades(termId: string | undefined) {
+  return useQuery({
+    ...termGradesOptions(termId ?? ''),
+    enabled: termId !== undefined,
+    placeholderData: keepPreviousData,
+  })
 }
 
 /**

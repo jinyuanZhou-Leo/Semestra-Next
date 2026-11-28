@@ -9,10 +9,11 @@ import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { Skeleton } from '@/ui/skeleton'
-import { Concealed, GpaValue, HideGrades, PercentValue } from '../components/GradeValue'
-import { categoryName, dueText, headline } from '../display'
+import { Concealed, HideGrades, PercentValue } from '../components/GradeValue'
+import { categoryName, dueText } from '../display'
 import { useGradebook } from '../queries'
 import { MOBILE_ASSESSMENT_OPENERS, type MobileAssessmentOpener } from '../types'
+import { phoneGrade } from './headline'
 
 /**
  * A course's grades on a phone (M17 §4.1), read only: the grade so far, then each category's
@@ -31,7 +32,8 @@ export default function CourseGradesMobile({ scope }: PageProps) {
     )
   }
   const { summary: s, scale, categories, assessments } = data
-  if (assessments.length === 0) {
+  const grade = phoneGrade(data)
+  if (grade.gradebook && assessments.length === 0) {
     return (
       <Empty>
         <EmptyHeader>
@@ -44,7 +46,6 @@ export default function CourseGradesMobile({ scope }: PageProps) {
       </Empty>
     )
   }
-  const { final, percentage, letter, points } = headline(s)
   const groups = [
     ...categories
       .filter((c) => !c.archived)
@@ -63,25 +64,27 @@ export default function CourseGradesMobile({ scope }: PageProps) {
   ].filter((g) => g.items.length > 0)
   return (
     <HideGrades hidden={scale.hide_grades}>
-      <MobileSection title={final ? m.grading_final_grade() : m.grading_current_grade()}>
+      <MobileSection title={grade.label}>
         <div className="flex items-end justify-between gap-3 rounded-2xl border bg-card px-4 py-3">
           <div>
-            <div className="font-heading text-3xl font-semibold tabular-nums">
-              {s.weights_ok || s.overridden ? <PercentValue value={percentage} /> : '—'}
-            </div>
-            <div className="mt-0.5 text-sm text-muted-foreground tabular-nums">
-              {m.grading_gpa()} <GpaValue value={points} letter={letter} letterClassName="ml-1.5" />
-            </div>
+            <div className="font-heading text-3xl font-semibold tabular-nums">{grade.value}</div>
+            {grade.gpa ? (
+              <div className="mt-0.5 text-sm text-muted-foreground tabular-nums">
+                {m.grading_gpa()} {grade.gpa}
+              </div>
+            ) : null}
           </div>
-          <div className="text-right text-xs text-muted-foreground tabular-nums">
-            {m.mobile_grades_graded_weight({
-              graded: formatCredits(s.graded_weight),
-              total: formatCredits(s.weight_total),
-            })}
-          </div>
+          {grade.gradebook ? (
+            <div className="text-right text-xs text-muted-foreground tabular-nums">
+              {m.mobile_grades_graded_weight({
+                graded: formatCredits(s.graded_weight),
+                total: formatCredits(s.weight_total),
+              })}
+            </div>
+          ) : null}
         </div>
       </MobileSection>
-      {groups.map((group) => (
+      {(grade.gradebook ? groups : []).map((group) => (
         <MobileSection key={group.id} title={group.title}>
           <MobileList label={group.title}>
             {group.items.map((a) => (

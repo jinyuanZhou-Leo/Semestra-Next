@@ -84,15 +84,13 @@ export type PageContribution = {
   /**
    * The page on phones (M17), for Program and course pages: its own component, written for a
    * narrow screen, in place of `component`. A Program page with `tab` is a tab of the phone's tab
-   * bar (by `order`, with `title` and `icon` in place of the page's when given); the tab with `courses` is where the courses are
-   * listed, and stays selected inside a course. A course page's phone version is one of the
-   * course's segments, in `order`. `scopes` limits it to some of the page's scopes. Pages
-   * without it ask for a computer on phones.
+   * bar, by `order`. A course page's phone version is one of the course's segments, in `order`.
+   * `scopes` limits it to some of the page's scopes. Pages without it ask for a computer on phones.
    */
   mobile?: {
     component: Lazy<PageProps>
     scopes?: readonly ScopeKind[]
-    tab?: { order: number; title?: Message; icon?: LucideIcon; courses?: true }
+    tab?: { order: number }
   }
   /**
    * Starts the page's main data along with its code, from the route loader (also on hover), so
@@ -575,6 +573,21 @@ export type KeptQueries = {
  */
 export type Overlay = ComponentType | { desktop: ComponentType; phone: ComponentType }
 
+/**
+ * A tab of the phone's tab bar (M17) at a Program address that is a route of its own on the
+ * desktop rather than a page (`/p/<program>/<id>`, e.g. "Terms & courses"): on a phone that
+ * address opens `component`. With `courses`, it is where the courses are listed: it stays selected
+ * inside a course, and the course's back link returns to it.
+ */
+export type MobileTabContribution = {
+  id: string
+  order: number
+  title: Message
+  icon: LucideIcon
+  component: Lazy<PageProps>
+  courses?: true
+}
+
 export type ModuleManifest = {
   id: string
   /** 'core' cannot be uninstalled; 'plugin' is installed per account (M10). */
@@ -585,6 +598,8 @@ export type ModuleManifest = {
   /** What a plugin needs before it is useful, shown on its catalog page (M10 §5.3). */
   requirements?: Message
   pages?: readonly PageContribution[]
+  /** Phone tabs at Program addresses that are routes of their own on the desktop (M17). */
+  mobileTabs?: readonly MobileTabContribution[]
   cards?: readonly CardContribution[]
   settingsSections?: readonly SettingsSectionContribution[]
   commands?: readonly CommandContribution[]

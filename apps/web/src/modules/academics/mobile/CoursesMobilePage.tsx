@@ -33,7 +33,6 @@ export default function CoursesMobilePage({ scope }: PageProps) {
   return (
     <MobilePage
       title={m.mobile_courses()}
-      subtitle={term?.name}
       action={
         terms && terms.length > 1 && term ? (
           <NativeSelect
@@ -56,27 +55,29 @@ export default function CoursesMobilePage({ scope }: PageProps) {
           <section.component programId={programId} termId={term?.id} />
         </PluginBoundary>
       ))}
-      <TermCourses programId={programId} termId={term?.id} loading={!terms} />
+      <TermCourses programId={programId} term={term} loading={!terms} />
     </MobilePage>
   )
 }
 
+/** The term's courses, under the term's name: the picker may show another term than this one. */
 function TermCourses({
   programId,
-  termId,
+  term,
   loading,
 }: {
   programId: string
-  termId: string | undefined
+  term: { id: string; name: string } | undefined
   loading: boolean
 }) {
+  const termId = term?.id
   const courses = useCourses(programId, termId, { enabled: !!termId }).data?.items
   // What other modules show on the right (the grade so far).
   const columns = useExtensions<CourseColumn>(COURSE_COLUMNS).filter((c) => c.showOnPhone)
   const data = useColumnData(columns, programId)
   if (loading || (termId && !courses)) {
     return (
-      <MobileSection title={m.mobile_courses_this_term()}>
+      <MobileSection title={term?.name ?? m.mobile_courses()}>
         <Skeleton className="h-40 rounded-2xl" />
       </MobileSection>
     )
@@ -95,7 +96,7 @@ function TermCourses({
     )
   }
   return (
-    <MobileSection title={m.mobile_courses_this_term()}>
+    <MobileSection title={term?.name ?? m.mobile_courses()}>
       <MobileList label={m.mobile_courses()}>
         {courses.map((course) => (
           <li key={course.id}>

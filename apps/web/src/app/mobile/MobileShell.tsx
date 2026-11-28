@@ -1,9 +1,9 @@
-import { Link, Navigate, useMatch } from '@tanstack/react-router'
+import { Link, Navigate, useLocation, useMatch } from '@tanstack/react-router'
 import { Ellipsis, MessageCircle, MonitorSmartphone } from 'lucide-react'
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import {
   type AssistantContribution,
-  type PageContribution,
+  type MobileTabContribution,
   type Scope,
   preload,
 } from '@/app/extensions'
@@ -26,10 +26,13 @@ import { MobileCourse } from './MobileCourse'
 import { MoreDrawer } from './MoreDrawer'
 import { onPhone } from './phone'
 
-/** The Program's pages that have a phone version, the tabs first by their order. */
-function usePhonePages(scope: Scope): {
-  pages: PageContribution[]
-  tabs: PageContribution[]
+/**
+ * What the phone shows at the Program's addresses (`/p/<program>/<id>`): the pages with a phone
+ * version and the modules' `mobileTabs`; the tabs among them by their order.
+ */
+function usePhoneScreens(scope: Scope): {
+  screens: MobileTabContribution[]
+  tabs: MobileTabContribution[]
   settled: boolean
 } {
   const statuses = usePageStatuses(scope)
@@ -38,12 +41,24 @@ function usePhonePages(scope: Scope): {
     useInstalledPluginsReady() && statuses.every((entry) => entry.status !== 'pending')
   const pages = statuses
     .filter((entry) => entry.status === 'available' && onPhone(entry.page, scope))
-    .map((entry) => entry.page)
-  const tabs = pages
-    .filter((page) => page.mobile?.tab)
-    .sort((a, b) => a.mobile!.tab!.order - b.mobile!.tab!.order)
-  return { pages, tabs, settled }
+    .map(({ page }) => ({
+      id: page.id,
+      order: page.mobile?.tab?.order ?? Infinity,
+      title: page.title,
+      icon: page.icon,
+      component: page.mobile!.component,
+      tab: !!page.mobile?.tab,
+    }))
+  const own = useModules()
+    .flatMap((module) => module.mobileTabs ?? [])
+    .map((tab) => ({ ...tab, tab: true }))
+  const screens = [...pages, ...own]
+  const tabs = screens.filter((screen) => screen.tab).sort((a, b) => a.order - b.order)
+  return { screens, tabs, settled }
 }
+
+// `/p/<program>/<id>`, one level under the Program.
+const PROGRAM_CHILD = /^\/p\/[^/]+\/([^/]+)\/?$/
 
 const NO_PAGE: AssistantContribution['page'] = { subscribe: () => () => {}, sessionId: () => null }
 
@@ -55,8 +70,9 @@ const NO_PAGE: AssistantContribution['page'] = { subscribe: () => () => {}, sess
  */
 export default function MobileShell({ programId }: { programId: string }) {
   const scope: Scope = { kind: 'program', programId }
-  const { pages, tabs, settled } = usePhonePages(scope)
-  const pageMatch = useMatch({ from: '/_authed/p/$programId/$page', shouldThrow: false })
+  const { screens, tabs, settled } = usePhoneScreens(scope)
+  // A page's address, or one with a route of its own on the desktop (`mobileTabs`).
+  const pageId = useLocation({ select: (location) => PROGRAM_CHILD.exec(location.pathname)?.[1] })
   const atProgram = useMatch({ from: '/_authed/p/$programId/', shouldThrow: false })
   const coursePage = useMatch({
     from: '/_authed/p/$programId/c/$courseId/$page',
@@ -79,9 +95,8 @@ export default function MobileShell({ programId }: { programId: string }) {
   const startPage = preferences.data?.start_page
   // Where the Program's address leads waits for the start page and every tab.
   const ready = settled && !preferences.isPending
-  const pageId = pageMatch?.params.page
   const home = tabs[0]
-  const page = pages.find((candidate) => candidate.id === pageId)
+  const page = screens.find((candidate) => candidate.id === pageId)
   // The Program's address (where `/` and the installed app start) opens the start page the user
   // chose when the phone has it (M11 `start_page`), else the first tab.
   if (atProgram && ready && startPage === 'assistant' && Assistant) {
@@ -106,9 +121,9 @@ export default function MobileShell({ programId }: { programId: string }) {
       />
     )
   }
-  const Page = page?.mobile?.component
+  const Page = page?.component
   // Inside a course the courses tab stays selected: it is where the course was opened from.
-  const coursesTab = tabs.find((tab) => tab.mobile?.tab?.courses)
+  const coursesTab = tabs.find((tab) => tab.courses)
   const activeId = courseId ? coursesTab?.id : page?.id
   return (
     <div className="flex h-dvh flex-col bg-background">
@@ -149,7 +164,7 @@ export function DesktopOnly({
   home,
 }: {
   programId: string
-  home: PageContribution | undefined
+  home: MobileTabContribution | undefined
 }) {
   return (
     <Empty>
@@ -183,7 +198,7 @@ function TabBar({
   assistant,
 }: {
   programId: string
-  tabs: PageContribution[]
+  tabs: MobileTabContribution[]
   activeId: string | undefined
   assistant: { active: boolean; sessionId: string | undefined } | null
 }) {
@@ -195,7 +210,7 @@ function TabBar({
     >
       {tabs.map((tab) => {
         const active = tab.id === activeId
-        const Icon = tab.mobile?.tab?.icon ?? tab.icon
+        const Icon = tab.icon
         return (
           <Link
             key={tab.id}
@@ -205,7 +220,7 @@ function TabBar({
             className={cn(TAB, active && 'text-primary')}
           >
             <Icon aria-hidden className="size-6" strokeWidth={active ? 2.25 : 1.75} />
-            {(tab.mobile?.tab?.title ?? tab.title)()}
+            {tab.title()}
           </Link>
         )
       })}

@@ -19,7 +19,7 @@ import {
 } from '@/ui/dropdown-menu'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
-import { type Target, compareNames, targetKey } from '../folders'
+import { type Target, compareNames, freshFolders, targetKey } from '../folders'
 import { BrowserContext, type BrowserHandlers } from './browser'
 import { FileGrid } from './FileGrid'
 import { FileTable, columns, features } from './FileTable'
@@ -136,13 +136,7 @@ export function FileBrowser({
     .filter((f) => f.parent_id === folderId)
     .toSorted((a, b) => compareNames(a.name, b.name))
   const items = list.items.filter((i) => i.folder_id === folderId)
-  // Folders with something not opened in them, at any depth.
-  const parents = new Map(list.folders.map((f) => [f.id, f.parent_id]))
-  const fresh = new Set<string>()
-  for (const item of list.items) {
-    if (!item.unseen) continue
-    for (let id = item.folder_id; id && !fresh.has(id); id = parents.get(id) ?? null) fresh.add(id)
-  }
+  const fresh = freshFolders(list.folders, list.items)
   return (
     <BrowserContext value={handlers}>
       <Entries

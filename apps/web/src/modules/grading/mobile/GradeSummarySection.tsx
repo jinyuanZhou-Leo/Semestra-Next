@@ -16,8 +16,7 @@ export default function GradeSummarySection({
   termId: string | undefined
 }) {
   const program = useProgramGrades(programId).data
-  const term = useTermGrades(termId ?? '')
-  const termData = termId ? term.data : undefined
+  const termData = useTermGrades(termId).data
   return (
     <MobileSection title={m.mobile_grades_summary()}>
       {program ? (

@@ -561,12 +561,16 @@ test("on a phone the courses tab lists the term's courses, each opening its page
   // The course opens with its pages as segments; the courses tab stays the current one.
   expect(await screen.findByRole('heading', { name: 'APS105H1' })).toBeInTheDocument()
   expect(tabs.getByRole('link', { name: 'Courses' })).toHaveAttribute('aria-current', 'page')
-  const pages = within(screen.getByRole('navigation', { name: 'Course pages' }))
-  await userEvent.click(pages.getByRole('link', { name: 'Notes' }))
+  const pages = within(screen.getByRole('group', { name: 'Course pages' }))
+  await userEvent.click(pages.getByRole('button', { name: 'Notes' }))
   expect(await screen.findByText('Notes on a phone')).toBeInTheDocument()
   expect(router.state.location.pathname).toBe('/p/p1/c/c1/notes')
   // A page with no phone version in a course (Lists is a Program page) is not among them.
-  expect(pages.queryByRole('link', { name: 'Lists' })).not.toBeInTheDocument()
+  expect(pages.queryByRole('button', { name: 'Lists' })).not.toBeInTheDocument()
+  // Back is where the courses are: "Terms & courses", at its desktop address.
+  await userEvent.click(screen.getAllByRole('link', { name: 'Courses' })[0]!)
+  await waitFor(() => expect(router.state.location.pathname).toBe('/p/p1/academics'))
+  expect(await screen.findByRole('link', { name: /APS105H1/ })).toBeInTheDocument()
 
   // A link from a notification keeps its query on the way to the first tab.
   await act(() => router.navigate({ href: '/p/p1?import=s1' }))

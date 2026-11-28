@@ -1,3 +1,5 @@
+import { filesItemMarkSeenMutation } from '@semestra/api-client/react-query'
+import { useMutation } from '@tanstack/react-query'
 import type { FolderOut, ItemOut } from '@semestra/api-client'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { ChevronLeft, ChevronRight, Folder, FolderOpen, Search, SearchX } from 'lucide-react'
@@ -12,7 +14,8 @@ import { Empty, EmptyContent, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/e
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/ui/input-group'
 import { Skeleton } from '@/ui/skeleton'
 import { FileIcon } from '../components/FileIcon'
-import { compareNames } from '../folders'
+import { NewDot } from '../components/browser'
+import { compareNames, freshFolders } from '../folders'
 import { contentUrl, useCourseFiles } from '../queries'
 import { matchNames } from '../search-names'
 
@@ -61,6 +64,7 @@ export default function CourseFilesMobile({ scope }: PageProps) {
         .filter((i) => i.folder_id === (folder?.id ?? null))
         .toSorted((a, b) => compareNames(a.display_name, b.display_name))
   const empty = data.folders.length === 0 && data.items.length === 0
+  const fresh = freshFolders(data.folders, data.items)
   return (
     <>
       {empty ? null : (
@@ -121,6 +125,7 @@ export default function CourseFilesMobile({ scope }: PageProps) {
               <FolderRow
                 key={f.id}
                 folder={f}
+                fresh={fresh.has(f.id)}
                 onOpen={() => {
                   setQuery('')
                   go(f.id)
@@ -137,7 +142,15 @@ export default function CourseFilesMobile({ scope }: PageProps) {
   )
 }
 
-function FolderRow({ folder, onOpen }: { folder: FolderOut; onOpen: () => void }) {
+function FolderRow({
+  folder,
+  fresh,
+  onOpen,
+}: {
+  folder: FolderOut
+  fresh: boolean
+  onOpen: () => void
+}) {
   return (
     <li>
       <button
@@ -146,7 +159,10 @@ function FolderRow({ folder, onOpen }: { folder: FolderOut; onOpen: () => void }
         onClick={onOpen}
       >
         <Folder aria-hidden className="size-5 shrink-0 text-muted-foreground" />
-        <span className="min-w-0 flex-1 truncate font-medium">{folder.name}</span>
+        <span className="flex min-w-0 flex-1 items-center gap-1.5">
+          <span className="truncate font-medium">{folder.name}</span>
+          {fresh ? <NewDot /> : null}
+        </span>
         <span className="text-sm text-muted-foreground tabular-nums">{folder.item_count}</span>
         <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground" />
       </button>
@@ -157,6 +173,8 @@ function FolderRow({ folder, onOpen }: { folder: FolderOut; onOpen: () => void }
 function FileRow({ item, marked }: { item: ItemOut; marked: boolean }) {
   // A link opens where it points; a file in the browser's own viewer (PDFs, images).
   const href = item.kind === 'link' ? item.url : contentUrl(item.id)
+  // Opened, a new file is new no more, as when the desktop previews it.
+  const { mutate: markSeen } = useMutation(filesItemMarkSeenMutation())
   return (
     <li className={cn(marked && 'bg-primary/8')}>
       <a
@@ -164,16 +182,15 @@ function FileRow({ item, marked }: { item: ItemOut; marked: boolean }) {
         target="_blank"
         rel="noreferrer"
         className="flex min-h-13 items-center gap-3 px-4 py-2.5"
+        onClick={() => {
+          if (item.unseen) markSeen({ path: { item_id: item.id } })
+        }}
       >
         <FileIcon item={item} aria-hidden className="size-5 shrink-0 text-muted-foreground" />
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-1.5">
             <span className="truncate font-medium">{item.display_name}</span>
-            {item.unseen ? (
-              <span className="size-2 shrink-0 rounded-full bg-primary">
-                <span className="sr-only">{m.mobile_files_new()}</span>
-              </span>
-            ) : null}
+            {item.unseen ? <NewDot /> : null}
           </span>
           <span className="block truncate text-xs text-muted-foreground tabular-nums">
             {[

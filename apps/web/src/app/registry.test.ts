@@ -24,6 +24,9 @@ test('every lazy page, card, settings section and calendar form of a built-in mo
         .filter((part) => part !== undefined && !canPreload(part))
         .map(() => `${module.id}:${page.id}`),
     ),
+    ...(module.mobileTabs ?? [])
+      .filter((tab) => !canPreload(tab.component))
+      .map((tab) => `${module.id}:${tab.id}`),
     ...(module.cards ?? []).flatMap((card) =>
       [card.component, cardSettings.get(card.id)]
         .filter((part) => part !== undefined && !canPreload(part))
