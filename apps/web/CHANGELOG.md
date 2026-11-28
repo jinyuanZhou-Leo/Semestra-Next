@@ -1,5 +1,29 @@
 # @semestra/web
 
+## 2.9.0
+
+### Minor Changes
+
+- 6c05c73: <!-- area: courses -->
+  <!-- en -->
+  On a phone, a new Courses tab shows your GPA and this term's courses; each course opens its overview, grades, files and announcements, and notifications open there.
+  <!-- zh -->
+  手机上新增“课程”标签，可以查看 GPA 和本学期的课程；点开课程即可查看概览、成绩、文件和公告，通知也会直接打开对应页面。
+- a00fbe7: <!-- area: overview -->
+  <!-- en -->
+  On a phone, Today has a week strip on top: swipe through weeks and tap a day to see its classes, events and tasks.
+  <!-- zh -->
+  手机上的“今天”顶部新增周条，可以左右滑动翻看各周，点任意一天查看当天的课程、事件和待办。
+- 57e93c1: <!-- area: sem -->
+  <!-- en -->
+  When Sem applies an import that differs from what you already have, you can choose item by item whether to keep it or take the import.
+  <!-- zh -->
+  Sem 应用导入时，与已有内容不同的部分可逐项选择保留或采用导入的内容。
+
+### Patch Changes
+
+- @semestra/api-client@2.9.0
+
 ## 2.8.0
 
 ### Minor Changes

@@ -1,5 +1,25 @@
 # @semestra/api
 
+## 2.9.0
+
+### Minor Changes
+
+- 38d1eb3: <!-- area: api -->
+  <!-- en -->
+  In MCP clients that support forms, Semestra asks you to confirm deletions, batch changes and imports, lets you pick a course when it is unclear, and lets you settle import conflicts item by item.
+  <!-- zh -->
+  在支持表单的 MCP 客户端中，删除、批量修改与导入前会请你确认；课程不明确时可直接选择；导入冲突可逐项决定保留或覆盖。
+- 6c05c73: <!-- area: courses -->
+  <!-- en -->
+  On a phone, a new Courses tab shows your GPA and this term's courses; each course opens its overview, grades, files and announcements, and notifications open there.
+  <!-- zh -->
+  手机上新增“课程”标签，可以查看 GPA 和本学期的课程；点开课程即可查看概览、成绩、文件和公告，通知也会直接打开对应页面。
+- 57e93c1: <!-- area: sem -->
+  <!-- en -->
+  When Sem applies an import that differs from what you already have, you can choose item by item whether to keep it or take the import.
+  <!-- zh -->
+  Sem 应用导入时，与已有内容不同的部分可逐项选择保留或采用导入的内容。
+
 ## 2.8.0
 
 ### Minor Changes

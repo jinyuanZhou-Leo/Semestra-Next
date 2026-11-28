@@ -3,6 +3,15 @@
 Generated from `release-notes/*.json` by `scripts/release.mjs`; do not edit by hand.
 The same notes in Chinese are in the JSON files and on the docs site.
 
+## 2.9.0 (2026-11-28)
+
+### New
+
+- **Sem:** When Sem applies an import that differs from what you already have, you can choose item by item whether to keep it or take the import.
+- **Overview & Today:** On a phone, Today has a week strip on top: swipe through weeks and tap a day to see its classes, events and tasks.
+- **Terms & courses:** On a phone, a new Courses tab shows your GPA and this term's courses; each course opens its overview, grades, files and announcements, and notifications open there.
+- **API & MCP:** In MCP clients that support forms, Semestra asks you to confirm deletions, batch changes and imports, lets you pick a course when it is unclear, and lets you settle import conflicts item by item.
+
 ## 2.8.0 (2026-11-27)
 
 ### New
