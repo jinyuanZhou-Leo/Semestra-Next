@@ -449,12 +449,25 @@ export type CalendarSourceContribution = {
   create?: { label: Message; form: Preloadable<CalendarCreateProps> }
 }
 
-export type SearchResult = { id: string; title: string; subtitle?: string; to: string }
+export type SearchResult = {
+  id: string
+  title: string
+  subtitle?: string
+  to: string
+  /** Instead of the provider's icon (a file's type). */
+  icon?: LucideIcon
+}
 
-/** Results for the global search (command palette, M10). */
+/**
+ * Results for the global search (command palette, M10), shown as a group of their own under
+ * `title`. Keep `search` light (import its code on demand): manifests are part of the entry.
+ */
 export type SearchProviderContribution = {
   id: string
   title: Message
+  icon: LucideIcon
+  /** Where its group sits among the others: tasks 10, assessments 20, files 30, announcements 40. */
+  order: number
   /** Read through `queryClient`, so data a page has loaded is searched without asking again. */
   search: (
     query: string,

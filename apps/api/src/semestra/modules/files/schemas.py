@@ -438,6 +438,7 @@ class FileMatch(BaseModel):
 
     id: str
     course_id: str
+    folder_id: str | None = Field(description="Folder it is in; none at the course's top level")
     display_name: str
     mime_type: str | None
     updated_at: datetime

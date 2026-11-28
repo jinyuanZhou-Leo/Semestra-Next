@@ -50,6 +50,16 @@ export default defineModule({
       order: 20,
     },
   ],
+  searchProviders: [
+    {
+      id: 'tasks.items',
+      title: m.tasks_name,
+      icon: ListChecks,
+      order: 10,
+      search: (query, scope, queryClient) =>
+        import('./search').then((search) => search.searchTasks(query, scope, queryClient)),
+    },
+  ],
   cards: [
     {
       id: 'tasks.today',

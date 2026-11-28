@@ -13,6 +13,7 @@ import TodayCard from './cards/TodayCard'
 import { flushCompletions } from './completion'
 import TasksMobilePage from './mobile/TasksMobilePage'
 import TasksPage from './pages/TasksPage'
+import { searchTasks } from './search'
 
 /** Where the page is narrow (always in jsdom) the title is the menu of lists. */
 async function pickList(current: string, name: RegExp) {
@@ -625,4 +626,45 @@ test('on a phone the tasks are grouped by due date, checked off in place and edi
   const sheet = await screen.findByRole('dialog')
   await userEvent.click(within(sheet).getByRole('button', { name: 'High' }))
   await waitFor(() => expect(log.updates).toEqual([{ id: 't1', body: { priority: 'high' } }]))
+})
+
+test('a link to a task opens its details, also when the list on screen does not hold it', async () => {
+  const done = task({ id: 't9', title: 'Old lab', completed_at: stamp })
+  server.use(http.get(`${API}/tasks/t9`, () => HttpResponse.json(done)))
+  const { router } = renderWithRouter(
+    <SidebarProvider>
+      <TasksPage scope={{ kind: 'program', programId: 'p1' }} />
+    </SidebarProvider>,
+    undefined,
+    { path: '/', at: '/?task=t9' },
+  )
+  const sheet = await screen.findByRole('dialog', { name: 'Details' })
+  expect(within(sheet).getByDisplayValue('Old lab')).toBeInTheDocument()
+  // The link is not repeated by a reload or by going back.
+  await waitFor(() => expect(router.state.location.search).toEqual({}))
+})
+
+test('the command palette lists open tasks before finished ones that match better', async () => {
+  const candidate = (id: string, completed: boolean) => ({
+    task_id: id,
+    title: `Lab ${id}`,
+    course_id: null,
+    due_date: null,
+    completed,
+    source_kind: null,
+    assessment_id: null,
+    score: completed ? 1 : 0.8,
+  })
+  const finished = ['d1', 'd2', 'd3', 'd4', 'd5'].map((id) => candidate(id, true))
+  server.use(
+    http.get(`${API}/programs/p1/task-matches`, ({ request }) => {
+      const all = new URL(request.url).searchParams.get('include_completed') === 'true'
+      return HttpResponse.json({
+        items: all ? finished : [candidate('o1', false)],
+      })
+    }),
+  )
+  const { queryClient } = renderWithRouter(<p />)
+  const found = await searchTasks('lab', { kind: 'program', programId: 'p1' }, queryClient)
+  expect(found.map((r) => r.id)).toEqual(['o1', 'd1', 'd2', 'd3', 'd4'])
 })

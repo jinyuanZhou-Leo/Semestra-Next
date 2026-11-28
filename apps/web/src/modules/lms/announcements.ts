@@ -5,6 +5,7 @@ import {
   lmsTermAnnouncementListOptions,
 } from '@semestra/api-client/react-query'
 import { type Scope, type SearchProviderContribution, scopePath } from '@/app/extensions'
+import { Megaphone } from 'lucide-react'
 import { isSameDay, isSameYear } from 'date-fns'
 import { formatDate, formatTime } from '@/lib/format'
 import { m } from '@/paraglide/messages'
@@ -68,6 +69,8 @@ const MAX_RESULTS = 8
 export const announcementSearch: SearchProviderContribution = {
   id: 'lms.announcements',
   title: m.lms_announcements_page_title,
+  icon: Megaphone,
+  order: 40,
   search: async (query, scope, queryClient) => {
     const links = scope ? announcementLinksQuery(scope) : null
     if (!scope || !links) return []
@@ -100,9 +103,7 @@ export const announcementSearch: SearchProviderContribution = {
         return {
           id: postKey(courseId, a.external_id),
           title: a.title,
-          subtitle: [m.lms_announcements_page_title(), a.posted_at ? formatDate(a.posted_at) : null]
-            .filter(Boolean)
-            .join(' · '),
+          subtitle: a.posted_at ? formatDate(a.posted_at) : undefined,
           to: announcementPath(scope, courseId, a.external_id),
         }
       })

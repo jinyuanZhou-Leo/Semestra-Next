@@ -660,6 +660,76 @@ export type Assessment = {
 };
 
 /**
+ * AssessmentCandidate
+ */
+export type AssessmentCandidate = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * Course Code
+     */
+    course_code: string | null;
+    /**
+     * Course Title
+     */
+    course_title: string;
+    /**
+     * In Current Term
+     *
+     * The course runs in the current term
+     */
+    in_current_term: boolean;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Category Id
+     */
+    category_id: string | null;
+    /**
+     * Category Name
+     */
+    category_name: string | null;
+    /**
+     * Due At
+     */
+    due_at: string | null;
+    /**
+     * Weight
+     */
+    weight: number;
+    /**
+     * Score Percentage
+     */
+    score_percentage: number | null;
+    /**
+     * Score
+     *
+     * Match quality from 0 to 1
+     */
+    score: number;
+};
+
+/**
+ * AssessmentCandidates
+ */
+export type AssessmentCandidates = {
+    /**
+     * Items
+     *
+     * Best match first
+     */
+    items: Array<AssessmentCandidate>;
+};
+
+/**
  * AssessmentCategory
  */
 export type AssessmentCategory = {
@@ -5182,6 +5252,12 @@ export type FileMatch = {
      * Course Id
      */
     course_id: string;
+    /**
+     * Folder Id
+     *
+     * Folder it is in; none at the course's top level
+     */
+    folder_id: string | null;
     /**
      * Display Name
      */
@@ -12486,6 +12562,56 @@ export type Task = {
      * Updated At
      */
     updated_at: string;
+};
+
+/**
+ * TaskCandidate
+ */
+export type TaskCandidate = {
+    /**
+     * Task Id
+     */
+    task_id: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Course Id
+     */
+    course_id: string | null;
+    /**
+     * Due Date
+     */
+    due_date: string | null;
+    /**
+     * Completed
+     */
+    completed: boolean;
+    /**
+     * Source Kind
+     */
+    source_kind: 'lms' | 'syllabus' | 'agent' | 'manual' | null;
+    /**
+     * Assessment Id
+     *
+     * Set when title, due date and course follow a gradebook assessment
+     */
+    assessment_id: string | null;
+    /**
+     * Score
+     */
+    score: number;
+};
+
+/**
+ * TaskCandidates
+ */
+export type TaskCandidates = {
+    /**
+     * Items
+     */
+    items: Array<TaskCandidate>;
 };
 
 /**
@@ -19989,6 +20115,57 @@ export type GradingAssessmentDeleteManyResponses = {
 
 export type GradingAssessmentDeleteManyResponse = GradingAssessmentDeleteManyResponses[keyof GradingAssessmentDeleteManyResponses];
 
+export type GradingAssessmentFindData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program to search when no course is given
+         */
+        program_id: string | null;
+    };
+    query: {
+        /**
+         * Query
+         *
+         * How the user named it: 'Lab 3', 'midterm', 'assignment 2'
+         */
+        query: string;
+        /**
+         * Course Id
+         *
+         * Search only this course; otherwise the whole Program, the current term's courses first
+         */
+        course_id?: string | null;
+        /**
+         * Limit
+         *
+         * Max candidates
+         */
+        limit?: number;
+    };
+    url: '/programs/{program_id}/assessment-matches';
+};
+
+export type GradingAssessmentFindErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type GradingAssessmentFindError = GradingAssessmentFindErrors[keyof GradingAssessmentFindErrors];
+
+export type GradingAssessmentFindResponses = {
+    /**
+     * Successful Response
+     */
+    200: AssessmentCandidates;
+};
+
+export type GradingAssessmentFindResponse = GradingAssessmentFindResponses[keyof GradingAssessmentFindResponses];
+
 export type GradingAssessmentUpcomingData = {
     body?: never;
     path: {
@@ -25603,6 +25780,57 @@ export type TasksItemUpdateResponses = {
 };
 
 export type TasksItemUpdateResponse = TasksItemUpdateResponses[keyof TasksItemUpdateResponses];
+
+export type TasksItemFindData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program; defaults to the scope's
+         */
+        program_id: string | null;
+    };
+    query: {
+        /**
+         * Query
+         *
+         * Words from the task's title, e.g. 'lab report'
+         */
+        query: string;
+        /**
+         * Include Completed
+         *
+         * Also search completed tasks
+         */
+        include_completed?: boolean;
+        /**
+         * Limit
+         *
+         * Most candidates
+         */
+        limit?: number;
+    };
+    url: '/programs/{program_id}/task-matches';
+};
+
+export type TasksItemFindErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type TasksItemFindError = TasksItemFindErrors[keyof TasksItemFindErrors];
+
+export type TasksItemFindResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaskCandidates;
+};
+
+export type TasksItemFindResponse = TasksItemFindResponses[keyof TasksItemFindResponses];
 
 export type TasksItemMoveData = {
     body: TaskMoveInputBody;

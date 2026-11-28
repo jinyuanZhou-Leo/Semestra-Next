@@ -412,6 +412,12 @@ async def test_folders_links_and_listing(fx: Fx):
     )
     assert [i["display_name"] for i in everything["items"]] == ["Piazza", "slides.pdf"]
 
+    # A file found by name says which folder it is in, to open it there.
+    found = await fx.call(
+        "GET", f"/programs/{fx.program_id}/file-names", params={"query": "slides"}
+    )
+    assert [i["folder_id"] for i in found["items"]] == [week1["id"]]
+
     renamed = await fx.call(
         "PATCH",
         f"/files/{slides['id']}",

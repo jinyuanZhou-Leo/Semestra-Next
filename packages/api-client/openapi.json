@@ -8964,6 +8964,114 @@
         }
       }
     },
+    "/programs/{program_id}/assessment-matches": {
+      "get": {
+        "tags": [
+          "grading"
+        ],
+        "summary": "Find assessments by how the user names them: 'Lab 3', 'midterm'.",
+        "description": "Use first whenever the user refers to an assessment in words to get its id, then\nupdate it. Searches the given course; otherwise the Program, ranking the current term's courses\nfirst. Returns candidates with their course and a score; ask the user when the top candidates are\nclose. When none matches, read the course's grading.assessment.list before creating one: the\nuser may call it something else (\"Q2\" for \"Quiz 2\").",
+        "operationId": "gradingAssessmentFind",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "program_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Program to search when no course is given",
+              "title": "Program Id"
+            },
+            "description": "Program to search when no course is given"
+          },
+          {
+            "name": "query",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "How the user named it: 'Lab 3', 'midterm', 'assignment 2'",
+              "title": "Query"
+            },
+            "description": "How the user named it: 'Lab 3', 'midterm', 'assignment 2'"
+          },
+          {
+            "name": "course_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Search only this course; otherwise the whole Program, the current term's courses first",
+              "title": "Course Id"
+            },
+            "description": "Search only this course; otherwise the whole Program, the current term's courses first"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": "Max candidates",
+              "default": 5,
+              "title": "Limit"
+            },
+            "description": "Max candidates"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssessmentCandidates"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/programs/{program_id}/upcoming-assessments": {
       "get": {
         "tags": [
@@ -19745,6 +19853,106 @@
         }
       }
     },
+    "/programs/{program_id}/task-matches": {
+      "get": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "Find tasks by words of their title ('that lab report').",
+        "description": "Use whenever the user refers to a task in words and you need its id. If the two\nbest candidates score similarly, ask which one is meant.",
+        "operationId": "tasksItemFind",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "program_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Program; defaults to the scope's",
+              "title": "Program Id"
+            },
+            "description": "Program; defaults to the scope's"
+          },
+          {
+            "name": "query",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Words from the task's title, e.g. 'lab report'",
+              "title": "Query"
+            },
+            "description": "Words from the task's title, e.g. 'lab report'"
+          },
+          {
+            "name": "include_completed",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Also search completed tasks",
+              "default": false,
+              "title": "Include Completed"
+            },
+            "description": "Also search completed tasks"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": "Most candidates",
+              "default": 5,
+              "title": "Limit"
+            },
+            "description": "Most candidates"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskCandidates"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/tasks/{task_id}:move": {
       "post": {
         "tags": [
@@ -21284,6 +21492,129 @@
           "updated_at"
         ],
         "title": "Assessment"
+      },
+      "AssessmentCandidate": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "course_id": {
+            "type": "string",
+            "title": "Course Id"
+          },
+          "course_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Course Code"
+          },
+          "course_title": {
+            "type": "string",
+            "title": "Course Title"
+          },
+          "in_current_term": {
+            "type": "boolean",
+            "title": "In Current Term",
+            "description": "The course runs in the current term"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "category_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category Id"
+          },
+          "category_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category Name"
+          },
+          "due_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due At"
+          },
+          "weight": {
+            "type": "number",
+            "title": "Weight"
+          },
+          "score_percentage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score Percentage"
+          },
+          "score": {
+            "type": "number",
+            "title": "Score",
+            "description": "Match quality from 0 to 1"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "course_id",
+          "course_code",
+          "course_title",
+          "in_current_term",
+          "title",
+          "category_id",
+          "category_name",
+          "due_at",
+          "weight",
+          "score_percentage",
+          "score"
+        ],
+        "title": "AssessmentCandidate"
+      },
+      "AssessmentCandidates": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AssessmentCandidate"
+            },
+            "type": "array",
+            "title": "Items",
+            "description": "Best match first"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "AssessmentCandidates"
       },
       "AssessmentCategory": {
         "properties": {
@@ -29112,6 +29443,18 @@
             "type": "string",
             "title": "Course Id"
           },
+          "folder_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder Id",
+            "description": "Folder it is in; none at the course's top level"
+          },
           "display_name": {
             "type": "string",
             "title": "Display Name"
@@ -29137,6 +29480,7 @@
         "required": [
           "id",
           "course_id",
+          "folder_id",
           "display_name",
           "mime_type",
           "updated_at"
@@ -41613,6 +41957,106 @@
           "updated_at"
         ],
         "title": "Task"
+      },
+      "TaskCandidate": {
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "title": "Task Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "course_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Course Id"
+          },
+          "due_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due Date"
+          },
+          "completed": {
+            "type": "boolean",
+            "title": "Completed"
+          },
+          "source_kind": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "lms",
+                  "syllabus",
+                  "agent",
+                  "manual"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Kind"
+          },
+          "assessment_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assessment Id",
+            "description": "Set when title, due date and course follow a gradebook assessment"
+          },
+          "score": {
+            "type": "number",
+            "title": "Score"
+          }
+        },
+        "type": "object",
+        "required": [
+          "task_id",
+          "title",
+          "course_id",
+          "due_date",
+          "completed",
+          "source_kind",
+          "assessment_id",
+          "score"
+        ],
+        "title": "TaskCandidate"
+      },
+      "TaskCandidates": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TaskCandidate"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "TaskCandidates"
       },
       "TaskClearInputBody": {
         "properties": {

@@ -1,6 +1,6 @@
 import { useQueries } from '@tanstack/react-query'
 import { ChevronRight, CornerDownLeft, FileText, Sparkles } from 'lucide-react'
-import { type KeyboardEvent, type ReactNode, useState } from 'react'
+import { Fragment, type KeyboardEvent, type ReactNode, useState } from 'react'
 import { m } from '@/paraglide/messages'
 import {
   Command,
@@ -35,6 +35,7 @@ const SEARCH_DEBOUNCE_MS = 150
 /** Navigation entries shown before anything is typed. */
 const SUGGESTED_NAVIGATION = 8
 const MAX_PER_GROUP = 12
+const ASK_KEY = 'ask'
 
 type Entry = Matchable & {
   key: string
@@ -202,7 +203,9 @@ function PaletteBody({ initialQuery, close }: { initialQuery: string; close: () 
     setChild(command)
     setQuery('')
   })
-  const providers = modules.flatMap((module) => module.searchProviders ?? [])
+  const providers = modules
+    .flatMap((module) => module.searchProviders ?? [])
+    .toSorted((a, b) => a.order - b.order)
   const results = useQueries({
     queries: providers.map((provider) => ({
       queryKey: ['commandPaletteSearch', provider.id, searchText, ctx.scope],
@@ -239,20 +242,58 @@ function PaletteBody({ initialQuery, close }: { initialQuery: string; close: () 
       </CommandGroup>
     ) : null
 
-  const searchEntries: Entry[] = searching
-    ? results.flatMap((result, index) =>
-        (result.data ?? []).map((hit) => ({
-          key: `search:${providers[index]?.id}:${hit.id}`,
+  // One group per provider, so what a result is reads from its heading.
+  const searchGroups = searching
+    ? providers.map((provider, index) => ({
+        provider,
+        entries: (results[index]?.data ?? []).map((hit): Entry => ({
+          key: `search:${provider.id}:${hit.id}`,
           title: hit.title,
           subtitle: hit.subtitle,
+          icon: hit.icon ?? provider.icon,
           select: () => ctx.navigate(hit.to),
         })),
-      )
+      }))
     : []
+  const navigationShown = slash
+    ? []
+    : rank(navigation, text, recent).slice(0, text ? MAX_PER_GROUP : SUGGESTED_NAVIGATION)
+  const actionsShown = rank(actions, text, recent).slice(0, MAX_PER_GROUP)
+  const asking = assistant && text && !slash ? assistant : null
+  // Until the user picks a line (arrow keys, pointer) for what is typed, the first line is
+  // selected, also when search results arrive after "Ask Sem" was the only line: Enter then opens
+  // the best match, not the question. A line the user picked stays picked as more results arrive.
+  const firstKey =
+    [...navigationShown, ...searchGroups.flatMap((g) => g.entries), ...actionsShown][0]?.key ??
+    (asking ? ASK_KEY : '')
+  const [selected, setSelected] = useState(firstKey)
+  const [picked, setPicked] = useState(false)
+  const [shownFirst, setShownFirst] = useState(firstKey)
+  const [typed, setTyped] = useState(text)
+  if (text !== typed) {
+    setTyped(text)
+    setPicked(false)
+  }
+  if (firstKey !== shownFirst) {
+    setShownFirst(firstKey)
+    if (!picked || text !== typed) setSelected(firstKey)
+  }
+  const pick = (value: string) => {
+    setSelected(value)
+    if (value !== firstKey) setPicked(true)
+  }
   const loading = searching && results.some((r) => r.isFetching)
 
   return (
-    <Command label={m.commands_title()} shouldFilter={false} loop onKeyDown={onKeyDown}>
+    <Command
+      label={m.commands_title()}
+      shouldFilter={false}
+      loop
+      onKeyDown={onKeyDown}
+      // A second list picks its own first line.
+      value={child ? undefined : selected}
+      onValueChange={pick}
+    >
       {child ? (
         <span className="mx-2 mt-1 flex w-fit items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-xs">
           {child.title()}
@@ -277,24 +318,18 @@ function PaletteBody({ initialQuery, close }: { initialQuery: string; close: () 
           />
         ) : (
           <>
-            {slash
-              ? null
-              : group(
-                  m.commands_group_navigation(),
-                  rank(navigation, text, recent).slice(
-                    0,
-                    text ? MAX_PER_GROUP : SUGGESTED_NAVIGATION,
-                  ),
-                )}
-            {group(m.commands_group_actions(), rank(actions, text, recent).slice(0, MAX_PER_GROUP))}
-            {group(m.commands_group_results(), searchEntries)}
-            {assistant && text && !slash ? (
+            {group(m.commands_group_navigation(), navigationShown)}
+            {searchGroups.map(({ provider, entries }) => (
+              <Fragment key={provider.id}>{group(provider.title(), entries)}</Fragment>
+            ))}
+            {group(m.commands_group_actions(), actionsShown)}
+            {asking ? (
               <CommandGroup heading={m.commands_group_ask()}>
                 <CommandItem
-                  value="ask"
+                  value={ASK_KEY}
                   onSelect={() => {
                     close()
-                    setTimeout(() => assistant.open(ctx, text), 0)
+                    setTimeout(() => asking.open(ctx, text), 0)
                   }}
                 >
                   <Sparkles aria-hidden />

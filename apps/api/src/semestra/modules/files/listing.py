@@ -84,6 +84,7 @@ async def search_names(ctx: Ctx, inp: FileSearchInput) -> list[FileMatch]:
     stmt = select(
         FilesItem.id,
         FilesItem.course_id,
+        FilesItem.folder_id,
         FilesItem.display_name,
         FilesItem.mime_type,
         FilesItem.updated_at,
@@ -101,6 +102,7 @@ async def search_names(ctx: Ctx, inp: FileSearchInput) -> list[FileMatch]:
         FileMatch(
             id=r.id,
             course_id=r.course_id,
+            folder_id=r.folder_id,
             display_name=r.display_name,
             mime_type=r.mime_type,
             updated_at=r.updated_at,
