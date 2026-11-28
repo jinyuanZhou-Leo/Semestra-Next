@@ -3728,5 +3728,9 @@
   "mobile_week_previous": "Previous week",
   "mobile_week_next": "Next week",
   "mobile_day_empty": "Nothing on this day",
-  "mobile_day_due": "Due"
+  "mobile_day_due": "Due",
+  "mobile_sync_title": "Sync",
+  "mobile_sync_pending": "{count} to review",
+  "mobile_sync_import_on_computer": "New assignments are imported on a computer, where you review them.",
+  "mobile_sync_nothing": "Nothing to review"
 }

@@ -1,5 +1,5 @@
 import type { SyncItem, SyncStatus } from '@semestra/api-client'
-import { ClipboardPlus, CloudDownload, FileMinus } from 'lucide-react'
+import { CloudDownload, FileMinus } from 'lucide-react'
 import { IconAction } from '@/components/IconAction'
 import { PanelFold, PanelMoreList, PanelRow } from '@/components/StatusPanel'
 import { formatTimeAgo } from '@/lib/format'
@@ -8,6 +8,8 @@ import { Button } from '@/ui/button'
 import type { SyncAnswers } from './answers'
 import { fieldLabel, formatValue } from './labels'
 import { type CourseOf, fieldIcon } from './rows'
+import { PanelActions } from './PendingSection'
+import { ignoredRows } from './pending-rows'
 import { UnreadableList } from './UnreadableList'
 
 /**
@@ -129,30 +131,15 @@ export function MoreSections({
       ) : null}
       {ignored.length > 0 ? (
         <PanelMoreList label={m.lms_sync_panel_ignored()} count={ignored.length}>
-          {ignored.map((item) => (
-            <PanelFold key={item.id} leaving={leaving(item.id)}>
+          {ignoredRows(ignored, { provider, answers, broken, onImport }).map((row) => (
+            <PanelFold key={row.key} leaving={leaving(row.key)}>
               <PanelRow
-                icon={ClipboardPlus}
-                title={item.title}
-                {...course(item.course_id, item.course)}
-                detail={m.lms_sync_kind_new()}
+                icon={row.icon}
+                title={row.title}
+                {...course(row.item.course_id, row.item.course)}
+                detail={row.detail}
               >
-                <Button
-                  size="xs"
-                  variant="ghost"
-                  disabled={busy}
-                  onClick={() => answers.setDismissed([item], false)}
-                >
-                  {m.lms_sync_remind()}
-                </Button>
-                <Button
-                  size="xs"
-                  variant="outline"
-                  disabled={broken}
-                  onClick={() => onImport([item])}
-                >
-                  {m.lms_sync_import()}
-                </Button>
+                <PanelActions actions={row.actions} />
               </PanelRow>
             </PanelFold>
           ))}
